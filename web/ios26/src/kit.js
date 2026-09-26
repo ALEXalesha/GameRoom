@@ -298,10 +298,13 @@ function killApp(id) {
   const sc = screens[id]; if (sc.onHide) sc.onHide();
 }
 let swDrag = null;
-$('switcher').addEventListener('pointerdown', e => { const c = e.target.closest('.sw-card'); if (!c) return; e.stopPropagation(); swDrag = { c, y: e.clientY, x: e.clientX, dy: 0 }; c.setPointerCapture(e.pointerId); });
+let swDown = false;   // отпускание того же нажатия, что открыло переключатель, его не закрывает
+$('switcher').addEventListener('pointerdown', e => { swDown = true; const c = e.target.closest('.sw-card'); if (!c) return; e.stopPropagation(); swDrag = { c, y: e.clientY, x: e.clientX, dy: 0 }; c.setPointerCapture(e.pointerId); });
 $('switcher').addEventListener('pointermove', e => { if (!swDrag) return; swDrag.dy = Math.min(0, e.clientY - swDrag.y); swDrag.c.style.transform = 'translateY(' + swDrag.dy + 'px)'; swDrag.c.style.opacity = String(1 + swDrag.dy / 400); });
 $('switcher').addEventListener('pointerup', e => {
   e.stopPropagation();
+  if (!swDown) return;
+  swDown = false;
   if (!swDrag) { if (!e.target.closest('.sw-card')) { closeSwitcher(); } return; }
   const { c, dy, x, y } = swDrag; swDrag = null;
   if (dy < -90) { c.classList.add('gone'); killApp(c.dataset.sw); setTimeout(() => { c.remove(); if (!RECENTS.length) { $('switcher').classList.add('empty'); } }, 200); return; }
@@ -315,7 +318,9 @@ $('device').addEventListener('pointerdown', e => {
   if ((e.clientY - r.top) / k > $('device').offsetHeight - 70 && !$('lock-page').classList.contains('active')) hold = { y: e.clientY, k, timer: null };
 }, true);
 $('device').addEventListener('pointermove', e => {
-  if (!hold || hold.timer || (hold.y - e.clientY) / hold.k < 60) return;
+  // сработает, только если палец замер: каждое движение откладывает срабатывание
+  if (!hold || (hold.y - e.clientY) / hold.k < 60) return;
+  clearTimeout(hold.timer);
   hold.timer = setTimeout(() => { if (hold) { hold.fired = true; g = null; openSwitcher(); } }, 320);
 }, true);
 $('device').addEventListener('pointerup', () => { if (hold) { clearTimeout(hold.timer); if (hold.fired) g = null; hold = null; } }, true);

@@ -29,6 +29,7 @@ async function home(page) {
 }
 
 test('без чужих названий и alert, с пометкой фан-концепта', async ({ page }) => {
+  test.setTimeout(90000);   // 15 программ по очереди
   const errors = await openOs(page, NAME);
   await expect(page).toHaveTitle(/фан-концепт интерфейса, не связан с Microsoft\/Apple\/Samsung/);
   await expectNoBrandGlyphs(page);
@@ -225,4 +226,127 @@ test('телефон звонит и завершает звонок, конта
   a = await openFromDrawer(page, 'mail');
   await a.locator('[data-i="2"]').click();
   await expect(a).toContainText('не связан с Microsoft/Apple/Samsung');
+});
+
+// ===== Второй этап: «Мои файлы» на IndexedDB, уведомления, недавние приложения, пауза в фоне =====
+async function reloadPhone(page) {
+  await page.waitForFunction(() => dbPending === 0);
+  await page.reload();
+  await unlock(page);
+}
+
+test('«Мои файлы»: папка и документ переживают перезагрузку, переименование, корзина, импорт; «Галерея» видит картинки', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  let a = await openFromDrawer(page, 'files');
+  await a.locator('.f-root').click();
+  await a.locator('[data-p="Документы"]').click();
+  await a.locator('[data-a="more"]').click();
+  await page.locator('.o-sheet button', { hasText: 'Создать папку' }).click();
+  await page.locator('.o-dlg input').fill('Архив');
+  await page.locator('.o-dlg input').press('Enter');
+  await expect(a.locator('[data-p="Документы/Архив"]')).toBeVisible();
+  await a.locator('[data-a="more"]').click();
+  await page.locator('.o-sheet button', { hasText: 'Создать текстовый файл' }).click();
+  await a.locator('[name=fvtext]').fill('важная мысль');
+  await a.locator('[data-a="back"]').click();
+  await expect(a.locator('[data-p="Документы/Документ.txt"]')).toBeVisible();
+  await a.locator('[data-p="Документы/Документ.txt"]').click({ button: 'right' });
+  await page.locator('.o-sheet button', { hasText: 'Переименовать' }).click();
+  await page.locator('.o-dlg input').fill('мысль.txt');
+  await page.locator('.o-dlg [data-r="1"]').click();
+  await expect(a.locator('[data-p="Документы/мысль.txt"]')).toBeVisible();
+  await a.locator('[data-p="Документы/Список покупок.txt"]').click({ button: 'right' });
+  await page.locator('.o-sheet button', { hasText: 'Удалить' }).click();
+  await expect(a.locator('[data-p="Документы/Список покупок.txt"]')).toHaveCount(0);
+  await a.locator('[data-a="back"]').click();
+  await a.locator('[data-a="back"]').click();
+  await a.locator('[data-d="__trash"]').click();
+  await expect(a).toContainText('Список покупок.txt');
+  await a.locator('[data-a="restore"]').click();
+  await expect(a).toContainText('Корзина пуста');
+  await a.locator('[data-a="back"]').click();
+  await a.locator('[data-d="Изображения"]').click();
+  await a.locator('.f-in').setInputFiles({ name: 'кадр.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="red"/></svg>') });
+  await expect(a.locator('[data-p="Изображения/кадр.svg"] img')).toHaveCount(1);
+  await expect(page.locator('.heads-up')).toContainText('Файлы добавлены');
+  await reloadPhone(page);
+  expect(await page.evaluate(() => [FS.get('Документы/Архив').type, FS.get('Документы/мысль.txt').text, FS.has('Документы/Список покупок.txt'), FS.has('Изображения/кадр.svg')])).toEqual(['dir', 'важная мысль', true, true]);
+  a = await openFromDrawer(page, 'gallery');
+  expect(await page.evaluate(() => loadPhotos().filter((p) => p.fs).length)).toBe(3);
+  await expect(a.locator('.gal-tile')).toHaveCount(await page.evaluate(() => loadPhotos().length));
+});
+
+test('уведомления: карточка сверху от камеры открывает «Галерею», шторка хранит её, «Не беспокоить» глушит, на блокировке видны', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  let a = await openFromDrawer(page, 'camera');
+  await a.locator('[data-a="shoot"]').click();
+  await expect(page.locator('.heads-up')).toContainText('Снимок сохранён');
+  await page.locator('.heads-up').click();
+  await expect(app(page).locator('.app-title')).toHaveText(/Галерея/);
+  await home(page);
+  await page.evaluate(() => notify('clock', 'Будильник 07:00', 'Подъём'));
+  await page.locator('#homescreen .statusbar').click();
+  await expect(page.locator('#notif-section')).toContainText('Будильник 07:00');
+  await page.click('[data-shade="qs"]');
+  await page.click('[data-qs="dnd"]');
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(() => { document.querySelectorAll('.heads-up').forEach((x) => x.remove()); notify('clock', 'Тихо', 'без карточки'); return document.querySelectorAll('.heads-up').length; })).toBe(0);
+  await page.click('#power-btn');
+  await expect(page.locator('#lock-notifs .ln-card').first()).toContainText('Тихо');
+  await page.locator('#lock-notifs .ln-card').first().click();
+  await expect(app(page)).toHaveClass(/open/);
+});
+
+test('недавние приложения: долгое нажатие на полоску и жест с задержкой, карточка открывает, смахивание и «Закрыть все»', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await openFromDrawer(page, 'notes');
+  await home(page);
+  await openFromDrawer(page, 'calculator');
+  // долгое нажатие на полоску навигации
+  await app(page).locator('[data-a="home"]').click({ delay: 700 });
+  await expect(page.locator('#recents')).toHaveClass(/open/);
+  await expect(page.locator('.rc-card')).toHaveCount(2);
+  await expect(page.locator('.rc-card').first()).toHaveAttribute('data-rc', 'calculator');
+  await page.locator('.rc-card[data-rc="notes"]').click();
+  await expect(page.locator('#recents')).not.toHaveClass(/open/);
+  await expect(app(page).locator('.app-title')).toHaveText('Заметки');
+  const b = await page.locator('#phone').boundingBox();
+  // сбоку от полоски, чтобы не сработало долгое нажатие на неё
+  await page.mouse.move(b.x + b.width * 0.2, b.y + b.height - 20);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width * 0.2, b.y + b.height - 160, { steps: 5 });
+  await page.waitForTimeout(500);
+  await page.mouse.up();
+  await expect(page.locator('#recents')).toHaveClass(/open/);
+  await page.locator('.rc-card[data-rc="calculator"]').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const card = await page.locator('.rc-card[data-rc="calculator"]').boundingBox();
+  await dragFrom(page, card.x + card.width / 2, card.y + card.height / 2, 0, -250);
+  await expect(page.locator('.rc-card[data-rc="calculator"]')).toHaveCount(0);
+  expect(await page.evaluate(() => RECENTS)).toEqual(['notes']);
+  await page.click('#rc-close-all');
+  await expect(page.locator('#recents')).not.toHaveClass(/open/);
+  expect(await page.evaluate(() => [RECENTS.length, state.app])).toEqual([0, null]);
+});
+
+test('скрытая вкладка ставит музыку и анимации на паузу, возврат продолжает', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await openFromDrawer(page, 'music');
+  await page.evaluate(() => mPlay());
+  expect(await page.evaluate(() => music.playing)).toBe(true);
+  const setHidden = (h) => page.evaluate((v) => { Object.defineProperty(document, 'hidden', { value: v, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); }, h);
+  await setHidden(true);
+  await expect(page.locator('body')).toHaveClass(/paused/);
+  expect(await page.evaluate(() => music.playing)).toBe(false);
+  await setHidden(false);
+  expect(await page.evaluate(() => music.playing)).toBe(true);
+});
+
+test('собранная страница совпадает с исходниками в src/', async () => {
+  const built = fs.readFileSync(path.join(WEB, NAME, 'index.html'), 'utf8');
+  for (const f of ['kit.js', 'kit.css', 'extra.css']) expect(built.includes(fs.readFileSync(path.join(WEB, NAME, 'src', f), 'utf8')), f + ' не собран в index.html').toBe(true);
 });

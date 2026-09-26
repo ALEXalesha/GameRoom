@@ -1,0 +1,62 @@
+/* ===== Второй этап: «Мои файлы», уведомления, недавние приложения ===== */
+body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
+.o-hbtn { width: 36px; height: 36px; border-radius: 18px; background: rgba(255,255,255,0.08); color: #fff; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.o-chip { padding: 6px 10px; border-radius: 14px; background: rgba(255,255,255,0.1); color: #8ab4f8; font-size: 12px; flex-shrink: 0; }
+.o-chip.danger, .o-sheet .danger { color: #ff6b6b; }
+.f-th { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.f-th svg { width: 36px; height: 36px; }
+.f-th img { max-width: 42px; max-height: 42px; border-radius: 8px; object-fit: cover; }
+.f-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.f-bar i { display: block; height: 100%; background: linear-gradient(90deg, #60a5fa, #a78bfa); border-radius: 4px; }
+.f-crumbs { font-size: 12px; opacity: 0.6; padding: 0 20px 8px; color: #fff; }
+.f-search { display: block; width: calc(100% - 32px); margin: 0 16px 10px; }
+.o-list-row .o-main { flex: 1; min-width: 0; }
+.fv-img { height: 100%; min-height: 420px; background-size: contain; background-position: center; background-repeat: no-repeat; margin: 10px; }
+.fv-text { display: block; width: calc(100% - 32px); height: 520px; margin: 0 16px; border: none; border-radius: 20px; padding: 16px; background: rgba(255,255,255,0.07); color: #fff; font: 15px/1.5 system-ui, sans-serif; outline: none; resize: none; }
+
+/* диалоги: скруглённая карточка внизу экрана, крупные кнопки */
+.o-dlg-back { position: absolute; inset: 0; z-index: 900; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; padding: 0 12px 30px; }
+.o-dlg { width: 100%; border-radius: 28px; background: #26262c; color: #fff; padding: 22px 20px 10px; animation: dlgUp 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+@keyframes dlgUp { from { transform: translateY(40px); opacity: 0; } }
+.o-dlg b { display: block; text-align: center; font-size: 17px; margin-bottom: 16px; }
+.o-dlg input { width: 100%; height: 44px; border-radius: 22px; border: 2px solid #3e7bfa; background: transparent; color: #fff; padding: 0 16px; font-size: 15px; outline: none; }
+.o-dlg-btns { display: flex; margin-top: 8px; }
+.o-dlg-btns button { flex: 1; height: 48px; color: #8ab4f8; font-size: 15px; font-weight: 600; }
+.o-sheet { width: 100%; border-radius: 28px; background: #26262c; padding: 8px 0; overflow: hidden; animation: dlgUp 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+.os-title { text-align: center; font-size: 13px; color: rgba(255,255,255,0.55); padding: 10px 20px 6px; }
+.o-sheet button { display: block; width: 100%; height: 52px; text-align: left; padding: 0 26px; color: #fff; font-size: 16px; }
+.o-sheet button:active { background: rgba(255,255,255,0.06); }
+
+/* всплывающее уведомление */
+.heads-up { position: absolute; top: 44px; left: 10px; right: 10px; z-index: 800; display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 26px; background: rgba(38,38,46,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.4); cursor: pointer; animation: huIn 0.4s cubic-bezier(0.34,1.3,0.64,1); }
+.heads-up.out { animation: huOut 0.3s ease-in forwards; }
+@keyframes huIn { from { transform: translateY(-130%); } }
+@keyframes huOut { to { transform: translateY(-130%); opacity: 0; } }
+.heads-up .notif-body { min-width: 0; }
+.lock-notifs { position: absolute; left: 16px; right: 16px; top: 420px; display: flex; flex-direction: column; gap: 8px; z-index: 4; pointer-events: none; }
+.lock-notifs .ln-card { pointer-events: auto; }
+.ln-card { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 22px; background: rgba(20,20,30,0.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); color: #fff; cursor: pointer; }
+.ln-card .notif-icon { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.ln-card .notif-icon svg { width: 18px; height: 18px; }
+.ln-card b { display: block; font-size: 13px; }
+.ln-card span { display: block; font-size: 12px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+.ln-more { text-align: center; color: #fff; font-size: 12px; opacity: 0.7; }
+
+/* недавние приложения */
+#recents { position: absolute; inset: 0; z-index: 450; display: none; flex-direction: column; background: rgba(10,10,16,0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+#recents.open { display: flex; animation: rcIn 0.25s ease-out; }
+@keyframes rcIn { from { opacity: 0; transform: scale(1.04); } }
+.rc-row { flex: 1; display: flex; gap: 16px; align-items: center; overflow-x: auto; padding: 0 calc(50% - 115px); scroll-snap-type: x mandatory; scrollbar-width: none; }
+.rc-row::-webkit-scrollbar { display: none; }
+.rc-card { flex: 0 0 230px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 10px; transition: transform 0.2s, opacity 0.2s; touch-action: none; }
+.rc-card.gone { transform: translateY(-120%) !important; opacity: 0 !important; }
+.rc-head { display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-size: 14px; font-weight: 600; }
+.rc-head .notif-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.rc-head .notif-icon svg { width: 16px; height: 16px; }
+.rc-shot { position: relative; height: 480px; border-radius: 30px; overflow: hidden; background: #0f0f15; box-shadow: 0 16px 40px rgba(0,0,0,0.5); pointer-events: none; }
+.rc-clone { position: absolute; left: 0; top: 0; width: 380px; height: 820px; transform: scale(0.605); transform-origin: 0 0; }
+.rc-clone .app-screen { position: absolute; inset: 0; }
+.rc-empty { display: none; color: #fff; text-align: center; opacity: 0.8; margin-bottom: 40vh; }
+#recents.empty .rc-empty { display: block; }
+.rc-close-all { align-self: center; margin: 0 0 46px; padding: 10px 26px; border-radius: 22px; background: rgba(255,255,255,0.14); color: #fff; font-size: 14px; font-weight: 600; }
+#recents.empty .rc-close-all { display: none; }
