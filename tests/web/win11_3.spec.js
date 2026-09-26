@@ -9,7 +9,7 @@ const { openOs, expectInside, dragFrom, dragBy, expectNoPageOverflow, topmostAt,
 
 const NAME = 'win11_3';
 const BUILT_IN = ['explorer', 'browser', 'notepad', 'calc', 'photos', 'media', 'settings', 'terminal', 'clock', 'weather', 'recycle'];
-const FRAMED = ['paint', 'messenger', 'minicraft', 'obby'];
+const FRAMED = ['paint', 'messenger'];
 const TB = 48; // высота панели задач
 
 async function boot(page, size) {
@@ -93,7 +93,7 @@ test('каждое встроенное приложение открывает�
   expect(errors).toEqual([]);
 });
 
-test('Paint, Мессенджер и игры открываются рамкой из папки apps/ без ошибок', async ({ page }) => {
+test('Paint и Мессенджер открываются рамкой из папки apps/ без ошибок', async ({ page }) => {
   const errors = await boot(page);
   for (const id of FRAMED) {
     const w = await startApp(page, id);
@@ -593,5 +593,107 @@ for (const size of [{ width: 1024, height: 700 }, { width: 800, height: 600 }]) 
     }
     await expectInside(page, page.locator('#tb-right'), 'часы и значки');
     await expectNoPageOverflow(page);
+  });
+}
+
+// ===== Игры «Игротеки» и значок «Медиаплеер» (правки владельца) =====
+const vm = require('vm');
+const GAMES = (() => { const ctx = { window: {} }; vm.runInNewContext(fs.readFileSync(path.join(WEB, '_os-shared', 'games.js'), 'utf8'), ctx); return ctx.window.OS_GAMES; })();
+
+test('папка «Игры» в «Пуске» и во «Всех приложениях», игры находятся поиском; старых встроенных копий нет', async ({ page }) => {
+  await boot(page);
+  expect(GAMES.length).toBeGreaterThanOrEqual(8);
+  expect(fs.existsSync(path.join(WEB, NAME, 'apps', 'minicraft.html')) || fs.existsSync(path.join(WEB, NAME, 'apps', 'obby.html'))).toBe(false);
+  const src = fs.readFileSync(path.join(WEB, NAME, 'index.html'), 'utf8');
+  expect(src).not.toMatch(/apps\/(minicraft|obby)\.html/);
+  await page.click('#btn-start');
+  await page.click('#start .pinned [data-start="games"]');
+  for (const g of GAMES) await expect(page.locator(`#start [data-open-app="game-${g.id}"]`)).toContainText(g.title);
+  await page.click('#start [data-start="back"]');
+  await page.click('#start [data-start="all"]');
+  await page.click('#start .all-list [data-start="games"]');
+  await expect(page.locator('#start [data-open-app]')).toHaveCount(GAMES.length);
+  await page.fill('#start-q', GAMES[0].title.slice(0, 5));
+  await expect(page.locator(`#start [data-open-app="game-${GAMES[0].id}"]`)).toContainText('Игры');
+});
+
+for (const g of GAMES) {
+  test(`игра «${g.title}»: окно открывает ../${g.dir}/index.html, страница есть и работает без ошибок и без сети`, async ({ page }) => {
+    const requests = [];
+    page.on('request', (r) => { if (/^https?:/.test(r.url())) requests.push(r.url()); });
+    const errors = await boot(page);
+    expect(fs.existsSync(path.join(WEB, g.dir, 'index.html')), g.dir + '/index.html').toBe(true);
+    await page.click('#btn-start');
+    await page.click('#start .pinned [data-start="games"]');
+    await page.click(`#start [data-open-app="game-${g.id}"]`);
+    const w = await ready(win(page, 'game-' + g.id));
+    await expect(w.locator('iframe')).toHaveAttribute('src', `../${g.dir}/index.html`);
+    await expect(w.frameLocator('iframe').locator('body')).toBeAttached();
+    await page.waitForTimeout(1500);
+    expect(errors, 'ошибки на странице игры').toEqual([]);
+    expect(requests, 'запросы в сеть').toEqual([]);
+  });
+}
+
+test('свёрнутое и закрытое окно игры ставит игру на паузу: внутри страница становится скрытой и теряет фокус', async ({ page }) => {
+  await boot(page);
+  const g = GAMES.find((x) => x.id === 'dino') || GAMES[0];
+  const w = await openVia(page, 'game-' + g.id);
+  const frame = page.frames().find((f) => f.url().includes('/' + g.dir + '/'));
+  await expect.poll(() => frame.evaluate(() => document.readyState)).toBe('complete');
+  await frame.evaluate(() => { const log = (window.parent.__gameLog = []); document.addEventListener('visibilitychange', () => log.push('hidden:' + document.hidden)); addEventListener('blur', () => log.push('blur')); addEventListener('focus', () => log.push('focus')); });
+  await w.locator('[data-cap=min]').click();
+  await expect.poll(() => page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:true', 'blur']));
+  expect(await frame.evaluate(() => document.hidden)).toBe(true);
+  await page.evaluate(() => { window.__gameLog.length = 0; });
+  await page.click(`#tb-apps .tb-btn[data-app="game-${g.id}"]`);
+  await expect.poll(() => page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:false', 'focus']));
+  expect(await frame.evaluate(() => document.hidden)).toBe(false);
+  await page.evaluate(() => { window.__gameLog.length = 0; });
+  await w.locator('[data-cap=close]').click();
+  await expect(page.locator(`.window[data-app="game-${g.id}"]`)).toHaveCount(0);
+  expect(await page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:true', 'blur']));
+});
+
+test('значок «Медиаплеер»: центр масс ноты в пределах 0,5 px от центра, нота внутри квадрата, квадрат как у соседей', async ({ page }) => {
+  await boot(page);
+  const m = await page.evaluate(async () => {
+    const root = new DOMParser().parseFromString(ICON.media.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'), 'image/svg+xml').documentElement;
+    const bg = root.querySelector('rect'), bgBox = ['x', 'y', 'width', 'height'].map((k) => +bg.getAttribute(k));
+    const note = root.querySelector('[data-glyph]');
+    // рисуем только ноту крупно (1 единица рисунка = 10 точек) и считаем центр по непрозрачности
+    const only = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="480" height="480">' + new XMLSerializer().serializeToString(note) + '</svg>';
+    const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(only); await img.decode();
+    const c = document.createElement('canvas'); c.width = c.height = 480; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, 480, 480).data; let s = 0, sx = 0, sy = 0, x0 = 480, y0 = 480, x1 = 0, y1 = 0;
+    for (let i = 0; i < d.length; i += 4) { const a = d[i + 3]; if (!a) continue; const px = (i / 4) % 480, py = Math.floor(i / 4 / 480); s += a; sx += a * px; sy += a * py; x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); }
+    return { cx: sx / s / 10, cy: sy / s / 10, box: [x0 / 10, y0 / 10, (x1 + 1) / 10, (y1 + 1) / 10], bg: bgBox, rx: +bg.getAttribute('rx'), photosRx: +/rx="(\d+)"/.exec(ICON.photos)[1] };
+  });
+  // самый крупный показ: 32 px в «Пуске» при 150 % = 48 точек, 1 единица рисунка = 1 точка экрана
+  expect(Math.abs(m.cx - 24), 'центр масс по горизонтали ' + m.cx).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(m.cy - 24), 'центр масс по вертикали ' + m.cy).toBeLessThanOrEqual(0.5);
+  const [bx, by, bw, bh] = m.bg;
+  expect(m.box[0]).toBeGreaterThanOrEqual(bx + 3); expect(m.box[1]).toBeGreaterThanOrEqual(by + 3);
+  expect(m.box[2]).toBeLessThanOrEqual(bx + bw - 3); expect(m.box[3]).toBeLessThanOrEqual(by + bh - 3);
+  expect(bx >= 4 && by >= 4 && bx + bw <= 44 && by + bh <= 44, 'квадрат внутри значка с отступом').toBe(true);
+  expect(m.rx).toBe(m.photosRx);
+});
+
+for (const dpr of [1, 1.25, 1.5]) {
+  test(`значок «Медиаплеер» при масштабе ${dpr * 100}%: в панели задач, «Пуске» и заголовке не выходит за свои границы`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: dpr });
+    const page = await ctx.newPage();
+    await boot(page);
+    await openVia(page, 'notepad');
+    await openVia(page, 'media');
+    await page.click('#btn-start');
+    for (const [sel, box] of [['#tb-apps .tb-btn[data-app="media"] svg', '#tb-apps .tb-btn[data-app="media"]'], ['.window[data-app="media"] .t-ic svg', '.window[data-app="media"] .t-ic'], ['#start .pin[data-open-app="media"] svg', '#start .pin[data-open-app="media"]']]) {
+      const a = await page.locator(sel).boundingBox(), b = await page.locator(box).boundingBox();
+      expect(a.x >= b.x - 0.01 && a.y >= b.y - 0.01 && a.x + a.width <= b.x + b.width + 0.01 && a.y + a.height <= b.y + b.height + 0.01, sel + ' внутри ' + box).toBe(true);
+      // размер такой же, как у соседа
+      const n = await page.locator(sel.replace('"media"', '"notepad"')).boundingBox();
+      expect(Math.abs(n.width - a.width)).toBeLessThan(0.5);
+    }
+    await ctx.close();
   });
 }

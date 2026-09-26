@@ -38,7 +38,8 @@ const ICON = {
   settings: G('set', '<path d="M24 4l4 5 6-1 1 6 5 4-3 5 3 5-5 4-1 6-6-1-4 5-4-5-6 1-1-6-5-4 3-5-3-5 5-4 1-6 6 1z" fill="url(#gGrey)"/><circle cx="24" cy="24" r="8" fill="none" stroke="#e6e6e6" stroke-width="3.5"/>'),
   browser: G('br', '<circle cx="24" cy="24" r="19" fill="url(#gTeal)"/><path d="M24 5a19 19 0 000 38M24 5a19 19 0 010 38M6 18h36M6 30h36M24 5c-7 6-7 32 0 38M24 5c7 6 7 32 0 38" fill="none" stroke="#fff" stroke-width="2" opacity=".85"/>'),
   photos: G('ph', '<rect x="4" y="7" width="40" height="34" rx="6" fill="url(#gSky)"/><circle cx="33" cy="17" r="4" fill="url(#gSun)"/><path d="M4 34l12-12 9 9 5-5 14 12v1a2 2 0 01-2 2H6a2 2 0 01-2-2z" fill="#fff" opacity=".9"/><path d="M4 36l12-12 9 9 5-5 14 12" fill="none" stroke="#0f5ca8" stroke-width="1" opacity=".3"/>'),
-  media: G('md', '<rect x="4" y="4" width="40" height="40" rx="9" fill="url(#gOrange)"/><path d="M28 12v17a5 5 0 11-3-4.6V15l-8 2v14a5 5 0 11-3-4.6V14z" fill="#fff"/>'),
+  // нота собрана из головки, штиля и флажка; группа сдвинута так, что центр масс знака совпадает с центром значка (проверяется законом)
+  media: G('md', '<rect x="5" y="5" width="38" height="38" rx="6" fill="url(#gOrange)"/><g data-glyph="note" transform="translate(-0.12 -0.74)"><ellipse cx="20" cy="30.5" rx="5.6" ry="4.3" transform="rotate(-22 20 30.5)" fill="#fff"/><rect x="23.6" y="11" width="2.8" height="19.5" rx="1" fill="#fff"/><path d="M25 11.4c0 4.5 3.4 6.4 6 8.5 2 1.7 2.4 4.2 1.2 6.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/></g>'),
   clock: G('ck', '<circle cx="24" cy="26" r="17" fill="url(#gBlue2)"/><circle cx="24" cy="26" r="13" fill="#fff"/><path d="M24 17v9l6 4" stroke="#0f5ca8" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M8 11l6-5M40 11l-6-5" stroke="url(#gBlue2)" stroke-width="4" stroke-linecap="round"/>'),
   weather: G('wt', '<circle cx="18" cy="18" r="9" fill="url(#gSun)"/><path d="M15 40a8 8 0 010-16 11 11 0 0121 3 6.5 6.5 0 01-1 13z" fill="#fff"/><path d="M15 40a8 8 0 010-16 11 11 0 0121 3 6.5 6.5 0 01-1 13z" fill="none" stroke="#8fb9e6"/>'),
   terminal: G('tm', '<rect x="4" y="7" width="40" height="34" rx="5" fill="#2b2b2b"/><rect x="4" y="7" width="40" height="8" rx="4" fill="#3c3c3c"/><path d="M12 22l6 5-6 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 33h12" stroke="#4cc2ff" stroke-width="3" stroke-linecap="round"/>'),
@@ -48,8 +49,6 @@ const ICON = {
   imagefile: G('if', '<path d="M11 4h18l10 10v27a3 3 0 01-3 3H11a3 3 0 01-3-3V7a3 3 0 013-3z" fill="#fff" stroke="#b4b8bd"/><rect x="13" y="20" width="22" height="17" rx="2" fill="url(#gSky)"/><path d="M13 35l7-7 5 5 3-3 7 6v1H13z" fill="#fff"/>'),
   paint: G('pt', '<path d="M24 5C12 5 4 13 4 23c0 9 7 15 13 15 3 0 4-2 4-4 0-3 2-4 5-4h6c7 0 12-5 12-11C44 11 35 5 24 5z" fill="url(#gPink)"/><circle cx="14" cy="20" r="3.2" fill="#ffd54f"/><circle cx="22" cy="13" r="3.2" fill="#4fc3f7"/><circle cx="32" cy="15" r="3.2" fill="#81c784"/><circle cx="36" cy="24" r="3.2" fill="#fff"/>'),
   messenger: G('ms', '<path d="M6 12a6 6 0 016-6h20a6 6 0 016 6v12a6 6 0 01-6 6H18l-8 7v-7.5A6 6 0 016 24z" fill="url(#gTeal)"/><path d="M40 18a4 4 0 014 4v10a4 4 0 01-4 4v5l-6-5H24a4 4 0 01-4-4v-1h12a8 8 0 008-8z" fill="#9ff0e5"/><path d="M13 15h18M13 21h12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>'),
-  cube: G('cb', '<path d="M24 5l17 9v20l-17 9-17-9V14z" fill="#8d6e4a"/><path d="M24 5l17 9-17 9-17-9z" fill="#6cc04a"/><path d="M24 23v20l17-9V14z" fill="#6b4f33"/><path d="M7 14l17 9v5l-17-9z" fill="#5aa53c" opacity=".7"/>'),
-  gamepad: G('gp', '<path d="M14 14h20a10 10 0 019.6 12.8l-2 7a5 5 0 01-8.7 1.7L30 32H18l-2.9 3.5a5 5 0 01-8.7-1.7l-2-7A10 10 0 0114 14z" fill="url(#gPurple)"/><path d="M15 20v8m-4-4h8" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="31" cy="21" r="2.4" fill="#fff"/><circle cx="35" cy="26" r="2.4" fill="#fff"/>'),
 };
 const SI = { // системные значки 16x16, цвет от текста
   wifi: G('wifi', '<path d="M1 6.3a10 10 0 0114 0M3.4 8.7a6.6 6.6 0 019.2 0M5.8 11.1a3.2 3.2 0 014.4 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="13.3" r="1.1" fill="currentColor"/>', '0 0 16 16'),
@@ -492,12 +491,26 @@ function animateTo(w, toTaskbar) {
   const frames = [{ transform: 'none', opacity: 1 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.2)', opacity: 0 }];
   return w.el.animate(toTaskbar ? frames : frames.reverse(), { duration: 220, easing: 'cubic-bezier(0.1,0.9,0.2,1)' }).finished.catch(() => { });
 }
-function minimizeWin(w) { if (w.min) return; w.min = true; animateTo(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); restack(); }
-function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); animateTo(w, false); }
+// Окно-рамка (игра, Paint) свёрнуто или закрывается: внутри страницы - как будто вкладку скрыли
+function framePause(w, paused) {
+  if (!w.iframe) return;
+  try {
+    const d = w.iframe.contentDocument, cw = w.iframe.contentWindow;
+    Object.defineProperty(d, 'hidden', { value: paused, configurable: true });
+    Object.defineProperty(d, 'visibilityState', { value: paused ? 'hidden' : 'visible', configurable: true });
+    d.dispatchEvent(new Event('visibilitychange'));
+    cw.dispatchEvent(new Event(paused ? 'blur' : 'focus'));
+    if (paused) d.querySelectorAll('audio, video').forEach(m => m.pause());
+  } catch (e) { /* страница из другого источника: остаётся обычная потеря фокуса */ }
+  if (paused && document.activeElement === w.iframe) w.iframe.blur();
+}
+function minimizeWin(w) { if (w.min) return; w.min = true; framePause(w, true); animateTo(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); restack(); }
+function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); framePause(w, false); animateTo(w, false); }
 async function closeWin(w) {
   if (w.beforeClose && !(await w.beforeClose())) return;
   const i = wins.indexOf(w); if (i < 0) return;
   rememberGeo(w);
+  framePause(w, true);
   wins.splice(i, 1);
   w.cleanup.forEach(f => { try { f(); } catch (e) { /* ничего */ } });
   const el = w.el;
@@ -752,20 +765,29 @@ function togglePanel(id, btn, onOpen) {
   if (!was) { $(id).classList.add('open'); btn && btn.classList.add('open'); onOpen && onOpen(); }
 }
 let allApps = false;
-const START_PINNED = ['explorer', 'browser', 'notepad', 'calc', 'photos', 'media', 'settings', 'terminal', 'clock', 'weather', 'paint', 'messenger', 'minicraft', 'obby', 'recycle'];
+const START_PINNED = ['explorer', 'browser', 'notepad', 'calc', 'photos', 'media', 'settings', 'terminal', 'clock', 'weather', 'paint', 'messenger', 'games', 'recycle'];
+let startFolder = null;
+// папка «Игры»: плитка из четырёх маленьких значков, как папки в «Пуске»
+function folderTile() { const g = GAMES.slice(0, 4); return '<button class="pin" data-start="games" aria-label="Папка «Игры»"><span class="folder-tile">' + g.map(id => APPS[id].icon).join('') + '</span><span>Игры</span></button>'; }
 function renderStart() {
   const q = $('start-q').value.trim().toLowerCase();
   if (q) { $('start-body').innerHTML = searchHTML(q); return; }
+  if (startFolder === 'games') {
+    $('start-body').innerHTML = '<div class="sec-head"><span>Игры</span><button data-start="back">' + SI.back + ' Назад</button></div><div class="pinned">' +
+      GAMES.map(id => '<button class="pin" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span></button>').join('') + '</div>';
+    return;
+  }
   if (allApps) {
-    const ids = Object.keys(APPS).filter(id => !APPS[id].hidden).sort((a, b) => APPS[a].title.localeCompare(APPS[b].title, 'ru'));
+    const ids = Object.keys(APPS).filter(id => !APPS[id].hidden && !APPS[id].game).sort((a, b) => APPS[a].title.localeCompare(APPS[b].title, 'ru'));
     let letter = '', html = '<div class="sec-head"><span>Все приложения</span><button data-start="back">' + SI.back + ' Назад</button></div><div class="all-list scroll">';
     ids.forEach(id => { const l = APPS[id].title[0].toUpperCase(); if (l !== letter) { letter = l; html += '<div class="letter">' + l + '</div>'; } html += '<button class="all-item" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span></button>'; });
+    if (GAMES.length) html += '<div class="letter">Папки</div><button class="all-item" data-start="games">' + ICON.folder + '<span>Игры</span></button>';
     $('start-body').innerHTML = html + '</div>';
     return;
   }
   const recs = RECENT.filter(p => FS.has(p)).slice(0, 6);
   $('start-body').innerHTML = '<div class="sec-head"><span>Закреплено</span><button data-start="all">Все ' + SI.chevRight + '</button></div><div class="pinned">' +
-    START_PINNED.map(id => '<button class="pin" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span></button>').join('') + '</div>' +
+    START_PINNED.map(id => id === 'games' ? (GAMES.length ? folderTile() : '') : '<button class="pin" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span></button>').join('') + '</div>' +
     '<div class="sec-head"><span>Рекомендуем</span></div><div class="recs scroll">' +
     (recs.length ? recs.map(p => '<button class="rec" data-open-file="' + esc(p) + '">' + fileIcon(p) + '<div style="min-width:0"><b>' + esc(baseName(p)) + '</b><small>' + fmtStamp(FS.get(p).mtime) + '</small></div></button>').join('')
       : '<div class="muted" style="padding:8px 12px;font-size:13px;grid-column:1/-1">Здесь появятся недавно открытые файлы</div>') + '</div>';
@@ -775,7 +797,7 @@ function searchHTML(q) {
   const files = [...FS.values()].filter(e => e.path && baseName(e.path).toLowerCase().includes(q)).slice(0, 8);
   const sets = SETTINGS_PAGES.filter(p => p[1].toLowerCase().includes(q));
   let html = '<div class="search-res scroll">';
-  if (apps.length) html += '<div class="sec-head" style="margin-top:8px"><span>Приложения</span></div>' + apps.map(id => '<button class="res-item" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span><small>Приложение</small></button>').join('');
+  if (apps.length) html += '<div class="sec-head" style="margin-top:8px"><span>Приложения</span></div>' + apps.map(id => '<button class="res-item" data-open-app="' + id + '">' + APPS[id].icon + '<span>' + esc(APPS[id].title) + '</span><small>' + (APPS[id].game ? 'Игры' : 'Приложение') + '</small></button>').join('');
   if (sets.length) html += '<div class="sec-head"><span>Параметры</span></div>' + sets.map(p => '<button class="res-item" data-open-settings="' + p[0] + '">' + ICON.settings + '<span>' + p[1] + '</span><small>Параметры</small></button>').join('');
   if (files.length) html += '<div class="sec-head"><span>Файлы и папки</span></div>' + files.map(e => '<button class="res-item" data-open-file="' + esc(e.path) + '">' + fileIcon(e.path) + '<span>' + esc(baseName(e.path)) + '</span><small>' + esc(parentOf(e.path) || 'Этот компьютер') + '</small></button>').join('');
   if (!apps.length && !files.length && !sets.length) html += '<div class="empty">Ничего не найдено по запросу «' + esc(q) + '»</div>';
@@ -790,13 +812,13 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-open-app]'); if (a) { openApp(a.dataset.openApp); return; }
   const f = e.target.closest('[data-open-file]'); if (f) { closePanels(); openPath(f.dataset.openFile); return; }
   const s = e.target.closest('[data-open-settings]'); if (s) { openApp('settings', s.dataset.openSettings); return; }
-  const st = e.target.closest('[data-start]'); if (st) { allApps = st.dataset.start === 'all'; renderStart(); }
+  const st = e.target.closest('[data-start]'); if (st) { const k = st.dataset.start; startFolder = k === 'games' ? 'games' : null; allApps = k === 'all'; renderStart(); }
 });
 ['start-q', 'search-q'].forEach(id => {
   $(id).addEventListener('input', id === 'start-q' ? renderStart : renderSearch);
   $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { const first = $(id === 'start-q' ? 'start' : 'search').querySelector('[data-open-app],[data-open-file],[data-open-settings]'); if (first) first.click(); } });
 });
-$('btn-start').addEventListener('click', () => togglePanel('start', $('btn-start'), () => { allApps = false; $('start-q').value = ''; renderStart(); $('start-q').focus(); }));
+$('btn-start').addEventListener('click', () => togglePanel('start', $('btn-start'), () => { allApps = false; startFolder = null; $('start-q').value = ''; renderStart(); $('start-q').focus(); }));
 $('btn-search').addEventListener('click', () => togglePanel('search', $('btn-search'), () => { $('search-q').value = ''; renderSearch(); $('search-q').focus(); }));
 $('btn-tv').addEventListener('click', () => { if ($('taskview').classList.contains('open')) hideTaskView(); else { closePanels(); showTaskView(); } });
 $('btn-tray').addEventListener('click', () => togglePanel('quick', $('btn-tray'), renderQuick));

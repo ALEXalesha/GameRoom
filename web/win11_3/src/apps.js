@@ -13,9 +13,15 @@ const APPS = {
   recycle: { title: 'Корзина', icon: ICON.recycle, w: 760, h: 460, minW: 420, minH: 260, create: createRecycle },
   paint: { title: 'Paint', icon: ICON.paint, w: 960, h: 640, minW: 480, minH: 360, iframe: 'apps/paint.html' },
   messenger: { title: 'Мессенджер', icon: ICON.messenger, w: 900, h: 600, minW: 480, minH: 360, iframe: 'apps/messenger.html' },
-  minicraft: { title: 'MiniCraft', icon: ICON.cube, w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/minicraft.html' },
-  obby: { title: 'Обби 3D', icon: ICON.gamepad, w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/obby.html' },
 };
+// Игры «Игротеки»: полные версии из соседних папок репозитория (таблица - web/_os-shared/games.js)
+const GAMES = (window.OS_GAMES || []).map(g => 'game-' + g.id);
+function gameIcon(g) {
+  const id = 'gg-' + g.id;
+  return G(id, '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + g.colors[0] + '"/><stop offset="1" stop-color="' + g.colors[1] + '"/></linearGradient></defs>' +
+    '<rect x="5" y="5" width="38" height="38" rx="6" fill="url(#' + id + ')"/>' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || ''));
+}
+(window.OS_GAMES || []).forEach(g => { APPS['game-' + g.id] = { title: g.title, icon: gameIcon(g), w: 1000, h: 640, minW: 480, minH: 360, iframe: '../' + g.dir + '/index.html', game: true }; });
 
 // ---------------- Проводник ----------------
 const NAV_ITEMS = () => [['', 'Этот компьютер', ICON.pc], ...ROOTS.map(r => [r, r, fileIcon(r)])];
@@ -383,7 +389,7 @@ function createSettings(w, startPage) {
         tog('transparency', 'Эффекты прозрачности', 'Размытие фона под окнами и панелями') +
         '<div class="subtitle">Рабочий стол</div><div class="row-card"><span class="rc-ic">' + SI.view + '</span><div class="rc-main"><div class="rc-title">Размер значков</div></div><div class="seg">' + [['small', 'Мелкие'], ['medium', 'Обычные'], ['large', 'Крупные']].map(([k, n]) => '<button data-icons="' + k + '" class="' + (S.icons === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div></div>';
     }
-    if (cur === 'apps') return '<h1>Приложения</h1>' + Object.keys(APPS).map(id => '<div class="row-card"><span class="rc-ic">' + APPS[id].icon.replace('<svg', '<svg width="20" height="20"') + '</span><div class="rc-main"><div class="rc-title">' + APPS[id].title + '</div><div class="rc-sub">' + (APPS[id].iframe ? 'Отдельная страница в папке apps/' : 'Встроено в оболочку') + '</div></div><button class="btn" data-open-app="' + id + '">Открыть</button></div>').join('');
+    if (cur === 'apps') return '<h1>Приложения</h1>' + Object.keys(APPS).map(id => '<div class="row-card"><span class="rc-ic">' + APPS[id].icon.replace('<svg', '<svg width="20" height="20"') + '</span><div class="rc-main"><div class="rc-title">' + APPS[id].title + '</div><div class="rc-sub">' + (APPS[id].game ? 'Игра: ' + APPS[id].iframe.slice(3, -11) + '/' : APPS[id].iframe ? 'Отдельная страница в папке apps/' : 'Встроено в оболочку') + '</div></div><button class="btn" data-open-app="' + id + '">Открыть</button></div>').join('');
     if (cur === 'accounts') return '<h1>Учётные записи</h1><div class="row-card"><div class="avatar" style="width:64px;height:64px;font-size:26px">П</div><div class="rc-main"><div class="rc-title" style="font-size:18px">Пользователь</div><div class="rc-sub">Локальная учётная запись · Администратор</div></div></div><p class="muted" style="font-size:13px;margin-top:12px">Вход без пароля: это оболочка-демонстрация, личные данные не хранятся.</p>';
     if (cur === 'time') { const n = new Date(); return '<h1>Время и язык</h1><div class="row-card"><span class="rc-ic">' + SI.time + '</span><div class="rc-main"><div class="rc-title">Сейчас</div><div class="rc-sub">' + fmtTime(n, true) + ', ' + fmtDate(n) + '</div></div></div>' + tog('time24', '24-часовой формат', 'Иначе 12-часовой с AM/PM', SI.time) + tog('seconds', 'Секунды на панели задач', '', SI.time) + tog('dateLong', 'Длинный формат даты', '«26 сентября 2026» вместо «26.09.2026»', SI.time) + '<p class="muted" style="font-size:13px;margin-top:12px">Время и часовой пояс берутся с этого компьютера. Язык интерфейса - русский.</p>'; }
     if (cur === 'access') return '<h1>Специальные возможности</h1>' + tog('animations', 'Эффекты анимации', 'Плавное появление окон и меню', SI.access) + tog('transparency', 'Эффекты прозрачности', '', SI.brush);

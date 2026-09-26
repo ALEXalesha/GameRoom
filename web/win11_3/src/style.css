@@ -182,6 +182,8 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .pin { height: 84px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 .pin:hover, .pin:focus-visible { background: var(--subtle-hover); outline: none; }
 .pin svg { width: 32px; height: 32px; }
+.folder-tile { width: 36px; height: 36px; border-radius: 8px; background: var(--card-hover); border: 1px solid var(--stroke2); display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; }
+.pin .folder-tile svg { width: 14px; height: 14px; }
 .pin span { font-size: 12px; max-width: 90%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .all-list { flex: 1; min-height: 0; overflow: auto; padding: 0 12px; }
 .all-list .letter { font-size: 14px; font-weight: 600; padding: 12px 8px 4px; color: var(--fg2); }
