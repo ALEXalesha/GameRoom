@@ -196,6 +196,11 @@ test.describe('minecraft_clone_3d_1: управление и блоки', () => 
       for (let x = x0 - 2; x <= x0 + 2; x++) for (let y = 70; y < 73; y++) v.setBlock(x, y, z0 - 3, 1);
       v.look(0, 0); v.key('KeyW'); v.step(0.02, 150); v.key('KeyW', false);
       const wallZ = p.pos.z;
+      // стена на x-3: идём на запад
+      p.pos.set(x0 + 0.5, 70, z0 + 0.5); p.vel.set(0, 0, 0);
+      for (let z = z0 - 2; z <= z0 + 2; z++) for (let y = 70; y < 73; y++) v.setBlock(x0 - 3, y, z, 1);
+      v.look(Math.PI / 2, 0); v.key('KeyW'); v.step(0.02, 150); v.key('KeyW', false);
+      const wallX = p.pos.x;
       // край: под героем убираем пол впереди (к +Z), крадёмся вперёд
       for (let x = x0 - 6; x <= x0 + 6; x++) for (let z = z0 + 1; z <= z0 + 6; z++) v.setBlock(x, 69, z, 0);
       p.pos.set(x0 + 0.5, 70, z0 + 0.5); p.vel.set(0, 0, 0); v.step(0.02, 10);
@@ -203,7 +208,7 @@ test.describe('minecraft_clone_3d_1: управление и блоки', () => 
       const sneak = { z: p.pos.z, y: p.pos.y, ground: p.onGround };
       // без Shift - падает
       v.key('KeyW'); v.step(0.02, 100); v.key('KeyW', false);
-      return { stand, jump: top - stand.y, wallZ, z0, sneak, fell: p.pos.y };
+      return { stand, jump: top - stand.y, wallZ, wallX, x0, z0, sneak, fell: p.pos.y };
     });
     expect(r.stand.ground).toBe(true);
     expect(r.stand.y).toBeCloseTo(70, 5);
@@ -211,6 +216,8 @@ test.describe('minecraft_clone_3d_1: управление и блоки', () => 
     expect(r.jump).toBeLessThan(1.35);
     expect(r.wallZ).toBeGreaterThanOrEqual(r.z0 - 2 + 0.3 - 1e-6);   // в стену не вошёл
     expect(r.wallZ).toBeLessThan(r.z0 - 1);                           // но дошёл до неё
+    expect(r.wallX).toBeGreaterThanOrEqual(r.x0 - 2 + 0.3 - 1e-6);
+    expect(r.wallX).toBeLessThan(r.x0 - 1);
     expect(r.sneak.ground).toBe(true);
     expect(r.sneak.y).toBeCloseTo(70, 5);
     expect(r.sneak.z).toBeGreaterThan(r.z0 + 1);                      // дошёл до края
@@ -444,6 +451,9 @@ test.describe('minecraft_clone_3d_1: меню, миры, сохранение', 
     });
     const b = await newWorld(page, { seed: 5, name: 'Бета' });
     expect(await page.evaluate(({ x, y, z }) => __voxel.getBlock(x, y, z), pos)).toBe(0);    // то же зерно, но свой мир
+    // в Бете тоже что-то построено: её кусок записан и после удаления должен исчезнуть
+    const bChunk = await page.evaluate(async ({ x, y, z }) => { __voxel.setBlock(x, y, z, __voxel.core.B.bricks); await __voxel.flush(); return [Math.floor(x / 16), Math.floor(z / 16)]; }, pos);
+    expect(await page.evaluate(([b, c]) => __voxel.VX.store.getChunk(b, c[0], c[1]).then((d) => !!d), [b, bChunk])).toBe(true);
     await page.evaluate(() => __voxel.exitToTitle());
     await page.evaluate((a) => __voxel.openWorld(a), a);
     expect(await page.evaluate(({ x, y, z }) => __voxel.getBlock(x, y, z), pos)).toBe(await page.evaluate(() => __voxel.core.B.gold_ore));
@@ -460,7 +470,7 @@ test.describe('minecraft_clone_3d_1: меню, миры, сохранение', 
     await page.locator('#scr-confirm').getByText('Удалить', { exact: true }).click();
     await expect(page.locator('.world')).toHaveCount(1);
     await expect(page.locator('.world')).toContainText('Альфа');
-    const left = await page.evaluate(async (b) => { const w = await __voxel.listWorlds(); return { ids: w.map((x) => x.id), chunk: await __voxel.VX.store.getChunk(b, 0, 0) }; }, b);
+    const left = await page.evaluate(async ([b, c]) => { const w = await __voxel.listWorlds(); return { ids: w.map((x) => x.id), chunk: await __voxel.VX.store.getChunk(b, c[0], c[1]) }; }, [b, bChunk]);
     expect(left.ids).toEqual([a]);
     expect(left.chunk).toBe(null);                // куски удалённого мира тоже стёрты
   });
