@@ -6,146 +6,89 @@
 <title>Судоку</title>
 <style>
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0;
-    padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
     background: #f5f5f5;
     color: #1a1a1a;
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-  }
-  h1 { margin: 0; font-size: 24px; font-weight: 500; }
-  .top, .stats, .actions, .extra {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
-    width: 100%;
-    max-width: 540px;
+    gap: 10px;
+    padding: 12px 16px;
+    overflow: auto;
   }
-  .stats { font-size: 13px; color: #666; gap: 16px; }
-  .stats b { color: #1a1a1a; font-weight: 500; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  /* Поле слева, всё управление справа: так судоку целиком влезает в 1280x800 и 1024x700 */
+  .main { display: flex; gap: 24px; align-items: flex-start; }
+  .side { width: 300px; display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .stats { font-size: 13px; color: #666; display: flex; gap: 14px; flex-wrap: wrap; }
+  .stats b { color: #1a1a1a; font-weight: 600; }
   select, button {
-    padding: 8px 14px;
-    font-size: 13px;
-    border: 1px solid #d0d0d0;
-    background: #fff;
-    color: #1a1a1a;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: inherit;
+    padding: 7px 12px; font-size: 13px; border: 1px solid #d0d0d0; background: #fff; color: #1a1a1a;
+    border-radius: 6px; cursor: pointer; font-family: inherit;
   }
   button:hover { background: #f0f0f0; }
   button:active { transform: scale(0.98); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   button.active { background: #d6e7ff; border-color: #4a90e2; color: #1565c0; }
+  .board-wrap { position: relative; }
   .board {
-    display: grid;
-    grid-template-columns: repeat(9, 1fr);
-    width: 100%;
-    max-width: 540px;
-    aspect-ratio: 1;
-    background: #fff;
-    border: 2px solid #1a1a1a;
-    border-radius: 6px;
-    overflow: hidden;
+    display: grid; grid-template-columns: repeat(9, 1fr);
+    width: min(540px, calc(100vh - 110px), calc(100vw - 380px));
+    min-width: 300px;
+    aspect-ratio: 1; background: #fff; border: 2px solid #1a1a1a; border-radius: 6px; overflow: hidden;
   }
+  .board.paused .cell { color: transparent !important; }
+  .board.paused .notes { visibility: hidden; }
   .cell {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(16px, 4.5vw, 26px);
-    font-weight: 400;
-    cursor: pointer;
-    user-select: none;
-    background: #fff;
-    color: #1a1a1a;
-    border-right: 0.5px solid #d0d0d0;
-    border-bottom: 0.5px solid #d0d0d0;
-    transition: background 0.1s;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    font-size: clamp(16px, 3.2vmin, 28px); cursor: pointer; user-select: none; background: #fff; color: #1a1a1a;
+    border-right: 1px solid #d0d0d0; border-bottom: 1px solid #d0d0d0; transition: background 0.1s;
   }
-  .cell:nth-child(3n) { border-right: 1.5px solid #1a1a1a; }
+  .cell:nth-child(3n) { border-right: 2px solid #1a1a1a; }
   .cell:nth-child(9n) { border-right: none; }
-  .cell.row-bb { border-bottom: 1.5px solid #1a1a1a; }
+  .cell.row-bb { border-bottom: 2px solid #1a1a1a; }
   .cell.row-last { border-bottom: none; }
-  .cell.given { font-weight: 500; }
+  .cell.given { font-weight: 600; }
   .cell.user { color: #1565c0; }
+  .cell.hint { color: #2e7d32; }
   .cell.error { color: #c62828; background: #ffebee; }
-  .cell.selected { background: #d6e7ff; }
   .cell.peer { background: #f0f0f0; }
   .cell.same-num { background: #b3d4ff; }
+  .cell.selected { background: #d6e7ff; }
   .notes {
-    position: absolute;
-    inset: 2px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    font-size: clamp(7px, 1.8vw, 10px);
-    color: #888;
+    position: absolute; inset: 2px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+    font-size: clamp(7px, 1.3vmin, 11px); color: #888;
   }
-  .notes span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .notes span { display: flex; align-items: center; justify-content: center; }
+  .pause-cover {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    font-size: 22px; color: #1565c0; background: rgba(255,255,255,0.6); border-radius: 6px; cursor: pointer;
   }
-  .pad {
-    display: grid;
-    grid-template-columns: repeat(9, 1fr);
-    gap: 6px;
-    width: 100%;
-    max-width: 540px;
-  }
-  .pad button {
-    aspect-ratio: 1;
-    font-size: clamp(14px, 3.5vw, 20px);
-    font-weight: 500;
-    padding: 0;
-  }
-  .pad button .count {
-    display: block;
-    font-size: 9px;
-    font-weight: 400;
-    color: #888;
-    margin-top: 2px;
-  }
-  .msg {
-    font-size: 14px;
-    min-height: 20px;
-    text-align: center;
-  }
-  .msg.win { color: #2e7d32; font-weight: 500; }
+  .pause-cover.show { display: flex; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pad button { font-size: 20px; font-weight: 600; padding: 6px 0; }
+  .pad button .count { display: block; font-size: 10px; font-weight: 400; color: #888; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .msg { font-size: 14px; min-height: 20px; }
+  .msg.win { color: #2e7d32; font-weight: 600; }
   .msg.bad { color: #c62828; }
+  details { font-size: 13px; }
+  details summary { cursor: pointer; color: #555; }
   textarea {
-    width: 100%;
-    max-width: 540px;
-    min-height: 60px;
-    padding: 8px;
-    font-family: monospace;
-    font-size: 12px;
-    border: 1px solid #d0d0d0;
-    border-radius: 6px;
-    resize: vertical;
+    width: 100%; min-height: 54px; padding: 6px; font-family: Consolas, monospace; font-size: 12px;
+    border: 1px solid #d0d0d0; border-radius: 6px; resize: vertical; margin-top: 6px;
   }
-  .help {
-    font-size: 11px;
-    color: #888;
-    text-align: center;
-    max-width: 540px;
-    line-height: 1.5;
-  }
-  kbd {
-    background: #fff;
-    border: 1px solid #d0d0d0;
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 10px;
-    font-family: monospace;
+  .help { font-size: 11px; color: #888; line-height: 1.5; }
+  kbd { background: #fff; border: 1px solid #d0d0d0; border-radius: 3px; padding: 0 4px; font-size: 10px; font-family: Consolas, monospace; }
+  @media (max-width: 760px) {
+    .main { flex-direction: column; align-items: center; }
+    .board { width: min(540px, calc(100vw - 32px)); }
+    .side { width: min(540px, calc(100vw - 32px)); }
   }
 </style>
 </head>
@@ -153,172 +96,170 @@
 
 <h1>Судоку</h1>
 
-<div class="top">
-  <select id="diff">
-    <option value="easy">Лёгкий</option>
-    <option value="medium" selected>Средний</option>
-    <option value="hard">Сложный</option>
-    <option value="expert">Эксперт</option>
-  </select>
-  <button id="newBtn">↻ Новая игра</button>
-  <button id="saveBtn">💾 Сохранить</button>
-  <button id="loadBtn">📂 Загрузить</button>
-</div>
+<div class="main">
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="pause-cover" id="pauseCover">Пауза - нажмите, чтобы продолжить</div>
+  </div>
 
-<div class="stats">
-  <span>Время: <b id="time">00:00</b></span>
-  <span>Ошибки: <b id="errs">0</b></span>
-  <span>Осталось: <b id="left">0</b></span>
-</div>
-
-<div class="board" id="board"></div>
-
-<div class="actions">
-  <button id="undoBtn">↶ Отменить</button>
-  <button id="redoBtn">↷ Вернуть</button>
-  <button id="notesBtn">✎ Заметки</button>
-  <button id="eraseBtn">⌫ Стереть</button>
-  <button id="hintBtn">💡 Подсказка</button>
-  <button id="checkBtn">✓ Проверить</button>
-  <button id="singlesBtn">⚡ Одиночки</button>
-</div>
-
-<div class="pad" id="pad"></div>
-
-<div class="msg" id="msg"></div>
-
-<div class="extra">
-  <button id="exportBtn">⬇ Экспорт пазла</button>
-  <button id="importBtn">⬆ Импорт пазла</button>
-</div>
-
-<textarea id="ioArea" placeholder="Строка пазла из 81 символа: цифры 1-9 для открытых клеток, 0 или . для пустых. Например: 530070000600195000098000060800060003400803001700020006060000280000419005000080079"></textarea>
-
-<div class="help">
-  Управление: <kbd>1-9</kbd> ввод, <kbd>0</kbd>/<kbd>Backspace</kbd> стереть, <kbd>стрелки</kbd> навигация,
-  <kbd>N</kbd> заметки, <kbd>Ctrl+Z</kbd> отмена, <kbd>Ctrl+Y</kbd> вернуть.
-  Прогресс сохраняется автоматически.
+  <div class="side">
+    <div class="row">
+      <select id="diff" aria-label="Сложность">
+        <option value="easy">Лёгкий</option>
+        <option value="medium" selected>Средний</option>
+        <option value="hard">Сложный</option>
+        <option value="expert">Эксперт</option>
+      </select>
+      <button id="newBtn">↻ Новая игра</button>
+      <button id="pauseBtn">⏸ Пауза</button>
+    </div>
+    <div class="stats">
+      <span>Время: <b id="time">00:00</b></span>
+      <span>Ошибки: <b id="errs">0</b></span>
+      <span>Осталось: <b id="left">0</b></span>
+      <span>Рекорд: <b id="best">-</b></span>
+    </div>
+    <div class="pad" id="pad"></div>
+    <div class="actions">
+      <button id="undoBtn">↶ Отменить</button>
+      <button id="redoBtn">↷ Вернуть</button>
+      <button id="notesBtn">✎ Заметки</button>
+      <button id="eraseBtn">⌫ Стереть</button>
+      <button id="hintBtn">💡 Подсказка</button>
+      <button id="checkBtn">✓ Проверить</button>
+      <button id="singlesBtn">⚡ Одиночки</button>
+      <button id="saveBtn">💾 Сохранить</button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <details>
+      <summary>Импорт и экспорт пазла</summary>
+      <div class="row" style="margin-top:6px">
+        <button id="exportBtn">⬇ Экспорт</button>
+        <button id="importBtn">⬆ Импорт</button>
+      </div>
+      <textarea id="ioArea" placeholder="81 символ: цифры 1-9 - открытые клетки, 0 или точка - пустые"></textarea>
+    </details>
+    <div class="help">
+      <kbd>1-9</kbd> ввод, <kbd>0</kbd>/<kbd>Backspace</kbd> стереть, стрелки - выбор клетки, <kbd>N</kbd> заметки,
+      <kbd>P</kbd> пауза, <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> отмена и возврат (в любой раскладке). Прогресс сохраняется сам.
+    </div>
+  </div>
 </div>
 
 <script>
+'use strict';
 const N = 9;
 const DIFF = { easy: 40, medium: 32, hard: 26, expert: 22 };
+const DIFF_NAMES = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', expert: 'Эксперт' };
 const STORAGE_KEY = 'sudoku_save_v1';
+const BEST_KEY = 'sudoku_best_v1';
 
-function shuffle(a){
-  for(let i=a.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
+// ?seed=N - повторяемые пазлы (для проверок)
+const params = new URLSearchParams(location.search);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 
-function isValid(b, r, c, n){
-  for(let i=0;i<N;i++){
-    if(b[r][i]===n||b[i][c]===n) return false;
-  }
-  const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
-  for(let i=0;i<3;i++)
-    for(let j=0;j<3;j++)
-      if(b[br+i][bc+j]===n) return false;
+function isValid(b, r, c, n) {
+  for (let i = 0; i < N; i++) if (b[r][i] === n || b[i][c] === n) return false;
+  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (b[br + i][bc + j] === n) return false;
   return true;
 }
 
-function fillBoard(b){
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(b[r][c]===0){
-      const nums = shuffle([1,2,3,4,5,6,7,8,9]);
-      for(const n of nums){
-        if(isValid(b,r,c,n)){
-          b[r][c]=n;
-          if(fillBoard(b)) return true;
-          b[r][c]=0;
-        }
-      }
-      return false;
-    }
+// Быстрый решатель на битовых масках: каждый раз берёт клетку с наименьшим числом вариантов.
+// Возвращает число решений (не больше limit); если передан out - кладёт туда первое решение.
+// Противоречивые открытые цифры (две пятёрки в ряду) сразу дают 0 решений.
+function countSolutions(board, limit = 2, out = null) {
+  const b = board.map((r) => r.slice());
+  const rows = new Array(9).fill(0), cols = new Array(9).fill(0), boxes = new Array(9).fill(0);
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const v = b[r][c];
+    if (!v) continue;
+    const bit = 1 << v, bi = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    if ((rows[r] | cols[c] | boxes[bi]) & bit) return 0;
+    rows[r] |= bit; cols[c] |= bit; boxes[bi] |= bit;
   }
-  return true;
-}
-
-function countSolutions(b, limit=2){
   let count = 0;
-  function solve(){
-    if(count >= limit) return;
-    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-      if(b[r][c]===0){
-        for(let n=1;n<=9;n++){
-          if(isValid(b,r,c,n)){
-            b[r][c]=n;
-            solve();
-            b[r][c]=0;
-            if(count >= limit) return;
-          }
-        }
-        return;
-      }
+  (function rec() {
+    if (count >= limit) return;
+    let br = -1, bc = -1, bm = 0, bn = 10;
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+      if (b[r][c]) continue;
+      const m = ~(rows[r] | cols[c] | boxes[Math.floor(r / 3) * 3 + Math.floor(c / 3)]) & 0x3FE;
+      let n = 0; for (let x = m; x; x &= x - 1) n++;
+      if (n < bn) { bn = n; br = r; bc = c; bm = m; if (n === 0) return; }
     }
-    count++;
-  }
-  solve();
+    if (br < 0) { if (count === 0 && out) for (let r = 0; r < 9; r++) out[r] = b[r].slice(); count++; return; }
+    const bi = Math.floor(br / 3) * 3 + Math.floor(bc / 3);
+    for (let v = 1; v <= 9; v++) {
+      const bit = 1 << v;
+      if (!(bm & bit)) continue;
+      b[br][bc] = v; rows[br] |= bit; cols[bc] |= bit; boxes[bi] |= bit;
+      rec();
+      b[br][bc] = 0; rows[br] &= ~bit; cols[bc] &= ~bit; boxes[bi] &= ~bit;
+      if (count >= limit) return;
+    }
+  })();
   return count;
 }
 
-function solveBoard(b){
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(b[r][c]===0){
-      for(let n=1;n<=9;n++){
-        if(isValid(b,r,c,n)){
-          b[r][c]=n;
-          if(solveBoard(b)) return true;
-          b[r][c]=0;
-        }
+function fillBoard(b) {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (b[r][c] !== 0) continue;
+    for (const n of shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
+      if (isValid(b, r, c, n)) {
+        b[r][c] = n;
+        if (fillBoard(b)) return true;
+        b[r][c] = 0;
       }
-      return false;
     }
+    return false;
   }
   return true;
 }
 
-function generate(diff){
-  const solution = Array.from({length:N},()=>Array(N).fill(0));
-  fillBoard(solution);
-  const puzzle = solution.map(r=>r.slice());
-  const targetClues = DIFF[diff];
-  const cellsToRemove = N*N - targetClues;
-  const positions = shuffle(Array.from({length:81}, (_,i)=>i));
-  let removed = 0;
-  for(const pos of positions){
-    if(removed >= cellsToRemove) break;
-    const r = Math.floor(pos/9), c = pos%9;
-    if(puzzle[r][c]===0) continue;
-    const backup = puzzle[r][c];
-    puzzle[r][c] = 0;
-    const test = puzzle.map(row=>row.slice());
-    if(countSolutions(test, 2) !== 1){
-      puzzle[r][c] = backup;
-    } else {
-      removed++;
+// Пазл с единственным решением. Для трудных уровней - несколько попыток и лучшая (меньше подсказок).
+function generate(diff) {
+  const target = DIFF[diff];
+  let best = null;
+  const tries = diff === 'expert' ? 6 : diff === 'hard' ? 3 : 1;
+  for (let t = 0; t < tries; t++) {
+    const solution = Array.from({ length: N }, () => Array(N).fill(0));
+    fillBoard(solution);
+    const puzzle = solution.map((r) => r.slice());
+    let clues = 81;
+    for (const pos of shuffle(Array.from({ length: 81 }, (_, i) => i))) {
+      if (clues <= target) break;
+      const r = Math.floor(pos / 9), c = pos % 9;
+      const keep = puzzle[r][c];
+      puzzle[r][c] = 0;
+      if (countSolutions(puzzle, 2) !== 1) puzzle[r][c] = keep; else clues--;
     }
+    if (!best || clues < best.clues) best = { puzzle, solution, clues };
+    if (clues <= target) break;
   }
-  return { puzzle, solution };
+  return { puzzle: best.puzzle, solution: best.solution };
 }
 
-let state = {
-  puzzle: null,
-  solution: null,
-  user: null,
-  notes: null,
-  given: null,
-  selected: null,
-  notesMode: false,
-  errors: 0,
-  startTime: 0,
-  elapsedBefore: 0,
-  timerId: null,
-  won: false,
-  history: [],
-  future: [],
+const state = {
+  puzzle: null, solution: null, user: null, notes: null, given: null, hinted: null,
+  selected: null, notesMode: false, errors: 0, elapsed: 0, running: false, paused: false,
+  won: false, diff: 'medium', history: [], future: [],
 };
 
 const boardEl = document.getElementById('board');
@@ -333,71 +274,70 @@ const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 const ioArea = document.getElementById('ioArea');
 
-function snapshot(){
+// ---------- Рекорды по уровням ----------
+function loadBests() { try { return JSON.parse(localStorage.getItem(BEST_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function saveBests(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) { /* нет хранилища */ } }
+function fmt(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function showBest() {
+  const b = loadBests()[state.diff];
+  document.getElementById('best').textContent = b ? fmt(b) : '-';
+}
+
+// ---------- История: в снимок входит и «открытость» клеток (подсказка тоже отменяется) ----------
+function snapshot() {
   return {
-    user: state.user.map(r=>r.slice()),
-    notes: state.notes.map(row=>row.map(s=>new Set(s))),
+    user: state.user.map((r) => r.slice()),
+    notes: state.notes.map((row) => row.map((s) => new Set(s))),
+    hinted: state.hinted.map((r) => r.slice()),
     errors: state.errors,
   };
 }
-
-function pushHistory(){
+function pushHistory() {
   state.history.push(snapshot());
-  if(state.history.length > 200) state.history.shift();
+  if (state.history.length > 200) state.history.shift();
   state.future = [];
   updateUndoRedo();
 }
-
-function applySnapshot(snap){
-  state.user = snap.user.map(r=>r.slice());
-  state.notes = snap.notes.map(row=>row.map(s=>new Set(s)));
+function applySnapshot(snap) {
+  state.user = snap.user.map((r) => r.slice());
+  state.notes = snap.notes.map((row) => row.map((s) => new Set(s)));
+  state.hinted = snap.hinted.map((r) => r.slice());
   state.errors = snap.errors;
   errsEl.textContent = state.errors;
 }
-
-function undo(){
-  if(state.history.length === 0) return;
+function undo() {
+  if (state.won || !state.history.length) return;
   state.future.push(snapshot());
   applySnapshot(state.history.pop());
-  state.won = false;
-  render();
-  updateUndoRedo();
-  saveProgress();
+  render(); updateUndoRedo(); saveProgress();
 }
-
-function redo(){
-  if(state.future.length === 0) return;
+function redo() {
+  if (state.won || !state.future.length) return;
   state.history.push(snapshot());
   applySnapshot(state.future.pop());
-  render();
-  updateUndoRedo();
-  saveProgress();
-  checkWin();
+  render(); updateUndoRedo(); saveProgress(); checkWin();
+}
+function updateUndoRedo() {
+  undoBtn.disabled = state.won || state.history.length === 0;
+  redoBtn.disabled = state.won || state.future.length === 0;
 }
 
-function updateUndoRedo(){
-  undoBtn.disabled = state.history.length === 0;
-  redoBtn.disabled = state.future.length === 0;
-}
+const locked = (r, c) => state.given[r][c] || state.hinted[r][c];
 
-function buildBoard(){
+// ---------- Поле ----------
+function buildBoard() {
   boardEl.innerHTML = '';
-  for(let r=0;r<N;r++){
-    for(let c=0;c<N;c++){
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      if(r===2 || r===5) cell.classList.add('row-bb');
-      if(r===8) cell.classList.add('row-last');
-      cell.dataset.r = r; cell.dataset.c = c;
-      cell.addEventListener('click', () => selectCell(r,c));
-      boardEl.appendChild(cell);
-    }
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.r = r; cell.dataset.c = c;
+    cell.addEventListener('click', () => selectCell(r, c));
+    boardEl.appendChild(cell);
   }
 }
-
-function buildPad(){
+function buildPad() {
   padEl.innerHTML = '';
-  for(let n=1;n<=9;n++){
+  for (let n = 1; n <= 9; n++) {
     const b = document.createElement('button');
     b.innerHTML = `${n}<span class="count" id="cnt${n}"></span>`;
     b.addEventListener('click', () => inputNumber(n));
@@ -405,404 +345,349 @@ function buildPad(){
   }
 }
 
-function countDigits(){
+function render() {
+  const cells = boardEl.children;
+  const sel = state.selected;
+  const selVal = sel ? state.user[sel.r][sel.c] : 0;
   const counts = Array(10).fill(0);
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    const v = state.user[r][c];
-    if(v !== 0 && v === state.solution[r][c]) counts[v]++;
-  }
-  for(let n=1;n<=9;n++){
-    const left = 9 - counts[n];
-    const el = document.getElementById('cnt'+n);
-    if(el) el.textContent = left > 0 ? left : '✓';
-  }
-}
-
-function countLeft(){
   let left = 0;
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(state.user[r][c] === 0) left++;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const cell = cells[r * 9 + c];
+    let cls = 'cell';
+    if (r === 2 || r === 5) cls += ' row-bb';
+    if (r === 8) cls += ' row-last';
+    const v = state.user[r][c];
+    cell.innerHTML = '';
+    if (v !== 0) {
+      cell.textContent = v;
+      if (state.given[r][c]) cls += ' given';
+      else if (state.hinted[r][c]) cls += ' hint';
+      else { cls += ' user'; if (v !== state.solution[r][c]) cls += ' error'; }
+      if (v === state.solution[r][c]) counts[v]++;
+    } else {
+      left++;
+      const notes = state.notes[r][c];
+      if (notes.size) {
+        const nd = document.createElement('div');
+        nd.className = 'notes';
+        for (let n = 1; n <= 9; n++) { const s = document.createElement('span'); s.textContent = notes.has(n) ? n : ''; nd.appendChild(s); }
+        cell.appendChild(nd);
+      }
+    }
+    if (sel) {
+      if (sel.r === r && sel.c === c) cls += ' selected';
+      else if (sel.r === r || sel.c === c || (Math.floor(sel.r / 3) === Math.floor(r / 3) && Math.floor(sel.c / 3) === Math.floor(c / 3))) cls += ' peer';
+      if (selVal !== 0 && v === selVal && !(sel.r === r && sel.c === c)) cls += ' same-num';
+    }
+    cell.className = cls;
+  }
+  for (let n = 1; n <= 9; n++) {
+    const el = document.getElementById('cnt' + n);
+    if (el) el.textContent = 9 - counts[n] > 0 ? 9 - counts[n] : '✓';
   }
   leftEl.textContent = left;
 }
 
-function render(){
-  const cells = boardEl.children;
-  const sel = state.selected;
-  const selVal = sel ? state.user[sel.r][sel.c] : 0;
-  for(let r=0;r<N;r++){
-    for(let c=0;c<N;c++){
-      const cell = cells[r*9+c];
-      cell.className = 'cell';
-      if(r===2 || r===5) cell.classList.add('row-bb');
-      if(r===8) cell.classList.add('row-last');
-      cell.innerHTML = '';
-      const v = state.user[r][c];
-      const notes = state.notes[r][c];
-      if(v !== 0){
-        cell.textContent = v;
-        if(state.given[r][c]) cell.classList.add('given');
-        else {
-          cell.classList.add('user');
-          if(v !== state.solution[r][c]) cell.classList.add('error');
-        }
-      } else if(notes.size > 0){
-        const nd = document.createElement('div');
-        nd.className = 'notes';
-        for(let n=1;n<=9;n++){
-          const s = document.createElement('span');
-          s.textContent = notes.has(n) ? n : '';
-          nd.appendChild(s);
-        }
-        cell.appendChild(nd);
-      }
-      if(sel){
-        if(sel.r===r && sel.c===c){
-          cell.classList.add('selected');
-        } else if(sel.r===r || sel.c===c || (Math.floor(sel.r/3)===Math.floor(r/3) && Math.floor(sel.c/3)===Math.floor(c/3))){
-          cell.classList.add('peer');
-        }
-        if(selVal !== 0 && v === selVal && !(sel.r===r && sel.c===c)){
-          cell.classList.add('same-num');
-        }
-      }
-    }
-  }
-  countDigits();
-  countLeft();
-}
-
-function selectCell(r, c){
+function selectCell(r, c) {
+  if (state.paused) return;
   state.selected = { r, c };
   render();
 }
 
-function inputNumber(n){
-  if(state.won) return;
-  const sel = state.selected;
-  if(!sel) return;
-  if(state.given[sel.r][sel.c]) return;
-  pushHistory();
-  if(state.notesMode){
-    if(state.user[sel.r][sel.c] !== 0){
-      state.history.pop();
-      updateUndoRedo();
-      return;
-    }
-    const set = state.notes[sel.r][sel.c];
-    if(set.has(n)) set.delete(n); else set.add(n);
-  } else {
-    state.user[sel.r][sel.c] = n;
-    state.notes[sel.r][sel.c].clear();
-    if(n !== state.solution[sel.r][sel.c]){
-      state.errors++;
-      errsEl.textContent = state.errors;
-    } else {
-      for(let i=0;i<N;i++){
-        state.notes[sel.r][i].delete(n);
-        state.notes[i][sel.c].delete(n);
-      }
-      const br = Math.floor(sel.r/3)*3, bc = Math.floor(sel.c/3)*3;
-      for(let i=0;i<3;i++) for(let j=0;j<3;j++) state.notes[br+i][bc+j].delete(n);
-    }
-    checkWin();
-  }
-  render();
-  saveProgress();
+function clearPeerNotes(r, c, n) {
+  for (let i = 0; i < N; i++) { state.notes[r][i].delete(n); state.notes[i][c].delete(n); }
+  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) state.notes[br + i][bc + j].delete(n);
 }
 
-function eraseCell(){
+function inputNumber(n) {
   const sel = state.selected;
-  if(!sel || state.given[sel.r][sel.c]) return;
-  if(state.user[sel.r][sel.c] === 0 && state.notes[sel.r][sel.c].size === 0) return;
+  if (state.won || state.paused || !sel || locked(sel.r, sel.c)) return;
+  if (state.notesMode) {
+    if (state.user[sel.r][sel.c] !== 0) return;
+    pushHistory();
+    const set = state.notes[sel.r][sel.c];
+    if (set.has(n)) set.delete(n); else set.add(n);
+  } else {
+    if (state.user[sel.r][sel.c] === n) return;
+    pushHistory();
+    state.user[sel.r][sel.c] = n;
+    state.notes[sel.r][sel.c].clear();
+    if (n !== state.solution[sel.r][sel.c]) { state.errors++; errsEl.textContent = state.errors; }
+    else clearPeerNotes(sel.r, sel.c, n);
+  }
+  render(); saveProgress(); checkWin();
+}
+
+function eraseCell() {
+  const sel = state.selected;
+  if (state.won || state.paused || !sel || locked(sel.r, sel.c)) return;
+  if (state.user[sel.r][sel.c] === 0 && state.notes[sel.r][sel.c].size === 0) return;
   pushHistory();
   state.user[sel.r][sel.c] = 0;
   state.notes[sel.r][sel.c].clear();
-  render();
-  saveProgress();
+  render(); saveProgress();
 }
 
-function giveHint(){
-  if(state.won) return;
-  const empty = [];
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(state.user[r][c] === 0 || state.user[r][c] !== state.solution[r][c]) empty.push([r,c]);
-  }
-  if(empty.length === 0) return;
+function giveHint() {
+  if (state.won || state.paused) return;
+  const cand = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (state.user[r][c] !== state.solution[r][c]) cand.push([r, c]);
+  if (!cand.length) return;
+  // Сначала выбранная клетка, если она пустая или с ошибкой
+  const sel = state.selected;
+  const pick = sel && state.user[sel.r][sel.c] !== state.solution[sel.r][sel.c] ? [sel.r, sel.c] : cand[Math.floor(rnd() * cand.length)];
   pushHistory();
-  const [r, c] = empty[Math.floor(Math.random()*empty.length)];
+  const [r, c] = pick;
   state.user[r][c] = state.solution[r][c];
   state.notes[r][c].clear();
-  state.given[r][c] = true;
+  state.hinted[r][c] = true;
+  clearPeerNotes(r, c, state.user[r][c]);
   state.selected = { r, c };
-  render();
-  saveProgress();
-  checkWin();
+  render(); saveProgress(); checkWin();
 }
 
-function fillSingles(){
-  if(state.won) return;
-  let added = 0;
-  pushHistory();
+// «Одиночки»: клетки, где остаётся единственная цифра. Ошибочные цифры игрока не считаются
+// опорой (раньше из-за них сюда могли попасть неверные цифры).
+function fillSingles() {
+  if (state.won || state.paused) return;
+  const b = state.user.map((row, r) => row.map((v, c) => (v === state.solution[r][c] ? v : 0)));
+  const fills = [];
   let changed = true;
-  while(changed){
+  while (changed) {
     changed = false;
-    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-      if(state.user[r][c] !== 0) continue;
-      const candidates = [];
-      for(let n=1;n<=9;n++){
-        if(isValid(state.user, r, c, n)) candidates.push(n);
-      }
-      if(candidates.length === 1){
-        state.user[r][c] = candidates[0];
-        state.notes[r][c].clear();
-        added++;
-        changed = true;
-      }
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (b[r][c] !== 0 || state.user[r][c] !== 0) continue;
+      const cands = [];
+      for (let n = 1; n <= 9; n++) if (isValid(b, r, c, n)) cands.push(n);
+      if (cands.length === 1) { b[r][c] = cands[0]; fills.push([r, c, cands[0]]); changed = true; }
     }
   }
-  if(added === 0){
-    state.history.pop();
-    updateUndoRedo();
-    showMsg('Одиночек нет', 'bad');
-    return;
-  }
-  showMsg(`Заполнено клеток: ${added}`, '');
-  render();
-  saveProgress();
-  checkWin();
+  if (!fills.length) { showMsg('Одиночек нет', 'bad'); return; }
+  pushHistory();
+  for (const [r, c, n] of fills) { state.user[r][c] = n; state.notes[r][c].clear(); clearPeerNotes(r, c, n); }
+  showMsg('Заполнено клеток: ' + fills.length, '');
+  render(); saveProgress(); checkWin();
 }
 
-function checkBoard(){
+function checkBoard() {
   let wrong = 0, empty = 0;
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(state.user[r][c] === 0) empty++;
-    else if(state.user[r][c] !== state.solution[r][c]) wrong++;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (state.user[r][c] === 0) empty++;
+    else if (state.user[r][c] !== state.solution[r][c]) wrong++;
   }
-  if(wrong > 0) showMsg(`Найдено ошибок: ${wrong}`, 'bad');
-  else if(empty > 0) showMsg(`Пока всё верно. Осталось клеток: ${empty}`, '');
+  if (wrong) showMsg('Найдено ошибок: ' + wrong, 'bad');
+  else if (empty) showMsg('Пока всё верно. Осталось клеток: ' + empty, '');
   else showMsg('Всё правильно!', 'win');
 }
 
-function showMsg(text, cls){
+let msgTimer = 0;
+function showMsg(text, cls, sticky) {
   msgEl.textContent = text;
-  msgEl.className = 'msg ' + cls;
-  if(cls !== 'win'){
-    setTimeout(() => {
-      if(!state.won){ msgEl.textContent = ''; msgEl.className = 'msg'; }
-    }, 3000);
-  }
+  msgEl.className = 'msg ' + (cls || '');
+  clearTimeout(msgTimer);
+  if (!sticky && cls !== 'win') msgTimer = setTimeout(() => { if (!state.won) { msgEl.textContent = ''; msgEl.className = 'msg'; } }, 3000);
 }
 
-function checkWin(){
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    if(state.user[r][c] !== state.solution[r][c]) return;
-  }
+function checkWin() {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (state.user[r][c] !== state.solution[r][c]) return;
   state.won = true;
-  clearInterval(state.timerId);
-  showMsg(`Решено за ${timeEl.textContent}, ошибок: ${state.errors}`, 'win');
-  localStorage.removeItem(STORAGE_KEY);
+  state.running = false;
+  const secs = Math.floor(state.elapsed);
+  const bests = loadBests();
+  const record = !bests[state.diff] || secs < bests[state.diff];
+  if (record) { bests[state.diff] = secs; saveBests(bests); }
+  showMsg(`Решено за ${fmt(secs)}, ошибок: ${state.errors}.` + (record ? ' Новый рекорд!' : ''), 'win', true);
+  showBest();
+  updateUndoRedo();
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* нет хранилища */ }
 }
 
-function startTimer(resetElapsed = true){
-  if(resetElapsed) state.elapsedBefore = 0;
-  state.startTime = Date.now();
-  if(state.timerId) clearInterval(state.timerId);
-  state.timerId = setInterval(() => {
-    const s = Math.floor((Date.now() - state.startTime) / 1000) + state.elapsedBefore;
-    const mm = String(Math.floor(s/60)).padStart(2,'0');
-    const ss = String(s%60).padStart(2,'0');
-    timeEl.textContent = `${mm}:${ss}`;
-  }, 1000);
+// ---------- Время: идёт, только когда игра на экране и не на паузе ----------
+function tickTime(dt) {
+  if (!state.running || state.paused || state.won) return;
+  state.elapsed += dt;
+  timeEl.textContent = fmt(Math.floor(state.elapsed));
 }
+let lastTick = performance.now();
+setInterval(() => { const now = performance.now(); tickTime((now - lastTick) / 1000); lastTick = now; }, 250);
 
-function getElapsedSeconds(){
-  return Math.floor((Date.now() - state.startTime) / 1000) + state.elapsedBefore;
+function setPaused(p) {
+  if (state.won || !state.running) p = false;
+  state.paused = p;
+  boardEl.classList.toggle('paused', p);
+  document.getElementById('pauseCover').classList.toggle('show', p);
+  document.getElementById('pauseBtn').textContent = p ? '▶ Продолжить' : '⏸ Пауза';
+  if (!p) saveProgress();
 }
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 
-function newGame(){
-  showMsg('Генерирую пазл...', '');
+function newGame() {
+  showMsg('Генерирую пазл...', '', true);
   setTimeout(() => {
     const { puzzle, solution } = generate(diffEl.value);
-    setupGame(puzzle, solution);
+    setupGame(puzzle, solution, diffEl.value);
     showMsg('', '');
     saveProgress();
-  }, 30);
+  }, 20);
 }
 
-function setupGame(puzzle, solution){
+function setupGame(puzzle, solution, diff) {
   state.puzzle = puzzle;
   state.solution = solution;
-  state.user = puzzle.map(r => r.slice());
-  state.given = puzzle.map(r => r.map(v => v !== 0));
-  state.notes = Array.from({length:N}, () => Array.from({length:N}, () => new Set()));
+  state.user = puzzle.map((r) => r.slice());
+  state.given = puzzle.map((r) => r.map((v) => v !== 0));
+  state.hinted = puzzle.map((r) => r.map(() => false));
+  state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set()));
   state.selected = null;
   state.notesMode = false;
   state.errors = 0;
+  state.elapsed = 0;
+  state.running = true;
   state.won = false;
+  state.diff = diff || state.diff;
   state.history = [];
   state.future = [];
   notesBtn.classList.remove('active');
   errsEl.textContent = '0';
-  startTimer(true);
+  timeEl.textContent = '00:00';
+  setPaused(false);
+  showBest();
   updateUndoRedo();
   render();
 }
 
-function boardToString(b){
-  return b.flat().map(v => v === 0 ? '0' : v).join('');
-}
-
-function stringToBoard(s){
-  s = s.replace(/[\s.]/g, '0');
-  if(s.length !== 81) throw new Error('Нужно ровно 81 символ');
-  if(!/^[0-9]+$/.test(s)) throw new Error('Только цифры 0-9');
+function boardToString(b) { return b.flat().map((v) => (v === 0 ? '0' : v)).join(''); }
+function stringToBoard(s) {
+  s = s.replace(/\s/g, '').replace(/\./g, '0');
+  if (s.length !== 81) throw new Error('нужно ровно 81 символ');
+  if (!/^[0-9]+$/.test(s)) throw new Error('только цифры 0-9 и точки');
   const b = [];
-  for(let r=0;r<9;r++){
-    const row = [];
-    for(let c=0;c<9;c++) row.push(parseInt(s[r*9+c]));
-    b.push(row);
-  }
+  for (let r = 0; r < 9; r++) b.push([...s.slice(r * 9, r * 9 + 9)].map(Number));
   return b;
 }
 
-function exportPuzzle(){
+function exportPuzzle() {
   ioArea.value = boardToString(state.puzzle);
   ioArea.select();
-  showMsg('Скопировано в поле ниже', '');
+  showMsg('Пазл - в поле ниже', '');
 }
-
-function importPuzzle(){
-  const text = ioArea.value.trim();
-  if(!text){ showMsg('Вставь строку в поле', 'bad'); return; }
+function importPuzzle(text) {
+  text = (text !== undefined ? text : ioArea.value).trim();
+  if (!text) { showMsg('Вставьте строку в поле', 'bad'); return false; }
   try {
     const puzzle = stringToBoard(text);
-    const test = puzzle.map(r => r.slice());
-    const solCount = countSolutions(test, 2);
-    if(solCount === 0){ showMsg('У пазла нет решения', 'bad'); return; }
-    if(solCount > 1){ showMsg('У пазла больше одного решения', 'bad'); return; }
-    const solution = puzzle.map(r => r.slice());
-    solveBoard(solution);
-    setupGame(puzzle, solution);
+    const solution = [];
+    const n = countSolutions(puzzle, 2, solution);
+    if (n === 0) { showMsg('У пазла нет решения (или открытые цифры противоречат друг другу)', 'bad'); return false; }
+    if (n > 1) { showMsg('У пазла больше одного решения', 'bad'); return false; }
+    setupGame(puzzle, solution, state.diff);
     showMsg('Пазл загружен', '');
     saveProgress();
-  } catch(e){
+    return true;
+  } catch (e) {
     showMsg('Ошибка: ' + e.message, 'bad');
+    return false;
   }
 }
 
-function saveProgress(){
-  if(!state.puzzle || state.won) return;
+function saveProgress() {
+  if (!state.puzzle || state.won) return;
   const data = {
     puzzle: boardToString(state.puzzle),
     solution: boardToString(state.solution),
     user: boardToString(state.user),
-    given: state.given.flat().map(v => v ? '1' : '0').join(''),
-    notes: state.notes.flat().map(s => Array.from(s).sort().join('')).join(','),
+    hinted: state.hinted.flat().map((v) => (v ? '1' : '0')).join(''),
+    notes: state.notes.flat().map((s) => Array.from(s).sort().join('')).join(','),
     errors: state.errors,
-    elapsed: getElapsedSeconds(),
-    diff: diffEl.value,
+    elapsed: Math.floor(state.elapsed),
+    diff: state.diff,
   };
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e){}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* нет хранилища */ }
 }
 
-function loadProgress(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(!raw){ showMsg('Сохранения нет', 'bad'); return false; }
+// Молча: при первом запуске сохранения нет, и это не ошибка
+function loadProgress() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { data = null; }
+  if (!data) return false;
   try {
-    const data = JSON.parse(raw);
-    state.puzzle = stringToBoard(data.puzzle);
-    state.solution = stringToBoard(data.solution);
+    const puzzle = stringToBoard(data.puzzle);
+    setupGame(puzzle, stringToBoard(data.solution), data.diff || 'medium');
     state.user = stringToBoard(data.user);
-    const givenFlat = data.given.split('').map(c => c === '1');
-    state.given = [];
-    for(let r=0;r<9;r++) state.given.push(givenFlat.slice(r*9, r*9+9));
-    const notesParts = data.notes.split(',');
-    state.notes = [];
-    for(let r=0;r<9;r++){
-      const row = [];
-      for(let c=0;c<9;c++){
-        const part = notesParts[r*9+c] || '';
-        row.push(new Set(part.split('').filter(x=>x).map(Number)));
-      }
-      state.notes.push(row);
-    }
+    const h = (data.hinted || data.given || '').split('');
+    state.hinted = puzzle.map((row, r) => row.map((v, c) => !v && h[r * 9 + c] === '1'));
+    const parts = (data.notes || '').split(',');
+    state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => new Set((parts[r * 9 + c] || '').split('').filter(Boolean).map(Number))));
     state.errors = data.errors || 0;
-    state.elapsedBefore = data.elapsed || 0;
-    state.selected = null;
-    state.notesMode = false;
-    state.won = false;
-    state.history = [];
-    state.future = [];
-    diffEl.value = data.diff || 'medium';
-    notesBtn.classList.remove('active');
+    state.elapsed = data.elapsed || 0;
+    diffEl.value = state.diff;
     errsEl.textContent = state.errors;
-    state.startTime = Date.now();
-    if(state.timerId) clearInterval(state.timerId);
-    state.timerId = setInterval(() => {
-      const s = Math.floor((Date.now() - state.startTime) / 1000) + state.elapsedBefore;
-      const mm = String(Math.floor(s/60)).padStart(2,'0');
-      const ss = String(s%60).padStart(2,'0');
-      timeEl.textContent = `${mm}:${ss}`;
-    }, 1000);
-    updateUndoRedo();
+    timeEl.textContent = fmt(Math.floor(state.elapsed));
+    showBest();
     render();
-    showMsg('Сохранение загружено', 'win');
-    setTimeout(() => { msgEl.textContent = ''; msgEl.className = 'msg'; }, 2000);
     return true;
-  } catch(e){
-    showMsg('Не удалось загрузить: ' + e.message, 'bad');
+  } catch (e) {
     return false;
   }
 }
 
 document.getElementById('newBtn').addEventListener('click', newGame);
-document.getElementById('saveBtn').addEventListener('click', () => {
-  saveProgress();
-  showMsg('Сохранено', 'win');
-  setTimeout(() => { if(!state.won){ msgEl.textContent = ''; msgEl.className = 'msg'; } }, 1500);
-});
-document.getElementById('loadBtn').addEventListener('click', loadProgress);
+document.getElementById('pauseBtn').addEventListener('click', () => setPaused(!state.paused));
+document.getElementById('pauseCover').addEventListener('click', () => setPaused(false));
+document.getElementById('saveBtn').addEventListener('click', () => { saveProgress(); showMsg('Сохранено', ''); });
 document.getElementById('eraseBtn').addEventListener('click', eraseCell);
 document.getElementById('hintBtn').addEventListener('click', giveHint);
 document.getElementById('checkBtn').addEventListener('click', checkBoard);
 document.getElementById('singlesBtn').addEventListener('click', fillSingles);
 document.getElementById('exportBtn').addEventListener('click', exportPuzzle);
-document.getElementById('importBtn').addEventListener('click', importPuzzle);
+document.getElementById('importBtn').addEventListener('click', () => importPuzzle());
+diffEl.addEventListener('change', () => { if (confirm('Начать новую игру уровня «' + DIFF_NAMES[diffEl.value] + '»?')) newGame(); else diffEl.value = state.diff; });
 undoBtn.addEventListener('click', undo);
 redoBtn.addEventListener('click', redo);
-notesBtn.addEventListener('click', () => {
-  state.notesMode = !state.notesMode;
-  notesBtn.classList.toggle('active', state.notesMode);
-});
+notesBtn.addEventListener('click', () => { state.notesMode = !state.notesMode; notesBtn.classList.toggle('active', state.notesMode); });
 
+// Клавиши по коду (e.code): Ctrl+Z, Ctrl+Y, N, P работают и в русской раскладке
 document.addEventListener('keydown', (e) => {
-  if(document.activeElement === ioArea) return;
-  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){
-    e.preventDefault();
-    if(e.shiftKey) redo(); else undo();
-    return;
+  if (document.activeElement === ioArea || document.activeElement === diffEl) return;
+  const code = e.code;
+  if ((e.ctrlKey || e.metaKey) && code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && code === 'KeyY') { e.preventDefault(); redo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (code === 'KeyP') { setPaused(!state.paused); return; }
+  if (code === 'KeyN') { notesBtn.click(); return; }
+  const digit = /^(Digit|Numpad)([0-9])$/.exec(code);
+  if (!state.selected) {
+    if (digit || code.startsWith('Arrow')) { selectCell(4, 4); if (!digit) { e.preventDefault(); return; } }
+    else return;
   }
-  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y'){
-    e.preventDefault(); redo(); return;
-  }
-  if(!state.selected) return;
   const { r, c } = state.selected;
-  if(e.key >= '1' && e.key <= '9'){ inputNumber(parseInt(e.key)); e.preventDefault(); }
-  else if(e.key === 'Backspace' || e.key === 'Delete' || e.key === '0'){ eraseCell(); e.preventDefault(); }
-  else if(e.key === 'ArrowUp' && r > 0){ selectCell(r-1, c); e.preventDefault(); }
-  else if(e.key === 'ArrowDown' && r < 8){ selectCell(r+1, c); e.preventDefault(); }
-  else if(e.key === 'ArrowLeft' && c > 0){ selectCell(r, c-1); e.preventDefault(); }
-  else if(e.key === 'ArrowRight' && c < 8){ selectCell(r, c+1); e.preventDefault(); }
-  else if(e.key.toLowerCase() === 'n'){ notesBtn.click(); e.preventDefault(); }
+  if (digit && digit[2] !== '0') { inputNumber(Number(digit[2])); e.preventDefault(); }
+  else if ((digit && digit[2] === '0') || code === 'Backspace' || code === 'Delete') { eraseCell(); e.preventDefault(); }
+  else if (code === 'ArrowUp') { selectCell((r + 8) % 9, c); e.preventDefault(); }
+  else if (code === 'ArrowDown') { selectCell((r + 1) % 9, c); e.preventDefault(); }
+  else if (code === 'ArrowLeft') { selectCell(r, (c + 8) % 9); e.preventDefault(); }
+  else if (code === 'ArrowRight') { selectCell(r, (c + 1) % 9); e.preventDefault(); }
 });
 
 window.addEventListener('beforeunload', saveProgress);
 
 buildBoard();
 buildPad();
-if(!loadProgress()) newGame();
-</script>
+if (!loadProgress()) {
+  const { puzzle, solution } = generate(diffEl.value);
+  setupGame(puzzle, solution, diffEl.value);
+  saveProgress();
+}
 
+// ---------- Крючок для проверок ----------
+window.__game = {
+  ready: true,
+  state,
+  generate, setupGame, countSolutions, selectCell, inputNumber, eraseCell, giveHint, fillSingles,
+  undo, redo, importPuzzle, setPaused, tickTime, loadBests,
+  newSync(diff) { const { puzzle, solution } = generate(diff); diffEl.value = diff; setupGame(puzzle, solution, diff); saveProgress(); },
+};
+</script>
 </body>
 </html>
