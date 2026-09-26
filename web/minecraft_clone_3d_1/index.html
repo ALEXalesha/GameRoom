@@ -77,6 +77,7 @@
   /* HUD */
   .hud { position: absolute; inset: 0; display: none; pointer-events: none; }
   .hud.show { display: block; }
+  body.dim #crosshair, body.dim #itemName { display: none; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; mix-blend-mode: difference; }
   #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
   #crosshair::before { left: 0; top: 8px; width: 18px; height: 2px; }

@@ -19,7 +19,7 @@
 
   const G = VX.game = {
     state: 'boot', mode: 'creative', settings: null, meta: null, ticks: 0, debug: false,
-    keys: {}, mouse: { l: false, r: false }, perf: { frames: [], work: [] }, panorama: true, events: [],
+    keys: {}, mouse: { l: false, r: false }, perf: { frames: [], work: [], slow: [], cur: {} }, panorama: true, events: [],
   };
 
   // ---------- Сцена ----------
@@ -140,7 +140,7 @@
         m = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.75), new THREE.MeshLambertMaterial({ color: 0xc89a78 }));
         m.position.set(0.1, -0.05, 0.1); m.rotation.set(0.2, -0.25, 0.1);
       } else {
-        m = G.itemMesh(id, 0.26);
+        m = G.itemMesh(id, 0.22);
         if (m.geometry.type === 'PlaneGeometry') { m.rotation.set(0, -1.2, 0.35); m.position.set(0, 0.1, 0); }
         else m.rotation.set(0.1, 0.8, 0);
       }
@@ -706,8 +706,12 @@
     const frameMs = now - clock.last;
     clock.last = now;
     const t0 = performance.now();
-    try { tick(dt); render(dt); } catch (e) { console.error(e); }
+    let t1 = t0;
+    try { tick(dt); t1 = performance.now(); render(dt); } catch (e) { console.error(e); }
     const work = performance.now() - t0;
+    // медленные кадры запоминаем с разбивкой: что именно тормозило
+    if (work > 12) { G.perf.slow.push({ at: Math.round(now), tick: +(t1 - t0).toFixed(1), render: +(performance.now() - t1).toFixed(1), parts: G.perf.cur }); if (G.perf.slow.length > 40) G.perf.slow.shift(); }
+    G.perf.cur = {};
     const p = G.perf;
     p.frames.push(frameMs); p.work.push(work);
     if (p.frames.length > 600) { p.frames.shift(); p.work.shift(); }
@@ -732,8 +736,10 @@
         G.state = 'paused';
         if (VX.ui) VX.ui.loaded();
       }
-    } else simulate(dt);
+    } else { const a = performance.now(); simulate(dt); G.perf.cur.sim = +(performance.now() - a).toFixed(1); }
+    const b = performance.now();
     world.update(player.pos.x, player.pos.z);
+    G.perf.cur.world = +(performance.now() - b).toFixed(1);
   }
   function render(dt) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -776,7 +782,7 @@
     if (VX.entities) VX.entities.render(dt, camera);
     renderer.setClearColor(sk.fog);
     renderer.clear();
-    if (G.state !== 'loading') renderer.render(scene, camera);     // пока грузится - экран загрузки, мир не рисуем
+    if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем
     // рука
     const inGame = G.state === 'play' || G.state === 'inv';
     if (inGame && !G.hideHand) {
@@ -784,7 +790,7 @@
       setHand(held ? held.id : 0);
       const sw = Math.sin(G.swing * Math.PI);
       const bx = Math.sin(bob) * 0.03 * bobA, by = -Math.abs(Math.cos(bob)) * 0.03 * bobA;
-      hand.position.set(0.5 + bx - sw * 0.18, -0.4 + by - sw * 0.1, -0.78 - sw * 0.1);
+      hand.position.set(0.52 + bx - sw * 0.18, -0.42 + by - sw * 0.1, -0.8 - sw * 0.1);
       hand.rotation.set(-sw * 0.6, sw * 0.4, 0);
       const light = G.localLight ? G.localLight() : 1;
       handLight.intensity = 0.6 * light; handScene.children[1].intensity = 0.55 * Math.max(0.15, light);
@@ -803,7 +809,8 @@
       const id = world.getBlock(X + dx, Y + dy, Z + dz);
       if (id > 0 && C.EMIT[id]) blk = Math.max(blk, (C.EMIT[id] - Math.abs(dx) - Math.abs(dz) - Math.abs(dy)) / 15);
     }
-    return Math.max(skyL * (0.25 + 0.75 * (G.dayLight || 1)), blk, 0.12);
+    const day = G.dayLight === undefined ? 1 : G.dayLight;
+    return Math.max(skyL * (0.25 + 0.75 * day), blk, 0.12);
   };
   let llT = 0, llV = 1;
   G.localLight = function () {

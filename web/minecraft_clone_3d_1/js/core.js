@@ -445,12 +445,20 @@ function VoxelCore() {
   // Точка появления: ближайшая к началу суша без воды над ней
   function findSpawn(seed) {
     const w = worldOf(seed);
-    for (let r = 0; r < 400; r += 4) {
-      for (let a = 0; a < Math.max(1, r * 0.8); a++) {
-        const ang = a / Math.max(1, r * 0.8) * Math.PI * 2;
-        const x = Math.round(Math.cos(ang) * r), z = Math.round(Math.sin(ang) * r);
-        const c = column(w, x, z);
-        if (c.h > SEA + 1 && c.h < SEA + 30 && c.biome !== OCEAN && treeAt(w, x, z, c) === 0) return { x, z, h: c.h };
+    // сперва открытая местность (равнины, пустыня, тундра), потом любая суша
+    for (const open of [true, false]) {
+      for (let r = 0; r < 600; r += 4) {
+        const n = Math.max(1, Math.floor(r * 0.8));
+        for (let a = 0; a < n; a++) {
+          const ang = a / n * Math.PI * 2;
+          const x = Math.round(Math.cos(ang) * r), z = Math.round(Math.sin(ang) * r);
+          const c = column(w, x, z);
+          if (c.h <= SEA + 1 || c.h >= SEA + 30 || c.biome === OCEAN || c.biome === FROZEN) continue;
+          if (open && c.biome !== PLAINS && c.biome !== DESERT && c.biome !== SNOWY && c.biome !== BEACH) continue;
+          let clear = true;
+          for (let dz = -3; dz <= 3 && clear; dz++) for (let dx = -3; dx <= 3 && clear; dx++) if (treeAt(w, x + dx, z + dz, column(w, x + dx, z + dz))) clear = false;
+          if (clear) return { x, z, h: c.h };
+        }
       }
     }
     return { x: 0, z: 0, h: column(w, 0, 0).h };
@@ -485,13 +493,15 @@ function VoxelCore() {
   });
 
   function Buf() {
-    this.pos = new Uint16Array(4096 * 3); this.uv = new Uint16Array(4096 * 2); this.light = new Uint8Array(4096 * 4);
+    // позиция - обычные float32: целочисленные 16-битные форматы Direct3D 11 не читает как дробные,
+    // и ANGLE перекладывал бы каждый новый буфер на процессоре - заметные рывки при подгрузке
+    this.pos = new Float32Array(4096 * 3); this.uv = new Uint16Array(4096 * 2); this.light = new Uint8Array(4096 * 4);
     this.index = new Uint32Array(4096 * 1.5); this.nv = 0; this.ni = 0; this.quads = 0;
   }
   Buf.prototype.grow = function (nv) {
     if (this.nv + nv <= this.pos.length / 3) return;
     const cap = Math.max(this.pos.length / 3 * 2, this.nv + nv);
-    const p = new Uint16Array(cap * 3); p.set(this.pos); this.pos = p;
+    const p = new Float32Array(cap * 3); p.set(this.pos); this.pos = p;
     const u = new Uint16Array(cap * 2); u.set(this.uv); this.uv = u;
     const l = new Uint8Array(cap * 4); l.set(this.light); this.light = l;
     const ix = new Uint32Array(cap * 1.5); ix.set(this.index); this.index = ix;
@@ -583,7 +593,8 @@ function VoxelCore() {
       const base = buf.nv;
       for (let k = 0; k < 4; k++) {
         const vv = verts[k];
-        buf.pos[base * 3 + k * 3] = vv[0]; buf.pos[base * 3 + k * 3 + 1] = vv[1]; buf.pos[base * 3 + k * 3 + 2] = vv[2];
+        const o = (base + k) * 3;
+        buf.pos[o] = vv[0] / 16; buf.pos[o + 1] = vv[1] / 16; buf.pos[o + 2] = vv[2] / 16;
         const uv = tileUV(t, vv[3], vv[4]);
         buf.uv[(base + k) * 2] = uv[0]; buf.uv[(base + k) * 2 + 1] = uv[1];
         const L = lights[k];

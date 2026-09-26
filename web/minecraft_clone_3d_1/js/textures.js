@@ -9,7 +9,7 @@
 
   function rng(seed) { return C.mulberry32(seed); }
   function hex(c) { const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
-  function shadeHex(c, k) { const [r, g, b] = hex(c); const f = (v) => Math.max(0, Math.min(255, Math.round(v * k))); return `rgb(${f(r)},${f(g)},${f(b)})`; }
+  function shadeHex(c, k) { const [r, g, b] = hex(c); const f = (v) => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0'); return '#' + f(r) + f(g) + f(b); }
 
   // Плитка рисуется в ImageData 16x16: px(x, y, цвет, прозрачность)
   function Tile() { this.d = new Uint8ClampedArray(16 * 16 * 4); }

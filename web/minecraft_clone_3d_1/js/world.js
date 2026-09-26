@@ -50,9 +50,9 @@
     void main() {
       vUv = uv;
       float sky = light.x * 15.0, blk = light.y * 15.0;
-      float skyEff = max(0.0, sky - (1.0 - uDay) * 11.0);
+      float skyEff = max(0.0, sky - (1.0 - uDay) * 10.5);
       float l = max(skyEff, blk) / 15.0;
-      float b = 0.035 + 0.965 * pow(l, 1.45);
+      float b = 0.045 + 0.955 * pow(l, 1.35);
       float ao = mix(1.0, 0.52 + 0.48 * light.z, uSmooth);
       float warm = clamp((blk - skyEff) / 15.0, 0.0, 1.0);
       vec3 tint = mix(vec3(1.0), vec3(1.12, 0.94, 0.72), warm);
@@ -101,7 +101,9 @@
     this.scene = scene;
     this.mat = materials;
     this.chunks = new Map();
-    this.pool = makePool(Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)));
+    // ?workers=N - число потоков (0 - всё на странице, запасной путь)
+    const wp = new URLSearchParams(location.search).get('workers');
+    this.pool = makePool(wp !== null ? Math.max(0, Math.min(8, +wp || 0)) : Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 1)));
     this.jobs = new Map();
     this.jobId = 1;
     this.pool.forEach((w) => { w.onmessage = (e) => this.onResult(w, e.data); w.onerror = () => { w.dead = true; }; });
@@ -115,6 +117,8 @@
     this.group = new THREE.Group();
     scene.add(this.group);
     this.cache = null;
+    this.fresh = [];
+    this.trash = [];
   }
   World.prototype.open = function (meta, persist) {
     this.close();
@@ -313,7 +317,7 @@
     g.setAttribute('uv', new THREE.BufferAttribute(part.uv, 2, true));
     g.setAttribute('light', new THREE.BufferAttribute(part.light, 4, true));
     g.setIndex(new THREE.BufferAttribute(part.index, 1));
-    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(128, 64 * 16, 128), Math.sqrt(128 * 128 * 2 + 1024 * 1024));
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, 64, 8), Math.sqrt(8 * 8 * 2 + 64 * 64));
     return g;
   };
   World.prototype.applyMesh = function (ch, r) {
@@ -322,22 +326,38 @@
     const x = ch.cx * CS, z = ch.cz * CS;
     if (r.opaque.quads) {
       const m = new THREE.Mesh(this.geometry(r.opaque), this.mat.opaque);
-      m.scale.setScalar(1 / 16); m.position.set(x, 0, z); m.matrixAutoUpdate = false; m.updateMatrix();
+      m.position.set(x, 0, z); m.matrixAutoUpdate = false; m.updateMatrix();
       this.group.add(m); out.opaque = m;
     }
     if (r.trans.quads) {
       const m = new THREE.Mesh(this.geometry(r.trans), this.mat.trans);
-      m.scale.setScalar(1 / 16); m.position.set(x, 0, z); m.matrixAutoUpdate = false; m.updateMatrix();
+      m.position.set(x, 0, z); m.matrixAutoUpdate = false; m.updateMatrix();
       m.renderOrder = 1;
       this.group.add(m); out.trans = m;
     }
     ch.meshes = out;
     this.stats.meshed++;
+    // новая сетка рисуется один раз вне зависимости от поля зрения: буферы уходят в видеокарту
+    // сразу, по мере прихода, а не пачкой в тот кадр, когда герой повернётся к ним
+    for (const m of [out.opaque, out.trans]) if (m) { m.frustumCulled = false; this.fresh.push(m); }
   };
+  World.prototype.afterRender = function () {
+    for (const m of this.fresh) m.frustumCulled = true;
+    this.fresh.length = 0;
+    this.frameNo = (this.frameNo || 0) + 1;
+    if (this.frameNo % 3 === 0) this.collect(this.trash.length > 400);
+  };
+  // Старая сетка убирается со сцены сразу, а буферы видеокарты освобождаются позже и по одному:
+  // пачка удалений в одном кадре останавливает ANGLE/Direct3D на десятки миллисекунд (рывки на ходу)
   World.prototype.dropMesh = function (ch) {
     if (!ch.meshes) return;
-    for (const m of [ch.meshes.opaque, ch.meshes.trans]) if (m) { this.group.remove(m); m.geometry.dispose(); }
+    for (const m of [ch.meshes.opaque, ch.meshes.trans]) if (m) { this.group.remove(m); this.trash.push([performance.now(), m.geometry]); }
     ch.meshes = null;
+  };
+  World.prototype.collect = function (all) {
+    const now = performance.now();
+    let n = 0;
+    while (this.trash.length && (all || (n < 1 && now - this.trash[0][0] > 1500))) { this.trash.shift()[1].dispose(); n++; }
   };
   // Пересобрать все сетки (сменились настройки графики)
   World.prototype.remeshAll = function () { for (const ch of this.chunks.values()) if (ch.data) ch.needMesh = true; };
