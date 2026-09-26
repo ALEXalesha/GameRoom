@@ -1,0 +1,7 @@
+desktop.ini
+node_modules/
+test-results/
+playwright-report/
+dist/
+__pycache__/
+*.pyc

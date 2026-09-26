@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Проводник</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #1a1b1e;
+  --bg-panel: #222327;
+  --bg-hover: #2a2b30;
+  --bg-selected: #2d4a6b;
+  --bg-selected-hover: #355a80;
+  --border: #33353a;
+  --text: #e4e4e7;
+  --text-dim: #9ca0a8;
+  --text-faint: #6b6f76;
+  --accent: #4a9eff;
+  --accent-dim: #2d6aa8;
+  --danger: #e06060;
+  --warn: #e0a060;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  overflow: hidden;
+  user-select: none;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100vh;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* Address bar */
+.address-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.breadcrumbs {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.crumb {
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.crumb:hover { background: var(--bg-hover); }
+
+.crumb-sep {
+  color: var(--text-faint);
+  padding: 0 2px;
+}
+
+.search {
+  flex: 0 0 240px;
+  padding: 5px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.search:focus { border-color: var(--accent); }
+.search::placeholder { color: var(--text-faint); }
+
+/* Main split */
+.main {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.sidebar-title {
+  padding: 8px 16px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.sidebar-item:hover { background: var(--bg-hover); }
+
+.sidebar-item.active {
+  background: var(--bg-selected);
+  color: white;
+}
+
+.sidebar-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.sidebar-item.active svg { color: white; }
+
+/* File list */
+.file-area {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.file-header {
+  display: grid;
+  grid-template-columns: 1fr 120px 100px 160px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.file-header > div {
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.file-header > div:hover { color: var(--text); }
+
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.file-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 100px 160px;
+  padding: 6px 12px;
+  cursor: pointer;
+  align-items: center;
+  border-bottom: 1px solid transparent;
+  font-size: 13px;
+}
+
+.file-row:hover { background: var(--bg-hover); }
+
+.file-row.selected {
+  background: var(--bg-selected);
+  color: white;
+}
+
+.file-row.selected:hover { background: var(--bg-selected-hover); }
+
+.file-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.file-name-cell svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.file-name-cell .folder-icon { color: #f0b860; }
+.file-name-cell .file-icon { color: var(--text-dim); }
+.file-row.selected .file-icon { color: rgba(255,255,255,0.8); }
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name.editing {
+  padding: 2px 4px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+}
+
+.meta {
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.file-row.selected .meta { color: rgba(255,255,255,0.85); }
+
+/* Status bar */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.status-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.real { background: #2d5a3d; color: #a0e0b0; }
+.status-badge.virtual { background: #5a4d2d; color: #e0c890; }
+
+/* Empty state */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-faint);
+  padding: 40px;
+  text-align: center;
+}
+
+.empty svg {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.empty-title {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--text-dim);
+}
+
+.empty-hint {
+  font-size: 12px;
+  max-width: 360px;
+  line-height: 1.5;
+}
+
+/* Context menu */
+.ctx-menu {
+  position: fixed;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 1000;
+  font-size: 13px;
+}
+
+.ctx-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.ctx-item:hover { background: var(--bg-hover); }
+.ctx-item.danger { color: var(--danger); }
+
+.ctx-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ctx-item.disabled:hover { background: transparent; }
+
+.ctx-shortcut {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+/* Modal */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  min-width: 380px;
+  max-width: 520px;
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.modal-text {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 16px;
+}
+
+.modal-input:focus { border-color: var(--accent); }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.preview-content {
+  max-height: 400px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.preview-content img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3c42; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #4a4c52; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 3000;
+  animation: toastIn 0.2s ease-out;
+}
+
+.toast.error { border-color: var(--danger); color: var(--danger); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn" id="btn-back" title="Назад (Alt+←)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <button class="btn" id="btn-forward" title="Вперёд (Alt+→)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+    <button class="btn" id="btn-up" title="Вверх (Alt+↑)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+    <button class="btn" id="btn-refresh" title="Обновить (F5)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+    </button>
+
+    <div class="btn-sep"></div>
+
+    <button class="btn primary" id="btn-open-real" title="Открыть реальную папку с диска">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      Открыть папку
+    </button>
+
+    <div class="btn-sep"></div>
+
+    <button class="btn" id="btn-new-folder" title="Новая папка (Ctrl+Shift+N)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><path d="M12 11v6M9 14h6"/></svg>
+    </button>
+    <button class="btn" id="btn-new-file" title="Новый файл">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>
+    </button>
+    <button class="btn" id="btn-rename" title="Переименовать (F2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    </button>
+    <button class="btn" id="btn-delete" title="Удалить (Del)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+    </button>
+  </div>
+
+  <!-- Address bar -->
+  <div class="address-bar">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <input type="text" class="search" id="search" placeholder="Поиск в текущей папке...">
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-title">Быстрый доступ</div>
+      <div class="sidebar-item" data-path="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>
+        <span>Этот компьютер</span>
+      </div>
+      <div class="sidebar-item" data-path="/Документы">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        <span>Документы</span>
+      </div>
+      <div class="sidebar-item" data-path="/Загрузки">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span>Загрузки</span>
+      </div>
+      <div class="sidebar-item" data-path="/Изображения">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Изображения</span>
+      </div>
+      <div class="sidebar-item" data-path="/Проекты">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Проекты</span>
+      </div>
+    </aside>
+
+    <div class="file-area">
+      <div class="file-header">
+        <div data-sort="name">Имя</div>
+        <div data-sort="size">Размер</div>
+        <div data-sort="type">Тип</div>
+        <div data-sort="modified">Изменён</div>
+      </div>
+      <div class="file-list" id="file-list"></div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <div id="status-info">Элементов: 0</div>
+    <div class="status-mode">
+      <span id="status-selection"></span>
+      <span class="status-badge virtual" id="status-mode-badge">ДЕМО</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Виртуальная файловая система (демо-режим)
+// ============================================================
+
+const now = () => new Date().toISOString();
+
+function makeVFS() {
+  return {
+    name: '',
+    type: 'folder',
+    modified: now(),
+    children: {
+      'Документы': {
+        name: 'Документы', type: 'folder', modified: now(),
+        children: {
+          'заметки.txt': { name: 'заметки.txt', type: 'file', size: 245, modified: now(), content: 'Список дел:\n- купить хлеб\n- решить задачу по геометрии\n- позвонить маме' },
+          'отчёт.md': { name: 'отчёт.md', type: 'file', size: 1420, modified: now(), content: '# Отчёт\n\nРаздел 1. Введение\n\nТекст отчёта...' },
+          'Учёба': {
+            name: 'Учёба', type: 'folder', modified: now(),
+            children: {
+              'математика.md': { name: 'математика.md', type: 'file', size: 892, modified: now(), content: '# Математика\n\nЗадача 1. Решить уравнение x² - 5x + 6 = 0\n\nРешение: x = 2, x = 3' },
+              'физика.md': { name: 'физика.md', type: 'file', size: 654, modified: now(), content: '# Физика\n\nЗакон Ома: I = U / R' },
+            }
+          },
+        }
+      },
+      'Загрузки': {
+        name: 'Загрузки', type: 'folder', modified: now(),
+        children: {
+          'installer.exe': { name: 'installer.exe', type: 'file', size: 45_890_123, modified: now(), content: null },
+          'архив.zip': { name: 'архив.zip', type: 'file', size: 2_345_678, modified: now(), content: null },
+        }
+      },
+      'Изображения': {
+        name: 'Изображения', type: 'folder', modified: now(),
+        children: {
+          'фото.jpg': { name: 'фото.jpg', type: 'file', size: 1_234_567, modified: now(), content: null },
+          'скриншот.png': { name: 'скриншот.png', type: 'file', size: 456_789, modified: now(), content: null },
+        }
+      },
+      'Проекты': {
+        name: 'Проекты', type: 'folder', modified: now(),
+        children: {
+          'game.py': { name: 'game.py', type: 'file', size: 3421, modified: now(), content: 'import pygame\n\npygame.init()\nscreen = pygame.display.set_mode((800, 600))\n\nrunning = True\nwhile running:\n    for event in pygame.event.get():\n        if event.type == pygame.QUIT:\n            running = False\n    pygame.display.flip()\n\npygame.quit()' },
+          'index.html': { name: 'index.html', type: 'file', size: 567, modified: now(), content: '<!DOCTYPE html>\n<html>\n<head><title>Привет</title></head>\n<body><h1>Hello, world!</h1></body>\n</html>' },
+        }
+      },
+      'readme.txt': { name: 'readme.txt', type: 'file', size: 156, modified: now(), content: 'Это демо-проводник.\n\nНажми "Открыть папку" в тулбаре, чтобы работать с реальными файлами на диске (Chrome/Edge).' },
+    }
+  };
+}
+
+// ============================================================
+// Состояние
+// ============================================================
+
+const state = {
+  mode: 'virtual',        // 'virtual' | 'real'
+  vfs: makeVFS(),
+  realRoot: null,         // FileSystemDirectoryHandle
+  currentPath: [],        // массив сегментов от корня
+  history: [[]],
+  historyIndex: 0,
+  entries: [],            // текущий список элементов
+  selected: new Set(),    // индексы выбранных
+  sortBy: 'name',
+  sortDir: 'asc',
+  filter: '',
+};
+
+// ============================================================
+// Работа с виртуальной ФС
+// ============================================================
+
+function vfsGetNode(path) {
+  let node = state.vfs;
+  for (const seg of path) {
+    if (!node.children || !node.children[seg]) return null;
+    node = node.children[seg];
+  }
+  return node;
+}
+
+async function listVirtual(path) {
+  const node = vfsGetNode(path);
+  if (!node || node.type !== 'folder') return [];
+  return Object.values(node.children).map(n => ({
+    name: n.name,
+    kind: n.type === 'folder' ? 'directory' : 'file',
+    size: n.size || 0,
+    modified: n.modified,
+    _node: n,
+  }));
+}
+
+// ============================================================
+// Работа с реальной ФС
+// ============================================================
+
+async function listReal(dirHandle) {
+  const results = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    let size = 0, modified = '';
+    if (handle.kind === 'file') {
+      try {
+        const file = await handle.getFile();
+        size = file.size;
+        modified = new Date(file.lastModified).toISOString();
+      } catch (e) { /* ignore */ }
+    }
+    results.push({
+      name,
+      kind: handle.kind,
+      size,
+      modified,
+      _handle: handle,
+    });
+  }
+  return results;
+}
+
+async function getRealHandleAtPath(path) {
+  let handle = state.realRoot;
+  for (const seg of path) {
+    handle = await handle.getDirectoryHandle(seg);
+  }
+  return handle;
+}
+
+// ============================================================
+// Загрузка списка
+// ============================================================
+
+async function loadCurrent() {
+  try {
+    let entries;
+    if (state.mode === 'real' && state.realRoot) {
+      const dir = await getRealHandleAtPath(state.currentPath);
+      entries = await listReal(dir);
+    } else {
+      entries = await listVirtual(state.currentPath);
+    }
+    state.entries = entries;
+    state.selected.clear();
+    sortEntries();
+    render();
+  } catch (e) {
+    toast('Не удалось открыть папку: ' + e.message, true);
+  }
+}
+
+function sortEntries() {
+  const dir = state.sortDir === 'asc' ? 1 : -1;
+  state.entries.sort((a, b) => {
+    // папки всегда сверху
+    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+    let cmp = 0;
+    if (state.sortBy === 'name') cmp = a.name.localeCompare(b.name, 'ru');
+    else if (state.sortBy === 'size') cmp = a.size - b.size;
+    else if (state.sortBy === 'type') cmp = getType(a).localeCompare(getType(b));
+    else if (state.sortBy === 'modified') cmp = (a.modified || '').localeCompare(b.modified || '');
+    return cmp * dir;
+  });
+}
+
+// ============================================================
+// Рендеринг
+// ============================================================
+
+function getType(entry) {
+  if (entry.kind === 'directory') return 'Папка';
+  const ext = entry.name.split('.').pop().toLowerCase();
+  const types = {
+    txt: 'Текст', md: 'Markdown', py: 'Python', js: 'JavaScript', html: 'HTML', css: 'CSS',
+    json: 'JSON', jpg: 'Изображение', jpeg: 'Изображение', png: 'Изображение', gif: 'Изображение',
+    pdf: 'PDF', zip: 'Архив', exe: 'Программа', mp3: 'Аудио', mp4: 'Видео',
+  };
+  return types[ext] || ext.toUpperCase() + ' файл';
+}
+
+function formatSize(bytes) {
+  if (bytes === 0) return '';
+  const units = ['Б', 'КБ', 'МБ', 'ГБ'];
+  let i = 0, s = bytes;
+  while (s >= 1024 && i < units.length - 1) { s /= 1024; i++; }
+  return s.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function iconFor(entry) {
+  if (entry.kind === 'directory') {
+    return `<svg class="folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>`;
+  }
+  return `<svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>`;
+}
+
+function render() {
+  renderBreadcrumbs();
+  renderFileList();
+  renderStatus();
+  renderSidebar();
+
+  document.getElementById('btn-back').disabled = state.historyIndex <= 0;
+  document.getElementById('btn-forward').disabled = state.historyIndex >= state.history.length - 1;
+  document.getElementById('btn-up').disabled = state.currentPath.length === 0;
+}
+
+function renderBreadcrumbs() {
+  const wrap = document.getElementById('breadcrumbs');
+  wrap.innerHTML = '';
+  const rootLabel = state.mode === 'real' ? (state.realRoot?.name || 'Корень') : 'Этот компьютер';
+  const addCrumb = (label, idx) => {
+    const c = document.createElement('span');
+    c.className = 'crumb';
+    c.textContent = label;
+    c.onclick = () => navigateTo(state.currentPath.slice(0, idx));
+    wrap.appendChild(c);
+  };
+  addCrumb(rootLabel, 0);
+  state.currentPath.forEach((seg, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'crumb-sep';
+    sep.textContent = '›';
+    wrap.appendChild(sep);
+    addCrumb(seg, i + 1);
+  });
+}
+
+function renderFileList() {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+
+  const filtered = state.filter
+    ? state.entries.filter(e => e.name.toLowerCase().includes(state.filter.toLowerCase()))
+    : state.entries;
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    if (state.entries.length === 0) {
+      empty.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        <div class="empty-title">Папка пуста</div>
+        <div class="empty-hint">Правый клик — создать новый элемент</div>
+      `;
+    } else {
+      empty.innerHTML = `
+        <div class="empty-title">Ничего не найдено</div>
+        <div class="empty-hint">Попробуй изменить поисковый запрос</div>
+      `;
+    }
+    list.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((entry, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    if (state.selected.has(i)) row.classList.add('selected');
+    row.dataset.index = i;
+    row.innerHTML = `
+      <div class="file-name-cell">
+        ${iconFor(entry)}
+        <span class="file-name" data-index="${i}">${escapeHtml(entry.name)}</span>
+      </div>
+      <div class="meta">${formatSize(entry.size)}</div>
+      <div class="meta">${getType(entry)}</div>
+      <div class="meta">${formatDate(entry.modified)}</div>
+    `;
+    row.addEventListener('click', (e) => handleRowClick(e, i));
+    row.addEventListener('dblclick', () => handleRowDblClick(i));
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); selectOnly(i); showContextMenu(e.clientX, e.clientY, 'item'); });
+    list.appendChild(row);
+  });
+}
+
+function renderStatus() {
+  const total = state.entries.length;
+  const filtered = state.filter
+    ? state.entries.filter(e => e.name.toLowerCase().includes(state.filter.toLowerCase())).length
+    : total;
+  let info = `Элементов: ${total}`;
+  if (state.filter) info += ` (показано ${filtered})`;
+  document.getElementById('status-info').textContent = info;
+
+  const sel = state.selected.size;
+  document.getElementById('status-selection').textContent = sel > 0 ? `выбрано: ${sel}` : '';
+
+  const badge = document.getElementById('status-mode-badge');
+  if (state.mode === 'real') {
+    badge.textContent = 'ДИСК';
+    badge.className = 'status-badge real';
+  } else {
+    badge.textContent = 'ДЕМО';
+    badge.className = 'status-badge virtual';
+  }
+}
+
+function renderSidebar() {
+  const items = document.querySelectorAll('.sidebar-item');
+  items.forEach(item => {
+    item.classList.remove('active');
+    const p = item.dataset.path;
+    if (state.mode === 'virtual') {
+      if (p === '/' && state.currentPath.length === 0) item.classList.add('active');
+      else if (p !== '/' && state.currentPath.length === 1 && '/' + state.currentPath[0] === p) item.classList.add('active');
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ============================================================
+// Навигация
+// ============================================================
+
+function navigateTo(path, pushHistory = true) {
+  state.currentPath = [...path];
+  if (pushHistory) {
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push([...path]);
+    state.historyIndex = state.history.length - 1;
+  }
+  document.getElementById('search').value = '';
+  state.filter = '';
+  loadCurrent();
+}
+
+function navigateBack() {
+  if (state.historyIndex > 0) {
+    state.historyIndex--;
+    state.currentPath = [...state.history[state.historyIndex]];
+    loadCurrent();
+  }
+}
+
+function navigateForward() {
+  if (state.historyIndex < state.history.length - 1) {
+    state.historyIndex++;
+    state.currentPath = [...state.history[state.historyIndex]];
+    loadCurrent();
+  }
+}
+
+function navigateUp() {
+  if (state.currentPath.length > 0) {
+    navigateTo(state.currentPath.slice(0, -1));
+  }
+}
+
+// ============================================================
+// Выбор
+// ============================================================
+
+function selectOnly(i) {
+  state.selected.clear();
+  state.selected.add(i);
+  render();
+}
+
+function handleRowClick(e, i) {
+  if (e.ctrlKey || e.metaKey) {
+    if (state.selected.has(i)) state.selected.delete(i);
+    else state.selected.add(i);
+  } else if (e.shiftKey && state.selected.size > 0) {
+    const last = Math.max(...state.selected);
+    const start = Math.min(last, i), end = Math.max(last, i);
+    state.selected.clear();
+    for (let k = start; k <= end; k++) state.selected.add(k);
+  } else {
+    state.selected.clear();
+    state.selected.add(i);
+  }
+  render();
+}
+
+function handleRowDblClick(i) {
+  const entry = state.entries[i];
+  if (entry.kind === 'directory') {
+    navigateTo([...state.currentPath, entry.name]);
+  } else {
+    openPreview(entry);
+  }
+}
+
+// ============================================================
+// Превью файла
+// ============================================================
+
+async function openPreview(entry) {
+  let content = '', isImage = false, imageUrl = '';
+  try {
+    if (state.mode === 'real') {
+      const file = await entry._handle.getFile();
+      if (file.type.startsWith('image/')) {
+        isImage = true;
+        imageUrl = URL.createObjectURL(file);
+      } else if (file.size > 500_000) {
+        content = `Файл слишком большой для предпросмотра (${formatSize(file.size)})`;
+      } else {
+        content = await file.text();
+      }
+    } else {
+      const node = entry._node;
+      content = node.content ?? '(бинарный файл, предпросмотр недоступен в демо-режиме)';
+    }
+  } catch (e) {
+    content = 'Ошибка чтения: ' + e.message;
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">${escapeHtml(entry.name)}</div>
+      <div class="preview-content">${isImage ? `<img src="${imageUrl}" alt="">` : escapeHtml(content)}</div>
+      <div class="modal-actions">
+        <button class="btn" id="close-preview">Закрыть</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#close-preview').onclick = () => modal.remove();
+}
+
+// ============================================================
+// Операции: создать, переименовать, удалить
+// ============================================================
+
+async function createFolder() {
+  const name = await prompt_('Новая папка', 'Имя папки:', 'Новая папка');
+  if (!name) return;
+  try {
+    if (state.mode === 'real') {
+      const dir = await getRealHandleAtPath(state.currentPath);
+      await dir.getDirectoryHandle(name, { create: true });
+    } else {
+      const parent = vfsGetNode(state.currentPath);
+      if (parent.children[name]) throw new Error('Уже существует');
+      parent.children[name] = { name, type: 'folder', modified: now(), children: {} };
+    }
+    await loadCurrent();
+  } catch (e) {
+    toast('Не удалось создать папку: ' + e.message, true);
+  }
+}
+
+async function createFile() {
+  const name = await prompt_('Новый файл', 'Имя файла:', 'новый.txt');
+  if (!name) return;
+  try {
+    if (state.mode === 'real') {
+      const dir = await getRealHandleAtPath(state.currentPath);
+      const fh = await dir.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write('');
+      await w.close();
+    } else {
+      const parent = vfsGetNode(state.currentPath);
+      if (parent.children[name]) throw new Error('Уже существует');
+      parent.children[name] = { name, type: 'file', size: 0, modified: now(), content: '' };
+    }
+    await loadCurrent();
+  } catch (e) {
+    toast('Не удалось создать файл: ' + e.message, true);
+  }
+}
+
+async function renameSelected() {
+  if (state.selected.size !== 1) return;
+  const i = [...state.selected][0];
+  const entry = state.entries[i];
+  const newName = await prompt_('Переименование', 'Новое имя:', entry.name);
+  if (!newName || newName === entry.name) return;
+  try {
+    if (state.mode === 'real') {
+      // File System Access не умеет переименовывать напрямую; у файлов есть move, у папок сложнее
+      if (entry.kind === 'file' && entry._handle.move) {
+        await entry._handle.move(newName);
+      } else {
+        throw new Error('Переименование папок или этот браузер не поддерживает операцию');
+      }
+    } else {
+      const parent = vfsGetNode(state.currentPath);
+      if (parent.children[newName]) throw new Error('Уже существует');
+      const node = parent.children[entry.name];
+      node.name = newName;
+      parent.children[newName] = node;
+      delete parent.children[entry.name];
+    }
+    await loadCurrent();
+  } catch (e) {
+    toast('Не удалось переименовать: ' + e.message, true);
+  }
+}
+
+async function deleteSelected() {
+  if (state.selected.size === 0) return;
+  const names = [...state.selected].map(i => state.entries[i].name);
+  const ok = await confirm_('Удаление', `Удалить ${names.length === 1 ? `"${names[0]}"` : `${names.length} элементов`}?`);
+  if (!ok) return;
+  try {
+    if (state.mode === 'real') {
+      const dir = await getRealHandleAtPath(state.currentPath);
+      for (const name of names) {
+        await dir.removeEntry(name, { recursive: true });
+      }
+    } else {
+      const parent = vfsGetNode(state.currentPath);
+      for (const name of names) delete parent.children[name];
+    }
+    await loadCurrent();
+  } catch (e) {
+    toast('Не удалось удалить: ' + e.message, true);
+  }
+}
+
+// ============================================================
+// Открытие реальной папки
+// ============================================================
+
+async function openRealFolder() {
+  if (!window.showDirectoryPicker) {
+    toast('Твой браузер не поддерживает выбор папок с диска. Нужен Chrome или Edge.', true);
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    state.realRoot = handle;
+    state.mode = 'real';
+    state.currentPath = [];
+    state.history = [[]];
+    state.historyIndex = 0;
+    await loadCurrent();
+    toast('Открыта папка: ' + handle.name);
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('Ошибка: ' + e.message, true);
+  }
+}
+
+// ============================================================
+// Модалки prompt и confirm
+// ============================================================
+
+function prompt_(title, text, defaultValue = '') {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-bg';
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="modal-title">${escapeHtml(title)}</div>
+        <div class="modal-text">${escapeHtml(text)}</div>
+        <input type="text" class="modal-input" value="${escapeHtml(defaultValue)}">
+        <div class="modal-actions">
+          <button class="btn" data-cancel>Отмена</button>
+          <button class="btn primary" data-ok>OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const input = modal.querySelector('input');
+    input.focus();
+    input.select();
+
+    const close = (value) => { modal.remove(); resolve(value); };
+    modal.querySelector('[data-cancel]').onclick = () => close(null);
+    modal.querySelector('[data-ok]').onclick = () => close(input.value.trim() || null);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') close(input.value.trim() || null);
+      if (e.key === 'Escape') close(null);
+    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(null); });
+  });
+}
+
+function confirm_(title, text) {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-bg';
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="modal-title">${escapeHtml(title)}</div>
+        <div class="modal-text">${escapeHtml(text)}</div>
+        <div class="modal-actions">
+          <button class="btn" data-cancel>Отмена</button>
+          <button class="btn primary" data-ok>Удалить</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = (v) => { modal.remove(); resolve(v); };
+    modal.querySelector('[data-cancel]').onclick = () => close(false);
+    modal.querySelector('[data-ok]').onclick = () => close(true);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(false); });
+    document.addEventListener('keydown', function esc(e) {
+      if (e.key === 'Escape') { document.removeEventListener('keydown', esc); close(false); }
+    });
+  });
+}
+
+// ============================================================
+// Контекстное меню
+// ============================================================
+
+let ctxMenu = null;
+
+function showContextMenu(x, y, kind) {
+  hideContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const hasSelection = state.selected.size > 0;
+  const singleSelection = state.selected.size === 1;
+
+  const items = [];
+  if (kind === 'item') {
+    items.push({ label: 'Открыть', shortcut: 'Enter', action: () => {
+      if (singleSelection) handleRowDblClick([...state.selected][0]);
+    }, disabled: !singleSelection });
+    items.push({ sep: true });
+    items.push({ label: 'Переименовать', shortcut: 'F2', action: renameSelected, disabled: !singleSelection });
+    items.push({ label: 'Удалить', shortcut: 'Del', action: deleteSelected, danger: true, disabled: !hasSelection });
+  } else {
+    items.push({ label: 'Новая папка', shortcut: 'Ctrl+Shift+N', action: createFolder });
+    items.push({ label: 'Новый файл', action: createFile });
+    items.push({ sep: true });
+    items.push({ label: 'Обновить', shortcut: 'F5', action: loadCurrent });
+  }
+
+  items.forEach(it => {
+    if (it.sep) {
+      const s = document.createElement('div');
+      s.className = 'ctx-sep';
+      menu.appendChild(s);
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'ctx-item' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '');
+    el.innerHTML = `<span>${it.label}</span>${it.shortcut ? `<span class="ctx-shortcut">${it.shortcut}</span>` : ''}`;
+    if (!it.disabled) el.onclick = () => { hideContextMenu(); it.action(); };
+    menu.appendChild(el);
+  });
+
+  menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - menu.offsetHeight - 20) + 'px';
+  document.body.appendChild(menu);
+  ctxMenu = menu;
+}
+
+function hideContextMenu() {
+  if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+}
+
+// ============================================================
+// Toast
+// ============================================================
+
+function toast(msg, error = false) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (error ? ' error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ============================================================
+// Обработчики
+// ============================================================
+
+document.getElementById('btn-back').onclick = navigateBack;
+document.getElementById('btn-forward').onclick = navigateForward;
+document.getElementById('btn-up').onclick = navigateUp;
+document.getElementById('btn-refresh').onclick = loadCurrent;
+document.getElementById('btn-open-real').onclick = openRealFolder;
+document.getElementById('btn-new-folder').onclick = createFolder;
+document.getElementById('btn-new-file').onclick = createFile;
+document.getElementById('btn-rename').onclick = renameSelected;
+document.getElementById('btn-delete').onclick = deleteSelected;
+
+document.querySelectorAll('.sidebar-item').forEach(item => {
+  item.onclick = () => {
+    if (state.mode === 'real') {
+      // в реальном режиме боковые ярлыки не применимы к произвольному корню
+      toast('Ярлыки работают только в демо-режиме. Нажми "Открыть папку" заново для смены корня.');
+      return;
+    }
+    const p = item.dataset.path;
+    const path = p === '/' ? [] : p.slice(1).split('/');
+    navigateTo(path);
+  };
+});
+
+document.getElementById('search').oninput = (e) => {
+  state.filter = e.target.value;
+  renderFileList();
+  renderStatus();
+};
+
+document.querySelectorAll('.file-header [data-sort]').forEach(h => {
+  h.onclick = () => {
+    const col = h.dataset.sort;
+    if (state.sortBy === col) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    else { state.sortBy = col; state.sortDir = 'asc'; }
+    sortEntries();
+    render();
+  };
+});
+
+document.getElementById('file-list').addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.file-row')) return;
+  e.preventDefault();
+  state.selected.clear();
+  render();
+  showContextMenu(e.clientX, e.clientY, 'empty');
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.ctx-menu')) hideContextMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'F2') { e.preventDefault(); renameSelected(); }
+  else if (e.key === 'Delete') { e.preventDefault(); deleteSelected(); }
+  else if (e.key === 'F5') { e.preventDefault(); loadCurrent(); }
+  else if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); navigateBack(); }
+  else if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); navigateForward(); }
+  else if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); navigateUp(); }
+  else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); createFolder(); }
+  else if (e.ctrlKey && e.key === 'a') {
+    e.preventDefault();
+    state.selected.clear();
+    state.entries.forEach((_, i) => state.selected.add(i));
+    render();
+  }
+  else if (e.key === 'Enter' && state.selected.size === 1) {
+    handleRowDblClick([...state.selected][0]);
+  }
+});
+
+// Старт
+loadCurrent();
+</script>
+
+</body>
+</html>

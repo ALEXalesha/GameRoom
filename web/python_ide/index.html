@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Python IDE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; font-family: -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; background: #1e1e1e; color: #d4d4d4; }
+
+  .topbar {
+    height: 36px; background: #323233; display: flex; align-items: center;
+    padding: 0 12px; border-bottom: 1px solid #1e1e1e; gap: 10px;
+    font-size: 13px;
+  }
+  .title { color: #cccccc; font-weight: 500; }
+  .spacer { flex: 1; }
+  .status { color: #888; font-size: 12px; }
+
+  .btn {
+    background: #0e639c; color: white; border: none; padding: 5px 14px;
+    border-radius: 3px; cursor: pointer; font-size: 12px;
+  }
+  .btn:hover { background: #1177bb; }
+  .btn:disabled { background: #555; cursor: not-allowed; }
+  .btn-sec { background: #3c3c3c; }
+  .btn-sec:hover { background: #4a4a4a; }
+
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  .sidebar {
+    width: 220px; background: #252526; border-right: 1px solid #1e1e1e;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-h {
+    padding: 8px 12px; font-size: 11px; color: #bbb; text-transform: uppercase;
+    letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-h button {
+    background: none; border: none; color: #bbb; cursor: pointer; font-size: 16px;
+    line-height: 1; padding: 0 4px;
+  }
+  .sidebar-h button:hover { color: white; }
+  .files { flex: 1; overflow-y: auto; }
+  .file {
+    padding: 5px 12px; cursor: pointer; font-size: 13px; display: flex;
+    align-items: center; gap: 6px; color: #cccccc;
+  }
+  .file:hover { background: #2a2d2e; }
+  .file.active { background: #37373d; }
+  .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-del {
+    opacity: 0; background: none; border: none; color: #bbb; cursor: pointer;
+    font-size: 14px; padding: 0 4px;
+  }
+  .file:hover .file-del { opacity: 1; }
+
+  .workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .tabs {
+    height: 35px; background: #2d2d2d; display: flex; border-bottom: 1px solid #1e1e1e;
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 0 12px; display: flex; align-items: center; gap: 8px;
+    background: #2d2d2d; color: #969696; font-size: 13px; cursor: pointer;
+    border-right: 1px solid #1e1e1e; white-space: nowrap;
+  }
+  .tab.active { background: #1e1e1e; color: white; }
+
+  .editor-wrap { flex: 1; min-height: 0; }
+  #editor { width: 100%; height: 100%; }
+
+  .terminal {
+    height: 220px; background: #1e1e1e; border-top: 1px solid #333;
+    display: flex; flex-direction: column;
+  }
+  .term-h {
+    padding: 6px 12px; font-size: 11px; color: #bbb; text-transform: uppercase;
+    letter-spacing: 0.5px; background: #252526; display: flex; justify-content: space-between;
+    align-items: center;
+  }
+  .term-clear {
+    background: none; border: none; color: #bbb; cursor: pointer; font-size: 12px;
+  }
+  .term-body {
+    flex: 1; overflow-y: auto; padding: 8px 12px; font-family: "Consolas", "Menlo", monospace;
+    font-size: 13px; line-height: 1.5; white-space: pre-wrap;
+  }
+  .out { color: #d4d4d4; }
+  .err { color: #f48771; }
+  .info { color: #4ec9b0; }
+</style>
+<link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/editor/editor.main.css">
+</head>
+<body>
+
+<div class="topbar">
+  <span class="title">Python IDE</span>
+  <span class="spacer"></span>
+  <span class="status" id="status">Загружаю Python...</span>
+  <button class="btn" id="runBtn" disabled>▶ Запустить (Ctrl+Enter)</button>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-h">
+      <span>Файлы</span>
+      <button id="newFile" title="Новый файл">+</button>
+    </div>
+    <div class="files" id="files"></div>
+  </div>
+
+  <div class="workspace">
+    <div class="tabs" id="tabs"></div>
+    <div class="editor-wrap"><div id="editor"></div></div>
+    <div class="terminal">
+      <div class="term-h">
+        <span>Терминал</span>
+        <button class="term-clear" id="clearTerm">очистить</button>
+      </div>
+      <div class="term-body" id="term"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+<script>
+const state = {
+  files: {
+    'main.py': `# Привет от Python в браузере
+import math
+
+def factorial(n):
+    return 1 if n <= 1 else n * factorial(n - 1)
+
+for i in range(1, 8):
+    print(f"{i}! = {factorial(i)}")
+
+print(f"\\npi = {math.pi:.6f}")
+`,
+    'example.py': `# Списковые включения и zip
+names = ["Анна", "Борис", "Вера"]
+ages = [23, 31, 27]
+
+people = [f"{n} ({a})" for n, a in zip(names, ages)]
+print("\\n".join(people))
+`
+  },
+  active: 'main.py',
+  pyodide: null,
+  editor: null,
+  models: {}
+};
+
+const term = document.getElementById('term');
+const status = document.getElementById('status');
+const runBtn = document.getElementById('runBtn');
+
+function log(text, cls = 'out') {
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = text;
+  term.appendChild(span);
+  term.scrollTop = term.scrollHeight;
+}
+
+document.getElementById('clearTerm').onclick = () => term.textContent = '';
+
+function renderFiles() {
+  const el = document.getElementById('files');
+  el.innerHTML = '';
+  for (const name of Object.keys(state.files)) {
+    const row = document.createElement('div');
+    row.className = 'file' + (name === state.active ? ' active' : '');
+    row.innerHTML = `<span>🐍</span><span class="file-name">${name}</span>`;
+    const del = document.createElement('button');
+    del.className = 'file-del';
+    del.textContent = '×';
+    del.title = 'Удалить';
+    del.onclick = (e) => {
+      e.stopPropagation();
+      if (Object.keys(state.files).length === 1) return;
+      delete state.files[name];
+      if (state.models[name]) { state.models[name].dispose(); delete state.models[name]; }
+      if (state.active === name) state.active = Object.keys(state.files)[0];
+      renderFiles();
+      renderTabs();
+      switchTo(state.active);
+    };
+    row.appendChild(del);
+    row.onclick = () => switchTo(name);
+    el.appendChild(row);
+  }
+}
+
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  for (const name of Object.keys(state.files)) {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (name === state.active ? ' active' : '');
+    tab.textContent = name;
+    tab.onclick = () => switchTo(name);
+    el.appendChild(tab);
+  }
+}
+
+function switchTo(name) {
+  if (state.editor && state.active) {
+    state.files[state.active] = state.editor.getValue();
+  }
+  state.active = name;
+  if (!state.models[name]) {
+    state.models[name] = monaco.editor.createModel(state.files[name], 'python');
+  }
+  state.editor.setModel(state.models[name]);
+  renderFiles();
+  renderTabs();
+}
+
+document.getElementById('newFile').onclick = () => {
+  const name = prompt('Имя файла:', 'new.py');
+  if (!name) return;
+  if (state.files[name]) { alert('Уже существует'); return; }
+  state.files[name] = '# ' + name + '\n';
+  switchTo(name);
+};
+
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
+require(['vs/editor/editor.main'], () => {
+  state.editor = monaco.editor.create(document.getElementById('editor'), {
+    value: state.files[state.active],
+    language: 'python',
+    theme: 'vs-dark',
+    fontSize: 14,
+    minimap: { enabled: true },
+    automaticLayout: true,
+    tabSize: 4
+  });
+  state.models[state.active] = state.editor.getModel();
+  monaco.editor.setModelLanguage(state.models[state.active], 'python');
+  state.models[state.active].setValue(state.files[state.active]);
+
+  state.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runCode);
+  renderFiles();
+  renderTabs();
+});
+
+async function initPyodide() {
+  log('Загружаю Pyodide...\n', 'info');
+  state.pyodide = await loadPyodide({
+    stdout: (t) => log(t + '\n', 'out'),
+    stderr: (t) => log(t + '\n', 'err')
+  });
+  status.textContent = 'Готово';
+  runBtn.disabled = false;
+  log('Готово. Python ' + state.pyodide.runPython('import sys; sys.version.split()[0]') + '\n\n', 'info');
+}
+
+async function runCode() {
+  if (!state.pyodide) return;
+  const code = state.editor.getValue();
+  state.files[state.active] = code;
+
+  log(`─── запуск ${state.active} ───\n`, 'info');
+  const t0 = performance.now();
+
+  try {
+    await state.pyodide.runPythonAsync(code);
+    const dt = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`\n─── готово за ${dt}s ───\n\n`, 'info');
+  } catch (e) {
+    log(String(e.message || e) + '\n', 'err');
+    log(`─── ошибка ───\n\n`, 'err');
+  }
+}
+
+runBtn.onclick = runCode;
+initPyodide();
+</script>
+
+</body>
+</html>

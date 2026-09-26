@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Калькулятор</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .calculator {
+    width: 100%;
+    max-width: 370px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .display {
+    color: #fff;
+    text-align: right;
+    font-size: 88px;
+    font-weight: 200;
+    letter-spacing: -0.03em;
+    padding: 40px 12px 12px;
+    min-height: 140px;
+    line-height: 1;
+    word-break: break-all;
+    overflow: hidden;
+    font-feature-settings: "tnum";
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  button {
+    aspect-ratio: 1 / 1;
+    border: none;
+    border-radius: 50%;
+    font-size: 36px;
+    font-weight: 400;
+    cursor: pointer;
+    font-family: inherit;
+    color: #fff;
+    transition: filter 0.1s ease, transform 0.05s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  button:active {
+    transform: scale(0.96);
+  }
+
+  .fn {
+    background: #a5a5a5;
+    color: #000;
+    font-size: 32px;
+  }
+  .fn:active { filter: brightness(1.3); }
+
+  .num {
+    background: #333;
+    font-size: 36px;
+  }
+  .num:active { filter: brightness(1.5); }
+
+  .op {
+    background: #ff9f0a;
+    font-size: 40px;
+    font-weight: 500;
+  }
+  .op:active { filter: brightness(1.2); }
+
+  .op.active {
+    background: #fff;
+    color: #ff9f0a;
+  }
+
+  .zero {
+    grid-column: span 2;
+    aspect-ratio: auto;
+    border-radius: 999px;
+    justify-content: flex-start;
+    padding-left: 30px;
+  }
+</style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="display" id="display">0</div>
+    <div class="buttons">
+      <button class="fn" data-action="clear">AC</button>
+      <button class="fn" data-action="sign">±</button>
+      <button class="fn" data-action="percent">%</button>
+      <button class="op" data-op="/">÷</button>
+
+      <button class="num" data-num="7">7</button>
+      <button class="num" data-num="8">8</button>
+      <button class="num" data-num="9">9</button>
+      <button class="op" data-op="*">×</button>
+
+      <button class="num" data-num="4">4</button>
+      <button class="num" data-num="5">5</button>
+      <button class="num" data-num="6">6</button>
+      <button class="op" data-op="-">−</button>
+
+      <button class="num" data-num="1">1</button>
+      <button class="num" data-num="2">2</button>
+      <button class="num" data-num="3">3</button>
+      <button class="op" data-op="+">+</button>
+
+      <button class="num zero" data-num="0">0</button>
+      <button class="num" data-action="dot">,</button>
+      <button class="op" data-action="equals">=</button>
+    </div>
+  </div>
+
+<script>
+  const display = document.getElementById("display");
+
+  let current = "0";
+  let previous = null;
+  let operator = null;
+  let waitingForNew = false;
+
+  function formatNumber(n) {
+    if (n === "Error") return n;
+    const num = typeof n === "string" ? parseFloat(n.replace(",", ".")) : n;
+    if (!isFinite(num)) return "Error";
+
+    let str;
+    if (Math.abs(num) >= 1e9 || (Math.abs(num) < 1e-6 && num !== 0)) {
+      str = num.toExponential(5);
+    } else {
+      str = parseFloat(num.toPrecision(10)).toString();
+    }
+
+    if (str.includes("e")) return str.replace(".", ",");
+
+    const [intPart, decPart] = str.split(".");
+    const withSpaces = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return decPart !== undefined ? `${withSpaces},${decPart}` : withSpaces;
+  }
+
+  function render() {
+    display.textContent = current === "Error" ? "Ошибка" : formatNumber(current);
+    const size = display.textContent.length > 9 ? 64 : 88;
+    display.style.fontSize = size + "px";
+  }
+
+  function clearOpHighlight() {
+    document.querySelectorAll(".op.active").forEach(b => b.classList.remove("active"));
+  }
+
+  function setOpHighlight(op) {
+    clearOpHighlight();
+    const btn = document.querySelector(`.op[data-op="${op}"]`);
+    if (btn) btn.classList.add("active");
+  }
+
+  function compute(a, b, op) {
+    const x = parseFloat(a);
+    const y = parseFloat(b);
+    if (op === "+") return x + y;
+    if (op === "-") return x - y;
+    if (op === "*") return x * y;
+    if (op === "/") return y === 0 ? "Error" : x / y;
+    return y;
+  }
+
+  function inputNum(n) {
+    if (current === "Error") reset();
+    if (waitingForNew) {
+      current = n;
+      waitingForNew = false;
+    } else {
+      current = current === "0" ? n : current + n;
+    }
+    clearOpHighlight();
+    render();
+  }
+
+  function inputDot() {
+    if (current === "Error") reset();
+    if (waitingForNew) {
+      current = "0.";
+      waitingForNew = false;
+    } else if (!current.includes(".")) {
+      current += ".";
+    }
+    clearOpHighlight();
+    render();
+  }
+
+  function inputOp(op) {
+    if (current === "Error") return;
+
+    if (operator && !waitingForNew) {
+      const result = compute(previous, current, operator);
+      if (result === "Error") { current = "Error"; operator = null; previous = null; render(); return; }
+      current = result.toString();
+      previous = current;
+    } else {
+      previous = current;
+    }
+
+    operator = op;
+    waitingForNew = true;
+    render();
+    setOpHighlight(op);
+  }
+
+  function equals() {
+    if (current === "Error" || operator === null) return;
+    const result = compute(previous, current, operator);
+    if (result === "Error") { current = "Error"; }
+    else { current = result.toString(); }
+    operator = null;
+    previous = null;
+    waitingForNew = true;
+    clearOpHighlight();
+    render();
+  }
+
+  function reset() {
+    current = "0";
+    previous = null;
+    operator = null;
+    waitingForNew = false;
+    clearOpHighlight();
+    render();
+  }
+
+  function sign() {
+    if (current === "Error" || current === "0") return;
+    current = current.startsWith("-") ? current.slice(1) : "-" + current;
+    render();
+  }
+
+  function percent() {
+    if (current === "Error") return;
+    current = (parseFloat(current) / 100).toString();
+    render();
+  }
+
+  document.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const num = btn.dataset.num;
+      const op = btn.dataset.op;
+      const action = btn.dataset.action;
+
+      if (num !== undefined) inputNum(num);
+      else if (op !== undefined) inputOp(op);
+      else if (action === "dot") inputDot();
+      else if (action === "equals") equals();
+      else if (action === "clear") reset();
+      else if (action === "sign") sign();
+      else if (action === "percent") percent();
+    });
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key >= "0" && e.key <= "9") inputNum(e.key);
+    else if (e.key === "." || e.key === ",") inputDot();
+    else if (["+", "-", "*", "/"].includes(e.key)) inputOp(e.key);
+    else if (e.key === "Enter" || e.key === "=") { e.preventDefault(); equals(); }
+    else if (e.key === "Escape" || e.key === "Backspace") reset();
+    else if (e.key === "%") percent();
+  });
+
+  render();
+</script>
+</body>
+</html>

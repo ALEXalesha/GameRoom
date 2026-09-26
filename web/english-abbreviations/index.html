@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Словарь английских сокращений</title>
+<style>
+  :root{
+    --bg:#0f1226; --bg2:#171a35; --card:#1e2243; --card2:#262b52;
+    --accent:#7c8cff; --accent2:#54d6c4; --text:#e8eaff; --muted:#9aa0d4;
+    --border:#2e3460; --chip:#2a2f59; --shadow:rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+    background:linear-gradient(160deg,#0f1226,#15173a 60%,#1a1340);
+    color:var(--text);min-height:100vh;padding:24px 16px 60px;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{text-align:center;margin-bottom:24px}
+  h1{font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:.5px;
+     background:linear-gradient(90deg,var(--accent),var(--accent2));
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin-top:8px;font-size:15px}
+  .controls{position:sticky;top:0;z-index:20;padding:14px 0 10px;
+    background:linear-gradient(180deg,rgba(15,18,38,.96),rgba(15,18,38,.85));
+    backdrop-filter:blur(8px)}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap}
+  #search{flex:1;min-width:220px;padding:14px 18px;border-radius:14px;
+    border:1px solid var(--border);background:var(--card);color:var(--text);
+    font-size:16px;outline:none;transition:.2s}
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,140,255,.25)}
+  .count{align-self:center;color:var(--muted);font-size:14px;white-space:nowrap}
+  .cats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .cat{padding:7px 14px;border-radius:999px;border:1px solid var(--border);
+    background:var(--chip);color:var(--muted);cursor:pointer;font-size:13px;
+    transition:.15s;user-select:none}
+  .cat:hover{color:var(--text);border-color:var(--accent)}
+  .cat.active{background:linear-gradient(90deg,var(--accent),var(--accent2));
+    color:#0f1226;font-weight:700;border-color:transparent}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+    gap:14px;margin-top:18px}
+  .card{background:linear-gradient(160deg,var(--card),var(--card2));
+    border:1px solid var(--border);border-radius:16px;padding:16px 18px;
+    box-shadow:0 6px 18px var(--shadow);transition:.18s;position:relative;overflow:hidden}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .abbr{font-size:22px;font-weight:800;color:var(--accent2);letter-spacing:.5px}
+  .full{font-size:14px;color:var(--text);margin-top:4px;font-weight:600}
+  .ru{font-size:14px;color:var(--muted);margin-top:8px;line-height:1.45}
+  .ru b{color:var(--text)}
+  .tag{display:inline-block;margin-top:10px;padding:3px 10px;border-radius:8px;
+    background:var(--chip);color:var(--accent);font-size:11px;font-weight:600}
+  .empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:18px}
+  mark{background:rgba(84,214,196,.35);color:var(--text);border-radius:3px;padding:0 2px}
+  footer{text-align:center;color:var(--muted);margin-top:40px;font-size:13px}
+  .toolbar{display:flex;justify-content:flex-end;margin-top:8px}
+  .print-btn{background:none;border:1px solid var(--border);color:var(--muted);
+    padding:6px 14px;border-radius:10px;cursor:pointer;font-size:13px}
+  .print-btn:hover{color:var(--text);border-color:var(--accent)}
+  @media print{
+    body{background:#fff;color:#000}
+    .controls,footer,.toolbar{display:none}
+    .card{break-inside:avoid;border:1px solid #ccc;box-shadow:none;background:#fff}
+    .abbr{color:#1a4}.ru{color:#333}.full{color:#000}
+    h1{color:#222;-webkit-text-fill-color:#222}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📖 Словарь английских сокращений</h1>
+    <p class="sub">Интернет-сленг, переписка, бизнес и игры — расшифровка + перевод на русский</p>
+  </header>
+
+  <div class="controls">
+    <div class="search-row">
+      <input id="search" type="text" placeholder="🔍 Поиск: btw, перевод, кстати…" autocomplete="off">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="cats" id="cats"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="print-btn" onclick="window.print()">🖨 Печать / сохранить в PDF</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">Ничего не найдено 🤷</div>
+
+  <footer>Всего сокращений: <span id="total"></span> · Нажми на категорию или начни печатать</footer>
+</div>
+
+<script>
+const DATA = [
+  // ===== Переписка / интернет =====
+  ["BTW","By the way","Кстати, между прочим","chat"],
+  ["FYI","For your information","К вашему сведению","chat"],
+  ["IMO","In my opinion","По моему мнению","chat"],
+  ["IMHO","In my humble opinion","По моему скромному мнению","chat"],
+  ["AFAIK","As far as I know","Насколько мне известно","chat"],
+  ["IIRC","If I recall correctly","Если я правильно помню","chat"],
+  ["TBH","To be honest","Честно говоря","chat"],
+  ["TBF","To be fair","Справедливости ради","chat"],
+  ["IDK","I don't know","Я не знаю","chat"],
+  ["IDC","I don't care","Мне всё равно","chat"],
+  ["IKR","I know, right?","Вот и я о том же! / Согласен!","chat"],
+  ["NVM","Never mind","Неважно, забей","chat"],
+  ["JK","Just kidding","Шучу, прикалываюсь","chat"],
+  ["TTYL","Talk to you later","Поговорим позже","chat"],
+  ["BRB","Be right back","Скоро вернусь","chat"],
+  ["GTG","Got to go","Мне пора идти","chat"],
+  ["G2G","Got to go","Мне пора идти","chat"],
+  ["CYA","See ya","Увидимся, пока","chat"],
+  ["TC","Take care","Береги себя","chat"],
+  ["WYD","What you doing?","Что делаешь?","chat"],
+  ["WBU","What about you?","А ты? / А как насчёт тебя?","chat"],
+  ["HBU","How about you?","А ты? / А как насчёт тебя?","chat"],
+  ["WYM","What you mean?","Что ты имеешь в виду?","chat"],
+  ["RN","Right now","Прямо сейчас","chat"],
+  ["ATM","At the moment","В данный момент","chat"],
+  ["ASAP","As soon as possible","Как можно скорее","chat"],
+  ["TL;DR","Too long; didn't read","Слишком длинно; не читал (краткая суть)","chat"],
+  ["DM","Direct message","Личное сообщение","chat"],
+  ["PM","Private message","Личное сообщение","chat"],
+  ["OFC","Of course","Конечно","chat"],
+  ["THX","Thanks","Спасибо","chat"],
+  ["TY","Thank you","Спасибо","chat"],
+  ["TYVM","Thank you very much","Большое спасибо","chat"],
+  ["NP","No problem","Без проблем, не за что","chat"],
+  ["YW","You're welcome","Пожалуйста (в ответ на спасибо)","chat"],
+  ["PLS","Please","Пожалуйста","chat"],
+  ["PLZ","Please","Пожалуйста","chat"],
+  ["U","You","Ты / вы","chat"],
+  ["UR","Your / you're","Твой / ты есть","chat"],
+  ["R","Are","Являешься (are)","chat"],
+  ["2","To / too","К / тоже","chat"],
+  ["4","For","Для","chat"],
+  ["B4","Before","До, перед","chat"],
+  ["GR8","Great","Отлично, здорово","chat"],
+  ["L8R","Later","Позже","chat"],
+  ["CU","See you","Увидимся","chat"],
+  ["MSG","Message","Сообщение","chat"],
+  ["ABT","About","О / насчёт","chat"],
+  ["BC","Because","Потому что","chat"],
+  ["CUZ","Because","Потому что","chat"],
+  ["W/","With","С (вместе с)","chat"],
+  ["W/O","Without","Без","chat"],
+  ["BTWN","Between","Между","chat"],
+  ["NGL","Not gonna lie","Не буду врать, честно","chat"],
+  ["FR","For real","Серьёзно, по-настоящему","chat"],
+  ["DW","Don't worry","Не волнуйся","chat"],
+  ["IG","I guess","Полагаю, наверное","chat"],
+  ["OTW","On the way","Уже в пути","chat"],
+  ["YK","You know","Ну ты знаешь / понимаешь","chat"],
+  ["SMTH","Something","Что-то","chat"],
+  ["SMH","Shaking my head","Качаю головой (разочарование/недоумение)","chat"],
+
+  // ===== Смех / эмоции =====
+  ["LOL","Laughing out loud","Громко смеюсь, ха-ха","emotion"],
+  ["LMAO","Laughing my ass off","Ржу до упаду","emotion"],
+  ["ROFL","Rolling on the floor laughing","Катаюсь по полу от смеха","emotion"],
+  ["LMFAO","Laughing my freaking ass off","Дико ржу (грубее LMAO)","emotion"],
+  ["XD","(смайл смеха)","Смеющееся лицо, ха-ха","emotion"],
+  ["OMG","Oh my God","О боже мой","emotion"],
+  ["OMFG","Oh my f***ing God","О боже (эмоц., грубо)","emotion"],
+  ["WTF","What the f***","Какого чёрта / что за…","emotion"],
+  ["WTH","What the hell","Какого чёрта (мягче)","emotion"],
+  ["FFS","For f***'s sake","Да блин / ради всего святого","emotion"],
+  ["OMD","Oh my days","Боже мой (брит. сленг)","emotion"],
+  ["YOLO","You only live once","Живём один раз","emotion"],
+  ["FOMO","Fear of missing out","Страх упустить интересное","emotion"],
+  ["MEH","(безразличие)","Так себе, ну такое","emotion"],
+  ["UGH","(раздражение)","Фу / эх (досада)","emotion"],
+  ["YAY","(радость)","Ура!","emotion"],
+  ["AWW","(умиление)","Аввв, как мило","emotion"],
+  ["FML","F*** my life","Жизнь — боль (досада)","emotion"],
+  ["SRSLY","Seriously","Серьёзно?!","emotion"],
+
+  // ===== Соцсети / тренды =====
+  ["DIY","Do it yourself","Сделай сам","social"],
+  ["TBT","Throwback Thursday","Четверг воспоминаний (старое фото)","social"],
+  ["OOTD","Outfit of the day","Образ дня (одежда)","social"],
+  ["AMA","Ask me anything","Спрашивайте о чём угодно","social"],
+  ["TIL","Today I learned","Сегодня я узнал","social"],
+  ["ELI5","Explain like I'm 5","Объясни как пятилетнему (просто)","social"],
+  ["IRL","In real life","В реальной жизни","social"],
+  ["AKA","Also known as","Также известный как","social"],
+  ["FB","Facebook","Фейсбук","social"],
+  ["IG","Instagram","Инстаграм","social"],
+  ["YT","YouTube","Ютуб","social"],
+  ["RT","Retweet","Репост в Твиттере","social"],
+  ["GOAT","Greatest of all time","Величайший за всю историю","social"],
+  ["SUS","Suspicious","Подозрительный (сленг)","social"],
+  ["W","Win","Победа, успех (это W = круто)","social"],
+  ["L","Loss","Поражение, провал (это L = плохо)","social"],
+  ["PFP","Profile picture","Аватарка профиля","social"],
+  ["TFW","That feeling when","То чувство, когда…","social"],
+  ["MFW","My face when","Моё лицо, когда…","social"],
+  ["FYP","For you page","Рекомендации (в TikTok)","social"],
+  ["CAP","(ложь)","Врёшь / неправда («no cap» = без вранья)","social"],
+  ["BET","(согласие)","Договорились / идёт","social"],
+  ["BANGER","(хит)","Огонь, шедевр (о треке/контенте)","social"],
+
+  // ===== Отношения =====
+  ["BF","Boyfriend","Парень (молодой человек)","love"],
+  ["GF","Girlfriend","Девушка","love"],
+  ["BFF","Best friends forever","Лучшие друзья навсегда","love"],
+  ["BAE","Before anyone else","Любимый(ая), «детка»","love"],
+  ["XOXO","Hugs and kisses","Целую-обнимаю","love"],
+  ["ILY","I love you","Я тебя люблю","love"],
+  ["ILYSM","I love you so much","Я тебя очень сильно люблю","love"],
+  ["LDR","Long distance relationship","Отношения на расстоянии","love"],
+  ["SO","Significant other","Вторая половинка","love"],
+  ["DTR","Define the relationship","Определить статус отношений","love"],
+
+  // ===== Бизнес / работа =====
+  ["CEO","Chief executive officer","Генеральный директор","biz"],
+  ["CTO","Chief technology officer","Технический директор","biz"],
+  ["CFO","Chief financial officer","Финансовый директор","biz"],
+  ["COO","Chief operating officer","Операционный директор","biz"],
+  ["HR","Human resources","Отдел кадров / персонал","biz"],
+  ["B2B","Business to business","Бизнес для бизнеса","biz"],
+  ["B2C","Business to consumer","Бизнес для потребителя","biz"],
+  ["KPI","Key performance indicator","Ключевой показатель эффективности","biz"],
+  ["ROI","Return on investment","Окупаемость инвестиций","biz"],
+  ["EOD","End of day","К концу дня","biz"],
+  ["EOW","End of week","К концу недели","biz"],
+  ["COB","Close of business","К концу рабочего дня","biz"],
+  ["OOO","Out of office","Вне офиса / в отпуске","biz"],
+  ["WFH","Work from home","Работа из дома","biz"],
+  ["ETA","Estimated time of arrival","Ожидаемое время прибытия/готовности","biz"],
+  ["TBD","To be determined","Будет определено позже","biz"],
+  ["TBA","To be announced","Будет объявлено позже","biz"],
+  ["NDA","Non-disclosure agreement","Соглашение о неразглашении","biz"],
+  ["FAQ","Frequently asked questions","Часто задаваемые вопросы","biz"],
+  ["P.S.","Postscript","Постскриптум, приписка","biz"],
+  ["RSVP","Répondez s'il vous plaît","Просьба ответить (на приглашение)","biz"],
+  ["MVP","Minimum viable product","Минимально жизнеспособный продукт","biz"],
+  ["Q&A","Questions and answers","Вопросы и ответы","biz"],
+  ["AOB","Any other business","Прочие вопросы (в повестке)","biz"],
+  ["FY","Fiscal year","Финансовый год","biz"],
+  ["YTD","Year to date","С начала года по сегодня","biz"],
+  ["EOM","End of month","Конец месяца","biz"],
+
+  // ===== Технологии / IT =====
+  ["AI","Artificial intelligence","Искусственный интеллект","tech"],
+  ["ML","Machine learning","Машинное обучение","tech"],
+  ["API","Application programming interface","Интерфейс программирования","tech"],
+  ["URL","Uniform resource locator","Адрес веб-страницы","tech"],
+  ["VPN","Virtual private network","Виртуальная частная сеть","tech"],
+  ["OS","Operating system","Операционная система","tech"],
+  ["PC","Personal computer","Персональный компьютер","tech"],
+  ["RAM","Random access memory","Оперативная память","tech"],
+  ["CPU","Central processing unit","Процессор","tech"],
+  ["GPU","Graphics processing unit","Видеокарта / графический процессор","tech"],
+  ["UI","User interface","Пользовательский интерфейс","tech"],
+  ["UX","User experience","Опыт взаимодействия","tech"],
+  ["OTP","One-time password","Одноразовый пароль (код)","tech"],
+  ["2FA","Two-factor authentication","Двухфакторная аутентификация","tech"],
+  ["IoT","Internet of things","Интернет вещей","tech"],
+  ["SaaS","Software as a service","Программа как услуга (по подписке)","tech"],
+  ["HTTP","HyperText Transfer Protocol","Протокол передачи данных в вебе","tech"],
+  ["IP","Internet protocol","IP-адрес / интернет-протокол","tech"],
+  ["WWW","World Wide Web","Всемирная паутина","tech"],
+  ["QR","Quick response (code)","QR-код (быстрый отклик)","tech"],
+
+  // ===== Игры =====
+  ["GG","Good game","Хорошая игра (после матча)","game"],
+  ["GLHF","Good luck, have fun","Удачи и приятной игры","game"],
+  ["AFK","Away from keyboard","Отошёл от компьютера","game"],
+  ["NOOB","Newbie","Новичок, чайник","game"],
+  ["PRO","Professional","Профи, мастер","game"],
+  ["NPC","Non-player character","Персонаж, управляемый игрой (бот)","game"],
+  ["PVP","Player versus player","Игрок против игрока","game"],
+  ["PVE","Player versus environment","Игрок против окружения","game"],
+  ["RPG","Role-playing game","Ролевая игра","game"],
+  ["FPS","First-person shooter / frames per sec","Шутер от первого лица / кадры/сек","game"],
+  ["MMO","Massively multiplayer online","Массовая онлайн-игра","game"],
+  ["DLC","Downloadable content","Загружаемое доп. содержимое","game"],
+  ["XP","Experience points","Очки опыта","game"],
+  ["HP","Health points","Очки здоровья","game"],
+  ["OP","Overpowered","Слишком сильный, имбовый","game"],
+  ["GGWP","Good game, well played","Хорошая игра, отлично сыграно","game"],
+  ["LFG","Looking for group","Ищу группу / команду","game"],
+  ["WP","Well played","Хорошо сыграно","game"],
+  ["RIP","Rest in peace","Покойся с миром / всё кончено","game"],
+
+  // ===== Прочее / повседневное =====
+  ["ID","Identification","Удостоверение личности","misc"],
+  ["DOB","Date of birth","Дата рождения","misc"],
+  ["DIY","Do it yourself","Сделай сам","misc"],
+  ["ETC","Et cetera","И так далее","misc"],
+  ["E.G.","Exempli gratia","Например","misc"],
+  ["I.E.","Id est","То есть","misc"],
+  ["VS","Versus","Против","misc"],
+  ["NO.","Number","Номер","misc"],
+  ["MR","Mister","Господин (мистер)","misc"],
+  ["MRS","Missus","Госпожа (замужняя)","misc"],
+  ["MS","Miss/Mrs (нейтр.)","Госпожа (нейтрально)","misc"],
+  ["DR","Doctor","Доктор","misc"],
+  ["ST","Street / Saint","Улица / святой","misc"],
+  ["AVE","Avenue","Проспект, авеню","misc"],
+  ["APT","Apartment","Квартира","misc"],
+  ["MIN","Minute / minimum","Минута / минимум","misc"],
+  ["MAX","Maximum","Максимум","misc"],
+  ["AVG","Average","Среднее значение","misc"],
+  ["APPROX","Approximately","Приблизительно","misc"],
+  ["AKA","Also known as","Также известный как","misc"],
+  ["N/A","Not applicable / available","Неприменимо / нет данных","misc"],
+  ["DND","Do not disturb","Не беспокоить","misc"],
+  ["TGIF","Thank God it's Friday","Слава богу, пятница","misc"],
+  ["BYOB","Bring your own bottle","Алкоголь с собой (на вечеринку)","misc"],
+  ["ASL","Age, sex, location","Возраст, пол, город (старый чат-вопрос)","misc"],
+  ["PSA","Public service announcement","Важное объявление / обратите внимание","misc"],
+];
+
+const CATS = {
+  all:"🌐 Все", chat:"💬 Переписка", emotion:"😂 Эмоции", social:"📱 Соцсети",
+  love:"❤️ Отношения", biz:"💼 Бизнес", tech:"⚙️ IT", game:"🎮 Игры", misc:"🧩 Прочее"
+};
+
+let activeCat = "all", query = "";
+const grid = document.getElementById('grid');
+const catsEl = document.getElementById('cats');
+const countEl = document.getElementById('count');
+const emptyEl = document.getElementById('empty');
+document.getElementById('total').textContent = DATA.length;
+
+// строим кнопки категорий
+Object.entries(CATS).forEach(([k,v])=>{
+  const b=document.createElement('div');
+  b.className='cat'+(k==='all'?' active':'');
+  b.textContent=v; b.dataset.cat=k;
+  b.onclick=()=>{activeCat=k;[...catsEl.children].forEach(c=>c.classList.toggle('active',c.dataset.cat===k));render();};
+  catsEl.appendChild(b);
+});
+
+function hl(text,q){
+  if(!q) return text;
+  const i=text.toLowerCase().indexOf(q.toLowerCase());
+  if(i<0) return text;
+  return text.slice(0,i)+'<mark>'+text.slice(i,i+q.length)+'</mark>'+text.slice(i+q.length);
+}
+
+function render(){
+  const q=query.trim().toLowerCase();
+  const list=DATA.filter(([a,f,r,c])=>{
+    if(activeCat!=='all' && c!==activeCat) return false;
+    if(!q) return true;
+    return (a+' '+f+' '+r).toLowerCase().includes(q);
+  });
+  grid.innerHTML='';
+  list.forEach(([a,f,r,c])=>{
+    const d=document.createElement('div');
+    d.className='card';
+    d.innerHTML=`<div class="abbr">${hl(a,q)}</div>
+      <div class="full">${hl(f,q)}</div>
+      <div class="ru">🇷🇺 ${hl(r,q)}</div>
+      <span class="tag">${CATS[c].replace(/^\S+\s/,'')}</span>`;
+    grid.appendChild(d);
+  });
+  emptyEl.style.display=list.length?'none':'block';
+  countEl.textContent=`Найдено: ${list.length}`;
+}
+
+document.getElementById('search').addEventListener('input',e=>{query=e.target.value;render();});
+render();
+</script>
+</body>
+</html>

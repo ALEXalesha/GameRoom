@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Мини-браузер</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #202124; }
+
+  .tabs-bar { display: flex; background: #323639; padding: 6px 6px 0 6px; gap: 2px; align-items: flex-end; }
+  .tab {
+    display: flex; align-items: center; gap: 8px;
+    background: #3c4043; color: #e8eaed;
+    padding: 8px 12px; border-radius: 8px 8px 0 0;
+    font-size: 13px; cursor: pointer; max-width: 200px;
+    border: 1px solid transparent;
+  }
+  .tab.active { background: #202124; border-color: #5f6368; border-bottom-color: #202124; }
+  .tab .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .tab .close { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
+  .tab .close:hover { background: #5f6368; }
+  .tab-new { background: transparent; color: #e8eaed; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-size: 18px; }
+  .tab-new:hover { background: #3c4043; }
+
+  .nav-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #202124; border-bottom: 1px solid #3c4043; }
+  .nav-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: transparent; color: #e8eaed; border: none;
+    font-size: 16px; cursor: pointer;
+  }
+  .nav-btn:hover:not(:disabled) { background: #3c4043; }
+  .nav-btn:disabled { color: #5f6368; cursor: default; }
+  .url-bar {
+    flex: 1; height: 36px; border-radius: 18px;
+    background: #3c4043; color: #e8eaed; border: none;
+    padding: 0 16px; font-size: 14px; outline: none;
+  }
+  .url-bar:focus { background: #48494c; }
+
+  .content { flex: 1; position: relative; background: #202124; }
+  .frame-wrap { position: absolute; inset: 0; display: none; }
+  .frame-wrap.active { display: block; }
+  .frame-wrap iframe { width: 100%; height: 100%; border: none; background: white; }
+  .placeholder {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #9aa0a6; text-align: center; padding: 20px;
+  }
+  .placeholder h2 { color: #e8eaed; margin-bottom: 12px; font-weight: 400; }
+  .placeholder p { max-width: 500px; line-height: 1.6; margin-bottom: 8px; }
+  .placeholder .examples { margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .placeholder .examples button {
+    background: #3c4043; color: #e8eaed; border: 1px solid #5f6368;
+    padding: 8px 16px; border-radius: 16px; cursor: pointer; font-size: 13px;
+  }
+  .placeholder .examples button:hover { background: #48494c; }
+</style>
+</head>
+<body>
+
+<div class="tabs-bar" id="tabsBar"></div>
+
+<div class="nav-bar">
+  <button class="nav-btn" id="backBtn" title="Назад">←</button>
+  <button class="nav-btn" id="fwdBtn" title="Вперёд">→</button>
+  <button class="nav-btn" id="reloadBtn" title="Обновить">⟳</button>
+  <button class="nav-btn" id="homeBtn" title="Домой">🏠</button>
+  <input class="url-bar" id="urlBar" placeholder="Введите URL или поисковый запрос">
+</div>
+
+<div class="content" id="content"></div>
+
+<script>
+const HOME = 'about:home';
+let tabs = [];
+let activeId = null;
+let nextId = 1;
+
+const tabsBar = document.getElementById('tabsBar');
+const content = document.getElementById('content');
+const urlBar = document.getElementById('urlBar');
+
+function createTab(url = HOME) {
+  const id = nextId++;
+  const tab = { id, url, history: [url], historyIdx: 0, title: 'Новая вкладка' };
+  tabs.push(tab);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'frame-wrap';
+  wrap.id = 'frame-' + id;
+  if (url === HOME) {
+    wrap.appendChild(buildHomePlaceholder());
+  } else {
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    wrap.appendChild(iframe);
+  }
+  content.appendChild(wrap);
+
+  renderTabs();
+  activate(id);
+  return tab;
+}
+
+function buildHomePlaceholder() {
+  const div = document.createElement('div');
+  div.className = 'placeholder';
+  div.innerHTML = `
+    <h2>Мини-браузер</h2>
+    <p>Введите URL в адресной строке. Имейте в виду: многие сайты (Google, YouTube, GitHub и др.) запрещают встраивание в iframe - они не откроются.</p>
+    <p>Попробуйте сайты, которые разрешают встраивание:</p>
+    <div class="examples">
+      <button data-url="https://ru.wikipedia.org/">Википедия</button>
+      <button data-url="https://example.com/">example.com</button>
+      <button data-url="https://ru.wikibooks.org/">Викиучебник</button>
+      <button data-url="https://www.rfc-editor.org/rfc/rfc2606.html">RFC 2606</button>
+    </div>
+  `;
+  div.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => navigate(btn.dataset.url));
+  });
+  return div;
+}
+
+function renderTabs() {
+  tabsBar.innerHTML = '';
+  tabs.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (t.id === activeId ? ' active' : '');
+    el.innerHTML = `<span class="title"></span><span class="close">×</span>`;
+    el.querySelector('.title').textContent = t.title;
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('close')) {
+        closeTab(t.id);
+      } else {
+        activate(t.id);
+      }
+    });
+    tabsBar.appendChild(el);
+  });
+  const plus = document.createElement('div');
+  plus.className = 'tab-new';
+  plus.textContent = '+';
+  plus.addEventListener('click', () => createTab());
+  tabsBar.appendChild(plus);
+}
+
+function activate(id) {
+  activeId = id;
+  document.querySelectorAll('.frame-wrap').forEach(el => el.classList.remove('active'));
+  const wrap = document.getElementById('frame-' + id);
+  if (wrap) wrap.classList.add('active');
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    urlBar.value = tab.url === HOME ? '' : tab.url;
+    updateNavButtons();
+  }
+  renderTabs();
+}
+
+function closeTab(id) {
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  const wrap = document.getElementById('frame-' + id);
+  if (wrap) wrap.remove();
+  tabs.splice(idx, 1);
+  if (tabs.length === 0) {
+    createTab();
+    return;
+  }
+  if (activeId === id) {
+    activate(tabs[Math.max(0, idx - 1)].id);
+  } else {
+    renderTabs();
+  }
+}
+
+function navigate(input) {
+  const tab = tabs.find(t => t.id === activeId);
+  if (!tab) return;
+  let url = input.trim();
+  if (!url) return;
+  if (url === HOME) {
+    loadInTab(tab, HOME);
+  } else if (url.includes('.') && !url.includes(' ')) {
+    if (!/^https?:\/\//.test(url)) url = 'https://' + url;
+    loadInTab(tab, url);
+  } else {
+    loadInTab(tab, 'https://duckduckgo.com/?q=' + encodeURIComponent(url));
+  }
+}
+
+function loadInTab(tab, url) {
+  tab.url = url;
+  tab.title = url === HOME ? 'Домашняя' : new URL(url).hostname;
+  tab.history = tab.history.slice(0, tab.historyIdx + 1);
+  tab.history.push(url);
+  tab.historyIdx = tab.history.length - 1;
+  replaceFrame(tab);
+  urlBar.value = url === HOME ? '' : url;
+  renderTabs();
+  updateNavButtons();
+}
+
+function replaceFrame(tab) {
+  const wrap = document.getElementById('frame-' + tab.id);
+  wrap.innerHTML = '';
+  if (tab.url === HOME) {
+    wrap.appendChild(buildHomePlaceholder());
+  } else {
+    const iframe = document.createElement('iframe');
+    iframe.src = tab.url;
+    wrap.appendChild(iframe);
+  }
+}
+
+function updateNavButtons() {
+  const tab = tabs.find(t => t.id === activeId);
+  document.getElementById('backBtn').disabled = !tab || tab.historyIdx <= 0;
+  document.getElementById('fwdBtn').disabled = !tab || tab.historyIdx >= tab.history.length - 1;
+}
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  const tab = tabs.find(t => t.id === activeId);
+  if (!tab || tab.historyIdx <= 0) return;
+  tab.historyIdx--;
+  tab.url = tab.history[tab.historyIdx];
+  tab.title = tab.url === HOME ? 'Домашняя' : new URL(tab.url).hostname;
+  replaceFrame(tab);
+  urlBar.value = tab.url === HOME ? '' : tab.url;
+  renderTabs();
+  updateNavButtons();
+});
+
+document.getElementById('fwdBtn').addEventListener('click', () => {
+  const tab = tabs.find(t => t.id === activeId);
+  if (!tab || tab.historyIdx >= tab.history.length - 1) return;
+  tab.historyIdx++;
+  tab.url = tab.history[tab.historyIdx];
+  tab.title = tab.url === HOME ? 'Домашняя' : new URL(tab.url).hostname;
+  replaceFrame(tab);
+  urlBar.value = tab.url === HOME ? '' : tab.url;
+  renderTabs();
+  updateNavButtons();
+});
+
+document.getElementById('reloadBtn').addEventListener('click', () => {
+  const tab = tabs.find(t => t.id === activeId);
+  if (tab) replaceFrame(tab);
+});
+
+document.getElementById('homeBtn').addEventListener('click', () => navigate(HOME));
+
+urlBar.addEventListener('keydown', e => {
+  if (e.key === 'Enter') navigate(urlBar.value);
+});
+
+createTab();
+</script>
+
+</body>
+</html>
