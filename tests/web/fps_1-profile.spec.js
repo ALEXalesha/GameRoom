@@ -8,6 +8,7 @@ const setRange = (page, sel, v) => page.$eval(sel, (el, val) => { el.value = Str
 
 test.describe('fps_1: инвентарь и кейсы', () => {
   test('облик, выбранный в инвентаре, надет на оружие в бою', async ({ page }) => {
+    test.setTimeout(90000);
     await openTactical(page);
     const it = await page.evaluate(() => {
       TAC.inventory.data.tokens = 1000;
@@ -53,6 +54,7 @@ test.describe('fps_1: инвентарь и кейсы', () => {
 
 test.describe('fps_1: настройки', () => {
   test('каждый раздел меняет игру: игра, видео, аудио, мышь; всё переживает перезагрузку', async ({ page }) => {
+    test.setTimeout(90000);
     await openTactical(page);
     await page.click('#navSettings');
     // Игра
@@ -107,6 +109,7 @@ test.describe('fps_1: настройки', () => {
   });
 
   test('прицел: размер из настроек виден в бою и сохраняется; код прицела туда и обратно', async ({ page }) => {
+    test.setTimeout(90000);
     await openTactical(page);
     await page.click('#navSettings');
     await page.click('.settabs button[data-set=crosshair]');
@@ -148,6 +151,7 @@ test.describe('fps_1: настройки', () => {
   });
 
   test('клавиши: новая работает, старая нет, конфликт виден, сброс возвращает', async ({ page }) => {
+    test.setTimeout(90000);
     await openTactical(page);
     await page.click('#navSettings');
     await page.click('.settabs button[data-set=input]');

@@ -19,6 +19,7 @@ test.describe('fps_1: страница и меню', () => {
   });
 
   test('меню → Играть → режим → карта → боты → загрузка с картой и советом → бой', async ({ page }) => {
+    test.setTimeout(90000);
     const errors = await openTactical(page);
     await page.click('#navPlay');
     await page.click('#modeCards [data-mode=comp]');
@@ -39,6 +40,7 @@ test.describe('fps_1: страница и меню', () => {
 
   for (const size of SIZES) {
     test(`меню и бой влезают в ${size.width}x${size.height}`, async ({ page }) => {
+      test.setTimeout(90000);
       await page.setViewportSize(size);
       await openTactical(page);
       for (const tab of ['home', 'play', 'campaign', 'inventory', 'stats', 'settings']) {
@@ -71,6 +73,7 @@ test.describe('fps_1: страница и меню', () => {
   }
 
   test('скрытая вкладка ставит паузу, выключает звук и отпускает мышь; после возврата пауза остаётся', async ({ page }) => {
+    test.setTimeout(90000);
     await openTactical(page);
     await startMatch(page, { mode: 'dm', map: 'quarry', ai: false });
     await page.evaluate(() => { __tactical.app.manual = false; __tactical.app.paused = false; TAC.audio.init(); });

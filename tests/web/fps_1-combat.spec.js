@@ -179,4 +179,29 @@ test.describe('fps_1: бой', () => {
     expect(r.afterWall).toBe(100);
     expect(r.afterOpen).toBeLessThan(100);
   });
+
+  test('звук: у выстрела голос своего оружия, писк бомбы ускоряется к взрыву', async ({ page }) => {
+    await openTactical(page);
+    await startMatch(page, Object.assign({}, COMP, { side: 'T' }));
+    const r = await page.evaluate(() => {
+      TAC.audio.init();
+      const m = __tactical.match, p = m.player;
+      __tactical.step(1);
+      const models = [];
+      const orig = TAC.audio.play;
+      TAC.audio.play = (kind, o) => { if (kind === 'shot') models.push(o.model); return orig(kind, o); };
+      for (const id of ['p9', 'dalnoboy']) { const slot = TAC.WEAPONS[id].slot; p.inv[slot] = TAC.makeWeapon(id); m.switchSlot(p, slot); p.fire.draw = 0; p.fire.next = 0; TAC.fire(m, p, {}); }
+      TAC.audio.play = orig;
+      const c = m.world.siteCenter.B, w = m.world.center(c[0], c[1]);
+      p.pos.x = w.x; p.pos.z = w.z;
+      m.plantBomb(p, 'B');
+      __tactical.step(64 * 2); const early = m.bomb.interval;
+      __tactical.step(64 * 35); const late = m.bomb.interval;
+      return { models, early, late, graph: !!TAC.audio.ctx };
+    });
+    expect(r.graph).toBe(true);
+    expect(r.models).toEqual(['pistol', 'awp']);
+    expect(r.early).toBeGreaterThan(0.8);
+    expect(r.late).toBeLessThan(0.25);
+  });
 });
