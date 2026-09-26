@@ -1,0 +1,13 @@
+{
+  "name": "mix-of-projects",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Сборник небольших проектов: страницы HTML и скрипты Python, приведённые в порядок",
+  "license": "MIT",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}
