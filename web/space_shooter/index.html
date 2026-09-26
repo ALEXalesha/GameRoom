@@ -683,7 +683,8 @@ function fitCanvas() {
   canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
   view.s = s;
 }
-const STARS = [0.15, 0.35, 0.7].map((sp, li) => Array.from({ length: 70 }, (_, i) => ({ x: (i * 173 + li * 51) % W, y: (i * 97 + li * 31) % H, sp, r: 0.6 + li * 0.6 })));
+const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const STARS = [0.15, 0.35, 0.7].map((sp, li) => Array.from({ length: 70 }, (_, i) => ({ x: hash(i + li * 100) * W, y: hash(i * 3.7 + li * 57) * H, sp, r: 0.6 + li * 0.6 })));
 
 function drawBackground() {
   const sc = SECTORS[S.sector] || SECTORS[0];
@@ -694,10 +695,10 @@ function drawBackground() {
     g.addColorStop(0, sc.neb[k] + 'aa'); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
-  const px = W * 0.82, py = H * 0.22 + ((S.frame * 0.02) % H);
+  const px = W * 0.82, py = ((H * 0.22 + S.frame * 0.03) % (H + 240)) - 120;   // планета медленно проплывает
   const pg = ctx.createRadialGradient(px - 25, py - 25, 10, px, py, 70);
   pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.15, sc.planet); pg.addColorStop(1, '#05060f');
-  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py % (H + 140) - 70 + 70, 70, 0, 7); ctx.fill();
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 70, 0, 7); ctx.fill();
   for (const layer of STARS) for (const s of layer) {
     const y = (s.y + S.frame * s.sp) % H;
     ctx.fillStyle = `rgba(255,255,255,${0.3 + s.sp})`;
@@ -914,7 +915,8 @@ kit = GameKit.create({
     g.shadowBlur = 0;
     const keep = ctx; ctx = g;
     const px = P.x; P.x = 0;
-    drawShip(w / 2 + Math.cos(t) * 200, h * 0.56 + Math.sin(t * 2) * 8, Math.cos(t) > 0 ? 0.2 : Math.PI - 0.2, false);
+    drawShip(34, h * 0.5 + Math.sin(t * 2) * 12, Math.sin(t * 2) * 0.3, false);
+    drawShip(w - 34, h * 0.5 + Math.cos(t * 2) * 12, Math.PI + Math.cos(t * 2) * 0.3, false);
     P.x = px; ctx = keep;
   },
   game: {
