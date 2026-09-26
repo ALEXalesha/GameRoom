@@ -52,7 +52,7 @@ const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
 const PAL = {
   desert: { skyTop: '#6fc0ee', skyBot: '#fbe8b8', far: '#e8c088', mid: '#d59a5a', ground: '#ebc88a', groundDark: '#c9a063', detail: '#a97c45', plant: '#3f9a4d', plantDark: '#2b7038', stars: 0, sun: 1, moon: 0, snow: 0, shape: 'dunes' },
   canyon: { skyTop: '#394a8f', skyBot: '#f79d5c', far: '#8f4a3c', mid: '#b5613f', ground: '#cf8250', groundDark: '#a25a35', detail: '#7b3f25', plant: '#4c8a45', plantDark: '#35663a', stars: 0.25, sun: 0.7, moon: 0, snow: 0, shape: 'mesas' },
-  night: { skyTop: '#070d26', skyBot: '#27355f', far: '#1a2547', mid: '#223058', ground: '#3b4769', groundDark: '#2b3553', detail: '#5c6a93', plant: '#2f6b55', plantDark: '#1f4c3d', stars: 1, sun: 0, moon: 1, snow: 0, shape: 'hills' },
+  night: { skyTop: '#070d26', skyBot: '#27355f', far: '#1a2547', mid: '#223058', ground: '#3b4769', groundDark: '#2b3553', detail: '#5c6a93', plant: '#4f9a78', plantDark: '#33705a', stars: 1, sun: 0, moon: 1, snow: 0, shape: 'hills' },
   snow: { skyTop: '#8ec3ea', skyBot: '#eef6fb', far: '#c9d9e8', mid: '#9db4c8', ground: '#f5f9fc', groundDark: '#d4e1eb', detail: '#aabdcc', plant: '#2f6e53', plantDark: '#1e4d39', stars: 0, sun: 0.5, moon: 0, snow: 1, shape: 'peaks' },
 };
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
@@ -277,6 +277,7 @@ function onHit(o) {
   if (state.mode === 'demo') { state.lives = 99; return; }
   state.phase = 'dying';
   state.dyingT = 70;
+  state.banner = null;
   dino.vy = -7; dino.jumping = true;
   finishRunRecords();
 }
@@ -309,6 +310,7 @@ function checkEndlessAchievements() {
 
 function winJourney() {
   state.phase = 'won';
+  state.banner = null;
   state.dist = JOURNEY_END;
   obstacles.length = 0;
   progress.done = true; progress.leg = LEGS.length - 1;
@@ -388,10 +390,16 @@ const canvas = document.getElementById('game');
 let ctx = canvas.getContext('2d');          // let: логотип меню рисует того же динозаврика в свой холст
 let scale = 1, pal = mixPal(PAL.desert, PAL.desert, 0);
 
+// Высота сцены подстраивается под окно (300-480 единиц): в высоком окне сверху больше неба,
+// а не пустые полосы. Игровое поле (земля, препятствия) от этого не меняется.
+let viewH = H, extra = 0;
 function fitCanvas() {
-  const s = Math.min((innerWidth - 24) / W, (innerHeight - 24) / H);
+  const aw = innerWidth - 24, ah = innerHeight - 24;
+  viewH = Math.max(H, Math.min(480, Math.round(W * ah / aw)));
+  extra = viewH - H;
+  const s = Math.min(aw / W, ah / viewH);
   scale = Math.max(0.4, s);
-  const cssW = Math.floor(W * scale), cssH = Math.floor(H * scale);
+  const cssW = Math.floor(W * scale), cssH = Math.floor(viewH * scale);
   const dpr = devicePixelRatio || 1;
   canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
   canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
@@ -598,7 +606,10 @@ function drawHud() {
 
 function render() {
   pal = currentPalette();
-  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  const k = canvas.width / W;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  if (extra > 0) { ctx.fillStyle = pal.skyTop; ctx.fillRect(0, 0, W, extra + 1); }
+  ctx.translate(0, extra);
   if (state.shake > 0.5) ctx.translate((rnd() - 0.5) * state.shake, (rnd() - 0.5) * state.shake);
   drawSky(pal);
   drawLayer(pal.far, 0.08, FLOOR - 40, 1.4, pal.shape, pal.shapeB, pal.shapeT);
@@ -612,7 +623,8 @@ function render() {
   drawDinoAt(dino.x, dino.y, { ducking: dino.ducking, jumping: dino.jumping, runPhase: dino.runPhase, hurt: state.phase === 'dying' || state.phase === 'over', blink: state.invuln > 0 });
   for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / q.max); ctx.fillStyle = q.color; ctx.fillRect(q.x, q.y, q.r, q.r); }
   ctx.globalAlpha = 1;
-  if (state.flashT > 0 && kit.settings.effects) { ctx.fillStyle = `rgba(255,255,255,${state.flashT / 16})`; ctx.fillRect(0, 0, W, H); }
+  if (state.flashT > 0 && kit.settings.effects) { ctx.fillStyle = `rgba(255,255,255,${state.flashT / 16})`; ctx.fillRect(0, -extra, W, viewH); }
+  ctx.setTransform(k, 0, 0, k, 0, 0);          // счёт и полоса этапов - у верхнего края окна
   drawHud();
 }
 
