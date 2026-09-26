@@ -8,6 +8,7 @@ const { openBlox, enter } = require('./_blox-helpers');
 const stats = (page, id) => page.evaluate((i) => JSON.parse(localStorage.getItem('mix.blox.stats') || '{}')[i] || null, id);
 
 test.describe('roblox-mini (Блоксити): места', () => {
+  test.describe.configure({ timeout: 60000 });   // рисование программное (без видеокарты) - медленно
   test('обби: после падения - на последней контрольной точке, а не на старте', async ({ page }) => {
     await openBlox(page);
     await enter(page, 'obby');

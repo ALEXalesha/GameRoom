@@ -295,7 +295,7 @@
           <h2>${B.t('about')}</h2>
           <p>${B.esc(B.lang() === 'en' ? p.descEn : p.desc)}</p>
           <div class="stat-grid">
-            <div><span class="muted">${B.t('visits')}</span><b>${B.fmtNum(st.visits)}</b></div>
+            <div><span class="muted">${B.lang() === 'en' ? 'Visits' : 'Посещения'}</span><b>${B.fmtNum(st.visits)}</b></div>
             <div><span class="muted">${B.t('genre')}</span><b>${B.esc(B.lang() === 'en' ? p.genreEn : p.genre)}</b></div>
             <div><span class="muted">${B.t('max_players')}</span><b>${p.maxPlayers}</b></div>
             <div><span class="muted">${B.t('created')}</span><b>26.09.2026</b></div>

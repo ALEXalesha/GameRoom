@@ -7,6 +7,7 @@ const { test, expect } = require('@playwright/test');
 const { openBlox, enter } = require('./_blox-helpers');
 
 test.describe('roblox-mini (Блоксити): физика и управление', () => {
+  test.describe.configure({ timeout: 60000 });   // рисование программное (без видеокарты) - медленно
   test('ступни стоят ровно на земле; разгон плавный до скорости бега 16', async ({ page }) => {
     await openBlox(page);
     await enter(page, 'coins');

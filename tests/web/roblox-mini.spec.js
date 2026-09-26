@@ -8,6 +8,7 @@ const { openBlox, enter, fit, SIZES } = require('./_blox-helpers');
 const PLACES = ['obby', 'race', 'lava', 'coins', 'sandbox', 'tube'];
 
 test.describe('roblox-mini (Блоксити): лаунчер', () => {
+  test.describe.configure({ timeout: 60000 });   // рисование программное (без видеокарты) - медленно
   test('без ошибок и без сети; three.js свой; на главной и в «Местах» все шесть мест', async ({ page }) => {
     const requests = [];
     page.on('request', (r) => requests.push(r.url()));
