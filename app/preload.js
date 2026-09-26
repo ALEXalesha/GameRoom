@@ -9,9 +9,11 @@ contextBridge.exposeInMainWorld('igroteka', {
   open: (id) => ipcRenderer.send('tabs:open', id),
   activate: (id) => ipcRenderer.send('tabs:activate', id),
   close: (id) => ipcRenderer.send('tabs:close', id),
+  revive: (id) => ipcRenderer.send('tabs:revive', id),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   clearData: (id) => ipcRenderer.invoke('games:clear', id),
   modalResult: (id, index) => ipcRenderer.send('modal:result', id, index),
+  modalLocal: (open) => ipcRenderer.send('modal:local', open),
   onState: (cb) => ipcRenderer.on('shell:state', (_e, s) => cb(s)),
   onModal: (cb) => ipcRenderer.on('shell:modal', (_e, m) => cb(m)),
 });

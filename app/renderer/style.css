@@ -7,7 +7,6 @@
   --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --accent: #7b7cf4;
   --accent-grad: linear-gradient(135deg, #5b8def 0%, #9d5bef 100%);
-  --danger: #ff5b6e;
 }
 
 :root[data-theme='dark'] {
@@ -22,6 +21,10 @@
   --bar-bg: rgba(10, 8, 22, 0.55);
   --panel-bg: rgba(24, 20, 44, 0.92);
   --app-base: #110e20;
+  --danger: #ff6b7c;
+  --danger-bg: rgba(255, 91, 110, 0.14);
+  --danger-border: rgba(255, 91, 110, 0.45);
+  --scrim: rgba(5, 4, 12, 0.35);
   --app-bg:
     radial-gradient(80% 60% at 12% -10%, rgba(120, 90, 255, 0.45), transparent 60%),
     radial-gradient(65% 50% at 95% 8%, rgba(255, 100, 180, 0.28), transparent 55%),
@@ -42,6 +45,12 @@
   --bar-bg: rgba(255, 255, 255, 0.45);
   --panel-bg: rgba(250, 249, 255, 0.95);
   --app-base: #eceaf6;
+  /* Красный темнее, чем в тёмной теме: на светлой подложке #ff5b6e давал контраст 2.6:1, нужно от 4.5. */
+  --danger: #b01e34;
+  --danger-bg: rgba(176, 30, 52, 0.07);
+  --danger-border: rgba(176, 30, 52, 0.45);
+  /* Под настройками светлой темы - светлая дымка, а не серое затемнение. */
+  --scrim: rgba(236, 234, 246, 0.55);
   --app-bg:
     radial-gradient(80% 60% at 12% -10%, rgba(140, 120, 255, 0.35), transparent 60%),
     radial-gradient(65% 50% at 95% 8%, rgba(255, 140, 200, 0.28), transparent 55%),
@@ -84,24 +93,34 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   z-index: 10;
 }
 
+/* Вкладок больше, чем помещается: полоса прокручивается (колесом мыши или сама к
+   активной вкладке), а не ужимает имена до пары букв. */
 #tabs {
   display: flex;
   gap: 4px;
   min-width: 0;
   flex: 1;
+  align-self: stretch;
   align-items: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  position: relative; /* offsetLeft вкладок - от начала полосы */
 }
+#bar.crowded .tab.home .product { display: none; }
+#bar.crowded .tab.home { padding-right: 8px; }
+#tabs::-webkit-scrollbar { display: none; }
 
 .tab {
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   height: 32px;
-  min-width: 0;
+  min-width: 128px;
   max-width: 220px;
   flex: 0 1 220px;
-  padding: 0 6px 0 10px;
+  padding: 0 4px 0 8px;
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 10px 10px 0 0;
@@ -126,7 +145,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   border-radius: 5px;
   object-fit: cover;
   flex: none;
-  box-shadow: 0 0 0 1px var(--glass-border);
+  /* Серая обводка видна и на чёрной картинке, и на белой: значок не сливается в квадрат. */
+  outline: 1px solid rgba(140, 140, 150, 0.8);
+  outline-offset: 0;
 }
 .tab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left; }
 .tab .x {
@@ -142,14 +163,20 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   padding: 0;
 }
 .tab .x:hover { background: var(--glass-strong); color: var(--text); }
+/* Крестик - у активной вкладки и под мышью, как в Chrome: имени остаётся больше места. */
+.tab.game:not(.active):not(:hover) .x { visibility: hidden; }
 
 /* --- домашний экран ---------------------------------------------------------------- */
 
+/* Содержимое стоит по центру по высоте (поля auto у первой и последней части): на
+   большом экране нет пустоты снизу, на маленьком поля схлопываются до нуля. */
 #home {
   position: absolute;
   inset: var(--bar-h) 0 0 0;
   overflow-y: auto;
-  padding: 22px 36px 18px;
+  padding: 16px 36px 14px;
+  display: flex;
+  flex-direction: column;
 }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--glass-border-strong); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
@@ -159,10 +186,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   display: flex;
   align-items: center;
   gap: 18px;
+  width: 100%;
   max-width: 1600px;
-  margin: 0 auto 20px;
+  margin: auto auto 16px;
 }
-.hero-logo { width: 64px; height: 64px; filter: drop-shadow(0 8px 18px rgba(120, 80, 240, 0.45)); }
+.hero-logo { width: 56px; height: 56px; filter: drop-shadow(0 8px 18px rgba(120, 80, 240, 0.45)); }
 .hero-text { flex: 1; }
 .hero h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: 0.2px; }
 .hero p { margin: 4px 0 0; color: var(--text-dim); font-size: 14px; }
@@ -189,14 +217,19 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   display: grid;
   /* не больше четырёх в ряд: восемь игр ложатся ровно в два ряда и на широком экране */
   grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 60px) / 4)), 1fr));
-  gap: 20px;
+  gap: 18px;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
+  /* Картинка, строка имени, описание - строки общей сетки: у карточек одного ряда имена и
+     описания на одной высоте, даже если одно имя переносится. */
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 0;
   border-radius: var(--radius);
   background: var(--glass);
   border: 1px solid var(--glass-border);
@@ -208,40 +241,30 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: var(--glass-border-strong); }
 .card .shot {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 2 / 1;
   background: var(--accent-grad);
   overflow: hidden;
 }
 .card .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.card .badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #fff;
-  background: rgba(20, 16, 40, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(8px);
+/* Имя и «Играть» в одну строку, описание под ними: длинное имя переносится, а не
+   обрезается многоточием. Открытая игра - точка перед именем и рамка, картинку ничто не
+   закрывает. */
+.card .head { display: flex; align-items: center; gap: 10px; padding: 11px 14px 4px; }
+.card h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 650; line-height: 1.25; min-width: 0; }
+.card .desc { margin: 0; padding: 0 14px 13px; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+.card .play { flex: none; padding: 6px 16px; }
+.card .open-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 8px 2px 0;
+  border-radius: 50%;
+  background: var(--accent-grad);
+  box-shadow: 0 0 8px rgba(123, 110, 240, 0.8);
+  vertical-align: middle;
 }
-/* Имя и «Играть» в одну строку, описание под ними во всю ширину: длинное имя
-   переносится, а не обрезается многоточием. */
-.card .body {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: 'name play' 'desc desc';
-  align-items: center;
-  column-gap: 10px;
-  row-gap: 6px;
-  padding: 12px 14px 14px;
-  flex: 1;
-}
-.card .text { display: contents; }
-.card h2 { grid-area: name; margin: 0; font-size: 16px; font-weight: 650; line-height: 1.25; min-width: 0; }
-.card p { grid-area: desc; margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
-.card .play { grid-area: play; padding: 6px 16px; }
+.card .open-mark[hidden] { display: none; }
+.card.open { border-color: rgba(123, 124, 244, 0.55); }
 
 .btn {
   border: 1px solid var(--glass-border);
@@ -255,9 +278,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 }
 .btn:hover { filter: brightness(1.12); }
 .btn.primary { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 4px 16px rgba(123, 110, 240, 0.4); }
-.btn.danger { background: rgba(255, 91, 110, 0.14); border-color: rgba(255, 91, 110, 0.45); color: var(--danger); }
+.btn.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
 
-.note { max-width: 1600px; margin: 16px auto 0; text-align: center; color: var(--text-dim); font-size: 12px; }
+.note { width: 100%; max-width: 1600px; margin: 12px auto auto; text-align: center; color: var(--text-dim); font-size: 12px; }
 
 /* --- настройки --------------------------------------------------------------------- */
 
@@ -266,7 +289,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   inset: var(--bar-h) 0 0 0;
   display: flex;
   justify-content: flex-end;
-  background: rgba(5, 4, 12, 0.35);
+  background: var(--scrim);
   z-index: 20;
 }
 .sheet[hidden] { display: none; }
@@ -354,11 +377,12 @@ select option { background: var(--app-base); color: var(--text); }
 
 /* --- вопрос ------------------------------------------------------------------------ */
 
-#modal {
+#modal, #crashed {
   position: fixed;
   inset: var(--bar-h) 0 0 0;
   display: grid;
   place-items: center;
+  overflow: hidden; /* размытый снимок игры не заходит на полосу вкладок */
   background: rgba(5, 4, 12, 0.55);
   z-index: 30;
 }
@@ -366,7 +390,8 @@ select option { background: var(--app-base); color: var(--text); }
 /* Вопрос про игру, а снимка нет (окно было перекрыто, и Chromium не отдал кадр): под
    вопросом не должно просвечивать домашнее меню, будто открыт не тот экран. */
 #modal.cover { background: var(--app-base); background-image: var(--app-bg); }
-#modal[hidden] { display: none; }
+#modal[hidden], #crashed[hidden] { display: none; }
+#crashed { z-index: 25; background: var(--app-base); background-image: var(--app-bg); }
 #modal-shot {
   position: absolute;
   inset: 0;

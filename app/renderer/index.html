@@ -80,6 +80,15 @@
     </div>
   </div>
 
+  <!-- Игра упала несколько раз подряд: вместо бесконечных перезапусков - этот экран. -->
+  <div id="crashed" hidden>
+    <div class="modal-card">
+      <h2>Игра остановилась</h2>
+      <p>«<span id="crashed-name"></span>» несколько раз подряд упала при запуске, поэтому приложение больше не перезапускает её само.</p>
+      <div class="modal-buttons"><button class="btn primary">Перезапустить</button></div>
+    </div>
+  </div>
+
   <!-- Вопрос. Когда он про игру, под ним её снимок: сама игра на это время скрыта и стоит. -->
   <div id="modal" hidden>
     <img id="modal-shot" alt="">

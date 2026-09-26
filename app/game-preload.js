@@ -7,27 +7,68 @@
 // Код ставится в мир страницы ДО её скриптов (executeInMainWorld выполняется сразу),
 // так что его застаёт даже контекст, созданный при загрузке. Офлайн-контексты (обсчёт
 // звука в буфер) не трогаются: там громкость исказила бы данные, а не звук.
-// Элементы <audio>/<video> получают ту же громкость через свойство volume.
+// <audio>/<video> и new Audio() (даже вне документа) получают ту же громкость при
+// каждом play() и при каждой смене громкости.
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
 
 const KEY = 'igroteka.volume';
 
+// Текущая громкость спрашивается у main при КАЖДОЙ загрузке страницы: после F5 или
+// перезапуска после сбоя она должна быть сегодняшней, а не той, что была при создании
+// вкладки (раньше приходила один раз через аргументы процесса).
 function initialVolume() {
-  const arg = (process.argv || []).find((a) => a.startsWith('--igroteka-volume='));
-  const v = arg ? Number(arg.split('=')[1]) : 1;
-  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+  try {
+    const v = Number(ipcRenderer.sendSync('igroteka:volume-now'));
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+  } catch {
+    return 1;
+  }
 }
 
 try {
   contextBridge.executeInMainWorld({
     func: (key, start) => {
+      let volume = start;
+      const liveGains = new Set();
+      const liveMedia = new Set();
+      const apply = (v) => {
+        if (v === undefined) return volume; // без аргумента - текущая громкость (её сверяют проверки)
+        volume = v;
+        for (const ref of liveGains) {
+          const g = ref.deref();
+          if (g) g.gain.value = v; else liveGains.delete(ref);
+        }
+        for (const ref of liveMedia) {
+          const m = ref.deref();
+          if (m) m.volume = v; else liveMedia.delete(ref);
+        }
+        for (const m of document.querySelectorAll('audio, video')) m.volume = v;
+        return v;
+      };
+      // Ключ - символ, а не имя: странице он не виден при обходе window, и ничего,
+      // кроме своей же громкости, через него не сделать.
+      Object.defineProperty(window, Symbol.for(key), { value: apply });
+
+      // <audio>, <video> и new Audio(): громкость ставится перед каждым play(), элемент
+      // запоминается, чтобы смена громкости дошла и до него, даже если его нет в документе.
+      if (window.HTMLMediaElement) {
+        const play = HTMLMediaElement.prototype.play;
+        const seen = new WeakSet();
+        Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+          configurable: true, writable: true,
+          value: function (...args) {
+            this.volume = volume;
+            if (!seen.has(this)) { seen.add(this); liveMedia.add(new WeakRef(this)); }
+            return play.apply(this, args);
+          },
+        });
+      }
+
       const AC = window.AudioContext;
       if (!AC || !window.AudioNode) return;
-      let volume = start;
       const masters = new WeakMap();
-      const live = new Set();
       const connect = AudioNode.prototype.connect;
       const disconnect = AudioNode.prototype.disconnect;
       const master = (ctx) => {
@@ -37,7 +78,7 @@ try {
           g.gain.value = volume;
           connect.call(g, ctx.destination);
           masters.set(ctx, g);
-          live.add(new WeakRef(g));
+          liveGains.add(new WeakRef(g));
         }
         return g;
       };
@@ -53,29 +94,18 @@ try {
       });
       Object.defineProperty(AudioNode.prototype, 'disconnect', {
         configurable: true, writable: true,
-        value: function (dest, ...rest) {
+        value: function (...args) {
+          // disconnect() без аргументов - отключить ВСЕ выходы. Передать ему undefined
+          // нельзя: disconnect(undefined) понимается как «выход 0».
+          if (args.length === 0) return disconnect.call(this);
+          const [dest, ...rest] = args;
           if (dest instanceof AudioDestinationNode) {
             const g = masters.get(dest.context);
             if (g) return disconnect.call(this, g, ...rest);
           }
-          return disconnect.call(this, dest, ...rest);
+          return disconnect.call(this, ...args);
         },
       });
-      const media = () => document.querySelectorAll('audio, video');
-      // Без аргумента - текущая громкость (её сверяют проверки).
-      const apply = (v) => {
-        if (v === undefined) return volume;
-        volume = v;
-        for (const ref of live) {
-          const g = ref.deref();
-          if (g) g.gain.value = v; else live.delete(ref);
-        }
-        for (const m of media()) m.volume = v;
-      };
-      // Ключ - символ, а не имя: странице он не виден при обходе window, и ничего,
-      // кроме своей же громкости, через него не сделать.
-      Object.defineProperty(window, Symbol.for(key), { value: apply });
-      document.addEventListener('play', (e) => { if (e.target && 'volume' in e.target) e.target.volume = volume; }, true);
     },
     args: [KEY, initialVolume()],
   });

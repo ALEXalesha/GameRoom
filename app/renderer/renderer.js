@@ -56,6 +56,15 @@ function renderTabs() {
     return tab;
   }));
   for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.id === state.tabs.active);
+  // Вкладок больше, чем влезает: полоса прокручивается, активная всегда на виду.
+  // Прокрутка своя, не scrollIntoView: тот сдвигал бы и саму страницу оболочки.
+  const act = box.querySelector('.tab.active');
+  if (act) {
+    if (act.offsetLeft < box.scrollLeft) box.scrollLeft = act.offsetLeft;
+    else if (act.offsetLeft + act.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = act.offsetLeft + act.offsetWidth - box.clientWidth;
+  }
+  // Много вкладок - у домашней остаётся только значок, имя игр важнее.
+  $('#bar').classList.toggle('crowded', state.tabs.open.length >= 6);
 }
 
 // --- домашний экран ------------------------------------------------------------------
@@ -63,11 +72,14 @@ function renderTabs() {
 function renderGrid() {
   $('#grid').replaceChildren(...info.games.map((g) => {
     const play = el('button', { class: 'btn primary play', text: 'Играть' });
+    // Три части карточки - строки общей сетки (subgrid): имена и описания карточек
+    // одного ряда стоят на одной высоте, даже если одно имя переносится.
     const card = el('article', { class: 'card', 'data-id': g.id, tabindex: '0' },
-      el('div', { class: 'shot' }, img(thumb(g.id)), el('span', { class: 'badge', hidden: '' , text: 'Открыта' })),
-      el('div', { class: 'body' },
-        el('div', { class: 'text' }, el('h2', { text: g.name }), el('p', { text: g.desc })),
-        play));
+      el('div', { class: 'shot' }, img(thumb(g.id))),
+      el('div', { class: 'head' },
+        el('h2', {}, el('span', { class: 'open-mark', title: 'Игра открыта во вкладке', hidden: '' }), g.name),
+        play),
+      el('p', { class: 'desc', text: g.desc }));
     card.addEventListener('click', () => api.open(g.id));
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.open(g.id); } });
     return card;
@@ -77,7 +89,8 @@ function renderGrid() {
 function renderBadges() {
   for (const card of document.querySelectorAll('.card')) {
     const open = state.tabs.open.includes(card.dataset.id);
-    card.querySelector('.badge').hidden = !open;
+    card.querySelector('.open-mark').hidden = !open;
+    card.classList.toggle('open', open);
     card.querySelector('.play').textContent = open ? 'Вернуться' : 'Играть';
   }
 }
@@ -98,7 +111,8 @@ function renderSettings() {
   for (const b of document.querySelectorAll('#set-theme button')) b.classList.toggle('on', b.dataset.themeValue === s.theme);
 }
 
-function openSettings() { $('#settings').hidden = false; $('#settings .close').focus(); }
+const CLEAR_HINT = 'Рекорды и сохранения выбранной игры будут стёрты. Остальные игры это не затронет.';
+function openSettings() { $('#clear-hint').textContent = CLEAR_HINT; $('#settings').hidden = false; $('#settings .close').focus(); }
 function closeSettings() { $('#settings').hidden = true; }
 
 function wireSettings() {
@@ -115,10 +129,11 @@ function wireSettings() {
     b.addEventListener('click', () => api.setSetting('theme', b.dataset.themeValue));
   }
   $('#clear-game').replaceChildren(...info.games.map((g) => el('option', { value: g.id, text: g.name })));
+  $('#clear-game').addEventListener('change', () => { $('#clear-hint').textContent = CLEAR_HINT; });
   $('#clear-btn').addEventListener('click', async () => {
     const id = $('#clear-game').value;
     const g = gameById(id);
-    const yes = await showModal({
+    const yes = await showLocalModal({
       title: `Стереть данные «${g.name}»?`,
       text: 'Рекорды, сохранения и настройки этой игры пропадут безвозвратно. Если игра открыта, её вкладка закроется. Другие игры это не затронет.',
       ok: 'Стереть',
@@ -155,8 +170,24 @@ function showModal(m) {
   ok.classList.toggle('primary', !m.danger);
   box.querySelector('.cancel').textContent = m.cancel;
   box.hidden = false;
+  // Пока вопрос открыт, полоса вкладок не работает: иначе можно было бы уйти на другую
+  // вкладку или закрыть ту игру, о которой спрашивают.
+  $('#bar').inert = true;
   box.querySelector('.cancel').focus();
-  return new Promise((resolve) => { modalDone = (index) => { box.hidden = true; modalDone = null; resolve(index === 0); }; });
+  return new Promise((resolve) => {
+    modalDone = (index) => { box.hidden = true; $('#bar').inert = false; modalDone = null; resolve(index === 0); };
+  });
+}
+
+// Свой вопрос оболочки (стереть данные): main знает о нём и на это время не принимает
+// команды вкладок и не задаёт своих вопросов.
+async function showLocalModal(m) {
+  api.modalLocal(true);
+  try {
+    return await showModal(m);
+  } finally {
+    api.modalLocal(false);
+  }
 }
 
 function wireModal() {
@@ -166,6 +197,8 @@ function wireModal() {
   box.addEventListener('click', (e) => { if ((e.target === box || e.target.id === 'modal-shot') && modalDone) modalDone(1); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalDone) { e.stopPropagation(); modalDone(1); } }, true);
   api.onModal(async (m) => {
+    // Вопрос уже открыт - второй его не подменяет: ответ «нет».
+    if (modalDone) { api.modalResult(m.id, 1); return; }
     const yes = await showModal(m);
     api.modalResult(m.id, yes ? 0 : 1);
   });
@@ -173,11 +206,19 @@ function wireModal() {
 
 // --- запуск --------------------------------------------------------------------------
 
+function renderCrashed() {
+  const id = state.tabs.active;
+  const down = (state.crashed || []).includes(id);
+  $('#crashed').hidden = !down;
+  if (down) $('#crashed-name').textContent = gameById(id).name;
+}
+
 function apply(s) {
   state = s;
   renderTabs();
   renderBadges();
   renderSettings();
+  renderCrashed();
 }
 
 (async () => {
@@ -189,6 +230,9 @@ function apply(s) {
   const n = init.games.length;
   $('#subtitle').textContent = `${n} ${plural(n, 'игра', 'игры', 'игр')} без интернета. У каждой своя вкладка и свои рекорды.`;
   $('.tab.home').addEventListener('click', () => api.activate('home'));
+  $('#crashed .btn').addEventListener('click', () => api.revive(state.tabs.active));
+  // Колесо мыши над полосой вкладок прокручивает её вбок.
+  $('#tabs').addEventListener('wheel', (e) => { if (e.deltaY) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
   renderGrid();
   wireSettings();
   wireModal();

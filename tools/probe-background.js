@@ -53,7 +53,7 @@ const START_AT = `(() => {
 
 async function probe(id) {
   const g = globalThis.__igroteka;
-  ipcMain.emit('tabs:open', {}, id);
+  ipcMain.emit('tabs:open', { sender: globalThis.__igroteka.win.webContents }, id);
   const wc = () => g.views.get(id).webContents;
   await new Promise((r) => (wc().isLoading() ? wc().once('did-finish-load', r) : r()));
   await sleep(1500);
@@ -77,7 +77,7 @@ async function probe(id) {
   let audibleActive = false;
   for (let i = 0; i < 6; i++) { await sleep(250); audibleActive = audibleActive || wc().isCurrentlyAudible(); }
 
-  ipcMain.emit('tabs:activate', {}, 'home');
+  ipcMain.emit('tabs:activate', { sender: globalThis.__igroteka.win.webContents }, 'home');
   await sleep(300);
   const hiddenA = await wc().executeJavaScript(PRINT);
   let audible = false;
@@ -85,13 +85,13 @@ async function probe(id) {
   const hiddenB = await wc().executeJavaScript(PRINT);
   const events = await wc().executeJavaScript('__probe.events.join(",")');
 
-  ipcMain.emit('tabs:activate', {}, id);
+  ipcMain.emit('tabs:activate', { sender: globalThis.__igroteka.win.webContents }, id);
   await sleep(300);
   const backA = await wc().executeJavaScript(PRINT);
   await sleep(1200);
   const backB = await wc().executeJavaScript(PRINT);
   wc().sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
-  ipcMain.emit('tabs:close', {}, id);
+  ipcMain.emit('tabs:close', { sender: globalThis.__igroteka.win.webContents }, id);
   await sleep(300);
   return {
     id,

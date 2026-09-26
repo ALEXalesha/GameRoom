@@ -53,10 +53,25 @@ let tabs = Tabs.empty();
 let fullscreen = false;
 let modal = null;
 let modalSeq = 0;
+let localModal = false;         // вопрос, который оболочка задала сама (стереть данные)
+const crashes = new Map();      // id игры -> сбоев подряд
+const crashed = new Set();      // игры, которые упали больше CRASH_LIMIT раз подряд
+const CRASH_LIMIT = 3;
+const LOG_LIMIT = 100;
 const views = new Map();       // id игры -> WebContentsView
 const errors = {};             // id игры -> ошибки консоли (для проверок)
 const blocked = [];            // отменённые запросы (для проверок)
 const guardedSessions = new Set();
+
+// Журналы для проверок держат только последние записи: страница, которая сыплет ошибками
+// часами, не должна раздувать память приложения.
+function log(list, value) {
+  list.push(value);
+  if (list.length > LOG_LIMIT) list.splice(0, list.length - LOG_LIMIT);
+}
+
+// Любой вопрос (свой или оболочки) останавливает вкладки и внешние ссылки.
+const busy = () => !!modal || localModal;
 
 // --- сохранение ----------------------------------------------------------------------
 
@@ -71,27 +86,34 @@ function guardSession(ses, folder) {
   // Сеть закрыта: игры работают без интернета. Пропускаются только файлы своей папки.
   ses.webRequest.onBeforeRequest((details, cb) => {
     const ok = Security.allowRequest(details.url, folder);
-    if (!ok) blocked.push(details.url);
+    if (!ok) log(blocked, details.url);
     cb({ cancel: !ok });
   });
   const allowed = folder === APP_DIR ? new Set() : GAME_PERMISSIONS;
   ses.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
   ses.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
   ses.setDevicePermissionHandler(() => false);
+  // Игры ничего не скачивают: скачивание с их страницы отменяется.
+  ses.on('will-download', (e, item) => {
+    log(blocked, 'download:' + item.getURL());
+    e.preventDefault();
+  });
 }
 
 // Ссылки и переходы страницы: своя папка - можно, http(s) - в системный браузер после
 // вопроса, остальное - нельзя. Новых окон приложение не открывает никогда.
-function guardContents(wc, folder) {
+// Спросить про внешнюю ссылку может только страница, которую сейчас видно: фоновая
+// вкладка иначе подменяла бы открытый вопрос оболочки своим.
+function guardContents(wc, folder, visible = () => true) {
   wc.setWindowOpenHandler(({ url }) => {
-    if (Security.navigation(url, folder) === 'external') askExternal(url);
+    if (Security.navigation(url, folder) === 'external' && visible()) askExternal(url);
     return { action: 'deny' };
   });
   wc.on('will-frame-navigate', (e) => {
     const verdict = Security.navigation(e.url, folder);
     if (verdict === 'allow') return;
     e.preventDefault();
-    if (verdict === 'external' && e.isMainFrame) askExternal(e.url);
+    if (verdict === 'external' && e.isMainFrame && visible()) askExternal(e.url);
   });
   wc.on('will-redirect', (e) => {
     if (Security.navigation(e.url, folder) !== 'allow') e.preventDefault();
@@ -114,7 +136,7 @@ async function askExternal(url) {
 // показываем её снимок, чтобы было видно, о чём речь. Второй вопрос поверх первого не
 // задаётся: страница, которая сыплет window.open, просто получает отказ.
 async function ask(opts) {
-  if (modal || !win) return false;
+  if (busy() || !win) return false;
   const id = ++modalSeq;
   modal = { id, resolve: null };
   let snapshot = null;
@@ -155,7 +177,6 @@ function createView(id) {
       nodeIntegration: false,
       webSecurity: true,
       preload: path.join(APP_DIR, 'game-preload.js'),
-      additionalArguments: ['--igroteka-volume=' + settings.volume / 100],
       backgroundThrottling: true,
       spellcheck: false,
       autoplayPolicy: 'no-user-gesture-required',
@@ -165,14 +186,33 @@ function createView(id) {
   view.setBackgroundColor(THEMES[settings.theme].bg);
   const wc = view.webContents;
   wc.setBackgroundThrottling(true);
-  guardContents(wc, g.dir);
+  guardContents(wc, g.dir, () => !busy() && tabs.active === id && views.get(id) === view);
   wc.on('before-input-event', onKey);
   errors[id] = errors[id] || [];
-  wc.on('console-message', (e) => { if (e.level === 'error') errors[id].push(String(e.message)); });
-  wc.on('preload-error', (_e, _p, err) => errors[id].push('preload: ' + err));
+  wc.on('console-message', (e) => { if (e.level === 'error') log(errors[id], String(e.message)); });
+  wc.on('preload-error', (_e, _p, err) => log(errors[id], 'preload: ' + err));
+  // Упавшая страница перезапускается сама, но не больше CRASH_LIMIT раз подряд: игра,
+  // которая падает сразу после загрузки, иначе крутилась бы вечно. Дальше - экран
+  // «игра упала» с кнопкой. Счёт сбрасывается, если страница прожила 20 секунд.
+  let calm = null;
+  wc.on('did-finish-load', () => {
+    clearTimeout(calm);
+    calm = setTimeout(() => crashes.delete(id), 20000);
+  });
   wc.on('render-process-gone', (_e, details) => {
-    errors[id].push('renderer gone: ' + details.reason);
-    if (details.reason !== 'clean-exit' && views.get(id) === view) setTimeout(() => wc.isDestroyed() || wc.reload(), 300);
+    log(errors[id], 'renderer gone: ' + details.reason);
+    clearTimeout(calm);
+    if (details.reason === 'clean-exit' || views.get(id) !== view) return;
+    const n = (crashes.get(id) || 0) + 1;
+    crashes.set(id, n);
+    if (n > CRASH_LIMIT) {
+      crashed.add(id);
+      layout();
+      focusActive();
+      pushState();
+    } else {
+      setTimeout(() => wc.isDestroyed() || wc.reload(), 300);
+    }
   });
   wc.on('enter-html-full-screen', () => setFullscreen(true));
   wc.on('leave-html-full-screen', () => setFullscreen(false));
@@ -186,12 +226,20 @@ function destroyView(id) {
   const view = views.get(id);
   if (!view) return;
   views.delete(id);
+  crashed.delete(id);
+  crashes.delete(id);
   if (attached.has(view) && win && !win.isDestroyed()) win.contentView.removeChildView(view);
   attached.delete(view);
   if (!view.webContents.isDestroyed()) view.webContents.close();
 }
 
 function setTabs(next) {
+  // Игра, с которой ушли, выходит из своего полноэкранного режима (requestFullscreen):
+  // иначе, вернувшись, её застали бы на весь экран без полосы вкладок.
+  const prev = views.get(tabs.active);
+  if (prev && next.active !== tabs.active && !prev.webContents.isDestroyed()) {
+    prev.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
+  }
   tabs = next;
   for (const id of [...views.keys()]) if (!tabs.open.includes(id)) destroyView(id);
   if (tabs.active !== Tabs.HOME && !views.has(tabs.active)) createView(tabs.active);
@@ -214,7 +262,7 @@ function layout() {
   const [w, h] = win.getContentSize();
   const bounds = fullscreen ? { x: 0, y: 0, width: w, height: h } : { x: 0, y: BAR_H, width: w, height: Math.max(0, h - BAR_H) };
   for (const [id, view] of views) {
-    const show = id === tabs.active && !modal;
+    const show = id === tabs.active && !modal && !crashed.has(id);
     view.setBounds(bounds);
     if (show && !attached.has(view)) {
       view.setVisible(true);
@@ -231,7 +279,7 @@ function layout() {
 
 function focusActive() {
   if (!win || win.isDestroyed() || modal) return;
-  const view = views.get(tabs.active);
+  const view = crashed.has(tabs.active) ? null : views.get(tabs.active);
   if (view) view.webContents.focus();
   else win.webContents.focus();
 }
@@ -289,7 +337,7 @@ async function restartActive() {
 // Одни и те же клавиши и в оболочке, и внутри игры. Буквы по коду клавиши, а не по
 // символу: в русской раскладке Ctrl+T - это Ctrl+Е.
 function onKey(event, input) {
-  if (input.type !== 'keyDown' || modal) return;
+  if (input.type !== 'keyDown' || busy()) return;
   const ctrl = input.control || input.meta;
   if (ctrl && !input.alt) {
     let next;
@@ -319,24 +367,50 @@ function onKey(event, input) {
 // --- связь с оболочкой ---------------------------------------------------------------
 
 function snapshot() {
-  return { tabs, fullscreen, settings };
+  return { tabs, fullscreen, settings, crashed: [...crashed] };
 }
 
 function pushState() {
   if (win && !win.isDestroyed()) win.webContents.send('shell:state', snapshot());
 }
 
-ipcMain.handle('shell:init', () => ({
+// Команды оболочки принимаются только от её окна: у страниц игр моста нет, но лишняя
+// проверка отправителя дёшева.
+const fromShell = (e) => !!win && !win.isDestroyed() && !!e && e.sender === win.webContents;
+const fromGame = (e) => !!e && [...views.values()].some((v) => v.webContents === e.sender);
+
+// Громкость для предзагрузки страницы игры: спрашивается синхронно при каждой загрузке,
+// так что и после F5 или перезапуска после сбоя страница получает текущую, а не ту, что
+// была при создании вкладки.
+ipcMain.on('igroteka:volume-now', (e) => { e.returnValue = fromGame(e) ? settings.volume / 100 : 1; });
+
+ipcMain.handle('shell:init', (e) => (!fromShell(e) ? null : {
   product: { name: PRODUCT.name, version: PRODUCT.version },
   games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc })),
   platform: process.platform,
   ...snapshot(),
 }));
-ipcMain.on('tabs:open', (_e, id) => { if (byId.has(id)) setTabs(Tabs.openTab(tabs, id)); });
-ipcMain.on('tabs:activate', (_e, id) => setTabs(Tabs.activate(tabs, id)));
-ipcMain.on('tabs:close', (_e, id) => setTabs(Tabs.closeTab(tabs, id)));
-ipcMain.on('modal:result', (_e, id, index) => { if (modal && modal.id === id && modal.resolve) modal.resolve(index); });
-ipcMain.handle('settings:set', (_e, key, value) => {
+// Пока открыт вопрос, вкладки не переключаются и не закрываются: иначе «Перезапустить»
+// сработало бы уже не для той игры, о которой спрашивали.
+const tabsCommand = (fn) => (e, id) => { if (fromShell(e) && !busy()) fn(id); };
+ipcMain.on('tabs:open', tabsCommand((id) => { if (byId.has(id)) setTabs(Tabs.openTab(tabs, id)); }));
+ipcMain.on('tabs:activate', tabsCommand((id) => setTabs(Tabs.activate(tabs, id))));
+ipcMain.on('tabs:close', tabsCommand((id) => setTabs(Tabs.closeTab(tabs, id))));
+// Экран «игра упала» -> «Перезапустить»: счёт сбоев с нуля, страница заново.
+ipcMain.on('tabs:revive', tabsCommand((id) => {
+  const view = views.get(id);
+  if (!view || !crashed.has(id)) return;
+  crashed.delete(id);
+  crashes.delete(id);
+  view.webContents.reload();
+  layout();
+  focusActive();
+  pushState();
+}));
+ipcMain.on('modal:result', (e, id, index) => { if (fromShell(e) && modal && modal.id === id && modal.resolve) modal.resolve(index); });
+ipcMain.on('modal:local', (e, open) => { if (fromShell(e)) localModal = !!open; });
+ipcMain.handle('settings:set', (e, key, value) => {
+  if (!fromShell(e)) return settings;
   settings = Settings.update(settings, key, value);
   saveSettings();
   if (key === 'theme') applyTheme();
@@ -347,8 +421,8 @@ ipcMain.handle('settings:set', (_e, key, value) => {
 });
 // Стереть данные одной игры: рекорды, сохранения, кеш. Открытая вкладка этой игры
 // закрывается, иначе страница тут же записала бы свои данные обратно.
-ipcMain.handle('games:clear', async (_e, id) => {
-  if (!byId.has(id)) return false;
+ipcMain.handle('games:clear', async (e, id) => {
+  if (!fromShell(e) || !byId.has(id)) return false;
   if (tabs.open.includes(id)) setTabs(Tabs.closeTab(tabs, id));
   const ses = session.fromPartition('persist:' + id);
   await ses.clearStorageData();
@@ -448,5 +522,6 @@ globalThis.__igroteka = {
   get settings() { return settings; },
   get fullscreen() { return fullscreen; },
   get modalOpen() { return !!modal; },
+  get crashed() { return [...crashed]; },
   views, errors, blocked, games, BAR_H,
 };

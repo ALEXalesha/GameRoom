@@ -48,6 +48,9 @@ test('вкладка игры: значок, имя и крестик; крес�
   const tab = shell.locator('.tab.game[data-id="dino"]');
   expect(await tab.locator('img.icon').evaluate((i) => i.naturalWidth > 0)).toBe(true);
   await expect(tab.locator('.name')).not.toBeEmpty();
+  // Крестик у неактивной вкладки появляется под мышью (как в Chrome).
+  await expect(tab.locator('.x')).toBeHidden();
+  await tab.hover();
   await tab.locator('.x').click();
   await expect.poll(() => H.tabs(app)).toEqual({ open: ['mario'], active: 'mario' });
   await expect(shell.locator('.tab.game')).toHaveCount(1);
