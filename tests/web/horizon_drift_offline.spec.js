@@ -389,10 +389,10 @@ test.describe('horizon_drift_offline', () => {
     await startQuick(page, { track: 'port', mode: 'time' });
     await page.evaluate(() => { __drift.step(3.2 * 120); __drift.manual = false; });
     await page.keyboard.down('KeyD');
-    await page.waitForTimeout(2000);
+    // время заезда идёт от кадров; на медленной машине кадры реже - ждём по скорости, а не по часам
+    await expect.poll(() => page.evaluate(() => __drift.player.speed), { timeout: 30_000 }).toBeGreaterThan(5);
     await page.keyboard.up('KeyD');
     const v = await page.evaluate(() => __drift.player.speed);
-    expect(v).toBeGreaterThan(3);
     const shot = await page.evaluate(() => { const g = document.getElementById('hSpeedC'); return g.toDataURL().length; });
     expect(shot).toBeGreaterThan(1000);
     expect(await page.evaluate((v) => Math.round(__drift.core.toUnits(v, 'mph')) < Math.round(v * 3.6), v)).toBe(true);
