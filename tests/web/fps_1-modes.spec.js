@@ -89,4 +89,33 @@ test.describe('fps_1: режимы', () => {
     expect(r.inTrain).toBeGreaterThan(5);
     expect(r.after).toBe(0);
   });
+
+  test('видеопамять не растёт от матча к матчу: после разогрева пять матчей подряд не добавляют геометрий и текстур', async ({ page }) => {
+    test.setTimeout(180000);
+    await openTactical(page);
+    const r = await page.evaluate(() => {
+      const mem = () => { const i = __tactical.app.renderer.info.memory; return { g: i.geometries, t: i.textures }; };
+      const play = (opts) => {
+        __tactical.start(Object.assign({ ai: false, seed: 1 }, opts));
+        const m = __tactical.match, p = m.player;
+        __tactical.step(110);
+        p.inv.primary = TAC.makeWeapon('burya'); m.switchSlot(p, 'primary'); p.fire.draw = 0;
+        p.input.fire = true; __tactical.step(40); p.input.fire = false;
+        if (m.mode === 'comp') { const c = m.world.siteCenter.A, w = m.world.center(c[0], c[1]); p.pos.x = w.x; p.pos.z = w.z; m.plantBomb(p, 'A'); }
+        __tactical.step(10);
+        __tactical.render(); __tactical.render();
+        return mem();
+      };
+      const set = [{ mode: 'comp', map: 'quarry', freeze: 0, side: 'T' }, { mode: 'train', map: 'range' }, { mode: 'dm', map: 'port' }];
+      const warm = [];
+      for (let k = 0; k < 2; k++) for (const o of set) warm.push(play(o));
+      const after = [];
+      for (let k = 0; k < 5; k++) after.push(play(set[k % 3]));
+      // дальше - снова первая карта, как в начале проверки
+      return { warm, after, first: warm[3], last: play(set[0]) };
+    });
+    expect(r.last.g).toBeLessThanOrEqual(r.first.g);
+    expect(r.last.t).toBeLessThanOrEqual(r.first.t);
+    for (const x of r.after) { expect(x.g).toBeLessThanOrEqual(Math.max(...r.warm.slice(3).map((w) => w.g))); expect(x.t).toBeLessThanOrEqual(Math.max(...r.warm.slice(3).map((w) => w.t))); }
+  });
 });
