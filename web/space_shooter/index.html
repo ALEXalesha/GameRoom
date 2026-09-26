@@ -6,91 +6,23 @@
 <title>Космический стрелок</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; }
-  body { background: #000; overflow: hidden; font-family: Consolas, 'Courier New', monospace; color: #fff; user-select: none; }
-  canvas { display: block; cursor: crosshair; }
-  #ui {
-    position: fixed; top: 12px; left: 12px; font-size: 14px;
-    text-shadow: 0 0 8px #00ffff; pointer-events: none; line-height: 1.6;
-  }
-  #ui .label { color: #00ffff; }
-  #ui .value { color: #fff; font-weight: bold; }
-  #hpbar { width: 160px; height: 8px; border: 1px solid #00ffff; margin-top: 2px; }
-  #hpfill { height: 100%; width: 100%; background: #00ff88; }
-  #wave-banner {
-    position: fixed; top: 35%; left: 50%; transform: translateX(-50%);
-    font-size: 48px; color: #00ffff; text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
-    opacity: 0; transition: opacity 0.5s; pointer-events: none; text-align: center; white-space: nowrap;
-  }
-  #boss-bar {
-    position: fixed; top: 32px; left: 50%; transform: translateX(-50%);
-    width: min(400px, 50vw); height: 16px; border: 2px solid #ff0066;
-    background: rgba(0,0,0,0.5); display: none; box-shadow: 0 0 12px #ff0066;
-  }
-  #boss-bar-fill { height: 100%; background: linear-gradient(90deg, #ff0066, #ff66aa); width: 100%; }
-  #boss-label {
-    position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-    color: #ff0066; font-size: 12px; text-shadow: 0 0 8px #ff0066;
-  }
-  .screen {
-    position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; background: rgba(0, 0, 10, 0.6);
-  }
-  .screen.show { display: flex; }
-  .screen h1 { font-size: 56px; color: #ff0066; text-shadow: 0 0 20px #ff0066; margin-bottom: 16px; }
-  .screen.start h1 { color: #00ffff; text-shadow: 0 0 20px #00ffff; }
-  .screen p { font-size: 18px; margin-bottom: 14px; line-height: 1.5; }
-  .screen button {
-    padding: 12px 32px; font-size: 18px; background: transparent; color: #00ffff;
-    border: 2px solid #00ffff; cursor: pointer; font-family: inherit;
-    text-shadow: 0 0 8px #00ffff; box-shadow: 0 0 12px #00ffff; margin-top: 10px;
-  }
-  .screen button:hover { background: rgba(0,255,255,0.2); }
-  #controls { position: fixed; bottom: 12px; left: 12px; font-size: 12px; color: #888; line-height: 1.6; pointer-events: none; }
+  html, body { height: 100%; overflow: hidden; background: #05060f; }
+  #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
+  #game { display: block; touch-action: none; }
+  #game.playing { cursor: none; }
+  .shop-row { display: grid; grid-template-columns: 1.3fr 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .shop-row small { color: var(--kit-dim); display: block; }
+  .pips { letter-spacing: 3px; color: #00e5ff; }
+  .pips i { font-style: normal; color: rgba(255,255,255,.2); }
+  .credits { font-size: 18px; color: #7dffb2; font-weight: 700; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
-
-<div id="ui">
-  <div><span class="label">Очки:</span> <span class="value" id="score">0</span> · <span class="label">Рекорд:</span> <span class="value" id="best">0</span></div>
-  <div><span class="label">Здоровье:</span> <span class="value" id="hp">100</span><div id="hpbar"><div id="hpfill"></div></div></div>
-  <div><span class="label">Волна:</span> <span class="value" id="wave">1</span></div>
-  <div><span class="label">Оружие:</span> <span class="value" id="weapon">Базовое</span></div>
-</div>
-
-<div id="boss-bar"><div id="boss-label">БОСС</div><div id="boss-bar-fill"></div></div>
-<div id="wave-banner"></div>
-
-<div id="start" class="screen start show">
-  <h1>КОСМИЧЕСКИЙ СТРЕЛОК</h1>
-  <p>Волны врагов и астероидов, каждая пятая - босс.<br>Подбирай кружки: 2, 3, S, L - оружие, + - здоровье.</p>
-  <button id="startBtn" type="button">Начать (Enter)</button>
-</div>
-
-<div id="pause" class="screen">
-  <h1 style="color:#00ffff;text-shadow:0 0 20px #00ffff">ПАУЗА</h1>
-  <p>P или Esc - продолжить</p>
-</div>
-
-<div id="game-over" class="screen">
-  <h1>КОНЕЦ</h1>
-  <p>Очки: <span id="final-score">0</span> · Волна: <span id="final-wave">1</span></p>
-  <p id="final-best"></p>
-  <button id="restartBtn" type="button">Заново (Enter)</button>
-</div>
-
-<div id="controls">WASD / стрелки - движение · мышь - прицел · ЛКМ или Пробел - огонь · P / Esc - пауза · M - звук</div>
-
+<div id="app"><canvas id="game" aria-label="Игровое поле"></canvas></div>
+<script src="kit.js"></script>
 <script>
 'use strict';
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0;
-const STEP_MS = 1000 / 60;
-const MAX_ASTEROIDS = 14;         // раньше астероиды копились с каждой волной без предела
-const BEST_KEY = 'space_shooter_best';
-
+const W = 1280, H = 720, STEP_MS = 1000 / 60;
 const params = new URLSearchParams(location.search);
 function mulberry32(a) {
   return function () {
@@ -100,504 +32,951 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+let rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+const pick = (a) => a[Math.floor(rnd() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
-function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
-function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
+// ================= Кампания: 8 секторов, в каждом 3 волны и в конце босс или элитное звено =================
+const SECTORS = [
+  { name: 'Пояс Ориона', neb: ['#1a2a6c', '#3b1d5e'], planet: '#6a8dff', waves: [{ scout: 6 }, { scout: 8 }, { scout: 8, fighter: 2 }], asteroids: 4, end: 'elite' },
+  { name: 'Туманность Стражей', neb: ['#5e1d4f', '#1d2a5e'], planet: '#ff6b9d', waves: [{ scout: 6, fighter: 2 }, { scout: 6, fighter: 4 }, { fighter: 6 }], asteroids: 2, end: 'guardian' },
+  { name: 'Красный рукав', neb: ['#6c1a1a', '#3d1d5e'], planet: '#ff8c42', waves: [{ fighter: 4, kamikaze: 4 }, { kamikaze: 8, scout: 4 }, { fighter: 5, kamikaze: 6 }], asteroids: 5, end: 'elite' },
+  { name: 'Гнездо роя', neb: ['#1d4d1a', '#1a2d5e'], planet: '#9dff4d', waves: [{ tank: 2, scout: 8 }, { tank: 3, kamikaze: 6 }, { tank: 3, fighter: 4 }], asteroids: 0, end: 'hive' },
+  { name: 'Ледяное облако', neb: ['#1a4d6c', '#2d1d5e'], planet: '#8ff0ff', waves: [{ sniper: 3, scout: 6 }, { sniper: 4, fighter: 4 }, { sniper: 4, kamikaze: 6 }], asteroids: 6, end: 'elite' },
+  { name: 'Верфь крейсеров', neb: ['#1a1a4d', '#4d3a1a'], planet: '#4db8ff', waves: [{ tank: 3, sniper: 3 }, { fighter: 7, kamikaze: 6 }, { tank: 3, sniper: 3, fighter: 3 }], asteroids: 0, end: 'cruiser' },
+  { name: 'Мёртвая звезда', neb: ['#3a0d0d', '#0d0d3a'], planet: '#c2c2c2', waves: [{ fighter: 5, sniper: 3, kamikaze: 4 }, { tank: 4, kamikaze: 8 }, { elite: 1, fighter: 5, sniper: 3 }], asteroids: 8, end: 'elite' },
+  { name: 'Ядро', neb: ['#4d3a00', '#4d0033'], planet: '#ffcc33', waves: [{ fighter: 6, sniper: 4 }, { tank: 4, kamikaze: 8, scout: 6 }], asteroids: 0, end: 'core' },
+];
 
-// ---------- Звук ----------
-let actx = null, muted = false, lastShotSound = 0;
-function beep(freq, dur, type = 'square', vol = 0.04, slide) {
-  if (muted) return;
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
-  } catch (e) { /* звук недоступен */ }
-}
-const SFX = {
-  shoot: () => { const n = performance.now(); if (n - lastShotSound > 60) { lastShotSound = n; beep(880, 0.05, 'square', 0.015, 440); } },
-  boom: () => beep(120, 0.3, 'sawtooth', 0.05, 40),
-  hurt: () => beep(200, 0.15, 'square', 0.05, 100),
-  pickup: () => { beep(660, 0.08, 'triangle', 0.06); setTimeout(() => beep(990, 0.12, 'triangle', 0.06), 70); },
+const ETYPES = {
+  scout: { hp: 20, speed: 2.2, r: 14, dmg: 8, color: '#ff5a5a', score: 50, credits: 8 },
+  fighter: { hp: 40, speed: 1.6, r: 18, dmg: 12, color: '#ff9a3c', score: 100, credits: 14, shoot: 95, keep: 260 },
+  tank: { hp: 110, speed: 0.8, r: 26, dmg: 16, color: '#b45cff', score: 200, credits: 28, shoot: 130, spread: 3, keep: 330 },
+  kamikaze: { hp: 14, speed: 1.2, r: 12, dmg: 22, color: '#ffe14d', score: 60, credits: 10 },
+  sniper: { hp: 35, speed: 1.2, r: 16, dmg: 20, color: '#4de1ff', score: 150, credits: 22, keep: 470 },
+  elite: { hp: 260, speed: 1.4, r: 28, dmg: 16, color: '#ff4dd2', score: 400, credits: 60, shoot: 42, keep: 300 },
+};
+const BOSSES = {
+  guardian: { name: 'Страж', hp: 900, r: 62, color: '#ff0066', credits: 300 },
+  hive: { name: 'Рой-матка', hp: 1300, r: 72, color: '#9dff4d', credits: 450 },
+  cruiser: { name: 'Крейсер «Гроза»', hp: 1700, r: 60, w: 440, h: 90, color: '#4db8ff', credits: 600 },
+  core: { name: 'Ядро', hp: 2600, r: 82, color: '#ffcc33', credits: 1000 },
 };
 
-function resize() {
-  W = canvas.width = innerWidth;
-  H = canvas.height = innerHeight;
-  if (player) { player.x = Math.min(player.x, W - player.size); player.y = Math.min(player.y, H - player.size); }
-  for (const s of stars) { if (s.x > W) s.x = rnd() * W; if (s.y > H) s.y = rnd() * H; }
-}
+// ================= Магазин =================
+const WEAPONS = [
+  { name: 'Одиночный', cd: 12, dmg: 10, shots: [[0, 0]] },
+  { name: 'Двойной', cd: 11, dmg: 10, shots: [[-0.06, 0], [0.06, 0]] },
+  { name: 'Тройной', cd: 11, dmg: 10, shots: [[-0.14, 0], [0, 0], [0.14, 0]] },
+  { name: 'Веер', cd: 14, dmg: 9, shots: [[-0.36, 0], [-0.18, 0], [0, 0], [0.18, 0], [0.36, 0]] },
+  { name: 'Лазер-спарка', cd: 6, dmg: 12, shots: [[0, -7], [0, 7]] },
+];
+const UPGRADES = {
+  weapon: { name: 'Оружие', desc: (l) => WEAPONS[Math.min(l + 1, 4)].name, prices: [150, 300, 500, 800] },
+  damage: { name: 'Урон', desc: () => '+15% к урону каждого выстрела', prices: [120, 240, 400] },
+  shield: { name: 'Броня', desc: () => '+25 к запасу прочности', prices: [100, 200, 350, 550] },
+  speed: { name: 'Двигатели', desc: () => '+12% к скорости и манёвру', prices: [80, 160, 300] },
+  rate: { name: 'Скорострельность', desc: () => '-10% к паузе между выстрелами', prices: [120, 250, 420] },
+};
+const REPAIR_PRICE = 40, BOMB_PRICE = 60, MAX_BOMBS = 3;
 
-const keys = {};
-let mouseX = 0, mouseY = 0, mouseDown = false;
-
-const stars = [];
-let player = null;
-let bullets = [], enemyBullets = [], enemies = [], asteroids = [], particles = [], powerups = [];
+// ================= Состояние =================
+const S = {
+  mode: 'demo', phase: 'fight', sector: 0, wave: 0, queue: [], spawnT: 0, banner: null, bossName: '',
+  credits: 0, bombs: 1, up: { weapon: 0, damage: 0, shield: 0, speed: 0, rate: 0 },
+  stats: { kills: 0, shots: 0, hits: 0, dmgTaken: 0, steps: 0, credits: 0 },
+  frame: 0, shake: 0, flash: 0, sectorDamage: 0, survivalWave: 0, clearedT: 0,
+};
+const P = { x: W / 2, y: H * 0.7, vx: 0, vy: 0, r: 16, hp: 100, maxHp: 100, angle: -Math.PI / 2, cd: 0, invuln: 0, overdrive: 0 };
+let bullets = [], ebullets = [], enemies = [], asteroids = [], particles = [], pickups = [], beams = [];
 let boss = null;
-const state = { phase: 'start', score: 0, best: loadBest(), wave: 1, waveState: 'spawning', waveTimer: 0, enemiesToSpawn: 0, spawnTimer: 0, bannerTimer: 0 };
+let kit;
+let progress = { sector: 0, maxSector: 0, done: false, up: null, credits: 0, bombs: 1, hp: 100 };
+let records = { survival: 0, survivalScore: 0, bestTime: {}, kills: 0 };
+let mouse = { x: W / 2, y: H / 3, held: false, lastMove: -1e9 };
 
-const WEAPONS = {
-  basic:  { name: 'Базовое',  cooldown: 12, damage: 10, color: '#00ffff', spread: 0,    count: 1 },
-  double: { name: 'Двойное',  cooldown: 10, damage: 10, color: '#00ff00', spread: 0.1,  count: 2 },
-  triple: { name: 'Тройное',  cooldown: 10, damage: 12, color: '#ffff00', spread: 0.15, count: 3 },
-  spread: { name: 'Дробовик', cooldown: 18, damage: 8,  color: '#ff8800', spread: 0.4,  count: 5 },
-  laser:  { name: 'Лазер',    cooldown: 6,  damage: 15, color: '#ff00ff', spread: 0,    count: 1 },
-};
-const ENEMY_TYPES = {
-  scout:   { hp: 20, speed: 2.0, size: 14, damage: 8,  color: '#ff4444', shootRate: 0,   score: 50 },
-  fighter: { hp: 40, speed: 1.5, size: 18, damage: 12, color: '#ff8800', shootRate: 90,  score: 100 },
-  tank:    { hp: 80, speed: 0.8, size: 24, damage: 20, color: '#aa00ff', shootRate: 120, score: 200 },
+function maxHp() { return 100 + 25 * S.up.shield; }
+function dmgMul() { return 1 + 0.15 * S.up.damage; }
+function takenMul() { return kit.diff({ easy: 0.6, normal: 1, hard: 1.4 }); }
+function enemyHpMul() { return kit.diff({ easy: 0.8, normal: 1, hard: 1.25 }) * (1 + 0.08 * S.sector); }
+function enemyFireMul() { return kit.diff({ easy: 1.35, normal: 1, hard: 0.8 }); }
+
+// ================= Звуки =================
+let lastShotSnd = 0;
+const SFX = {
+  shot() { const n = performance.now(); if (n - lastShotSnd > 70) { lastShotSnd = n; kit.tone(880, 0.05, { vol: 0.03, slide: 440 }); } },
+  hit() { kit.tone(300, 0.05, { type: 'square', vol: 0.04, slide: 200 }); },
+  boom(big) { kit.noise(big ? 0.7 : 0.3, { vol: big ? 0.35 : 0.18, freq: big ? 500 : 900 }); },
+  hurt() { kit.tone(160, 0.2, { type: 'sawtooth', vol: 0.1, slide: 70 }); },
+  pickup() { kit.tone(660, 0.07, { type: 'triangle', vol: 0.08 }); kit.tone(990, 0.1, { type: 'triangle', vol: 0.08, delay: 0.06 }); },
+  bomb() { kit.noise(1.0, { vol: 0.4, freq: 300 }); kit.tone(80, 0.8, { type: 'sine', vol: 0.3, slide: 30 }); },
+  laser() { kit.tone(120, 0.6, { type: 'sawtooth', vol: 0.06, slide: 90 }); },
+  fanfare() { [523, 659, 784, 1047].forEach((f, i) => kit.tone(f, 0.18, { type: 'triangle', vol: 0.1, delay: i * 0.12 })); },
 };
 
-function newPlayer() {
-  return { x: W / 2, y: H / 2, vx: 0, vy: 0, size: 16, hp: 100, maxHp: 100, angle: 0, shootCooldown: 0, weapon: 'basic', invuln: 0 };
+// ================= Запуск =================
+function resetArena() {
+  bullets = []; ebullets = []; enemies = []; asteroids = []; particles = []; pickups = []; beams = [];
+  boss = null; S.banner = null; S.shake = 0; S.flash = 0;
+}
+function applyUpgrades(fillHp) {
+  P.maxHp = maxHp();
+  if (fillHp) P.hp = P.maxHp; else P.hp = Math.min(P.hp, P.maxHp);
+}
+function newCampaignState() {
+  S.up = { weapon: 0, damage: 0, shield: 0, speed: 0, rate: 0 };
+  S.credits = 0; S.bombs = kit.diff({ easy: 2, normal: 1, hard: 1 });
+  S.stats = { kills: 0, shots: 0, hits: 0, dmgTaken: 0, steps: 0, credits: 0 };
+}
+// Контрольная точка - начало сектора: улучшения, кредиты, бомбы и прочность на тот момент
+function saveCheckpoint(sector) {
+  progress.sector = sector;
+  progress.maxSector = Math.max(progress.maxSector, sector);
+  progress.up = { ...S.up }; progress.credits = S.credits; progress.bombs = S.bombs; progress.hp = P.hp;
+  progress.stats = { ...S.stats };
+  kit.save('progress', progress);
+}
+function startSector(i, fromCheckpoint) {
+  resetArena();
+  S.mode = 'campaign';
+  S.sector = i; S.wave = 0; S.sectorDamage = 0;
+  if (fromCheckpoint && progress.up) {
+    S.up = { ...progress.up }; S.credits = progress.credits; S.bombs = progress.bombs;
+    if (progress.stats) S.stats = { ...progress.stats };
+    applyUpgrades(true);
+  } else applyUpgrades(false);
+  Object.assign(P, { x: W / 2, y: H * 0.72, vx: 0, vy: 0, invuln: 60, cd: 0, overdrive: 0 });
+  for (let k = 0; k < SECTORS[i].asteroids; k++) spawnAsteroid();
+  startWave();
+  kit.play();
+}
+function startCampaign(sector) {
+  if (sector === undefined) { newCampaignState(); applyUpgrades(true); saveCheckpoint(0); startSector(0, false); return; }
+  startSector(sector, true);
+}
+function startSurvival() {
+  resetArena();
+  newCampaignState(); applyUpgrades(true);
+  S.mode = 'survival'; S.sector = 0; S.survivalWave = 0; S.wave = 0;
+  Object.assign(P, { x: W / 2, y: H * 0.72, vx: 0, vy: 0, invuln: 60, cd: 0, overdrive: 0 });
+  for (let k = 0; k < 4; k++) spawnAsteroid();
+  startWave();
+  kit.play();
+}
+function startDemo() {
+  resetArena();
+  newCampaignState(); S.up.weapon = 2; applyUpgrades(true);
+  S.mode = 'demo'; S.sector = 0; S.wave = 0;
+  for (let k = 0; k < 3; k++) spawnAsteroid();
+  S.queue = []; S.phase = 'fight';
 }
 
-function showBanner(text) {
-  const banner = document.getElementById('wave-banner');
-  banner.textContent = text;
-  banner.style.opacity = '1';
-  state.bannerTimer = 90;
+function waveDef() {
+  if (S.mode === 'survival') {
+    const n = S.survivalWave, types = ['scout', 'fighter', 'kamikaze', 'tank', 'sniper'];
+    const d = {};
+    for (let i = 0; i < 6 + n * 2; i++) { const t = types[Math.min(types.length - 1, Math.floor(rnd() * (2 + n / 2)))]; d[t] = (d[t] || 0) + 1; }
+    return d;
+  }
+  return SECTORS[S.sector].waves[S.wave];
 }
-
-function spawnWave() {
-  showBanner('ВОЛНА ' + state.wave);
-  if (state.wave % 5 === 0) {
-    spawnBoss();
-    state.waveState = 'boss';
+function startWave() {
+  S.phase = 'fight';
+  const d = waveDef();
+  S.queue = [];
+  for (const t in d) for (let i = 0; i < d[t]; i++) S.queue.push(t);
+  for (let i = S.queue.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [S.queue[i], S.queue[j]] = [S.queue[j], S.queue[i]]; }
+  S.spawnT = 40;
+  const total = S.mode === 'survival' ? '∞' : SECTORS[S.sector].waves.length;
+  S.banner = { text: S.mode === 'survival' ? `Волна ${S.survivalWave + 1}` : `Сектор ${S.sector + 1}: ${SECTORS[S.sector].name} · волна ${S.wave + 1}/${total}`, t: 130 };
+}
+function startFinale() {
+  const end = S.mode === 'survival' ? (S.survivalWave % 4 === 3 ? pick(['guardian', 'hive']) : 'elite') : SECTORS[S.sector].end;
+  S.phase = 'boss';
+  if (end === 'elite') {
+    for (let i = 0; i < 3; i++) spawnEnemy('elite', 200 + i * 440, -60 - i * 30);
+    S.bossName = 'Элитное звено';
+    S.banner = { text: 'Элитное звено!', t: 120 };
   } else {
-    state.enemiesToSpawn = 5 + state.wave * 2;
-    state.spawnTimer = 0;
-    state.waveState = 'spawning';
+    spawnBoss(end);
+    S.banner = { text: 'Внимание: ' + BOSSES[end].name + '!', t: 140 };
   }
-  const want = Math.min(3 + Math.floor(state.wave / 2), MAX_ASTEROIDS);
-  for (let i = asteroids.length; i < want; i++) spawnAsteroid();
 }
 
-function edgePoint(margin) {
-  const side = Math.floor(rnd() * 4);
-  if (side === 0) return { x: rnd() * W, y: -margin };
-  if (side === 1) return { x: W + margin, y: rnd() * H };
-  if (side === 2) return { x: rnd() * W, y: H + margin };
-  return { x: -margin, y: rnd() * H };
+// ================= Порождение =================
+function edgePoint(m) {
+  const s = Math.floor(rnd() * 3);            // сверху и с боков: снизу - в спину игроку нечестно
+  if (s === 0) return { x: rnd() * W, y: -m };
+  if (s === 1) return { x: W + m, y: rnd() * H * 0.6 };
+  return { x: -m, y: rnd() * H * 0.6 };
 }
-
-function makeEnemy(type, x, y) {
-  const c = ENEMY_TYPES[type];
-  const hp = c.hp + state.wave * 3;
-  return { x, y, type, hp, maxHp: hp, speed: c.speed, size: c.size, damage: c.damage, color: c.color,
-    shootRate: c.shootRate, shootTimer: rnd() * 60, score: c.score, angle: 0 };
+function spawnEnemy(type, x, y) {
+  const d = ETYPES[type], p = x === undefined ? edgePoint(40) : { x, y };
+  const hp = Math.round(d.hp * enemyHpMul());
+  enemies.push({ type, x: p.x, y: p.y, vx: 0, vy: 0, hp, maxHp: hp, r: d.r, angle: Math.PI / 2, t: Math.floor(rnd() * 60), strafe: rnd() < 0.5 ? 1 : -1, aim: 0, aimDir: 0, flash: 0 });
 }
-
-function spawnEnemy() {
-  const p = edgePoint(30);
-  let type;
-  if (state.wave < 3) type = 'scout';
-  else if (state.wave < 6) type = rnd() < 0.7 ? 'scout' : 'fighter';
-  else type = ['scout', 'fighter', 'tank'][Math.floor(rnd() * 3)];
-  enemies.push(makeEnemy(type, p.x, p.y));
+function spawnBoss(kind) {
+  const d = BOSSES[kind], hp = Math.round(d.hp * kit.diff({ easy: 0.8, normal: 1, hard: 1.2 }));
+  boss = { kind, name: d.name, x: W / 2, y: -140, targetY: kind === 'cruiser' ? 110 : 170, hp, maxHp: hp, r: d.r, w: d.w || 0, h: d.h || 0, color: d.color, t: 0, pattern: 0, dir: 1, angle: 0, flash: 0 };
+  S.bossName = d.name;
 }
-
-function spawnBoss() {
-  const hp = 400 + state.wave * 50;
-  boss = { x: W / 2, y: -100, targetY: Math.min(150, H * 0.25), hp, maxHp: hp, size: 60, damage: 25, angle: 0,
-    shootTimer: 0, pattern: 0, patternTimer: 0, moveDir: 1, score: 1000 + state.wave * 100 };
-  document.getElementById('boss-bar').style.display = 'block';
-}
-
 function asteroidShape(size) {
-  const points = [];
-  const count = 8 + Math.floor(rnd() * 5);
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2, r = size * (0.7 + rnd() * 0.4);
-    points.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  const pts = [], n = 8 + Math.floor(rnd() * 5);
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, r = size * (0.72 + rnd() * 0.36); pts.push([Math.cos(a) * r, Math.sin(a) * r]); }
+  return pts;
+}
+function spawnAsteroid(x, y, size) {
+  if (asteroids.length >= 14) return;
+  const p = x === undefined ? edgePoint(60) : { x, y };
+  size = size || 22 + rnd() * 36;
+  asteroids.push({ x: p.x, y: p.y, vx: (rnd() - 0.5) * 1.6, vy: 0.3 + rnd() * 0.9, size, hp: size * 1.5, maxHp: size * 1.5, rot: 0, rs: (rnd() - 0.5) * 0.05, pts: asteroidShape(size) });
+}
+function burst(x, y, color, n, speed = 4, life = 40) {
+  if (!kit.settings.effects) return;
+  if (particles.length > 700) return;
+  for (let i = 0; i < n; i++) { const a = rnd() * Math.PI * 2, v = rnd() * speed + 0.5; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.5 + rnd() * 0.5), max: life, color, r: 1 + rnd() * 2.5 }); }
+}
+function shake(v) { if (kit.settings.shake) S.shake = Math.max(S.shake, v); }
+
+// ================= Игрок =================
+function aimAngle() {
+  const pad = kit.pad();
+  if (pad && Math.hypot(pad.axes[2] || 0, pad.axes[3] || 0) > 0.35) return Math.atan2(pad.axes[3], pad.axes[2]);
+  const mouseActive = performance.now() - mouse.lastMove < 2500 && !kit.settings.autoAim;
+  if (S.mode === 'demo' || kit.settings.autoAim || !mouseActive && pad) {
+    const t = nearestTarget();
+    if (t) return Math.atan2(t.y - P.y, t.x - P.x);
+    return P.angle;
   }
-  return points;
+  return Math.atan2(mouse.y - P.y, mouse.x - P.x);
 }
-function makeAsteroid(x, y, size, speed) {
-  return { x, y, vx: (rnd() - 0.5) * speed, vy: (rnd() - 0.5) * speed, size, hp: size * 1.5, maxHp: size * 1.5,
-    rot: 0, rotSpeed: (rnd() - 0.5) * 0.06, points: asteroidShape(size) };
+function nearestTarget() {
+  let best = null, bd = Infinity;
+  for (const e of enemies) { const d = dist2(e, P); if (d < bd && e.y > -20) { bd = d; best = e; } }
+  if (boss && boss.y > 0) { const d = dist2(boss, P) * 0.6; if (d < bd) best = boss; }
+  return best;
 }
-function spawnAsteroid() {
-  const p = edgePoint(50);
-  asteroids.push(makeAsteroid(p.x, p.y, 20 + rnd() * 40, 2));
-}
-
-function spawnPowerup(x, y, force) {
-  if (!force && rnd() > 0.25) return;
-  const types = ['health', 'double', 'triple', 'spread', 'laser'];
-  powerups.push({ x, y, vx: (rnd() - 0.5), vy: (rnd() - 0.5), type: types[Math.floor(rnd() * types.length)], size: 14, life: 600, pulse: 0 });
-}
-
-function spawnParticles(x, y, color, count = 8) {
-  if (particles.length > 600) return;
-  for (let i = 0; i < count; i++) {
-    const a = rnd() * Math.PI * 2, sp = rnd() * 4 + 1;
-    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 30 + rnd() * 20, maxLife: 50, color, size: rnd() * 3 + 1 });
+function fire() {
+  const wp = WEAPONS[S.up.weapon];
+  const rate = (1 - 0.1 * S.up.rate) * (P.overdrive > 0 ? 0.5 : 1);
+  P.cd = Math.max(3, Math.round(wp.cd * rate));
+  const dmg = wp.dmg * dmgMul();
+  for (const [da, off] of wp.shots) {
+    const a = P.angle + da, nx = -Math.sin(P.angle), ny = Math.cos(P.angle);
+    bullets.push({ x: P.x + Math.cos(a) * 22 + nx * off, y: P.y + Math.sin(a) * 22 + ny * off, vx: Math.cos(a) * 13, vy: Math.sin(a) * 13, dmg, life: 70, color: S.up.weapon === 4 ? '#ff4dff' : '#00e5ff' });
   }
+  S.stats.shots++;
+  if (S.mode !== 'demo') SFX.shot();
 }
-
-function shoot() {
-  const w = WEAPONS[player.weapon];
-  if (player.shootCooldown > 0) return;
-  player.shootCooldown = w.cooldown;
-  const base = Math.atan2(mouseY - player.y, mouseX - player.x);
-  for (let i = 0; i < w.count; i++) {
-    const a = base + (w.count === 1 ? 0 : (i - (w.count - 1) / 2) * w.spread);
-    bullets.push({ x: player.x + Math.cos(a) * 20, y: player.y + Math.sin(a) * 20, vx: Math.cos(a) * 12, vy: Math.sin(a) * 12, damage: w.damage, color: w.color, life: 80 });
-  }
-  SFX.shoot();
+function useBomb() {
+  if (S.bombs <= 0) return false;
+  S.bombs--;
+  ebullets = []; beams = beams.filter((b) => b.t > 0 && false);
+  for (const e of enemies) e.hp -= 60 * dmgMul();
+  for (const a of asteroids) a.hp -= 80;
+  if (boss) boss.hp -= 150 * dmgMul();
+  S.flash = 20; shake(18);
+  burst(P.x, P.y, '#ffffff', 60, 9, 50);
+  SFX.bomb();
+  return true;
 }
-
-function enemyShoot(e) {
-  const a = Math.atan2(player.y - e.y, player.x - e.x);
-  enemyBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, damage: e.damage, color: e.color, life: 150 });
-}
-
-function bossShoot() {
-  const toPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
-  const add = (x, y, a, sp) => enemyBullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, damage: boss.damage, color: '#ff0066', life: 200 });
-  if (boss.pattern === 0) for (let i = -1; i <= 1; i++) add(boss.x, boss.y, toPlayer + i * 0.2, 6);
-  else if (boss.pattern === 1) for (let i = 0; i < 12; i++) add(boss.x, boss.y, (i / 12) * Math.PI * 2 + boss.angle, 4);
-  else for (let i = -2; i <= 2; i++) { const a = toPlayer + i * 0.1; add(boss.x + Math.cos(a + Math.PI / 2) * 30, boss.y + Math.sin(a + Math.PI / 2) * 30, a, 7); }
-}
-
 function damagePlayer(amount, color) {
-  player.hp -= amount;
-  player.invuln = 30;          // полсекунды неуязвимости: одна пуля не бьёт дважды
-  spawnParticles(player.x, player.y, color, 8);
+  if (P.invuln > 0 || S.mode === 'demo') return;
+  const dmg = amount * takenMul();
+  P.hp -= dmg; S.stats.dmgTaken += dmg; S.sectorDamage += dmg;
+  P.invuln = 36;
+  burst(P.x, P.y, color || '#ff3355', 14, 5);
+  shake(8);
   SFX.hurt();
 }
 
-const inside = (b) => b.x > -50 && b.x < W + 50 && b.y > -50 && b.y < H + 50;
-const near = (a, b, r) => { const dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy < r * r; };
+function updatePlayer() {
+  let mx = 0, my = 0;
+  if (S.mode === 'demo') {
+    const t = S.frame / 90;
+    const tx = W / 2 + Math.cos(t) * 360, ty = H * 0.62 + Math.sin(t * 2) * 110;
+    mx = clamp((tx - P.x) / 60, -1, 1); my = clamp((ty - P.y) / 60, -1, 1);
+  } else {
+    mx = (kit.isDown('right') ? 1 : 0) - (kit.isDown('left') ? 1 : 0);
+    my = (kit.isDown('down') ? 1 : 0) - (kit.isDown('up') ? 1 : 0);
+    const pad = kit.pad();
+    if (pad && Math.hypot(pad.axes[0], pad.axes[1]) > 0.25) { mx = pad.axes[0]; my = pad.axes[1]; }
+  }
+  const acc = 0.55 * (1 + 0.12 * S.up.speed);
+  P.vx = (P.vx + mx * acc) * 0.88; P.vy = (P.vy + my * acc) * 0.88;
+  P.x = clamp(P.x + P.vx, P.r, W - P.r); P.y = clamp(P.y + P.vy, P.r + 30, H - P.r);
+  P.angle = aimAngle();
+  if (P.cd > 0) P.cd--;
+  if (P.invuln > 0) P.invuln--;
+  if (P.overdrive > 0) P.overdrive--;
+  const firing = S.mode === 'demo' ? enemies.length > 0 || !!boss : kit.isDown('fire') || mouse.held;
+  if (firing && P.cd === 0) fire();
+  if (S.mode !== 'demo' && kit.wasPressed('bomb')) useBomb();
+  if (kit.settings.effects && S.frame % 2 === 0) particles.push({ x: P.x - Math.cos(P.angle) * 16, y: P.y - Math.sin(P.angle) * 16, vx: -Math.cos(P.angle) * 2 + (rnd() - 0.5), vy: -Math.sin(P.angle) * 2 + (rnd() - 0.5), life: 14, max: 14, color: '#ff9a3c', r: 2 });
+}
 
-// Один шаг мира (1/60 секунды)
-function update() {
-  if (state.phase !== 'play') return;
-
-  for (const s of stars) { s.y += s.z * 0.3; if (s.y > H) { s.y = 0; s.x = rnd() * W; } }
-  if (state.bannerTimer > 0 && --state.bannerTimer === 0) document.getElementById('wave-banner').style.opacity = '0';
-
-  const accel = 0.5, friction = 0.88;
-  if (keys.KeyW || keys.ArrowUp) player.vy -= accel;
-  if (keys.KeyS || keys.ArrowDown) player.vy += accel;
-  if (keys.KeyA || keys.ArrowLeft) player.vx -= accel;
-  if (keys.KeyD || keys.ArrowRight) player.vx += accel;
-  player.vx *= friction; player.vy *= friction;
-  player.x = Math.max(player.size, Math.min(W - player.size, player.x + player.vx));
-  player.y = Math.max(player.size, Math.min(H - player.size, player.y + player.vy));
-  player.angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-  if (player.shootCooldown > 0) player.shootCooldown--;
-  if (player.invuln > 0) player.invuln--;
-  if (mouseDown || keys.Space) shoot();
-
-  bullets = bullets.filter((b) => { b.x += b.vx; b.y += b.vy; b.life--; return b.life > 0 && inside(b); });
-
-  enemyBullets = enemyBullets.filter((b) => {
-    b.x += b.vx; b.y += b.vy; b.life--;
-    if (player.invuln === 0 && near(b, player, player.size + 4)) { damagePlayer(b.damage, '#ff0066'); return false; }
-    return b.life > 0 && inside(b);
-  });
-
+// ================= Враги =================
+function enemyShoot(e, speed, spread, count, color) {
+  const base = Math.atan2(P.y - e.y, P.x - e.x);
+  for (let i = 0; i < count; i++) {
+    const a = base + (count === 1 ? 0 : (i - (count - 1) / 2) * spread);
+    ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: ETYPES[e.type] ? ETYPES[e.type].dmg : 14, r: 5, color, life: 240 });
+  }
+}
+function updateEnemies() {
   for (const e of enemies) {
-    e.angle = Math.atan2(player.y - e.y, player.x - e.x);
-    e.x += Math.cos(e.angle) * e.speed;
-    e.y += Math.sin(e.angle) * e.speed;
-    if (e.shootRate > 0 && ++e.shootTimer >= e.shootRate) {
-      if (Math.hypot(player.x - e.x, player.y - e.y) < 500) enemyShoot(e);
-      e.shootTimer = 0;
+    const d = ETYPES[e.type];
+    e.t++;
+    if (e.flash > 0) e.flash--;
+    const dx = P.x - e.x, dy = P.y - e.y, dist = Math.hypot(dx, dy) || 1;
+    e.angle = Math.atan2(dy, dx);
+    if (e.type === 'scout') {
+      e.vx += (dx / dist * d.speed - e.vx) * 0.08; e.vy += (dy / dist * d.speed - e.vy) * 0.08;
+    } else if (e.type === 'kamikaze') {
+      e.vx += dx / dist * 0.14; e.vy += dy / dist * 0.14;
+      const sp = Math.hypot(e.vx, e.vy), max = 6.5;
+      if (sp > max) { e.vx *= max / sp; e.vy *= max / sp; }
+    } else {
+      let tvx = 0, tvy = 0;
+      if (dist > d.keep + 40) { tvx = dx / dist * d.speed; tvy = dy / dist * d.speed; }
+      else if (dist < d.keep - 40) { tvx = -dx / dist * d.speed; tvy = -dy / dist * d.speed; }
+      else { tvx = -dy / dist * d.speed * e.strafe; tvy = dx / dist * d.speed * e.strafe; }
+      e.vx += (tvx - e.vx) * 0.05; e.vy += (tvy - e.vy) * 0.05;
+      if (e.x < 40 || e.x > W - 40) e.strafe *= -1;
+      if (e.type === 'sniper') {
+        if (e.aim > 0) {
+          if (--e.aim === 0) { ebullets.push({ x: e.x, y: e.y, vx: Math.cos(e.aimDir) * 11, vy: Math.sin(e.aimDir) * 11, dmg: d.dmg, r: 5, color: '#4de1ff', life: 200 }); e.t = 0; }
+        } else if (e.t > 130 * enemyFireMul() && e.y > 0) { e.aim = 60; e.aimDir = e.angle; }
+      } else if (d.shoot && e.t >= d.shoot * enemyFireMul() && e.y > 0 && dist < 700) {
+        e.t = 0;
+        if (e.type === 'elite') enemyShoot(e, 5, 0.18, 5, d.color);
+        else enemyShoot(e, e.type === 'tank' ? 4 : 5, 0.25, d.spread || 1, d.color);
+      }
     }
-    if (player.invuln === 0 && near(e, player, e.size + player.size)) { damagePlayer(e.damage, e.color); e.hp -= 30; }
+    e.x += e.vx; e.y += e.vy;
+    if (e.type !== 'kamikaze') { e.x = clamp(e.x, -80, W + 80); e.y = clamp(e.y, -120, H - 60); }
+    if (dist < e.r + P.r) {
+      damagePlayer(d.dmg, d.color);
+      if (e.type === 'kamikaze') { e.hp = 0; burst(e.x, e.y, d.color, 20, 6); } else e.hp -= 30;
+    }
   }
+}
 
+// ================= Боссы =================
+function bossBullet(x, y, a, sp, color, dmg = 14, r = 6) { ebullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dmg, r, color, life: 300 }); }
+function updateBoss() {
+  const b = boss;
+  b.t++;
+  if (b.flash > 0) b.flash--;
+  if (b.y < b.targetY) { b.y += 1.6; return; }
+  const toP = Math.atan2(P.y - b.y, P.x - b.x);
+  const fm = enemyFireMul();
+  b.angle += 0.02;
+  if (b.kind === 'guardian') {
+    b.x += b.dir * 1.6; if (b.x > W - 140 || b.x < 140) b.dir *= -1;
+    if (b.t % 240 === 0) b.pattern = (b.pattern + 1) % 3;
+    if (b.pattern === 0 && b.t % Math.round(32 * fm) === 0) for (let i = -1; i <= 1; i++) bossBullet(b.x, b.y, toP + i * 0.2, 6, b.color);
+    if (b.pattern === 1 && b.t % Math.round(60 * fm) === 0) for (let i = 0; i < 14; i++) bossBullet(b.x, b.y, i / 14 * Math.PI * 2 + b.angle, 4, b.color);
+    if (b.pattern === 2 && b.t % Math.round(7 * fm) === 0) bossBullet(b.x, b.y, b.angle * 3, 4.5, '#ff66aa');
+  } else if (b.kind === 'hive') {
+    b.x = W / 2 + Math.sin(b.t / 90) * 380; b.y = b.targetY + Math.sin(b.t / 45) * 30;
+    if (b.t % Math.round(150 * fm) === 0 && enemies.length < 8) { spawnEnemy('kamikaze', b.x - 50, b.y + 40); spawnEnemy('kamikaze', b.x + 50, b.y + 40); }
+    if (b.t % Math.round(70 * fm) === 0) for (let i = -3; i <= 3; i++) bossBullet(b.x, b.y + 30, Math.PI / 2 + i * 0.22, 4.5, b.color);
+    if (b.t % Math.round(45 * fm) === 0) bossBullet(b.x, b.y, toP, 6.5, '#d4ff8a');
+  } else if (b.kind === 'cruiser') {
+    b.x += b.dir * 1.2; if (b.x > W - 250 || b.x < 250) b.dir *= -1;
+    if (b.t % Math.round(50 * fm) === 0) for (const side of [-1, 1]) { const cx = b.x + side * 190; bossBullet(cx, b.y + 30, Math.atan2(P.y - b.y, P.x - cx), 6, b.color); }
+    if (b.t % Math.round(300 * fm) === 0) { beams.push({ x1: P.x, y1: b.y + 45, x2: P.x, y2: H + 20, t: 70, life: 40, w: 30, dmg: 18 }); SFX.laser(); }
+    if (b.t % Math.round(110 * fm) === 0) for (let i = 0; i < 6; i++) bossBullet(b.x - 150 + i * 60, b.y + 40, Math.PI / 2, 3.5, '#9fdcff');
+  } else if (b.kind === 'core') {
+    const phase = b.hp > b.maxHp * 0.66 ? 0 : b.hp > b.maxHp * 0.33 ? 1 : 2;
+    b.x = W / 2 + Math.sin(b.t / 120) * 260;
+    if (b.t % Math.round((phase === 2 ? 36 : 54) * fm) === 0) for (let i = 0; i < 16; i++) bossBullet(b.x, b.y, i / 16 * Math.PI * 2 + b.angle, 3.8, b.color);
+    if (phase >= 1 && b.t % Math.round(8 * fm) === 0) { bossBullet(b.x, b.y, b.angle * 2.3, 4.2, '#ff8a3d'); bossBullet(b.x, b.y, b.angle * 2.3 + Math.PI, 4.2, '#ff8a3d'); }
+    if (phase === 2 && b.t % Math.round(200 * fm) === 0) { beams.push({ x1: b.x, y1: b.y, x2: b.x + Math.cos(toP) * 1600, y2: b.y + Math.sin(toP) * 1600, t: 60, life: 35, w: 26, dmg: 20 }); SFX.laser(); }
+    if (phase === 2 && b.t % Math.round(260 * fm) === 0 && enemies.length < 6) spawnEnemy('kamikaze', b.x, b.y + 60);
+    if (b.t % Math.round(40 * fm) === 0) bossBullet(b.x, b.y, toP, 6, '#fff3b0');
+  }
+  if (bossTouches(P.x, P.y, P.r)) damagePlayer(24, b.color);
+}
+function bossTouches(x, y, r) {
+  const b = boss;
+  if (b.kind === 'cruiser') return Math.abs(x - b.x) < b.w / 2 + r && Math.abs(y - b.y) < b.h / 2 + r;
+  return (x - b.x) ** 2 + (y - b.y) ** 2 < (b.r + r) ** 2;
+}
+function segDist(px, py, b) {
+  const dx = b.x2 - b.x1, dy = b.y2 - b.y1, l2 = dx * dx + dy * dy;
+  const t = clamp(((px - b.x1) * dx + (py - b.y1) * dy) / l2, 0, 1);
+  return Math.hypot(px - (b.x1 + t * dx), py - (b.y1 + t * dy));
+}
+
+// ================= Шаг мира =================
+function update() {
+  S.frame++;
+  if (S.shake > 0) S.shake *= 0.88;
+  if (S.flash > 0) S.flash--;
+  updateParticles();
+  if (S.phase === 'dead' || S.phase === 'won' || S.phase === 'over') { if (S.phase === 'won' && S.frame % 8 === 0) fireworks(); return; }
+  S.stats.steps++;
+  updatePlayer();
+
+  // пули игрока
+  for (const b of bullets) { b.x += b.vx; b.y += b.vy; b.life--; }
+  bullets = bullets.filter((b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20);
+  // пули врагов
+  for (const b of ebullets) {
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if ((b.x - P.x) ** 2 + (b.y - P.y) ** 2 < (b.r + P.r - 4) ** 2 && P.invuln === 0) { damagePlayer(b.dmg, b.color); b.life = 0; }
+  }
+  ebullets = ebullets.filter((b) => b.life > 0 && b.x > -40 && b.x < W + 40 && b.y > -40 && b.y < H + 40);
+  // лучи: сначала предупреждение, потом урон
+  for (const bm of beams) {
+    if (bm.t > 0) bm.t--;
+    else { bm.life--; if (segDist(P.x, P.y, bm) < bm.w / 2 + P.r - 4) damagePlayer(bm.dmg, '#8fe8ff'); }
+  }
+  beams = beams.filter((bm) => bm.t > 0 || bm.life > 0);
+
+  updateEnemies();
+  if (boss) updateBoss();
   for (const a of asteroids) {
-    a.x += a.vx; a.y += a.vy; a.rot += a.rotSpeed;
-    if (a.x < -100) a.x = W + 100; else if (a.x > W + 100) a.x = -100;
-    if (a.y < -100) a.y = H + 100; else if (a.y > H + 100) a.y = -100;
-    if (player.invuln === 0 && near(a, player, a.size * 0.7 + player.size)) {
-      damagePlayer(15, '#888');
-      const push = Math.atan2(a.y - player.y, a.x - player.x);
-      player.vx -= Math.cos(push) * 5; player.vy -= Math.sin(push) * 5;
+    a.x += a.vx; a.y += a.vy; a.rot += a.rs;
+    if (a.y > H + 80) { a.y = -60; a.x = rnd() * W; }
+    if (a.x < -80) a.x = W + 60; if (a.x > W + 80) a.x = -60;
+    if ((a.x - P.x) ** 2 + (a.y - P.y) ** 2 < (a.size * 0.72 + P.r) ** 2 && P.invuln === 0) {
+      damagePlayer(12, '#aaaaaa');
+      const ang = Math.atan2(P.y - a.y, P.x - a.x); P.vx += Math.cos(ang) * 6; P.vy += Math.sin(ang) * 6;
     }
   }
 
-  if (boss) {
-    if (boss.y < boss.targetY) boss.y += 1.5;
-    else {
-      boss.x += boss.moveDir * 1.5;
-      if (boss.x > W - 100) boss.moveDir = -1;
-      if (boss.x < 100) boss.moveDir = 1;
-    }
-    boss.angle += 0.02;
-    if (++boss.patternTimer > 240) { boss.pattern = (boss.pattern + 1) % 3; boss.patternTimer = 0; }
-    if (++boss.shootTimer >= (boss.pattern === 1 ? 60 : 30)) { bossShoot(); boss.shootTimer = 0; }
-    if (player.invuln === 0 && near(boss, player, boss.size + player.size)) damagePlayer(boss.damage, '#ff0066');
-  }
-
-  // Попадания наших пуль: одна пуля - одна цель
+  // попадания: одна пуля - одна цель
   bullets = bullets.filter((b) => {
-    for (const e of enemies) if (near(b, e, e.size + 4)) { e.hp -= b.damage; spawnParticles(b.x, b.y, b.color, 4); return false; }
-    for (const a of asteroids) if (near(b, a, a.size * 0.7 + 4)) { a.hp -= b.damage; spawnParticles(b.x, b.y, '#aaa', 3); return false; }
-    if (boss && near(b, boss, boss.size + 4)) { boss.hp -= b.damage; spawnParticles(b.x, b.y, b.color, 4); return false; }
+    for (const e of enemies) if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 < (e.r + 4) ** 2) { e.hp -= b.dmg; e.flash = 4; S.stats.hits++; burst(b.x, b.y, b.color, 3, 3, 16); return false; }
+    if (boss && boss.y > -60 && bossTouches(b.x, b.y, 4)) { boss.hp -= b.dmg; boss.flash = 3; S.stats.hits++; burst(b.x, b.y, b.color, 3, 3, 16); return false; }
+    for (const a of asteroids) if ((b.x - a.x) ** 2 + (b.y - a.y) ** 2 < (a.size * 0.72 + 4) ** 2) { a.hp -= b.dmg; burst(b.x, b.y, '#bbbbbb', 2, 2, 14); return false; }
     return true;
   });
 
+  // гибель врагов, астероидов, босса
   enemies = enemies.filter((e) => {
     if (e.hp > 0) return true;
-    state.score += e.score;
-    spawnParticles(e.x, e.y, e.color, 20);
-    spawnPowerup(e.x, e.y);
-    SFX.boom();
+    const d = ETYPES[e.type];
+    S.stats.kills++; records.kills++;
+    gainCredits(d.credits); burst(e.x, e.y, d.color, 24, 5); SFX.boom(e.type === 'elite' || e.type === 'tank'); shake(e.type === 'elite' ? 8 : 3);
+    dropPickup(e.x, e.y);
     return false;
   });
-
   const born = [];
   asteroids = asteroids.filter((a) => {
     if (a.hp > 0) return true;
-    state.score += 25;
-    spawnParticles(a.x, a.y, '#aaa', 15);
-    if (a.size > 30) for (let i = 0; i < 2; i++) born.push(makeAsteroid(a.x, a.y, a.size * 0.6, 3));
+    gainCredits(3); burst(a.x, a.y, '#aaaaaa', 14, 4);
+    if (a.size > 32) for (let i = 0; i < 2; i++) born.push([a.x, a.y, a.size * 0.6]);
     return false;
   });
-  asteroids.push(...born);
-
+  for (const [x, y, s] of born) spawnAsteroid(x, y, s);
   if (boss && boss.hp <= 0) {
-    state.score += boss.score;
-    spawnParticles(boss.x, boss.y, '#ff0066', 50);
-    for (let i = 0; i < 3; i++) spawnPowerup(boss.x + (rnd() - 0.5) * 100, boss.y + (rnd() - 0.5) * 100, true);
-    boss = null;
-    SFX.boom();
-    document.getElementById('boss-bar').style.display = 'none';
-    state.waveState = 'complete';
-    state.waveTimer = 120;
+    gainCredits(BOSSES[boss.kind].credits);
+    for (let i = 0; i < 6; i++) burst(boss.x + (rnd() - 0.5) * 120, boss.y + (rnd() - 0.5) * 80, boss.color, 30, 7, 60);
+    SFX.boom(true); shake(24); S.flash = 14;
+    if (S.mode !== 'demo') kit.unlock('boss_' + boss.kind);
+    for (let i = 0; i < 3; i++) pickups.push({ x: boss.x + (rnd() - 0.5) * 120, y: boss.y, kind: 'crystal', vy: 1, t: 0 });
+    boss = null; ebullets = []; beams = [];
   }
 
-  powerups = powerups.filter((p) => {
-    p.x += p.vx; p.y += p.vy; p.life--; p.pulse += 0.1;
-    p.x = Math.max(p.size, Math.min(W - p.size, p.x)); p.y = Math.max(p.size, Math.min(H - p.size, p.y));
-    if (near(p, player, p.size + player.size)) {
-      if (p.type === 'health') player.hp = Math.min(player.maxHp, player.hp + 30);
-      else player.weapon = p.type;
-      spawnParticles(p.x, p.y, '#00ff00', 12);
-      SFX.pickup();
-      return false;
+  // подбираемое: притягивается к кораблю
+  for (const p of pickups) {
+    p.t++;
+    const d = Math.hypot(P.x - p.x, P.y - p.y);
+    if (d < 130) { p.x += (P.x - p.x) / d * 5; p.y += (P.y - p.y) / d * 5; } else p.y += p.vy;
+    if (d < P.r + 12) {
+      p.t = 1e9;
+      if (p.kind === 'health') P.hp = Math.min(P.maxHp, P.hp + 25);
+      else if (p.kind === 'crystal') gainCredits(15);
+      else if (p.kind === 'overdrive') P.overdrive = 480;
+      if (S.mode !== 'demo') SFX.pickup();
     }
-    return p.life > 0;
+  }
+  pickups = pickups.filter((p) => p.t < 900 && p.y < H + 30);
+
+  if (S.banner && --S.banner.t <= 0) S.banner = null;
+  if (P.hp <= 0 && S.mode !== 'demo') { playerDied(); return; }
+  if (S.mode === 'demo') { demoDirector(); return; }
+  progressWaves();
+}
+
+function gainCredits(n) { if (S.mode === 'demo') return; S.credits += n; S.stats.credits += n; }
+function dropPickup(x, y) {
+  const r = rnd();
+  if (r < 0.1) pickups.push({ x, y, kind: 'health', vy: 1, t: 0 });
+  else if (r < 0.3) pickups.push({ x, y, kind: 'crystal', vy: 1, t: 0 });
+  else if (r < 0.34) pickups.push({ x, y, kind: 'overdrive', vy: 1, t: 0 });
+}
+
+function progressWaves() {
+  if (S.phase === 'fight') {
+    if (S.queue.length && --S.spawnT <= 0) { spawnEnemy(S.queue.shift()); S.spawnT = Math.round((32 + rnd() * 36) * kit.diff({ easy: 1.3, normal: 1, hard: 0.85 })); }
+    if (!S.queue.length && !enemies.length) {
+      if (S.mode === 'survival') {
+        S.survivalWave++;
+        if (S.survivalWave % 3 === 0 && S.up.weapon < 4) { S.up.weapon++; S.banner = { text: 'Оружие улучшено: ' + WEAPONS[S.up.weapon].name, t: 120 }; }
+        if (S.survivalWave % 4 === 3) { startFinale(); return; }
+        records.survival = Math.max(records.survival, S.survivalWave); kit.save('records', records);
+        if (S.survivalWave >= 10) kit.unlock('survival10');
+        startWave();
+      } else if (S.wave + 1 < SECTORS[S.sector].waves.length) { S.wave++; startWave(); }
+      else startFinale();
+    }
+  } else if (S.phase === 'boss') {
+    if (!boss && !enemies.some((e) => e.type === 'elite') && S.clearedT === 0) {
+      if (S.mode === 'survival') { S.survivalWave++; startWave(); return; }
+      if (enemies.length) return;                     // сначала добить свиту
+      S.phase = 'cleared'; S.clearedT = 150;
+      S.banner = { text: `Сектор ${S.sector + 1} зачищен!`, t: 150 };
+      SFX.fanfare();
+    }
+  } else if (S.phase === 'cleared') {
+    if (--S.clearedT <= 0) { S.clearedT = 0; sectorCleared(); }
+  }
+}
+
+function sectorCleared() {
+  if (S.sectorDamage === 0) kit.unlock('untouched');
+  if (S.stats.shots > 40 && S.stats.hits / S.stats.shots >= 0.7) kit.unlock('sniper');
+  P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.4);          // между секторами - частичный ремонт
+  if (S.sector === SECTORS.length - 1) { winCampaign(); return; }
+  saveCheckpoint(S.sector + 1);
+  kit.save('records', records);
+  if (records.kills >= 500) kit.unlock('kills500');
+  showShop();
+}
+
+function playerDied() {
+  S.phase = 'dead';
+  burst(P.x, P.y, '#00e5ff', 60, 7, 70); burst(P.x, P.y, '#ff9a3c', 40, 5, 60);
+  SFX.boom(true); shake(26);
+  records.kills = records.kills; kit.save('records', records);
+  setTimeout(() => {
+    S.phase = 'over';
+    kit.mode = 'menu';
+    if (S.mode === 'survival') {
+      records.survival = Math.max(records.survival, S.survivalWave);
+      records.survivalScore = Math.max(records.survivalScore, S.stats.credits);
+      kit.save('records', records);
+      kit.show({ id: 'over', title: 'Корабль уничтожен', html: statsHtml() + `<p>Пережито волн: <b>${S.survivalWave}</b> · рекорд: <b>${records.survival}</b></p>`, row: true,
+        buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+    } else {
+      kit.show({ id: 'over', title: 'Корабль уничтожен', html: statsHtml() + `<p>Контрольная точка - начало сектора ${S.sector + 1} «${SECTORS[S.sector].name}» с улучшениями на тот момент.</p>`, row: true,
+        buttons: [{ label: `Повторить сектор ${S.sector + 1}`, primary: true, id: 'again', onClick: () => startCampaign(S.sector) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+    }
+  }, params.has('fast') ? 0 : 1300);
+}
+
+function winCampaign() {
+  S.phase = 'won';
+  progress.done = true; progress.sector = SECTORS.length - 1; kit.save('progress', progress);
+  const d = kit.settings.difficulty, secs = Math.round(S.stats.steps / 60);
+  if (!records.bestTime[d] || secs < records.bestTime[d]) records.bestTime[d] = secs;
+  kit.save('records', records);
+  kit.unlock('campaign');
+  if (d === 'hard') kit.unlock('campaignHard');
+  SFX.fanfare();
+  setTimeout(showVictory, params.has('fast') ? 0 : 2200);
+}
+
+function demoDirector() {
+  if (enemies.length < 5 && S.frame % 50 === 0) spawnEnemy(pick(['scout', 'fighter', 'kamikaze']));
+  if (!boss && S.frame % 1800 === 900) spawnBoss(pick(['guardian', 'hive']));
+  if (boss && boss.hp < boss.maxHp * 0.2) { boss.hp = 0; }
+}
+function fireworks() {
+  if (!kit.settings.effects) return;
+  burst(100 + rnd() * (W - 200), 80 + rnd() * 300, pick(['#ff5a8a', '#ffd34d', '#00e5ff', '#9dff4d', '#ff4dd2']), 30, 5, 60);
+}
+
+// ================= Экраны: магазин, победа, выбор сектора =================
+function fmtTime(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function statsHtml() {
+  const s = S.stats, acc = s.shots ? Math.round(100 * s.hits / s.shots) : 0;
+  return `<table><tr><td>Сбито</td><td><b>${s.kills}</b></td></tr><tr><td>Точность</td><td>${acc}%</td></tr>
+    <tr><td>Заработано кредитов</td><td>${s.credits}</td></tr><tr><td>Получено урона</td><td>${Math.round(s.dmgTaken)}</td></tr>
+    <tr><td>Время в бою</td><td>${fmtTime(Math.round(s.steps / 60))}</td></tr></table>`;
+}
+function price(key) { const u = UPGRADES[key], l = S.up[key]; return l < u.prices.length ? u.prices[l] : null; }
+function buy(key) {
+  if (key === 'repair') { if (S.credits < REPAIR_PRICE || P.hp >= P.maxHp) return false; S.credits -= REPAIR_PRICE; P.hp = Math.min(P.maxHp, P.hp + 50); }
+  else if (key === 'bomb') { if (S.credits < BOMB_PRICE || S.bombs >= MAX_BOMBS) return false; S.credits -= BOMB_PRICE; S.bombs++; }
+  else {
+    const p = price(key);
+    if (p === null || S.credits < p) return false;
+    S.credits -= p; S.up[key]++;
+    if (key === 'shield') { P.maxHp = maxHp(); P.hp += 25; }
+    if (key === 'weapon' && S.up.weapon === 4) kit.unlock('fullWeapon');
+  }
+  saveCheckpoint(progress.sector);
+  kit.tone(990, 0.08, { type: 'triangle', vol: 0.08 });
+  return true;
+}
+function showShop() {
+  S.phase = 'shop';
+  kit.mode = 'menu';
+  kit.music.play('menu');
+  const node = document.createElement('div');
+  const head = document.createElement('p');
+  head.innerHTML = `Сектор ${S.sector + 1} пройден. Дальше - <b>${SECTORS[S.sector + 1].name}</b>. Кредиты: <span class="credits" data-credits>${S.credits} ◆</span> · прочность ${Math.round(P.hp)}/${P.maxHp} · бомбы ${S.bombs}/${MAX_BOMBS}`;
+  node.appendChild(head);
+  const row = (key, title, desc, levelHtml, cost, can) => {
+    const r = document.createElement('div');
+    r.className = 'shop-row';
+    r.innerHTML = `<span><b>${title}</b><small>${desc}</small></span><span class="pips">${levelHtml}</span>`;
+    const b = kit.btn(cost === null ? 'Максимум' : `Купить · ${cost} ◆`, () => { if (buy(key)) refreshShop(); }, 'small');
+    b.dataset.buy = key;
+    b.disabled = !can;
+    r.appendChild(b);
+    node.appendChild(r);
+  };
+  for (const key in UPGRADES) {
+    const u = UPGRADES[key], l = S.up[key], p = price(key);
+    const pips = '●'.repeat(l) + `<i>${'●'.repeat(u.prices.length - l)}</i>`;
+    const desc = key === 'weapon' ? (p === null ? WEAPONS[l].name + ' - лучшее' : `сейчас ${WEAPONS[l].name}, дальше ${u.desc(l)}`) : u.desc(l);
+    row(key, u.name, desc, pips, p, p !== null && S.credits >= p);
+  }
+  row('repair', 'Ремонт', '+50 прочности', '', REPAIR_PRICE, S.credits >= REPAIR_PRICE && P.hp < P.maxHp);
+  row('bomb', 'Бомба', 'Очищает экран от пуль и бьёт всех врагов', '●'.repeat(S.bombs) + `<i>${'●'.repeat(MAX_BOMBS - S.bombs)}</i>`, BOMB_PRICE, S.credits >= BOMB_PRICE && S.bombs < MAX_BOMBS);
+  const def = { id: 'shop', title: 'Мастерская', node, wide: true, row: true, back: () => {},
+    buttons: [{ label: `В бой: сектор ${S.sector + 2}`, primary: true, id: 'next', onClick: () => startCampaign(S.sector + 1) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] };
+  if (kit.topId() === 'shop') kit.replace(def); else kit.show(def);
+}
+function refreshShop() { showShop(); }
+function showVictory() {
+  kit.mode = 'menu';
+  const d = kit.settings.difficulty;
+  kit.show({ id: 'victory', title: 'Ядро уничтожено - победа!', wide: true,
+    html: `<p>Все восемь секторов свободны. Флот вернулся домой, а ваш корабль стал легендой.</p>${statsHtml()}
+      <p>Лучшее время (${({ easy: 'лёгкая', normal: 'обычная', hard: 'трудная' })[d]}): <b>${fmtTime(records.bestTime[d])}</b></p>
+      <p style="color:var(--kit-dim)">«Космический стрелок»: код, рисунки, музыка и звуки сделаны в самой странице. Спасибо за игру!</p>`,
+    row: true, buttons: [{ label: 'Выживание', primary: true, onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+}
+function showSectorSelect() {
+  const node = document.createElement('div');
+  node.innerHTML = '<p>Сектор открывается, когда до него долетели. Улучшения и кредиты - как на момент последней мастерской.</p>';
+  const grid = document.createElement('div');
+  grid.className = 'kit-grid';
+  SECTORS.forEach((sc, i) => {
+    const open = i <= progress.maxSector;
+    const bossName = sc.end === 'elite' ? 'элитное звено' : 'босс: ' + BOSSES[sc.end].name;
+    const b = kit.btn(`${open ? '' : '🔒 '}${i + 1}. ${sc.name}<small>${bossName}</small>`, () => { if (open) { if (i !== progress.sector && progress.up) saveCheckpoint(i); startCampaign(i); } });
+    b.disabled = !open; b.dataset.sector = i;
+    grid.appendChild(b);
   });
-
-  particles = particles.filter((p) => { p.x += p.vx; p.y += p.vy; p.vx *= 0.95; p.vy *= 0.95; return --p.life > 0; });
-
-  if (state.waveState === 'spawning') {
-    state.spawnTimer--;
-    if (state.spawnTimer <= 0 && state.enemiesToSpawn > 0) {
-      spawnEnemy();
-      state.enemiesToSpawn--;
-      state.spawnTimer = 30 + rnd() * 40;
-    }
-    if (state.enemiesToSpawn === 0 && enemies.length === 0) { state.waveState = 'complete'; state.waveTimer = 120; }
-  } else if (state.waveState === 'complete') {
-    if (--state.waveTimer <= 0) { state.wave++; spawnWave(); }
-  }
-
-  if (player.hp <= 0) gameOver();
+  node.appendChild(grid);
+  kit.show({ id: 'sectors', title: 'Выбор сектора', node, wide: true, buttons: [{ label: 'Назад', onClick: () => kit.pop() }] });
 }
 
-function gameOver() {
-  state.phase = 'over';
-  player.hp = 0;
-  mouseDown = false;
-  const record = state.score > state.best;
-  if (record) { state.best = state.score; saveBest(state.best); }
-  document.getElementById('final-score').textContent = state.score;
-  document.getElementById('final-wave').textContent = state.wave;
-  document.getElementById('final-best').textContent = record ? 'Новый рекорд!' : 'Рекорд: ' + state.best;
-  document.getElementById('game-over').classList.add('show');
-  updateHud();
+// ================= Рисование =================
+const canvas = document.getElementById('game');
+let ctx = canvas.getContext('2d');
+let view = { s: 1 };
+function fitCanvas() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  const cssW = Math.floor(W * s), cssH = Math.floor(H * s), dpr = devicePixelRatio || 1;
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+  view.s = s;
 }
+const STARS = [0.15, 0.35, 0.7].map((sp, li) => Array.from({ length: 70 }, (_, i) => ({ x: (i * 173 + li * 51) % W, y: (i * 97 + li * 31) % H, sp, r: 0.6 + li * 0.6 })));
 
-function startGame() {
-  player = newPlayer();
-  mouseX = W / 2 + 100; mouseY = H / 2;
-  bullets = []; enemyBullets = []; enemies = []; asteroids = []; particles = []; powerups = [];
-  boss = null;
-  state.score = 0; state.wave = 1;
-  document.getElementById('boss-bar').style.display = 'none';
-  for (const id of ['start', 'game-over', 'pause']) document.getElementById(id).classList.remove('show');
-  state.phase = 'play';
-  spawnWave();
-  updateHud();
+function drawBackground() {
+  const sc = SECTORS[S.sector] || SECTORS[0];
+  ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, W, H);
+  for (let k = 0; k < 2; k++) {
+    const x = k ? W * 0.75 : W * 0.25, y = k ? H * 0.7 : H * 0.3;
+    const g = ctx.createRadialGradient(x, y, 10, x, y, 520);
+    g.addColorStop(0, sc.neb[k] + 'aa'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  const px = W * 0.82, py = H * 0.22 + ((S.frame * 0.02) % H);
+  const pg = ctx.createRadialGradient(px - 25, py - 25, 10, px, py, 70);
+  pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.15, sc.planet); pg.addColorStop(1, '#05060f');
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py % (H + 140) - 70 + 70, 70, 0, 7); ctx.fill();
+  for (const layer of STARS) for (const s of layer) {
+    const y = (s.y + S.frame * s.sp) % H;
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + s.sp})`;
+    ctx.fillRect(s.x, y, s.r, s.r);
+  }
 }
-
-function setPaused(p) {
-  if (p && state.phase === 'play') state.phase = 'paused';
-  else if (!p && state.phase === 'paused') state.phase = 'play';
-  else return;
-  mouseDown = false;
-  for (const k in keys) keys[k] = false;
-  document.getElementById('pause').classList.toggle('show', state.phase === 'paused');
-}
-
-// ---------- Рисование ----------
-function draw() {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
-  for (const s of stars) { ctx.fillStyle = `rgba(255,255,255,${s.z / 3})`; ctx.fillRect(s.x, s.y, s.size, s.size); }
-  if (!player) return;
-
-  for (const a of asteroids) {
-    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
-    ctx.fillStyle = '#444'; ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
-    ctx.beginPath(); a.points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath();
-    ctx.fill(); ctx.stroke(); ctx.restore();
-    if (a.hp < a.maxHp) {
-      ctx.fillStyle = '#333'; ctx.fillRect(a.x - a.size / 2, a.y - a.size - 8, a.size, 4);
-      ctx.fillStyle = '#00ff00'; ctx.fillRect(a.x - a.size / 2, a.y - a.size - 8, a.size * (a.hp / a.maxHp), 4);
-    }
-  }
-
-  const labels = { health: '+', double: '2', triple: '3', spread: 'S', laser: 'L' };
-  for (const p of powerups) {
-    if (p.life < 120 && Math.floor(p.life / 5) % 2 === 0) continue;
-    const pulse = 1 + Math.sin(p.pulse) * 0.2;
-    const color = p.type === 'health' ? '#ff66aa' : WEAPONS[p.type].color;
-    ctx.save(); ctx.translate(p.x, p.y); ctx.scale(pulse, pulse);
-    ctx.shadowColor = color; ctx.shadowBlur = 15; ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0; ctx.fillStyle = '#000'; ctx.font = 'bold 14px Consolas, monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(labels[p.type], 0, 1);
-    ctx.restore();
-  }
-
-  for (const e of enemies) {
-    ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.angle);
-    ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 10;
-    ctx.beginPath();
-    const s = e.size;
-    if (e.type === 'scout') { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.7, s * 0.7); ctx.lineTo(-s * 0.5, 0); ctx.lineTo(-s * 0.7, -s * 0.7); }
-    else if (e.type === 'fighter') { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.5, s); ctx.lineTo(-s, s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.lineTo(-s * 0.5, -s); }
-    else ctx.rect(-s * 0.7, -s * 0.7, s * 1.4, s * 1.4);
-    ctx.closePath(); ctx.fill(); ctx.restore();
-    if (e.hp < e.maxHp) {
-      ctx.fillStyle = '#333'; ctx.fillRect(e.x - e.size, e.y - e.size - 8, e.size * 2, 3);
-      ctx.fillStyle = '#ff0066'; ctx.fillRect(e.x - e.size, e.y - e.size - 8, e.size * 2 * (e.hp / e.maxHp), 3);
-    }
-  }
-
-  if (boss) {
-    ctx.save(); ctx.translate(boss.x, boss.y); ctx.rotate(boss.angle);
-    ctx.fillStyle = '#ff0066'; ctx.shadowColor = '#ff0066'; ctx.shadowBlur = 25;
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; ctx.lineTo(Math.cos(a) * boss.size, Math.sin(a) * boss.size); }
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#aa0044'; ctx.beginPath(); ctx.arc(0, 0, boss.size * 0.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, boss.size * 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-
-  ctx.save();
-  for (const b of bullets) { ctx.shadowColor = b.color; ctx.shadowBlur = 10; ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill(); }
-  for (const b of enemyBullets) { ctx.shadowColor = b.color; ctx.shadowBlur = 8; ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill(); }
+function glow(color, blur) { if (kit.settings.effects) { ctx.shadowColor = color; ctx.shadowBlur = blur; } }
+function noGlow() { ctx.shadowBlur = 0; }
+function drawShip(x, y, a, blink) {
+  if (blink && Math.floor(P.invuln / 4) % 2 === 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  glow('#00e5ff', 16);
+  ctx.fillStyle = '#00e5ff';
+  ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(-12, 14); ctx.lineTo(-6, 0); ctx.lineTo(-12, -14); ctx.closePath(); ctx.fill();
+  noGlow();
+  ctx.fillStyle = '#0b3b52'; ctx.beginPath(); ctx.ellipse(2, 0, 7, 4, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e8feff'; ctx.fillRect(-10, -12, 6, 3); ctx.fillRect(-10, 9, 6, 3);
+  if (P.overdrive > 0) { ctx.strokeStyle = '#ff4dff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.stroke(); }
   ctx.restore();
-
-  for (const p of particles) {
-    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
-    ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-  }
-  ctx.globalAlpha = 1;
-
-  if (player.hp > 0 && (player.invuln === 0 || Math.floor(player.invuln / 4) % 2 === 0)) {
-    const s = player.size;
-    ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle);
-    ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 15; ctx.fillStyle = '#00ffff';
-    ctx.beginPath(); ctx.moveTo(s + 4, 0); ctx.lineTo(-s * 0.7, s * 0.8); ctx.lineTo(-s * 0.4, 0); ctx.lineTo(-s * 0.7, -s * 0.8); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#0088aa'; ctx.beginPath(); ctx.arc(-s * 0.2, 0, s * 0.3, 0, Math.PI * 2); ctx.fill();
-    if (Math.hypot(player.vx, player.vy) > 0.5) {
-      ctx.fillStyle = '#ff8800'; ctx.beginPath(); ctx.moveTo(-s * 0.7, s * 0.4); ctx.lineTo(-s * 1.5, 0); ctx.lineTo(-s * 0.7, -s * 0.4); ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 1;
+}
+function drawEnemy(e) {
+  const d = ETYPES[e.type], s = e.r;
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.angle);
+  glow(d.color, 10);
+  ctx.fillStyle = e.flash ? '#ffffff' : d.color;
   ctx.beginPath();
-  ctx.arc(mouseX, mouseY, 12, 0, Math.PI * 2);
-  ctx.moveTo(mouseX - 16, mouseY); ctx.lineTo(mouseX - 8, mouseY);
-  ctx.moveTo(mouseX + 8, mouseY); ctx.lineTo(mouseX + 16, mouseY);
-  ctx.moveTo(mouseX, mouseY - 16); ctx.lineTo(mouseX, mouseY - 8);
-  ctx.moveTo(mouseX, mouseY + 8); ctx.lineTo(mouseX, mouseY + 16);
-  ctx.stroke();
-  if (muted) { ctx.fillStyle = '#888'; ctx.font = '12px Consolas, monospace'; ctx.fillText('звук выкл (M)', W - 110, H - 14); }
+  if (e.type === 'scout') { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.7, s * 0.7); ctx.lineTo(-s * 0.4, 0); ctx.lineTo(-s * 0.7, -s * 0.7); }
+  else if (e.type === 'fighter') { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.5, s); ctx.lineTo(-s, s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.lineTo(-s * 0.5, -s); }
+  else if (e.type === 'tank') { ctx.rect(-s * 0.75, -s * 0.75, s * 1.5, s * 1.5); }
+  else if (e.type === 'kamikaze') { for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = i % 2 ? s * 0.5 : s; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } }
+  else if (e.type === 'sniper') { ctx.moveTo(s * 1.4, 0); ctx.lineTo(-s * 0.6, s * 0.5); ctx.lineTo(-s, 0); ctx.lineTo(-s * 0.6, -s * 0.5); }
+  else { for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s); } }
+  ctx.closePath(); ctx.fill();
+  noGlow();
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.arc(0, 0, s * 0.3, 0, 7); ctx.fill();
+  ctx.restore();
+  if (e.type === 'sniper' && e.aim > 0) {
+    ctx.strokeStyle = `rgba(77,225,255,${0.3 + (60 - e.aim) / 90})`; ctx.setLineDash([8, 8]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(e.aimDir) * 1500, e.y + Math.sin(e.aimDir) * 1500); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (e.hp < e.maxHp) {
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(e.x - s, e.y - s - 10, s * 2, 4);
+    ctx.fillStyle = '#ff3355'; ctx.fillRect(e.x - s, e.y - s - 10, s * 2 * Math.max(0, e.hp / e.maxHp), 4);
+  }
+}
+function drawBoss() {
+  const b = boss, c = b.flash ? '#ffffff' : b.color;
+  ctx.save(); ctx.translate(b.x, b.y);
+  glow(b.color, 26);
+  ctx.fillStyle = c;
+  if (b.kind === 'guardian') {
+    ctx.rotate(b.angle); ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.lineTo(Math.cos(a) * b.r, Math.sin(a) * b.r); } ctx.fill();
+    noGlow(); ctx.fillStyle = '#7a0031'; ctx.beginPath(); ctx.arc(0, 0, b.r * 0.55, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, b.r * 0.2, 0, 7); ctx.fill();
+  } else if (b.kind === 'hive') {
+    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2 + b.angle * 0.5; ctx.beginPath(); ctx.arc(Math.cos(a) * b.r * 0.6, Math.sin(a) * b.r * 0.6, b.r * 0.45, 0, 7); ctx.fill(); }
+    noGlow(); ctx.fillStyle = '#2f5a14'; ctx.beginPath(); ctx.arc(0, 0, b.r * 0.55, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffe14d'; ctx.beginPath(); ctx.ellipse(0, 0, b.r * 0.3, b.r * 0.15 + Math.abs(Math.sin(b.t / 20)) * 6, 0, 0, 7); ctx.fill();
+  } else if (b.kind === 'cruiser') {
+    ctx.beginPath(); ctx.moveTo(-b.w / 2, -10); ctx.lineTo(-b.w / 2 + 40, -b.h / 2); ctx.lineTo(b.w / 2 - 40, -b.h / 2); ctx.lineTo(b.w / 2, -10); ctx.lineTo(b.w / 2 - 60, b.h / 2); ctx.lineTo(-b.w / 2 + 60, b.h / 2); ctx.closePath(); ctx.fill();
+    noGlow(); ctx.fillStyle = '#123a5c'; ctx.fillRect(-b.w / 2 + 70, -12, b.w - 140, 24);
+    ctx.fillStyle = '#ffffff'; for (const sx of [-190, 190]) { ctx.beginPath(); ctx.arc(sx, 20, 12, 0, 7); ctx.fill(); }
+  } else {
+    ctx.rotate(b.angle); for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * b.r, Math.sin(a) * b.r); ctx.lineTo(Math.cos(a + 0.25) * b.r * 0.7, Math.sin(a + 0.25) * b.r * 0.7); ctx.fill(); }
+    noGlow(); const pulse = 0.5 + 0.5 * Math.sin(b.t / 8);
+    ctx.fillStyle = `rgba(255,${180 + pulse * 70},80,1)`; ctx.beginPath(); ctx.arc(0, 0, b.r * (0.45 + pulse * 0.05), 0, 7); ctx.fill();
+  }
+  noGlow();
+  ctx.restore();
+}
+function drawAsteroid(a) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
+  ctx.fillStyle = '#3e3a45'; ctx.strokeStyle = '#8a8494'; ctx.lineWidth = 2;
+  ctx.beginPath(); a.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2e2a33'; ctx.beginPath(); ctx.arc(a.size * 0.2, -a.size * 0.15, a.size * 0.18, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawPickup(p) {
+  const colors = { health: '#ff5a8a', crystal: '#7dffb2', overdrive: '#ff4dff' }, c = colors[p.kind];
+  const pulse = 1 + Math.sin(p.t * 0.15) * 0.15;
+  ctx.save(); ctx.translate(p.x, p.y); ctx.scale(pulse, pulse);
+  glow(c, 12); ctx.fillStyle = c;
+  if (p.kind === 'crystal') { ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 10); ctx.lineTo(-8, 0); ctx.fill(); }
+  else if (p.kind === 'health') { ctx.fillRect(-9, -3, 18, 6); ctx.fillRect(-3, -9, 6, 18); }
+  else { ctx.beginPath(); ctx.moveTo(-4, -10); ctx.lineTo(6, -2); ctx.lineTo(0, 0); ctx.lineTo(6, 10); ctx.lineTo(-6, 1); ctx.lineTo(0, -1); ctx.fill(); }
+  noGlow(); ctx.restore();
+}
+function icon(kind, x, y) {
+  ctx.save(); ctx.translate(x, y);
+  if (kind === 'hp') { ctx.fillStyle = '#ff5a8a'; ctx.fillRect(-7, -2, 14, 4); ctx.fillRect(-2, -7, 4, 14); }
+  else if (kind === 'cr') { ctx.fillStyle = '#7dffb2'; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 0); ctx.lineTo(0, 8); ctx.lineTo(-6, 0); ctx.fill(); }
+  else { ctx.fillStyle = '#ffcc33'; ctx.beginPath(); ctx.arc(0, 1, 6, 0, 7); ctx.fill(); ctx.fillRect(-1, -9, 2, 5); }
+  ctx.restore();
+}
+function text(t, x, y, size, color = '#fff', align = 'left') {
+  ctx.font = `bold ${size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = align;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(t, x + 2, y + 2);
+  ctx.fillStyle = color; ctx.fillText(t, x, y); ctx.textAlign = 'left';
+}
+function drawHud() {
+  if (S.mode === 'demo') return;
+  icon('hp', 26, 28);
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(42, 20, 220, 16);
+  const f = Math.max(0, P.hp / P.maxHp);
+  ctx.fillStyle = f > 0.5 ? '#39e67e' : f > 0.25 ? '#ffcc33' : '#ff3355'; ctx.fillRect(42, 20, 220 * f, 16);
+  text(`${Math.max(0, Math.ceil(P.hp))}/${P.maxHp}`, 152, 33, 12, '#fff', 'center');
+  icon('cr', 26, 58); text(String(S.credits), 42, 64, 18, '#7dffb2');
+  for (let i = 0; i < MAX_BOMBS; i++) { ctx.globalAlpha = i < S.bombs ? 1 : 0.25; icon('bomb', 120 + i * 20, 57); }
+  ctx.globalAlpha = 1;
+  const sectorText = S.mode === 'survival' ? `Выживание · волна ${S.survivalWave + 1}` : `Сектор ${S.sector + 1}/${SECTORS.length} · ${S.phase === 'boss' ? S.bossName : 'волна ' + (S.wave + 1) + '/' + SECTORS[S.sector].waves.length}`;
+  text(sectorText, W - 20, 34, 18, '#fff', 'right');
+  text(`Оружие: ${WEAPONS[S.up.weapon].name}` + (P.overdrive > 0 ? ' · форсаж' : ''), W - 20, 58, 14, '#9ad7ff', 'right');
+  if (boss) {
+    const bw = 520, bx = (W - bw) / 2;
+    text(boss.name, W / 2, 26, 16, boss.color, 'center');
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(bx, 34, bw, 12);
+    ctx.fillStyle = boss.color; ctx.fillRect(bx, 34, bw * Math.max(0, boss.hp / boss.maxHp), 12);
+  }
+  if (S.banner) { ctx.globalAlpha = Math.min(1, S.banner.t / 25); text(S.banner.text, W / 2, H * 0.36, 34, '#00e5ff', 'center'); ctx.globalAlpha = 1; }
+  // прицел
+  if (!kit.settings.autoAim && kit.mode === 'play') {
+    ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 12, 0, 7);
+    ctx.moveTo(mouse.x - 18, mouse.y); ctx.lineTo(mouse.x - 7, mouse.y); ctx.moveTo(mouse.x + 7, mouse.y); ctx.lineTo(mouse.x + 18, mouse.y);
+    ctx.moveTo(mouse.x, mouse.y - 18); ctx.lineTo(mouse.x, mouse.y - 7); ctx.moveTo(mouse.x, mouse.y + 7); ctx.lineTo(mouse.x, mouse.y + 18); ctx.stroke();
+  }
+}
+function render() {
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  if (S.shake > 0.5) ctx.translate((rnd() - 0.5) * S.shake, (rnd() - 0.5) * S.shake);
+  drawBackground();
+  for (const a of asteroids) drawAsteroid(a);
+  for (const p of pickups) drawPickup(p);
+  for (const bm of beams) {
+    if (bm.t > 0) { ctx.strokeStyle = `rgba(143,232,255,${0.25 + 0.25 * Math.sin(S.frame * 0.5)})`; ctx.lineWidth = 2; ctx.setLineDash([12, 10]); }
+    else { ctx.strokeStyle = 'rgba(143,232,255,0.9)'; ctx.lineWidth = bm.w; glow('#8fe8ff', 30); }
+    ctx.beginPath(); ctx.moveTo(bm.x1, bm.y1); ctx.lineTo(bm.x2, bm.y2); ctx.stroke(); ctx.setLineDash([]); noGlow();
+    if (bm.t <= 0) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = bm.w * 0.3; ctx.beginPath(); ctx.moveTo(bm.x1, bm.y1); ctx.lineTo(bm.x2, bm.y2); ctx.stroke(); }
+  }
+  for (const e of enemies) drawEnemy(e);
+  if (boss) drawBoss();
+  for (const b of bullets) { ctx.fillStyle = b.color; glow(b.color, 8); ctx.beginPath(); ctx.arc(b.x, b.y, 3.5, 0, 7); ctx.fill(); }
+  noGlow();
+  for (const b of ebullets) { ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.4, 0, 7); ctx.fill(); }
+  if (S.phase !== 'dead' && S.phase !== 'over') drawShip(P.x, P.y, P.angle, P.invuln > 0);
+  for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / q.max); ctx.fillStyle = q.color; ctx.fillRect(q.x - q.r / 2, q.y - q.r / 2, q.r, q.r); }
+  ctx.globalAlpha = 1;
+  if (S.flash > 0 && kit.settings.effects) { ctx.fillStyle = `rgba(255,255,255,${S.flash / 30})`; ctx.fillRect(0, 0, W, H); }
+  drawHud();
+}
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) { const q = particles[i]; q.x += q.vx; q.y += q.vy; q.vx *= 0.96; q.vy *= 0.96; if (--q.life <= 0) particles.splice(i, 1); }
 }
 
-// HUD обновляется только при изменении (раньше - три записи в DOM на каждый кадр)
-let hudCache = '';
-function updateHud() {
-  if (!player) return;
-  const hp = Math.max(0, Math.floor(player.hp));
-  const s = [state.score, state.best, hp, state.wave, player.weapon, boss ? Math.ceil(boss.hp) : -1].join('|');
-  if (s === hudCache) return;
-  hudCache = s;
-  document.getElementById('score').textContent = state.score;
-  document.getElementById('best').textContent = Math.max(state.best, state.score);
-  document.getElementById('hp').textContent = hp;
-  const fill = document.getElementById('hpfill');
-  fill.style.width = (hp / player.maxHp * 100) + '%';
-  fill.style.background = hp > 50 ? '#00ff88' : hp > 25 ? '#ffcc00' : '#ff3355';
-  document.getElementById('wave').textContent = state.wave;
-  document.getElementById('weapon').textContent = WEAPONS[player.weapon].name;
-  if (boss) document.getElementById('boss-bar-fill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
-}
-
-// ---------- Ввод ----------
-addEventListener('keydown', (e) => {
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyM') { muted = !muted; return; }
-  if (e.code === 'Enter' && (state.phase === 'start' || state.phase === 'over')) { e.preventDefault(); startGame(); return; }
-  if (e.code === 'KeyP' || e.code === 'Escape') { setPaused(state.phase === 'play'); return; }
-  keys[e.code] = true;
-});
-addEventListener('keyup', (e) => { keys[e.code] = false; });
-addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
-canvas.addEventListener('mousedown', (e) => { if (e.button === 0) mouseDown = true; });
-addEventListener('mouseup', () => { mouseDown = false; });
+// ================= Мышь =================
+function toLogical(e) { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+addEventListener('pointermove', (e) => { const p = toLogical(e); mouse.x = p.x; mouse.y = p.y; mouse.lastMove = performance.now(); });
+canvas.addEventListener('pointerdown', (e) => { if (e.button === 0 && kit.mode === 'play') { mouse.held = true; e.preventDefault(); } });
+addEventListener('pointerup', (e) => { if (e.button === 0) mouse.held = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-addEventListener('blur', () => { mouseDown = false; for (const k in keys) keys[k] = false; setPaused(true); });
-document.getElementById('startBtn').addEventListener('click', startGame);
-document.getElementById('restartBtn').addEventListener('click', startGame);
-addEventListener('resize', resize);
+addEventListener('blur', () => { mouse.held = false; });
 
-// ---------- Цикл ----------
+// ================= Каркас =================
+const MUSIC = {
+  menu: { bpm: 96, voices: [
+    { type: 'triangle', vol: 0.08, notes: 'A4 - - - E5 - - - D5 - C5 - B4 - - - A4 - - - C5 - - - B4 - G4 - E4 - - -' },
+    { type: 'sine', vol: 0.12, notes: 'A2 - - - - - - - F2 - - - - - - - C3 - - - - - - - G2 - - - - - - -' } ], drums: 'k.......s.......' },
+  game: { bpm: 140, voices: [
+    { type: 'sawtooth', vol: 0.035, notes: 'A4 A4 . A4 C5 . A4 . G4 . A4 . E4 . . . A4 A4 . A4 C5 . D5 . E5 . D5 . C5 . . .' },
+    { type: 'square', vol: 0.045, notes: 'A2 . A3 . A2 . A3 . A2 . A3 . G2 . G3 . F2 . F3 . F2 . F3 . E2 . E3 . G2 . G3 .' } ], drums: 'k.h.s.h.k.k.s.hh' },
+  boss: { bpm: 152, voices: [
+    { type: 'sawtooth', vol: 0.04, notes: 'D5 . D5 C5 D5 . F5 . E5 . D5 . C5 . A4 . D5 . D5 C5 D5 . A5 . G5 . F5 . E5 . C5 .' },
+    { type: 'square', vol: 0.05, notes: 'D2 D2 D3 D2 D2 D2 D3 D2 A#1 A#1 A#2 A#1 C2 C2 C3 C2' } ], drums: 'k.k.s.k.k.k.s.sh' },
+};
+kit = GameKit.create({
+  id: 'space',
+  root: document.getElementById('app'),
+  theme: { accent: '#00e5ff', accent2: '#ff2e88', panel: 'rgba(8,12,32,0.94)', shade: 'rgba(2,4,14,.35)', font: '"Segoe UI", Arial, sans-serif' },
+  actions: {
+    up: { label: 'Вверх', keys: ['KeyW', 'ArrowUp'], pad: ['b12'] },
+    down: { label: 'Вниз', keys: ['KeyS', 'ArrowDown'], pad: ['b13'] },
+    left: { label: 'Влево', keys: ['KeyA', 'ArrowLeft'], pad: ['b14'] },
+    right: { label: 'Вправо', keys: ['KeyD', 'ArrowRight'], pad: ['b15'] },
+    fire: { label: 'Огонь (и ЛКМ)', keys: ['Space', 'KeyJ'], pad: ['b7', 'b5', 'b0'] },
+    bomb: { label: 'Бомба', keys: ['KeyE', 'KeyB'], pad: ['b2', 'b4'] },
+    pause: { label: 'Пауза', keys: ['KeyP'], pad: [] },
+  },
+  extraSettings: [{ name: 'autoAim', label: 'Автоприцел (для клавиатуры)', default: false }],
+  music: MUSIC,
+  difficultyNote: 'Сложность меняет урон по вам (×0.6 / ×1 / ×1.4), прочность врагов и их темп стрельбы.',
+  achievements: [
+    { id: 'boss_guardian', name: 'Стража больше нет', desc: 'Победить Стража (сектор 2)' },
+    { id: 'boss_hive', name: 'Рой рассеян', desc: 'Победить Рой-матку (сектор 4)' },
+    { id: 'boss_cruiser', name: 'Гроза стихла', desc: 'Победить крейсер «Гроза» (сектор 6)' },
+    { id: 'boss_core', name: 'Сердце тьмы', desc: 'Уничтожить Ядро' },
+    { id: 'campaign', name: 'Легенда флота', desc: 'Пройти все 8 секторов' },
+    { id: 'campaignHard', name: 'Стальные нервы', desc: 'Пройти кампанию на трудной сложности' },
+    { id: 'untouched', name: 'Ни царапины', desc: 'Зачистить сектор, не получив урона' },
+    { id: 'sniper', name: 'Меткий глаз', desc: 'Закончить сектор с точностью 70% и выше' },
+    { id: 'fullWeapon', name: 'Во всеоружии', desc: 'Купить лазер-спарку' },
+    { id: 'kills500', name: 'Ас', desc: 'Сбить 500 врагов за все бои' },
+    { id: 'survival10', name: 'Живучий', desc: 'Пережить 10 волн в выживании' },
+  ],
+  howto: `<p><b>Кампания</b> - 8 секторов. В каждом несколько волн, а в конце - элитное звено или босс (Страж, Рой-матка, крейсер «Гроза», Ядро). После сектора - мастерская: за кредиты ◆ улучшаются оружие, урон, броня, двигатели и скорострельность, есть ремонт и бомбы. Начало сектора - контрольная точка.</p>
+    <p><b>Выживание</b> - волны без конца, оружие улучшается само каждые 3 волны.</p>
+    <p><b>Управление</b>: WASD или стрелки - полёт, мышь - прицел, ЛКМ или Пробел - огонь, E - бомба. Геймпад: левый стик - полёт, правый - прицел, курок - огонь. Без мыши включите автоприцел в настройках.</p>
+    <p>Снайперы сначала показывают линию выстрела, крейсер и Ядро - лучи: уйдите с линии, пока она пунктирная.</p>`,
+  credits: `<p><b>Космический стрелок</b> - часть «Игротеки».</p><p>Корабли, взрывы и туманности нарисованы кодом, музыка и звуки синтезируются WebAudio. Ни одного файла из интернета.</p>`,
+  drawLogo(g, w, h, t) {
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 50px "Segoe UI", Arial, sans-serif';
+    g.shadowColor = '#00e5ff'; g.shadowBlur = 18 + Math.sin(t * 3) * 6;
+    g.fillStyle = '#e8feff'; g.fillText('КОСМИЧЕСКИЙ', w / 2, h * 0.36);
+    g.shadowColor = '#ff2e88'; g.fillStyle = '#ff7ab8'; g.fillText('СТРЕЛОК', w / 2, h * 0.76);
+    g.shadowBlur = 0;
+    const keep = ctx; ctx = g;
+    const px = P.x; P.x = 0;
+    drawShip(w / 2 + Math.cos(t) * 200, h * 0.56 + Math.sin(t * 2) * 8, Math.cos(t) > 0 ? 0.2 : Math.PI - 0.2, false);
+    P.x = px; ctx = keep;
+  },
+  game: {
+    menuItems() {
+      const items = [];
+      if (progress.up && !progress.done && progress.sector > 0) items.push({ label: `Продолжить · сектор ${progress.sector + 1}`, primary: true, id: 'continue', onClick: () => startCampaign(progress.sector) });
+      items.push({ label: progress.sector > 0 ? 'Кампания заново' : 'Кампания', primary: !(progress.up && !progress.done && progress.sector > 0), id: 'campaign', onClick: () => startCampaign() });
+      items.push({ label: 'Выбор сектора', id: 'sectors', onClick: showSectorSelect });
+      items.push({ label: 'Выживание', id: 'survival', onClick: startSurvival });
+      return items;
+    },
+    musicFor() { return boss ? 'boss' : 'game'; },
+    onRestart() { if (S.mode === 'survival') startSurvival(); else startCampaign(S.sector); },
+    onQuit() { startDemo(); },
+    onResetProgress() { loadAll(); },
+    recordsHtml() {
+      const bt = records.bestTime;
+      return `<table><tr><td>Кампания</td><td>${progress.done ? '<b>пройдена</b>' : 'дальше всего - сектор ' + (progress.maxSector + 1)}</td></tr>
+        <tr><td>Лучшее время кампании</td><td>${['easy', 'normal', 'hard'].map((d) => ({ easy: 'лёгк.', normal: 'обыч.', hard: 'трудн.' })[d] + ' ' + (bt[d] ? fmtTime(bt[d]) : '—')).join(' · ')}</td></tr>
+        <tr><td>Выживание, волн</td><td><b>${records.survival}</b></td></tr><tr><td>Сбито всего</td><td>${records.kills}</td></tr></table>`;
+    },
+  },
+});
+function loadAll() {
+  progress = Object.assign({ sector: 0, maxSector: 0, done: false, up: null, credits: 0, bombs: 1, hp: 100 }, kit.load('progress', {}));
+  records = Object.assign({ survival: 0, survivalScore: 0, bestTime: {}, kills: 0 }, kit.load('records', {}));
+}
+
 let last = performance.now(), acc = 0;
 function loop(now) {
   acc += Math.min(now - last, 250);
   last = now;
-  while (acc >= STEP_MS) { update(); acc -= STEP_MS; }
-  draw();
-  updateHud();
+  while (acc >= STEP_MS) {
+    if ((kit.mode === 'play' && S.mode !== 'demo') || (kit.mode === 'menu' && S.mode === 'demo')) update();
+    else if (S.phase === 'won' || S.phase === 'over' || S.phase === 'dead') { S.frame++; updateParticles(); if (S.phase === 'won' && S.frame % 8 === 0) fireworks(); }
+    kit.endStep();
+    acc -= STEP_MS;
+  }
+  canvas.classList.toggle('playing', kit.mode === 'play');
+  render();
+  kit.countFrame();
   requestAnimationFrame(loop);
 }
-
-resize();
-for (let i = 0; i < 200; i++) stars.push({ x: rnd() * W, y: rnd() * H, z: rnd() * 3 + 0.5, size: rnd() * 1.5 + 0.5 });
-mouseX = W / 2; mouseY = H / 2;
+addEventListener('resize', fitCanvas);
+loadAll();
+fitCanvas();
+startDemo();
+kit.showMain();
 requestAnimationFrame(loop);
 
-// ---------- Крючок для проверок ----------
+// ================= Крючок для проверок =================
 window.__game = {
-  ready: true,
-  state, keys, MAX_ASTEROIDS,
-  get player() { return player; },
-  get enemies() { return enemies; }, get asteroids() { return asteroids; }, get bullets() { return bullets; },
-  get enemyBullets() { return enemyBullets; }, get powerups() { return powerups; }, get boss() { return boss; },
-  step(n = 1) { for (let i = 0; i < n; i++) update(); draw(); updateHud(); },
-  startGame, spawnWave, makeEnemy, makeAsteroid,
-  aim(x, y) { mouseX = x; mouseY = y; },
-  clearAll() { enemies = []; asteroids = []; bullets = []; enemyBullets = []; powerups = []; state.enemiesToSpawn = 0; state.waveState = 'idle'; },
+  ready: true, W, H, SECTORS, BOSSES, UPGRADES, WEAPONS,
+  S, P, get kit() { return kit; },
+  get enemies() { return enemies; }, get boss() { return boss; }, get bullets() { return bullets; }, get ebullets() { return ebullets; },
+  get asteroids() { return asteroids; }, get pickups() { return pickups; }, get beams() { return beams; },
+  get progress() { return progress; }, get records() { return records; },
+  step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
+  startCampaign, startSurvival, startDemo, spawnEnemy, spawnBoss, startFinale, buy, useBomb, damagePlayer, showShop,
+  reseed(n) { rnd = mulberry32(n); },
+  aimAt(x, y) { mouse.x = x; mouse.y = y; mouse.lastMove = performance.now(); },
+  setHeld(v) { mouse.held = v; },
 };
 </script>
 </body>
