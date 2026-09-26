@@ -273,6 +273,7 @@ test.describe('minecraft_clone_3d_1: выживание', () => {
     const r = await page.evaluate(async () => {
       const v = __voxel, p = v.player, B = v.core.B;
       v.inv.slots[3] = { id: B.cobblestone, count: 20, dmg: 0 };
+      p.pos.x += 5; p.pos.z -= 4;                  // гибнем в стороне от точки появления
       const at = [p.pos.x, p.pos.z];
       p.damage(25, 'fall');
       v.step(0.05, 2);      // смерть замечает игровой цикл
