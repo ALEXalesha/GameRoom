@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Обби 3D</title>
+<style>
+  body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: #87CEEB; }
+  #ui {
+    position: fixed; top: 10px; left: 10px; color: white;
+    background: rgba(0,0,0,0.5); padding: 10px 14px; border-radius: 8px;
+    font-size: 16px; user-select: none; pointer-events: none;
+  }
+  #controls {
+    position: fixed; bottom: 10px; left: 10px; color: white;
+    background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 8px;
+    font-size: 13px; user-select: none; pointer-events: none;
+  }
+  #win {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6); color: white; font-size: 40px; font-weight: bold;
+    flex-direction: column; gap: 18px;
+  }
+  #again { font: inherit; font-size: 18px; padding: 10px 22px; border: none; border-radius: 8px; background: #ffdd33; color: #222; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="ui">Монеты: <span id="coins">0</span> / <span id="total">0</span></div>
+<div id="controls">WASD - движение · Space - прыжок · мышь с зажатой кнопкой - камера · R - заново</div>
+<div id="win"><div>Победа!</div><button id="again">Ещё раз (R)</button></div>
+
+<script src="../vendor/three.global.min.js"></script>
+<script>
+(() => {
+'use strict';
+const THREE = window.THREE;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
+sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const platforms = [];
+function addPlatform(x, y, z, w, h, d, color = 0xaa6644) {
+  const p = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  p.position.set(x, y, z); p.castShadow = true; p.receiveShadow = true;
+  scene.add(p); platforms.push({ mesh: p, w, h, d });
+  return p;
+}
+addPlatform(0, -0.5, 0, 100, 1, 100, 0x55aa55);
+addPlatform(8, 1, 0, 3, 1, 3, 0xcc4444);
+addPlatform(14, 2.5, 2, 3, 1, 3, 0xcc8844);
+addPlatform(18, 4, -2, 3, 1, 3, 0xccaa44);
+addPlatform(22, 5.5, 2, 3, 1, 3, 0x44cc44);
+addPlatform(26, 7, 0, 4, 1, 4, 0x4488cc);
+addPlatform(-8, 1, 4, 3, 1, 3, 0xaa44cc);
+addPlatform(-14, 2, -4, 3, 1, 3, 0xff6699);
+addPlatform(-20, 3, 0, 4, 1, 4, 0xffcc44);
+
+const player = new THREE.Group();
+const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.6), new THREE.MeshLambertMaterial({ color: 0x3366ff }));
+body.position.y = 0.75; body.castShadow = true; player.add(body);
+const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshLambertMaterial({ color: 0xffcc99 }));
+head.position.y = 1.9; head.castShadow = true; player.add(head);
+function makeLimb(color, x, y) {
+  const limb = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), new THREE.MeshLambertMaterial({ color }));
+  limb.position.set(x, y, 0); limb.castShadow = true;
+  return limb;
+}
+const armL = makeLimb(0x3366ff, -0.7, 0.9);
+const armR = makeLimb(0x3366ff, 0.7, 0.9);
+const legL = makeLimb(0x225522, -0.3, -0.6);
+const legR = makeLimb(0x225522, 0.3, -0.6);
+player.add(armL, armR, legL, legR);
+player.position.set(0, 2, 0);
+scene.add(player);
+
+const coins = [];
+const COIN_SPOTS = [];
+function addCoin(x, y, z) {
+  COIN_SPOTS.push([x, y, z]);
+  const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16),
+    new THREE.MeshLambertMaterial({ color: 0xffdd33, emissive: 0x886600 }));
+  coin.position.set(x, y, z);
+  coin.rotation.x = Math.PI / 2;
+  coin.castShadow = true;
+  scene.add(coin); coins.push(coin);
+}
+addCoin(8, 2.5, 0); addCoin(14, 4, 2); addCoin(18, 5.5, -2);
+addCoin(22, 7, 2); addCoin(26, 8.5, 0); addCoin(-8, 2.5, 4);
+addCoin(-14, 3.5, -4); addCoin(-20, 4.5, 0);
+document.getElementById('total').textContent = coins.length;
+
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
+// новая игра: монеты на места, игрок в начало
+function restart() {
+  coins.forEach(c => scene.remove(c));
+  coins.length = 0;
+  const spots = COIN_SPOTS.splice(0);
+  spots.forEach(p => addCoin(...p));
+  score = 0;
+  document.getElementById('coins').textContent = 0;
+  document.getElementById('win').style.display = 'none';
+  player.position.set(0, 2, 0);
+  velocity.set(0, 0, 0);
+}
+document.getElementById('again').onclick = () => restart();
+addEventListener('keydown', e => { if (e.code === 'KeyR') restart(); });
+
+let yaw = 0, pitch = 0.3, mouseDown = false;
+renderer.domElement.addEventListener('mousedown', () => mouseDown = true);
+addEventListener('mouseup', () => mouseDown = false);
+addEventListener('mousemove', e => {
+  if (mouseDown) {
+    yaw -= e.movementX * 0.003;
+    pitch = Math.max(0.1, Math.min(1.2, pitch - e.movementY * 0.003));
+  }
+});
+
+const velocity = new THREE.Vector3();
+let onGround = false, score = 0;
+const gravity = -30, moveSpeed = 8, jumpPower = 11;
+
+function checkPlatform(px, py, pz) {
+  for (const p of platforms) {
+    const top = p.mesh.position.y + p.h / 2;
+    const halfW = p.w / 2, halfD = p.d / 2;
+    if (px > p.mesh.position.x - halfW && px < p.mesh.position.x + halfW &&
+        pz > p.mesh.position.z - halfD && pz < p.mesh.position.z + halfD &&
+        py <= top + 0.1 && py >= top - 0.3) return top;
+  }
+  return null;
+}
+
+const clock = new THREE.Clock();
+let animTime = 0, idleTime = 0;
+// Когда окно игры не в фокусе, она рисует 4 кадра в секунду вместо 60: монеты крутятся,
+// но процессор остаётся другим окнам оболочки.
+function animate() {
+  requestAnimationFrame(animate);
+  let raw = clock.getDelta();
+  if (!document.hasFocus()) {
+    idleTime += raw;
+    if (idleTime < 0.25) return;
+    raw = idleTime; idleTime = 0;
+  }
+  const dt = Math.min(raw, 0.05);
+
+  animTime += dt;
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const move = new THREE.Vector3();
+  if (keys['KeyW']) move.add(forward);
+  if (keys['KeyS']) move.sub(forward);
+  if (keys['KeyD']) move.add(right);
+  if (keys['KeyA']) move.sub(right);
+  const moving = move.lengthSq() > 0;
+  if (moving) {
+    move.normalize().multiplyScalar(moveSpeed);
+    velocity.x = move.x; velocity.z = move.z;
+    player.rotation.y = Math.atan2(move.x, move.z);
+  } else { velocity.x *= 0.8; velocity.z *= 0.8; }
+  if (keys['Space'] && onGround) { velocity.y = jumpPower; onGround = false; }
+  velocity.y += gravity * dt;
+  player.position.x += velocity.x * dt;
+  player.position.z += velocity.z * dt;
+  player.position.y += velocity.y * dt;
+  const top = checkPlatform(player.position.x, player.position.y, player.position.z);
+  if (top !== null && velocity.y <= 0) {
+    player.position.y = top; velocity.y = 0; onGround = true;
+  } else onGround = false;
+  if (player.position.y < -10) { player.position.set(0, 3, 0); velocity.set(0, 0, 0); }
+  const swing = moving && onGround ? Math.sin(animTime * 10) * 0.8 : 0;
+  legL.rotation.x = swing; legR.rotation.x = -swing;
+  armL.rotation.x = -swing; armR.rotation.x = swing;
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    c.rotation.z += dt * 3;
+    c.position.y += Math.sin(animTime * 3 + i) * 0.005;
+    if (c.position.distanceTo(player.position.clone().add(new THREE.Vector3(0, 1, 0))) < 1.2) {
+      scene.remove(c); coins.splice(i, 1); score++;
+      document.getElementById('coins').textContent = score;
+      if (coins.length === 0) document.getElementById('win').style.display = 'flex';
+    }
+  }
+  const camDist = 8;
+  const camOffset = new THREE.Vector3(
+    Math.sin(yaw) * Math.cos(pitch) * camDist,
+    Math.sin(pitch) * camDist,
+    Math.cos(yaw) * Math.cos(pitch) * camDist
+  );
+  camera.position.copy(player.position).add(camOffset).add(new THREE.Vector3(0, 1, 0));
+  camera.lookAt(player.position.x, player.position.y + 1.5, player.position.z);
+  renderer.render(scene, camera);
+}
+
+animate();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+})();
+</script>
+</body>
+</html>
