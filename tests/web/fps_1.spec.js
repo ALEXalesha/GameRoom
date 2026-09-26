@@ -101,6 +101,37 @@ test.describe('fps_1: страница и меню', () => {
   });
 });
 
+test.describe('fps_1: вкладка и окно', () => {
+  const setVis = (page, v) => page.evaluate((vv) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => vv });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => vv === 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, v);
+
+  test('в меню звук возвращается, когда вкладку снова показали', async ({ page }) => {
+    await openTactical(page);
+    await page.mouse.click(640, 650);
+    await page.evaluate(() => { TAC.audio.init(); TAC.audio.startMusic(); });
+    await setVis(page, 'hidden');
+    expect(await page.evaluate(() => TAC.audio.suspendedByPause)).toBe(true);
+    await setVis(page, 'visible');
+    await page.waitForTimeout(200);
+    const s = await page.evaluate(() => ({ susp: TAC.audio.suspendedByPause, state: TAC.audio.ctx.state, music: !!TAC.audio.music }));
+    expect(s).toEqual({ susp: false, state: 'running', music: true });
+  });
+
+  for (const ev of ['blur', 'pagehide']) {
+    test(`окно потеряло фокус (${ev}) - в бою пауза`, async ({ page }) => {
+      await openTactical(page);
+      await startMatch(page, { mode: 'comp', map: 'quarry', ai: false });
+      await page.evaluate(() => { __tactical.app.manual = false; __tactical.app.paused = false; });
+      await page.evaluate((e) => window.dispatchEvent(new Event(e)), ev);
+      await expect(page.locator('#pause')).toBeVisible();
+      expect(await page.evaluate(() => __tactical.app.paused)).toBe(true);
+    });
+  }
+});
+
 test.describe('fps_1: разминка (тир)', () => {
   test('попадание сбивает мишень, через 0.8 с она снова стоит рядом с домом', async ({ page }) => {
     await openTactical(page);
