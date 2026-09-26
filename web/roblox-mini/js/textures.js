@@ -67,7 +67,10 @@
   T.label = (text, bg, fg) => tex('label:' + text + bg + fg, 256, 128, (g, w, h) => {
     g.fillStyle = bg; g.fillRect(0, 0, w, h);
     g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
-    g.fillStyle = fg; g.font = 'bold 54px Segoe UI, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    let fs = 54;
+    g.font = `bold ${fs}px Segoe UI, Arial, sans-serif`;
+    while (fs > 20 && g.measureText(text).width > w - 40) { fs -= 2; g.font = `bold ${fs}px Segoe UI, Arial, sans-serif`; }
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(text, w / 2, h / 2 + 3);
   });
 

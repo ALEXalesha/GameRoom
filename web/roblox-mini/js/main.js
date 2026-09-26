@@ -42,7 +42,7 @@
         if (start) break;
       }
       if (!start) start = { x: B.clamp(aim.x, A.minX + 0.95, A.maxX - 0.95), z: B.clamp(aim.z, A.minZ + 0.95, A.maxZ - 0.95) };
-      pl.teleport(start.x, A.maxY + 0.01, start.z);
+      pl.teleport(start.x, A.maxY + 0.01, start.z); pl.lastLand = null;
       g.dead = false;
       let ok = false, n = 0, blocked = 0;
       for (; n < 60 * 5; n++) {
@@ -60,7 +60,7 @@
         }
         const ev = pl.step({ mx: d > 0.3 ? dx : 0, mz: d > 0.3 ? dz : 0, jump }, STEP);
         g.world.step(STEP);
-        if (pl.onGround && pl.ground === Bp) { ok = true; break; }
+        if (pl.lastLand === Bp) { ok = true; break; }
         if (pl.pos.y < Math.min(A.maxY, Bp.maxY) - 10 || ev.includes('kill') && !Bp.kill && false) break;
       }
       if (ok) return { ok: true, wait, steps: n };
@@ -84,6 +84,9 @@
     places: B.data.PLACES.map((p) => p.id),
     enter(id) { return !!G.enter(id, { instant: true }); },
     leave() { G.leave(); },
+    // n шагов без рисования (быстро); until - шагать, пока условие не выполнится (не больше max)
+    run(n = 1) { const g = G.cur; for (let i = 0; i < n; i++) g.fixedStep(STEP); },
+    until(cond, max = 3600) { const g = G.cur; let n = 0; while (n < max && !cond(g)) { g.fixedStep(STEP); n++; } g.render(1, STEP); return n; },
     step(n = 1) { const g = G.cur; for (let i = 0; i < n; i++) g.fixedStep(STEP); g.render(1, STEP); g.drawHud(); g.drawBoard(); },
     player() { const p = G.cur.player; return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, onGround: p.onGround, dead: G.cur.dead, facing: p.facing }; },
     teleport(x, y, z) { G.cur.player.teleport(x, y, z); },

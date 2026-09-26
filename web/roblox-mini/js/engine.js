@@ -383,7 +383,7 @@
       const hitY = this.sweep('y', v.y * dt, false);
       if (hitY && v.y <= 0) {
         if (!wasGround && v.y < -30) ev.push('land');
-        this.onGround = true; this.ground = hitY; v.y = 0;
+        this.onGround = true; this.ground = hitY; this.lastLand = hitY; v.y = 0;
         if (hitY.bounce) { v.y = hitY.bounce; this.onGround = false; this.ground = null; ev.push('bounce'); }
         if (hitY.fade && hitY.fade.state === 'solid') { hitY.fade.state = 'warn'; hitY.fade.t = 0.6; }
       } else if (hitY && v.y > 0) v.y = 0;
@@ -474,7 +474,7 @@
     // облака: несколько плоских кубиков, одна сетка
     const rnd = B.rng(opt.seed || 5), boxes = [];
     for (let i = 0; i < (opt.clouds == null ? 22 : opt.clouds); i++) {
-      const a = rnd() * Math.PI * 2, r = 220 + rnd() * 380, y = 120 + rnd() * 90;
+      const a = rnd() * Math.PI * 2, r = 220 + rnd() * 380, y = (opt.cloudY || 120) + rnd() * 90;
       const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
       for (let j = 0; j < 3 + rnd.int(3); j++) {
         boxes.push({ cx: cx + (rnd() - 0.5) * 40, cy: y + rnd() * 6, cz: cz + (rnd() - 0.5) * 24, sx: 20 + rnd() * 30, sy: 5 + rnd() * 5, sz: 14 + rnd() * 18, color: new THREE.Color('#ffffff') });
