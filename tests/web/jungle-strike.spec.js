@@ -140,3 +140,87 @@ test.describe('jungle-strike (Огненные джунгли)', () => {
     });
   }
 });
+
+test.describe('jungle-strike: огонь левой кнопкой мыши', () => {
+  // Центр игрового холста в координатах страницы
+  const center = async (page) => { const b = await page.locator('#c').boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+  const startQuiet = (page) => page.evaluate(() => { const g = __game; g.start(); g.enemies.length = 0; g.player.invuln = 1e9; });
+
+  test('подсказки на стартовом экране упоминают ЛКМ', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await expect(page.locator('#info')).toContainText('ЛКМ');
+    expect(await page.evaluate(() => __game.phase)).toBe('ready');
+  });
+
+  test('клик по полю - ровно один выстрел, туда же, куда стреляет клавиша', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await startQuiet(page);
+    const c = await center(page);
+    const a = await page.evaluate(() => __game.shotsFired);
+    await page.mouse.click(c.x, c.y);
+    const r = await page.evaluate(() => { const g = __game; g.bullets.length = 0; const before = g.shotsFired; g.step(20); return { fired: g.shotsFired, before, held: g.mouseFire }; });
+    expect(r.fired - a).toBe(1);
+    expect(r.held).toBe(false);
+    // направление - как у клавиши: герой смотрит вправо - пуля летит вправо
+    const dir = await page.evaluate(() => { const g = __game; g.step(10); g.bullets.length = 0; g.press('KeyJ'); g.step(1); g.keys.KeyJ = false; const kb = g.bullets[0].vx; g.step(10); return kb; });
+    await page.mouse.click(c.x, c.y);
+    const mb = await page.evaluate(() => { const b = __game.bullets[__game.bullets.length - 1]; return b ? b.vx : null; });
+    expect(dir).toBeGreaterThan(0);
+    expect(mb).toBe(dir);
+  });
+
+  test('зажатая ЛКМ - очередь в темпе оружия; отпустил - огонь прекращается', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await startQuiet(page);
+    const c = await center(page);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    const normal = await page.evaluate(() => { const g = __game; const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
+    const rapid = await page.evaluate(() => { const g = __game; g.player.weapon = 'rapid'; g.player.weaponTimer = 1e6; g.step(8); const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
+    await page.mouse.up();
+    const after = await page.evaluate(() => { const g = __game; g.step(2); const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
+    expect(normal).toBe(8);        // обычное оружие: выстрел раз в 8 шагов (7.5 в секунду)
+    expect(rapid).toBe(16);        // «быстрый огонь»: раз в 4 шага
+    expect(after).toBe(0);
+  });
+
+  test('клавиша J и ЛКМ вместе не стреляют чаще, чем одна из них', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await startQuiet(page);
+    const c = await center(page);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    const both = await page.evaluate(() => {
+      const g = __game; let n = 0;
+      for (let i = 0; i < 64; i++) { const a = g.shotsFired; if (i % 3 === 0) g.press('KeyJ'); g.step(1); n += g.shotsFired - a; }
+      g.keys.KeyJ = false;
+      return n;
+    });
+    await page.mouse.up();
+    expect(both).toBe(8);
+  });
+
+  test('клики мимо игры (подсказки, заголовок), правая кнопка и клик до старта не стреляют', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    const c = await center(page);
+    await page.mouse.click(c.x, c.y);                          // до старта: экран «в бой»
+    await page.keyboard.press('Enter');
+    const startShots = await page.evaluate(() => { const g = __game; g.enemies.length = 0; g.player.invuln = 1e9; g.step(20); return g.shotsFired; });
+    expect(startShots).toBe(0);                                // и отложенного выстрела после старта нет
+    await page.click('#info');
+    await page.click('h1');
+    await page.mouse.click(c.x, c.y, { button: 'right' });
+    expect(await page.evaluate(() => { __game.step(20); return __game.shotsFired; })).toBe(0);
+    // клик на паузе не копит выстрел на потом
+    await page.keyboard.press('KeyP');
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press('KeyP');
+    expect(await page.evaluate(() => { __game.step(20); return __game.shotsFired; })).toBe(0);
+    const prevented = await page.evaluate(() => {
+      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
+      document.getElementById('c').dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+  });
+});

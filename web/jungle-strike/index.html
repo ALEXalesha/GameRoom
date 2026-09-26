@@ -42,7 +42,7 @@
 <h1>ОГНЕННЫЕ ДЖУНГЛИ</h1>
 <div id="wrap"><canvas id="c" width="256" height="240"></canvas></div>
 <div id="info">
-  <b>A/D ← →</b> ходить · <b>W ↑</b> прицел вверх · <b>S ↓</b> лечь / спрыгнуть с платформы · <b>Пробел</b> прыжок · <b>J/X</b> огонь · <b>P/Esc</b> пауза · <b>R</b> заново · <b>M</b> звук<br>
+  <b>A/D ← →</b> ходить · <b>W ↑</b> прицел вверх · <b>S ↓</b> лечь / спрыгнуть с платформы · <b>Пробел</b> прыжок · <b>J/X или ЛКМ</b> огонь (держать - очередь) · <b>P/Esc</b> пауза · <b>R</b> заново · <b>M</b> звук<br>
   Бонусы: <span class="pw">S</span> веер из трёх · <span class="pw">R</span> быстрый огонь · <span class="pw">щит</span> один удар<br>
   <span class="note">Фан-версия, не связана с правообладателем. Всё нарисовано в коде, звуки синтезированы.</span>
 </div>
@@ -116,8 +116,23 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-// Потеря фокуса: пауза и отпускание клавиш (иначе герой бежит сам)
-addEventListener('blur', () => { for (const c in keys) keys[c] = false; if (phase === 'play') togglePause(); });
+// Огонь левой кнопкой мыши - только по игровому полю (клик по подсказкам и заголовку не стреляет).
+// Кнопка работает так же, как J/X: держишь - очередь, темп тот же, вместе с клавишей не быстрее.
+// Направление выстрела - как у клавиши: куда смотрит герой, вверх или наискось (W), лёжа (S).
+let mouseFire = false;      // левая кнопка сейчас зажата
+let fireQueued = false;     // короткий клик или нажатие между кадрами не теряется: один выстрел, как только позволит темп
+cv.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  if (phase !== 'play') return;
+  mouseFire = true;
+  fireQueued = true;
+});
+addEventListener('pointerup', e => { if (e.button === 0) mouseFire = false; });
+addEventListener('pointercancel', () => { mouseFire = false; });
+cv.addEventListener('contextmenu', e => e.preventDefault());   // правая кнопка не открывает меню над игрой
+// Потеря фокуса: пауза и отпускание клавиш и мыши (иначе герой бежит и стреляет сам)
+addEventListener('blur', () => { for (const c in keys) keys[c] = false; mouseFire = false; if (phase === 'play') togglePause(); });
 
 const k = (...codes) => codes.some(c => keys[c]);
 const kp = (...codes) => codes.some(c => justPressed[c]);
@@ -232,6 +247,7 @@ const particles = [];
 const powerups = [];
 
 let score = 0;
+let shotsFired = 0;
 let best = loadBest();
 let lives = START_LIVES;
 let phase = 'ready';           // ready | play | paused | over | won
@@ -351,7 +367,8 @@ function updatePlayer() {
   const down = k('KeyS','ArrowDown');
   const downPressed = kp('KeyS','ArrowDown');
   const jump = k('Space');
-  const fire = k('KeyJ','KeyX');
+  const fire = k('KeyJ','KeyX') || mouseFire;
+  if (kp('KeyJ','KeyX')) fireQueued = true;
 
   player.aimUp = up && !down;
 
@@ -442,8 +459,11 @@ function updatePlayer() {
 
   if (player.shootCooldown > 0) player.shootCooldown--;
   const fireRate = player.weapon === 'rapid' ? 4 : 8;
-  if (fire && player.shootCooldown === 0) {
+  // Один общий счётчик темпа на клавиши и мышь: J + ЛКМ одновременно не стреляют чаще
+  if ((fire || fireQueued) && player.shootCooldown === 0) {
     player.shootCooldown = fireRate;
+    fireQueued = false;
+    shotsFired++;
     fireBullets();
     SFX.shot();
   }
@@ -1245,7 +1265,7 @@ function drawUI() {
   }
 }
 
-function drawMessage(text, sub) {
+function drawMessage(text, sub, sub2) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 80, W, 80);
   ctx.fillStyle = palette.uiRed;
@@ -1256,6 +1276,7 @@ function drawMessage(text, sub) {
     ctx.fillStyle = palette.uiWhite;
     ctx.font = '8px "Courier New", monospace';
     ctx.fillText(sub, W/2, 130);
+    if (sub2) ctx.fillText(sub2, W/2, 142);
   }
   ctx.textAlign = 'left';
 }
@@ -1285,6 +1306,8 @@ function reset() {
   boss = null;
   bossSpawned = false;
   for (const c in keys) keys[c] = false;
+  mouseFire = false;
+  fireQueued = false;
   buildLevel();
 }
 
@@ -1345,7 +1368,7 @@ function render() {
 
   drawUI();
 
-  if (phase === 'ready') drawMessage('ОГНЕННЫЕ ДЖУНГЛИ', 'Пробел или Enter - в бой. Дойди до крепости');
+  if (phase === 'ready') drawMessage('ОГНЕННЫЕ ДЖУНГЛИ', 'Пробел или Enter - в бой. Дойди до крепости', 'Огонь: J, X или левая кнопка мыши');
   else if (phase === 'paused') drawMessage('ПАУЗА', 'P или Esc - продолжить');
   else if (phase === 'over') drawMessage('КОНЕЦ ИГРЫ', 'Очки ' + score + ' · рекорд ' + best + ' · Enter - заново');
   else if (phase === 'won') drawMessage('ЗАДАНИЕ ВЫПОЛНЕНО', 'Очки ' + score + ' · рекорд ' + best + ' · Enter - ещё');
@@ -1389,6 +1412,7 @@ window.__game = {
   get phase() { return phase; },
   get score() { return score; }, set score(v) { score = v; },
   get lives() { return lives; }, get best() { return best; },
+  get shotsFired() { return shotsFired; }, get mouseFire() { return mouseFire; },
   get cameraX() { return cameraX; }, set cameraX(v) { cameraX = v; },
   get boss() { return boss; },
   step(n = 1) { for (let i = 0; i < n; i++) update(); render(); },
