@@ -202,11 +202,11 @@ test.describe('horizon_drift_offline', () => {
       return { m0, a1: a1.reward, m1, a2: a2.reward, m2, poor: poor.ok, mPoor, price, up: up.ok, mUp, upPoor: upPoor.ok, moneyAfterPoor: price - 1,
         buy: buy.ok, afterBuy: car.d.owned.includes('kobalt'), levels, over: over.ok, base: D.BASE_REWARD, share: D.PLACE_SHARE.slice(0, 2) };
     });
-    expect(r.m0).toBe(0);
+    expect(r.m0).toBe(2000);                                   // стартовый капитал
     expect(r.a1).toBe(r.base * r.share[0]);
-    expect(r.m1).toBe(r.a1);
+    expect(r.m1).toBe(r.m0 + r.a1);
     expect(r.a2).toBe(r.base * r.share[1]);
-    expect(r.m2).toBe(r.a1 + r.a2);
+    expect(r.m2).toBe(r.m0 + r.a1 + r.a2);
     expect(r.poor).toBe(false);
     expect(r.mPoor).toBe(r.m2);
     expect(r.up).toBe(true);
@@ -412,14 +412,14 @@ test.describe('horizon_drift_offline', () => {
     await page.waitForFunction(() => __drift.screen === 'race');
     // автопилот быстрее соперников первого кубка
     const res = await page.evaluate(() => {
-      const r = __drift.race; r.setAutopilot(r.player, 1.0);
+      const r = __drift.race, m0 = __drift.career.money; r.setAutopilot(r.player, 1.0);
       for (let i = 0; i < 400 * 120 && r.phase !== 'done'; i++) __drift.step(1);
       __drift.showResults();
-      return { place: r.result.place, apply: __drift.lastApply, money: __drift.career.money };
+      return { place: r.result.place, apply: __drift.lastApply, money: __drift.career.money, start: m0 };
     });
     expect(res.place).toBe(1);
     expect(res.apply.medal).toBe('gold');
-    expect(res.money).toBe(res.apply.reward);
+    expect(res.money).toBe(res.start + res.apply.reward);
     await expect(page.locator('#scrResults')).toBeVisible();
     await expect(page.locator('#resMedal')).toHaveText('Золото');
     await expect(page.locator('#resTable tr.me')).toContainText('Вы');
@@ -462,7 +462,7 @@ test.describe('horizon_drift_offline', () => {
 
   test('гараж: покупка за деньги, тюнинг кнопкой, 3D-витрина с вращением', async ({ page }) => {
     await openDrift(page);
-    await page.evaluate(() => { const c = __drift.career; c.d.money = 12000; c.save(c.d); });
+    await page.evaluate(() => { const c = __drift.career; c.d.money = 11000; c.save(c.d); });
     await page.locator('.mainnav button[data-go="garage"]').click();
     await expect(page.locator('#gCars .card')).toHaveCount(8);
     await page.locator('#gCars .card[data-car="mirage"]').click();
