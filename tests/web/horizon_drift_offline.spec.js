@@ -399,6 +399,45 @@ test.describe('horizon_drift_offline', () => {
     expect(await page.evaluate((v) => Math.round(__drift.core.toUnits(v, 'mph')) < Math.round(v * 3.6), v)).toBe(true);
   });
 
+  test('геймпад: стик рулит плавно, курок - газ; графика применяется сразу; настройки из паузы возвращают в паузу', async ({ page }) => {
+    await page.addInitScript(() => {
+      const pad = { id: 'Тестовый геймпад', connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+      window.__pad = pad;
+      navigator.getGamepads = () => [pad];
+    });
+    await openDrift(page);
+    await startQuick(page, { track: 'port', mode: 'time' });
+    const r = await page.evaluate(() => {
+      __drift.step(3.2 * 120);
+      __pad.axes[0] = 0.6; __pad.buttons[7].value = 1; __pad.buttons[7].pressed = true;
+      __drift.step(240);
+      const p = __drift.player;
+      return { steerIn: p.inp.steer, analog: p.inp.analog, thr: p.inp.thr, v: p.speed };
+    });
+    expect(r.analog).toBe(true);
+    expect(r.steerIn).toBeGreaterThan(0.2);
+    expect(r.steerIn).toBeLessThan(0.9);
+    expect(r.thr).toBe(1);
+    expect(r.v).toBeGreaterThan(5);
+    await page.evaluate(() => { __pad.axes[0] = 0; __pad.buttons[7].value = 0; __pad.buttons[7].pressed = false; __drift.manual = false; });
+    // графика
+    await page.evaluate(() => __drift.setSetting('quality', 'high'));
+    expect(await page.evaluate(() => __drift.renderer.shadowMap.enabled)).toBe(true);
+    await page.evaluate(() => __drift.setSetting('shadows', false));
+    expect(await page.evaluate(() => __drift.renderer.shadowMap.enabled)).toBe(false);
+    await page.evaluate(() => __drift.setSetting('drawDist', 'near'));
+    expect(await page.evaluate(() => __drift.render.race.scene.fog.far)).toBe(380);
+    await page.evaluate(() => __drift.setSetting('showFps', true));
+    await expect(page.locator('#hFps')).toBeVisible();
+    // настройки из паузы и обратно
+    await page.keyboard.press('Escape');
+    await page.locator('#pSettings').click();
+    await expect(page.locator('#scrSettings')).toBeVisible();
+    await page.locator('#scrSettings [data-back]').click();
+    await expect(page.locator('#scrPause')).toBeVisible();
+    expect(await page.evaluate(() => [__drift.screen, __drift.paused])).toEqual(['race', true]);
+  });
+
   test('карьера: гонка из меню, итог с медалью и деньгами, прогресс переживает перезагрузку', async ({ page }) => {
     await openDrift(page);
     // быстрая машина, чтобы автопилот уверенно выиграл: проверяется путь карьеры, а не баланс
