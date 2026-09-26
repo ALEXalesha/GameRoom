@@ -1,226 +1,267 @@
-// Законы «Огненных джунглей»: пуля убивает врага и даёт очки, вражеская пуля отнимает жизнь
-// один раз, жизней ровно три, яма отнимает жизнь и возвращает на берег, враги не появляются
-// в воде, босс - победа и рекорд, пауза, размер под окно и чёткий текст.
+// Законы «Огненных джунглей» после доработки для «Игротеки»: пять миссий с боссами проходятся
+// (бот-«рука» доходит до босса и побеждает его), ямы уже прыжка, контрольные точки, экран
+// победы, прогресс после перезагрузки, жизни по сложности, яма, снайпер и мина, огонь ЛКМ
+// (клик, очередь, общий темп с клавишей, мимо поля не стреляет), пауза при скрытии вкладки.
 const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
+const { hideTab, showTab } = require('./_kit-helpers');
 
-test.describe('jungle-strike (Огненные джунгли)', () => {
-  test('экран старта, Enter начинает, мир до старта стоит', async ({ page }) => {
-    const errors = await openGame(page, 'jungle-strike', 'seed=1');
-    await page.waitForTimeout(400);
-    expect(await page.evaluate(() => ({ p: __game.phase, n: __game.enemies.length }))).toEqual({ p: 'ready', n: 0 });
-    await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => __game.phase)).toBe('play');
+// Прогон миссии «рукой» (неуязвимой: проверяем путь и босса, а не ловкость)
+const RUN = `(maxSteps) => {
+  const g = __game; g.setAutopilot(true); let n = 0;
+  while (g.G.phase === 'run' || g.G.phase === 'clear') { g.player.invuln = 5; g.step(1, false); if (++n > maxSteps) break; }
+  g.setAutopilot(false);
+  return { phase: g.G.phase, steps: n, x: Math.round(g.player.x), boss: !!g.boss };
+}`;
+
+test.describe('jungle-strike: кампания', () => {
+  test('меню поверх заставки, без ошибок; в миссии правит игрок, а не автопилот', async ({ page }) => {
+    const errors = await openGame(page, 'jungle-strike', 'seed=1&fast');
+    await expect(page.locator('[data-screen=main]')).toBeVisible();
+    for (const t of ['Кампания', 'Выбор миссии', 'Настройки', 'Достижения и рекорды', 'Как играть', 'Об игре']) await expect(page.locator(`[data-screen=main] .kit-btn:has-text("${t}")`)).toBeVisible();
+    expect(await page.evaluate(() => __game.autopilot)).toBe(true);
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    expect(await page.evaluate(() => ({ a: __game.autopilot, m: __game.G.mode, k: __game.kit.mode }))).toEqual({ a: false, m: 'mission', k: 'play' });
+    await expect(page.locator('#c')).toBeVisible();
     expect(errors).toEqual([]);
   });
 
-  test('пуля убивает солдата и даёт 100 очков', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=1');
-    const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.player.invuln = 0;
-      g.enemies.push({ type: 'soldier', x: g.player.x + 60, y: g.GROUND_Y, vx: 0, w: 12, h: 22, hp: 1, dir: -1, shootTimer: 999, walkFrame: 0, walkTimer: 0, alive: true, onGround: true, vy: 0 });
-      g.keys.KeyJ = true; g.step(2); g.keys.KeyJ = false;
-      g.step(30);
-      return { left: g.enemies.filter((e) => e.type === 'soldier').length, score: g.score };
-    });
-    expect(r.left).toBe(0);
-    expect(r.score).toBe(100);
+  test('каждая из 5 миссий проходится до конца, босс повержен, открывается следующая', async ({ page }) => {
+    test.setTimeout(120_000);
+    await openGame(page, 'jungle-strike', 'seed=2&fast');
+    await page.evaluate(() => localStorage.clear());
+    for (let m = 0; m < 5; m++) {
+      await page.evaluate((i) => __game.startMission(i, false), m);
+      const r = await page.evaluate(`(${RUN})(40000)`);
+      expect(r.phase, 'миссия ' + (m + 1)).toBe('done');
+      const id = m === 4 ? 'victory' : 'missionClear';
+      await expect(page.locator(`[data-screen=${id}]`)).toBeVisible();
+      expect(await page.evaluate(() => __game.progress.unlocked)).toBe(Math.min(m + 1, 4));
+      expect(await page.evaluate((i) => !!__game.kit.unlocked['boss' + (i + 1)], m)).toBe(true);
+    }
+    await expect(page.locator('[data-screen=victory]')).toContainText('Точность');
+    expect(await page.evaluate(() => __game.progress.done)).toBe(true);
   });
 
-  test('вражеская пуля отнимает одну жизнь, мигание защищает от второй', async ({ page }) => {
+  test('уровни проходимы по построению: ямы уже прыжка, платформы не выше прыжка, точки не в ямах', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
     const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.player.invuln = 0;
-      for (let i = 0; i < 3; i++) g.enemyBullets.push({ x: g.player.x + 1, y: g.player.y - 10 - i, vx: 0, vy: 0, life: 50 });
-      g.step(1); const a = g.lives;
-      g.step(10); return { a, b: g.lives };
+      const g = __game, out = [];
+      for (let i = 0; i < g.MISSIONS.length; i++) {
+        const L = g.buildLevel(i);
+        out.push({ maxPit: Math.max(...L.pits.map((p) => p.w)), minPlat: Math.min(...L.plats.map((p) => p.y)), cpInPit: L.checkpoints.some((c) => L.pits.some((p) => c > p.x - 10 && c < p.x + p.w + 10)), bossArenaPits: L.pits.some((p) => p.x + p.w > L.arena), pits: L.pits.length });
+      }
+      return { out, jumpDist: g.JUMP_DIST, jumpH: g.JUMP_H, ground: g.GROUND };
     });
-    expect(r).toEqual({ a: 2, b: 2 });
+    for (const l of r.out) {
+      expect(l.pits).toBeGreaterThanOrEqual(2);
+      expect(l.maxPit).toBeLessThan(r.jumpDist - 8);
+      expect(r.ground - l.minPlat).toBeLessThan(r.jumpH - 5);
+      expect(l.cpInPit).toBe(false);
+      expect(l.bossArenaPits).toBe(false);
+    }
   });
 
-  test('жизней ровно три: третий удар - конец игры', async ({ page }) => {
+  test('каждый кадр рисуется целиком: в пещере не просвечивает прошлый кадр джунглей', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
-    const r = await page.evaluate(() => {
-      const g = __game; g.start();
-      const out = [];
-      for (let i = 0; i < 3; i++) { g.player.invuln = 0; g.hitPlayer(); out.push(g.phase); }
-      return { out, lives: g.lives };
+    const px = await page.evaluate(() => {
+      const g = __game; g.kit.closeAll(); g.startMission(0, false); g.step(1); g.startMission(2, false); g.step(1);
+      const c = document.getElementById('c').getContext('2d', { willReadFrequently: true }), k = c.canvas.width / 400;
+      return Array.from(c.getImageData(5 * k, 147 * k, 1, 1).data).slice(0, 3);
     });
-    expect(r.out).toEqual(['play', 'play', 'over']);
-    expect(r.lives).toBe(0);
-    await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => ({ p: __game.phase, l: __game.lives }))).toEqual({ p: 'play', l: 3 });
+    expect(px).not.toEqual([26, 74, 42]);          // #1a4a2a - кусты джунглей
+    expect(px[1]).toBeLessThan(40);                 // в пещере фон тёмный
   });
 
-  test('яма: жизнь теряется даже во время мигания, герой встаёт на берег, а не над водой', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=1');
+  test('пройденная миссия переживает перезагрузку: «Продолжить · миссия 2»', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=3&fast');
+    await page.evaluate(() => { localStorage.clear(); __game.startMission(0, false); });
+    expect((await page.evaluate(`(${RUN})(40000)`)).phase).toBe('done');
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    await page.click('[data-screen=main] [data-id=continue]');
+    expect(await page.evaluate(() => [__game.G.mission, __game.kit.mode])).toEqual([1, 'play']);
+    await page.keyboard.press('Escape');
+    await page.click('[data-screen=pause] .kit-btn:has-text("В меню")');
+    await page.click('[data-screen=main] .kit-btn:has-text("Выбор миссии")');
+    await expect(page.locator('[data-mission="1"]')).toBeEnabled();
+    await expect(page.locator('[data-mission="2"]')).toBeDisabled();
+  });
+
+  test('контрольная точка: после провала миссия продолжается с флажка с полными жизнями', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1&fast');
+    await page.evaluate(() => {
+      const g = __game; g.startMission(1, false);
+      const cp = g.G.level.checkpoints[0];
+      g.player.x = cp + 2; g.G.cam = cp - 100; g.step(1, false);
+      for (let i = 0; i < 5 && g.G.phase === 'run'; i++) { g.player.invuln = 0; g.hurtPlayer(); }
+    });
+    await expect(page.locator('[data-screen=over]')).toBeVisible();
+    await page.click('[data-screen=over] [data-id=again]');
+    const r = await page.evaluate(() => ({ x: __game.player.x, cp: __game.G.level.checkpoints[0], lives: __game.G.lives, m: __game.G.mission }));
+    expect(r.x).toBe(r.cp);
+    expect(r.lives).toBe(3);
+    expect(r.m).toBe(1);
+  });
+
+  test('жизни по сложности 5/3/2; ровно столько ударов до конца', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1&fast');
     const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.enemies.length = 0;
-      const pit = g.pits[0];
-      g.player.x = pit.x + pit.w / 2; g.player.y = g.GROUND_Y + 2; g.player.invuln = 50;
-      g.cameraX = Math.max(0, pit.x - 120);
-      for (let i = 0; i < 80 && g.lives === 3; i++) g.step();
-      return { lives: g.lives, x: g.player.x, inPit: !!g.pitAt(g.player.x), y: g.player.y, ground: g.GROUND_Y };
+      const g = __game, out = {};
+      for (const d of ['easy', 'normal', 'hard']) {
+        g.kit.set('difficulty', d); g.startMission(0, false);
+        const lives = g.G.lives; let hits = 0;
+        while (g.G.phase === 'run' && hits < 10) { g.player.invuln = 0; g.hurtPlayer(); hits++; }
+        out[d] = [lives, hits];
+      }
+      g.kit.set('difficulty', 'normal');
+      return out;
+    });
+    expect(r).toEqual({ easy: [5, 5], normal: [3, 3], hard: [2, 2] });
+  });
+
+  test('падение в яму отнимает жизнь и ставит на берег перед ней', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1&fast');
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMission(0, false);
+      const pit = g.G.level.pits[0];
+      g.G.cam = pit.x - 150; g.player.x = pit.x + pit.w / 2; g.player.y = g.GROUND + 3; g.player.invuln = 50;
+      for (let i = 0; i < 90 && g.G.lives === 3; i++) g.step(1, false);
+      return { lives: g.G.lives, x: g.player.x, pit, inPit: !!g.pitAt(g.player.x), y: g.player.y };
     });
     expect(r.lives).toBe(2);
     expect(r.inPit).toBe(false);
-    expect(r.y).toBe(r.ground);
+    expect(r.x).toBeLessThan(r.pit.x);
+    expect(r.y).toBe(186);
   });
 
-  test('пешие враги и турели не появляются в воде', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=3');
-    const bad = await page.evaluate(() => {
-      const g = __game; g.start();
-      let bad = 0;
-      for (const pit of g.pits) {
-        g.cameraX = pit.x - g.W - 10;       // точка появления справа попадает в яму
-        for (let i = 0; i < 40; i++) {
-          g.enemies.length = 0; g.spawnEnemy();
-          const e = g.enemies[0];
-          if (e && e.type !== 'drone' && g.pitAt(e.x)) bad++;
-        }
-      }
-      return bad;
-    });
-    expect(bad).toBe(0);
-  });
-
-  test('сбитый босс - победа, рекорд переживает перезагрузку', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=1');
-    await page.evaluate(() => localStorage.removeItem('jungle_best'));
+  test('снайпер сначала целится лучом, мина взрывается не сразу', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1&fast');
     const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.enemies.length = 0;
-      g.cameraX = g.LEVEL_W - g.W; g.player.x = g.cameraX + 40;
-      g.step(1);                            // камера дошла до конца - босс появляется сам
-      const b = g.boss; b.hp = 1;
-      g.bullets.push({ x: b.x, y: b.y - 20, vx: 0, vy: 0, life: 10, type: 'normal' });
-      g.step(2);
-      return { phase: g.phase, score: g.score, best: g.best };
+      const g = __game; g.startMission(2, false); g.enemies.length = 0; g.player.invuln = 1e9;
+      const s = g.spawnEnemy('sniper', g.player.x + 120, g.GROUND); s.cd = 1;
+      g.step(1, false); const aiming = s.aim > 0, b0 = g.ebullets.length;
+      g.step(30, false); const b1 = g.ebullets.length;
+      g.step(25, false); const b2 = g.ebullets.length;
+      g.enemies.length = 0;
+      const m = g.spawnEnemy('mine', g.player.x + 6, g.GROUND);
+      g.step(5, false); const armedAlive = g.enemies.includes(m) && !!m.armed;
+      g.step(30, false);
+      return { aiming, b0, b1, b2, armedAlive, gone: !g.enemies.includes(m) };
     });
-    expect(r.phase).toBe('won');
-    expect(r.score).toBe(5000);
-    expect(r.best).toBe(5000);
-    await page.reload();
-    await page.waitForFunction(() => window.__game && __game.ready);
-    expect(await page.evaluate(() => __game.best)).toBe(5000);
+    expect(r.aiming).toBe(true);
+    expect(r.b0 + r.b1).toBe(0);
+    expect(r.b2).toBe(1);
+    expect(r.armedAlive).toBe(true);
+    expect(r.gone).toBe(true);
   });
-
-  test('бонус «веер» даёт три пули за выстрел', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=1');
-    const n = await page.evaluate(() => {
-      const g = __game; g.start(); g.enemies.length = 0;
-      g.powerups.push({ x: g.player.x, y: g.player.y, vy: 0, kind: 'spread', life: 600, onGround: true });
-      g.step(1);
-      g.bullets.length = 0; g.keys.KeyJ = true; g.step(1); g.keys.KeyJ = false;
-      return { weapon: g.player.weapon, bullets: g.bullets.length };
-    });
-    expect(n).toEqual({ weapon: 'spread', bullets: 3 });
-  });
-
-  test('пауза останавливает мир', async ({ page }) => {
-    await openGame(page, 'jungle-strike', 'seed=1');
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('KeyP');
-    const r = await page.evaluate(() => { const g = __game; const x = g.player.x; g.keys.KeyD = true; g.step(60); g.keys.KeyD = false; return { x, x2: g.player.x, p: g.phase }; });
-    expect(r.p).toBe('paused');
-    expect(r.x2).toBe(r.x);
-    await page.keyboard.press('Escape');
-    expect(await page.evaluate(() => __game.phase)).toBe('play');
-  });
-
-  for (const size of SIZES) {
-    test(`влезает в окно ${size.width}x${size.height}, текст рисуется в кратном разрешении`, async ({ page }) => {
-      await page.setViewportSize(size);
-      await openGame(page, 'jungle-strike');
-      expectFits(expect, await fitReport(page, '#c'));
-      const c = await page.evaluate(() => ({ w: document.getElementById('c').width, h: document.getElementById('c').height }));
-      expect(c.w % 256).toBe(0);
-      expect(c.w).toBeGreaterThanOrEqual(512);
-      expect(c.h).toBe(c.w / 256 * 240);
-    });
-  }
 });
 
 test.describe('jungle-strike: огонь левой кнопкой мыши', () => {
-  // Центр игрового холста в координатах страницы
   const center = async (page) => { const b = await page.locator('#c').boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
-  const startQuiet = (page) => page.evaluate(() => { const g = __game; g.start(); g.enemies.length = 0; g.player.invuln = 1e9; });
+  const quiet = (page) => page.evaluate(() => { const g = __game; g.kit.closeAll(); g.startMission(0, false); g.enemies.length = 0; g.player.invuln = 1e9; });
 
-  test('подсказки на стартовом экране упоминают ЛКМ', async ({ page }) => {
+  test('подсказки упоминают ЛКМ', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
-    await expect(page.locator('#info')).toContainText('ЛКМ');
-    expect(await page.evaluate(() => __game.phase)).toBe('ready');
+    await page.click('[data-screen=main] .kit-btn:has-text("Как играть")');
+    await expect(page.locator('[data-screen=howto]')).toContainText('левая кнопка мыши');
   });
 
-  test('клик по полю - ровно один выстрел, туда же, куда стреляет клавиша', async ({ page }) => {
+  test('клик по полю - ровно один выстрел', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
-    await startQuiet(page);
+    await quiet(page);
     const c = await center(page);
     const a = await page.evaluate(() => __game.shotsFired);
     await page.mouse.click(c.x, c.y);
-    const r = await page.evaluate(() => { const g = __game; g.bullets.length = 0; const before = g.shotsFired; g.step(20); return { fired: g.shotsFired, before, held: g.mouseFire }; });
-    expect(r.fired - a).toBe(1);
+    const r = await page.evaluate(() => { __game.step(20, false); return { n: __game.shotsFired, held: __game.mouseFire }; });
+    expect(r.n - a).toBe(1);
     expect(r.held).toBe(false);
-    // направление - как у клавиши: герой смотрит вправо - пуля летит вправо
-    const dir = await page.evaluate(() => { const g = __game; g.step(10); g.bullets.length = 0; g.press('KeyJ'); g.step(1); g.keys.KeyJ = false; const kb = g.bullets[0].vx; g.step(10); return kb; });
-    await page.mouse.click(c.x, c.y);
-    const mb = await page.evaluate(() => { const b = __game.bullets[__game.bullets.length - 1]; return b ? b.vx : null; });
-    expect(dir).toBeGreaterThan(0);
-    expect(mb).toBe(dir);
   });
 
-  test('зажатая ЛКМ - очередь в темпе оружия; отпустил - огонь прекращается', async ({ page }) => {
+  test('зажатая ЛКМ - очередь в темпе оружия, отпустил - тишина', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
-    await startQuiet(page);
+    await quiet(page);
     const c = await center(page);
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();
-    const normal = await page.evaluate(() => { const g = __game; const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
-    const rapid = await page.evaluate(() => { const g = __game; g.player.weapon = 'rapid'; g.player.weaponTimer = 1e6; g.step(8); const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
+    const normal = await page.evaluate(() => { const g = __game; const a = g.shotsFired; g.step(64, false); return g.shotsFired - a; });
+    const rapid = await page.evaluate(() => { const g = __game; g.player.weapon = 'rapid'; g.step(8, false); const a = g.shotsFired; g.step(64, false); return g.shotsFired - a; });
     await page.mouse.up();
-    const after = await page.evaluate(() => { const g = __game; g.step(2); const a = g.shotsFired; g.step(64); return g.shotsFired - a; });
-    expect(normal).toBe(8);        // обычное оружие: выстрел раз в 8 шагов (7.5 в секунду)
-    expect(rapid).toBe(16);        // «быстрый огонь»: раз в 4 шага
-    expect(after).toBe(0);
+    const after = await page.evaluate(() => { const g = __game; g.step(2, false); const a = g.shotsFired; g.step(64, false); return g.shotsFired - a; });
+    expect([normal, rapid, after]).toEqual([8, 16, 0]);
   });
 
-  test('клавиша J и ЛКМ вместе не стреляют чаще, чем одна из них', async ({ page }) => {
+  test('клавиша J и ЛКМ вместе не стреляют чаще', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
-    await startQuiet(page);
+    await quiet(page);
     const c = await center(page);
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();
     const both = await page.evaluate(() => {
-      const g = __game; let n = 0;
-      for (let i = 0; i < 64; i++) { const a = g.shotsFired; if (i % 3 === 0) g.press('KeyJ'); g.step(1); n += g.shotsFired - a; }
-      g.keys.KeyJ = false;
+      const g = __game, k = g.kit; let n = 0;
+      for (let i = 0; i < 64; i++) { const a = g.shotsFired; if (i % 3 === 0) { k.held.add('KeyJ'); k.pressed.add('fire'); } g.step(1, false); n += g.shotsFired - a; }
+      k.held.delete('KeyJ');
       return n;
     });
     await page.mouse.up();
     expect(both).toBe(8);
   });
 
-  test('клики мимо игры (подсказки, заголовок), правая кнопка и клик до старта не стреляют', async ({ page }) => {
+  test('клик в меню, на паузе и правой кнопкой не стреляет; меню правой кнопки над полем нет', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
     const c = await center(page);
-    await page.mouse.click(c.x, c.y);                          // до старта: экран «в бой»
-    await page.keyboard.press('Enter');
-    const startShots = await page.evaluate(() => { const g = __game; g.enemies.length = 0; g.player.invuln = 1e9; g.step(20); return g.shotsFired; });
-    expect(startShots).toBe(0);                                // и отложенного выстрела после старта нет
-    await page.click('#info');
-    await page.click('h1');
+    await page.mouse.click(c.x - 300, c.y + 200);                // главное меню закрывает поле
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    const s0 = await page.evaluate(() => { __game.enemies.length = 0; __game.player.invuln = 1e9; const a = __game.shotsFired; __game.step(20, false); return __game.shotsFired - a; });
+    expect(s0).toBe(0);                                          // клик по меню не оставил выстрела «про запас»
+    const a1 = await page.evaluate(() => __game.shotsFired);
+    await page.keyboard.press('Escape');
+    await page.mouse.click(c.x - 300, c.y + 200);
+    await page.keyboard.press('Escape');
     await page.mouse.click(c.x, c.y, { button: 'right' });
-    expect(await page.evaluate(() => { __game.step(20); return __game.shotsFired; })).toBe(0);
-    // клик на паузе не копит выстрел на потом
-    await page.keyboard.press('KeyP');
-    await page.mouse.click(c.x, c.y);
-    await page.keyboard.press('KeyP');
-    expect(await page.evaluate(() => { __game.step(20); return __game.shotsFired; })).toBe(0);
-    const prevented = await page.evaluate(() => {
-      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
-      document.getElementById('c').dispatchEvent(e);
-      return e.defaultPrevented;
-    });
+    expect(await page.evaluate(() => { __game.step(20, false); return __game.shotsFired; })).toBe(a1);
+    const prevented = await page.evaluate(() => { const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }); document.getElementById('c').dispatchEvent(e); return e.defaultPrevented; });
     expect(prevented).toBe(true);
   });
+});
+
+test.describe('jungle-strike: пауза и окно', () => {
+  test('скрытие вкладки - пауза, после возврата пауза остаётся', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    await page.evaluate(() => __game.kit.audioCtx());
+    await hideTab(page);
+    await showTab(page);
+    const s = await page.evaluate(() => __game.G.stats.steps);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => [__game.kit.mode, __game.G.stats.steps])).toEqual(['paused', s]);
+    await expect(page.locator('[data-screen=pause]')).toBeVisible();
+  });
+
+  test('прыжок переназначается на W', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.evaluate(() => localStorage.clear());
+    await page.click('[data-screen=main] .kit-btn:has-text("Настройки")');
+    await page.click('[data-bind="up:0"]'); await page.keyboard.press('KeyI');
+    await page.click('[data-bind="jump:0"]'); await page.keyboard.press('KeyW');
+    await page.click('[data-screen=settings] .kit-btn:has-text("Готово")');
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    await page.evaluate(() => { __game.enemies.length = 0; __game.player.invuln = 1e9; });
+    await page.keyboard.down('KeyW');
+    const y = await page.evaluate(() => { __game.step(6, false); return __game.player.y; });
+    await page.keyboard.up('KeyW');
+    expect(y).toBeLessThan(186 - 10);
+  });
+
+  for (const size of [...SIZES, { width: 1920, height: 1080 }]) {
+    test(`поле и меню влезают в окно ${size.width}x${size.height}, пиксели целые`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openGame(page, 'jungle-strike');
+      expectFits(expect, await fitReport(page, '#c'));
+      expectFits(expect, await fitReport(page, '[data-screen=main] .kit-panel'));
+      const c = await page.evaluate(() => ({ w: document.getElementById('c').width, h: document.getElementById('c').height }));
+      expect(c.w % 400).toBe(0);
+      expect(c.h).toBe(c.w / 400 * 225);
+    });
+  }
 });

@@ -397,7 +397,7 @@
 .kit-seg { display: flex; gap: 4px; }
 .kit-sec { margin: 12px 0 4px; font-size: 12px; letter-spacing: 3px; color: var(--kit-accent); text-transform: uppercase; }
 .kit-range { width: 180px; accent-color: var(--kit-accent); }
-.kit-toast { position: absolute; right: 12px; top: 12px; z-index: 60; display: flex; flex-direction: column; gap: 6px; pointer-events: none; font-family: var(--kit-font); }
+.kit-toast { position: absolute; right: 12px; bottom: 12px; z-index: 60; display: flex; flex-direction: column; gap: 6px; pointer-events: none; font-family: var(--kit-font); }
 .kit-toast div { background: var(--kit-panel); color: var(--kit-fg); border-left: 4px solid var(--kit-accent); padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.4); animation: kitIn .2s ease-out; font-size: 14px; }
 .kit-fps { position: absolute; left: 8px; bottom: 8px; z-index: 60; font: 12px Consolas, monospace; color: #0f0; background: rgba(0,0,0,.55); padding: 2px 6px; border-radius: 4px; pointer-events: none; }
 .kit-modal { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); pointer-events: auto; font-family: var(--kit-font); color: var(--kit-fg); }

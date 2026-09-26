@@ -77,8 +77,10 @@ function buildLevel(mi) {
   const m = MISSIONS[mi], r = mulberry32(1000 + mi * 77);
   const pits = [], plats = [], pods = [];
   const arena = m.len - W;
+  let skipped = 0;
   for (let x = 420; x < arena - 120; x += 240 + Math.floor(r() * 180)) {
-    if (r() < m.pitRate) pits.push({ x, w: 30 + Math.floor(r() * (MAX_PIT - 30)) });
+    if (r() < m.pitRate || skipped >= 2) { pits.push({ x, w: 30 + Math.floor(r() * (MAX_PIT - 30)) }); skipped = 0; }   // не больше двух участков подряд без ямы
+    else skipped++;
   }
   for (let x = 260; x < arena - 60; x += 170 + Math.floor(r() * 150)) {
     plats.push({ x, y: GROUND - 34 - Math.floor(r() * 16), w: 46 + Math.floor(r() * 50) });
@@ -177,6 +179,7 @@ function pilot() {
   const ahead = p.x + 10;
   const pit = G.level.pits.find((q) => q.x > p.x && q.x - p.x < 10);
   if (pit && p.onGround) pilotInput.jump = true;
+  if (p.onGround && p.plat && !p.plat.ground && p.plat.x + p.plat.w - p.x < 8 && G.level.pits.some((q) => q.x < p.x + 50 && q.x + q.w > p.x)) pilotInput.jump = true;   // с края платформы над ямой - прыжком
   const low = enemies.find((e) => (e.type === 'mine' || e.type === 'crawler' || e.type === 'tankette') && e.x > p.x && e.x - p.x < 30);
   if (low && p.onGround) pilotInput.jump = true;
   if (hazards.some((h) => h.kind === 'wave' && Math.abs(h.x - p.x) < 26 && Math.sign(p.x - h.x) === Math.sign(h.vx))) pilotInput.jump = true;
@@ -184,6 +187,7 @@ function pilot() {
   if (flyer) pilotInput.up = true;
   if (G.bossSpawned && boss && p.x > boss.x - boss.w / 2 - 40) pilotInput.right = false;
   if (G.bossSpawned && boss && (boss.kind === 'drill' || boss.kind === 'walker') && boss.charge && p.onGround && Math.abs(boss.x - p.x) < 60) pilotInput.jump = true;
+  if (!p.onGround && p.vy < 0) pilotInput.jump = true;          // держать прыжок до верхней точки
   void ahead;
 }
 
@@ -377,7 +381,8 @@ function spawnBoss() {
   const kind = MISSIONS[G.mission].boss, d = BOSSES[kind], L = G.level;
   const hp = Math.round(d.hp * kit.diff({ easy: 0.8, normal: 1, hard: 1.25 }));
   boss = { kind, name: d.name, w: d.w, h: d.h, hp, maxHp: hp, t: 0, flash: 0, x: L.len - 40, y: GROUND, vx: 0, vy: 0, dir: -1, state: 'enter', charge: false };
-  if (kind === 'boat') { boss.x = L.len - 70; boss.y = GROUND + 6; }
+  if (kind === 'fort') boss.state = 'fight';                        // форт стоит на месте - уязвим сразу
+  if (kind === 'boat') { boss.x = L.len - 70; boss.y = GROUND + 6; boss.state = 'fight'; }
   if (kind === 'drill') { boss.x = L.len + 40; }
   if (kind === 'walker') { boss.x = L.len + 30; }
   if (kind === 'heli') { boss.x = L.len + 60; boss.y = 70; }
@@ -544,6 +549,7 @@ function update() {
 // ================= Итоги =================
 function gameOver() {
   G.phase = 'over';
+  G.banner = null;
   player.alive = false;
   explode(player.x, player.y - 10, true);
   setTimeout(() => {
@@ -620,6 +626,7 @@ function px(x, y, c, w = 1, h = 1) { ctx.fillStyle = c; ctx.fillRect(Math.floor(
 
 function drawSky() {
   const s = pal.sky;
+  px(0, 0, s[2], W, H);                                  // весь кадр: иначе в пещере просвечивал прошлый кадр
   px(0, 0, s[0], W, 70); px(0, 70, s[1], W, 45); px(0, 115, s[2], W, 30);
   if (pal.far2 !== 'stalactites') for (let i = 0; i < 18; i++) { const x = ((i * 67 - G.cam * 0.05) % W + W) % W; px(x, 12 + (i * 37) % 60, 'rgba(255,255,255,0.5)', 1, 1); }
   if (G.lightning > 0) px(0, 0, `rgba(255,255,255,${G.lightning / 12})`, W, GROUND);
