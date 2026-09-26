@@ -187,7 +187,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 #grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  /* не больше четырёх в ряд: восемь игр ложатся ровно в два ряда и на широком экране */
+  grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 60px) / 4)), 1fr));
   gap: 20px;
   max-width: 1600px;
   margin: 0 auto;
