@@ -32,7 +32,14 @@ async function launch(opts = {}) {
     globalThis.__opened = [];
     shell.openExternal = async (url) => { globalThis.__opened.push(url); };
   });
-  const shellPage = await app.firstWindow();
+  // Окно оболочки, а не первое попавшееся: при открытии вкладок прошлого раза страница
+  // игры создаётся сразу за оболочкой и иногда появляется у Playwright раньше неё.
+  await app.firstWindow();
+  let shellPage = null;
+  for (const until = Date.now() + 30000; !shellPage; await new Promise((r) => setTimeout(r, 100))) {
+    shellPage = app.windows().find((w) => /\/app\/renderer\/index\.html$/.test(w.url()));
+    if (Date.now() > until) throw new Error('нет окна оболочки');
+  }
   await shellPage.waitForSelector('body[data-ready="1"]');
   return { app, shell: shellPage, dataDir };
 }
@@ -79,8 +86,19 @@ async function press(app, target, keyCode, modifiers = []) {
   }, [target, keyCode, modifiers]);
 }
 
+// Закрыть и дождаться, пока процесс Electron действительно выйдет: замок одного
+// экземпляра отпускается только тогда. Иначе следующий запуск на той же папке данных
+// (проверка перезапуска) иногда заставал старый процесс и молча выходил.
 async function close(ctx) {
+  let proc = null;
+  try { proc = ctx.app.process(); } catch { /* приложение уже закрыто */ }
   try { await ctx.app.close(); } catch { /* уже закрыто */ }
+  if (proc && proc.exitCode === null && proc.signalCode === null) {
+    await new Promise((resolve) => {
+      const t = setTimeout(resolve, 15000);
+      proc.once('exit', () => { clearTimeout(t); resolve(); });
+    });
+  }
 }
 
 function rmData(dir) {
