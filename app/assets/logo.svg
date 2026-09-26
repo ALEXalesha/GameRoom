@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Значок «Игротеки»: закруглённый квадрат в цветах приложения, над геймпадом три
+       плитки-вкладки. Свой рисунок, без чужих знаков. Из этого файла tools/make-icon.js
+       делает icon.ico и icon.png; для 16-32 px он убирает всё с class="detail" и берёт
+       крупный геймпад (transform из data-small), чтобы значок читался и в панели задач. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b8def"/>
+      <stop offset="0.55" stop-color="#8455ee"/>
+      <stop offset="1" stop-color="#b8479a"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.30"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#shine)"/>
+  <g class="detail">
+    <rect x="83" y="42" width="26" height="26" rx="7" fill="#fff" fill-opacity="0.45"/>
+    <rect x="115" y="42" width="26" height="26" rx="7" fill="#fff" fill-opacity="0.8"/>
+    <rect x="147" y="42" width="26" height="26" rx="7" fill="#fff" fill-opacity="0.45"/>
+  </g>
+  <g id="pad" transform="translate(25.6 20) scale(0.8)" data-small="translate(4 -18) scale(0.97)">
+    <path d="M78 92h100c26 0 40 16 46 44l10 48c4 20-12 34-28 26l-30-22H80l-30 22c-16 8-32-6-28-26l10-48c6-28 20-44 46-44z" fill="#fff"/>
+    <rect x="70" y="116" width="20" height="48" rx="5" fill="#4a3fb8"/>
+    <rect x="56" y="130" width="48" height="20" rx="5" fill="#4a3fb8"/>
+    <g class="detail">
+      <circle cx="176" cy="122" r="10" fill="#ff6b9a"/>
+      <circle cx="198" cy="142" r="10" fill="#2dd4a8"/>
+      <circle cx="154" cy="142" r="10" fill="#ffc857"/>
+      <circle cx="176" cy="162" r="10" fill="#5bc0ff"/>
+    </g>
+  </g>
+</svg>
