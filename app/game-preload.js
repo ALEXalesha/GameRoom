@@ -62,7 +62,9 @@ try {
         },
       });
       const media = () => document.querySelectorAll('audio, video');
+      // Без аргумента - текущая громкость (её сверяют проверки).
       const apply = (v) => {
+        if (v === undefined) return volume;
         volume = v;
         for (const ref of live) {
           const g = ref.deref();
