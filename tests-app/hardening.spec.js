@@ -106,6 +106,22 @@ test('фоновая вкладка не может задать вопрос и
   await expect(shell.locator('#modal')).toBeHidden();
 });
 
+test('пока открыт вопрос оболочки «стереть данные», клавиши не уводят с домашнего экрана', async () => {
+  const { app, shell } = ctx;
+  await open('dino');
+  await H.press(app, 'dino', 'T', ['control']);
+  await shell.click('#gear');
+  await shell.click('#clear-btn');
+  await expect(shell.locator('#modal')).toBeVisible();
+  await H.press(app, 'shell', 'Tab', ['control']);
+  await H.press(app, 'shell', '2', ['control']);
+  await sleep(300);
+  expect((await H.tabs(app)).active).toBe('home');
+  await shell.click('#modal .cancel');
+  await H.press(app, 'shell', 'Tab', ['control']);
+  await expect.poll(() => H.tabs(app).then((t) => t.active)).toBe('dino');
+});
+
 test('скачивания со страницы игры отменяются', async () => {
   const { app } = ctx;
   await open('dino');

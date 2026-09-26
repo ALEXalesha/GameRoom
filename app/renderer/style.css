@@ -241,7 +241,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: var(--glass-border-strong); }
 .card .shot {
   position: relative;
-  aspect-ratio: 2 / 1;
+  aspect-ratio: 16 / 9;
   background: var(--accent-grad);
   overflow: hidden;
 }
