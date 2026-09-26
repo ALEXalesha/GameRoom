@@ -1,0 +1,2461 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Тахо: оболочка в духе настольных систем (фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung)</title>
+<style>
+/* ===== RESET ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+:root {
+  --accent: #007aff;
+  --text: #fff;
+  --text-dark: #1d1d1f;
+  --text-muted: #86868b;
+  --glass-bg: rgba(255,255,255,0.18);
+  --glass-border: rgba(255,255,255,0.35);
+  --win-bg: rgba(246,246,246,0.78);
+}
+html, body {
+  height: 100%; overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text);
+  user-select: none;
+  cursor: default;
+}
+.sr-only { position: absolute; width: 0; height: 0; overflow: hidden; }
+button { font: inherit; cursor: pointer; }
+
+/* ===== WALLPAPER ===== */
+#desktop {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 10%, #f4a85f 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 20%, #e8704a 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 60%, #b3408a 0%, transparent 55%),
+    radial-gradient(ellipse at 90% 90%, #5b2a8c 0%, transparent 50%),
+    radial-gradient(ellipse at 10% 90%, #2e1a5e 0%, transparent 55%),
+    linear-gradient(180deg, #3a1d6e 0%, #1a0c3a 100%);
+  background-blend-mode: screen, screen, screen, screen, screen, normal;
+}
+#desktop::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.08; pointer-events: none; mix-blend-mode: overlay;
+}
+
+/* ===== MENU BAR ===== */
+#menubar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 28px; z-index: 1000;
+  display: flex; align-items: center; padding: 0 14px;
+  font-size: 13px; color: #fff;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255,255,255,0.04);
+  text-shadow: 0 0 2px rgba(0,0,0,0.45);
+}
+#menubar .apple-logo { font-size: 16px; margin-right: 16px; transform: translateY(-1px); cursor: pointer; padding: 0 4px; border-radius: 4px; }
+#menubar .apple-logo:hover { background: rgba(255,255,255,0.18); }
+#menubar .app-name { font-weight: 600; margin-right: 18px; }
+#menubar .menu-item { margin-right: 14px; cursor: pointer; padding: 2px 6px; border-radius: 4px; position: relative; }
+#menubar .menu-item:hover, #menubar .menu-item.open { background: rgba(255,255,255,0.18); }
+#menubar .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+#menubar .icon-btn { cursor: pointer; display: flex; align-items: center; padding: 2px 4px; border-radius: 4px; }
+#menubar .icon-btn:hover { background: rgba(255,255,255,0.18); }
+#menubar .icon-btn svg { width: 14px; height: 14px; fill: #fff; }
+#menubar .clock { font-variant-numeric: tabular-nums; font-weight: 500; cursor: pointer; }
+
+/* ===== MENU DROPDOWN ===== */
+.menu-dropdown {
+  position: fixed; top: 28px;
+  background: rgba(245,245,247,0.85);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 8px;
+  padding: 5px 0;
+  min-width: 220px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  color: #1d1d1f;
+  font-size: 13px;
+  z-index: 1500;
+  display: none;
+}
+.menu-dropdown.open { display: block; }
+.menu-dropdown .item {
+  padding: 4px 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  text-shadow: none;
+}
+.menu-dropdown .item:hover { background: var(--accent); color: #fff; }
+.menu-dropdown .item.disabled { color: #86868b; cursor: default; }
+.menu-dropdown .item.disabled:hover { background: transparent; color: #86868b; }
+.menu-dropdown .shortcut { color: #86868b; font-size: 12px; margin-left: 24px; }
+.menu-dropdown .item:hover .shortcut { color: rgba(255,255,255,0.85); }
+.menu-dropdown .sep { height: 1px; background: rgba(0,0,0,0.1); margin: 4px 0; }
+
+/* ===== DESKTOP ICONS ===== */
+#desktop-icons {
+  position: fixed; top: 40px; right: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  z-index: 5;
+}
+.desktop-icon {
+  width: 76px;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  cursor: pointer; padding: 4px; border-radius: 6px;
+}
+.desktop-icon:hover, .desktop-icon.selected { background: rgba(255,255,255,0.2); }
+.desktop-icon .icon-img { width: 56px; height: 56px; margin-bottom: 4px; pointer-events: none; }
+.desktop-icon .label { font-size: 11px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); line-height: 1.2; word-break: break-word; }
+
+/* ===== DOCK ===== */
+#dock-wrap {
+  position: fixed; bottom: 8px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+}
+#dock {
+  display: flex; align-items: end; gap: 6px;
+  padding: 6px 10px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.4);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(255,255,255,0.15);
+  position: relative;
+}
+#dock::before {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 24px;
+  backdrop-filter: url(#glass-distort);
+  -webkit-backdrop-filter: url(#glass-distort);
+  pointer-events: none; opacity: 0.6;
+}
+.dock-icon {
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  transform-origin: bottom center;
+}
+.dock-icon img, .dock-icon svg {
+  width: 100%; height: 100%; border-radius: 12px; pointer-events: none;
+}
+.dock-icon:hover { transform: translateY(-12px) scale(1.25); }
+.dock-icon:hover + .dock-icon, .dock-icon:has(+ .dock-icon:hover) { transform: translateY(-4px) scale(1.1); }
+.dock-icon .tooltip {
+  position: absolute; bottom: calc(100% + 14px); left: 50%; transform: translateX(-50%);
+  background: rgba(50,50,50,0.85); backdrop-filter: blur(20px);
+  color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s;
+}
+.dock-icon:hover .tooltip { opacity: 1; }
+.dock-icon.running::after {
+  content: ""; position: absolute; bottom: -4px; left: 50%;
+  transform: translateX(-50%); width: 4px; height: 4px;
+  border-radius: 50%; background: rgba(255,255,255,0.85);
+}
+.dock-icon.minimized {
+  /* visual marker that a window is minimized to this icon */
+}
+.dock-icon.minimized::before {
+  content: ""; position: absolute; inset: 0; border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.6); opacity: 0.6;
+  animation: pulse-min 1.6s ease-in-out infinite;
+}
+@keyframes pulse-min { 0%,100%{opacity:0.4} 50%{opacity:0.9} }
+#dock .separator {
+  width: 1px; height: 38px; margin: 0 4px;
+  background: rgba(255,255,255,0.3); align-self: center;
+}
+
+/* ===== WINDOWS ===== */
+.window {
+  position: fixed;
+  background: var(--win-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.6);
+  overflow: hidden;
+  color: var(--text-dark);
+  display: none;
+  flex-direction: column;
+  min-width: 380px; min-height: 240px;
+  transition: opacity 0.22s, transform 0.32s cubic-bezier(0.4,0,0.2,1);
+}
+.window.open { display: flex; }
+.window.minimizing {
+  transform-origin: bottom center;
+  animation: minimize-genie 0.4s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes minimize-genie {
+  0% { transform: scale(1) translateY(0); opacity: 1; }
+  60% { transform: scale(0.4) translateY(40vh); opacity: 0.6; }
+  100% { transform: scale(0.05) translateY(100vh); opacity: 0; }
+}
+.window.opening { animation: win-open 0.22s cubic-bezier(0.2, 0.8, 0.4, 1); }
+@keyframes win-open {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+.window.maximized {
+  border-radius: 0 !important;
+  top: 28px !important; left: 0 !important;
+  width: 100vw !important; height: calc(100vh - 28px) !important;
+}
+
+.titlebar {
+  height: 38px; flex-shrink: 0;
+  display: flex; align-items: center; padding: 0 12px;
+  cursor: grab;
+  background: rgba(255,255,255,0.15);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.titlebar:active { cursor: grabbing; }
+.traffic-lights { display: flex; gap: 8px; margin-right: 12px; }
+.tl {
+  width: 12px; height: 12px; border-radius: 50%;
+  cursor: pointer; border: 0.5px solid rgba(0,0,0,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; color: rgba(0,0,0,0.5); font-weight: 700;
+}
+.tl-close { background: #ff5f57; }
+.tl-min   { background: #febc2e; }
+.tl-max   { background: #28c840; }
+.tl span { opacity: 0; line-height: 1; }
+.traffic-lights:hover .tl span { opacity: 1; }
+.titlebar-title {
+  flex: 1; text-align: center; font-size: 13px; font-weight: 600;
+  color: #1d1d1f; margin-right: 60px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.window-content { flex: 1; overflow: hidden; background: rgba(255,255,255,0.6); display: flex; flex-direction: column; }
+
+/* Resize handles */
+.resize-handle { position: absolute; z-index: 10; }
+.resize-n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.resize-s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.resize-e  { top: 8px; bottom: 8px; right: -3px; width: 6px; cursor: ew-resize; }
+.resize-w  { top: 8px; bottom: 8px; left: -3px; width: 6px; cursor: ew-resize; }
+.resize-ne { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.resize-nw { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.resize-se { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.resize-sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+
+/* ===== CONTEXT MENU ===== */
+.context-menu {
+  position: fixed; z-index: 3000;
+  background: rgba(245,245,247,0.92);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 8px;
+  padding: 5px 0;
+  min-width: 200px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  color: #1d1d1f;
+  font-size: 13px;
+  display: none;
+}
+.context-menu.open { display: block; }
+.context-menu .item {
+  padding: 4px 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.context-menu .item:hover { background: var(--accent); color: #fff; }
+.context-menu .item.disabled { color: #86868b; cursor: default; }
+.context-menu .item.disabled:hover { background: transparent; color: #86868b; }
+.context-menu .sep { height: 1px; background: rgba(0,0,0,0.1); margin: 4px 0; }
+
+/* ===== SPOTLIGHT ===== */
+#spotlight {
+  position: fixed; top: 25vh; left: 50%; transform: translateX(-50%);
+  width: 640px; max-width: 90vw;
+  z-index: 2500; display: none;
+}
+#spotlight.open { display: block; animation: win-open 0.18s; }
+.spotlight-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 18px;
+  height: 60px;
+  background: rgba(40,40,40,0.7);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+}
+.spotlight-bar svg { width: 22px; height: 22px; fill: rgba(255,255,255,0.7); flex-shrink: 0; }
+.spotlight-bar input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: #fff; font-size: 22px; font-weight: 300;
+}
+.spotlight-bar input::placeholder { color: rgba(255,255,255,0.4); }
+.spotlight-results {
+  margin-top: 8px;
+  background: rgba(40,40,40,0.7);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 14px;
+  padding: 6px 0;
+  max-height: 380px;
+  overflow: auto;
+  display: none;
+}
+.spotlight-results.show { display: block; }
+.spotlight-result {
+  padding: 8px 18px; display: flex; align-items: center; gap: 12px;
+  color: #fff; cursor: pointer;
+}
+.spotlight-result.active, .spotlight-result:hover { background: rgba(0,122,255,0.6); }
+.spotlight-result .ricon { width: 26px; height: 26px; flex-shrink: 0; }
+.spotlight-result .rname { font-size: 14px; }
+.spotlight-result .rkind { font-size: 11px; color: rgba(255,255,255,0.6); margin-left: auto; }
+
+/* ===== LAUNCHPAD ===== */
+#launchpad {
+  position: fixed; inset: 0; z-index: 2300;
+  background: rgba(40,40,40,0.4);
+  backdrop-filter: blur(30px) saturate(150%);
+  display: none;
+  align-items: center; justify-content: center;
+}
+#launchpad.open { display: flex; animation: lp-open 0.25s; }
+@keyframes lp-open { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: scale(1); } }
+.lp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 30px 50px;
+  padding: 60px;
+}
+.lp-app {
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; width: 110px;
+}
+.lp-app .lpicon { width: 80px; height: 80px; border-radius: 18px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+.lp-app .lpname {
+  margin-top: 8px; color: #fff; font-size: 13px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.lp-app:hover .lpicon { transform: scale(1.08); transition: transform 0.15s; }
+
+/* ===== CONTROL CENTER ===== */
+#control-center {
+  position: fixed; top: 34px; right: 12px;
+  width: 320px;
+  background: rgba(245,245,247,0.85);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+  color: #1d1d1f;
+  z-index: 1800;
+  display: none;
+}
+#control-center.open { display: block; animation: win-open 0.18s; }
+.cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.cc-tile {
+  background: rgba(255,255,255,0.5);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer;
+}
+.cc-tile.wide { grid-column: span 2; }
+.cc-tile:hover { background: rgba(255,255,255,0.8); }
+.cc-icon-circle {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cc-icon-circle svg { width: 14px; height: 14px; fill: #fff; }
+.cc-icon-circle.off { background: rgba(150,150,150,0.5); }
+.cc-tile-text { font-size: 12px; font-weight: 600; }
+.cc-tile-text .sub { font-weight: 400; color: #86868b; font-size: 11px; }
+.cc-slider-row {
+  background: rgba(255,255,255,0.5);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.cc-slider-row .label { font-size: 11px; color: #86868b; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.cc-slider-row .label svg { width: 12px; height: 12px; fill: #86868b; }
+.cc-slider {
+  width: 100%; height: 22px; appearance: none; background: transparent; cursor: pointer;
+}
+.cc-slider::-webkit-slider-runnable-track { height: 22px; background: linear-gradient(to right, #fff var(--v,50%), rgba(0,0,0,0.1) var(--v,50%)); border-radius: 11px; border: 1px solid rgba(0,0,0,0.05); }
+.cc-slider::-webkit-slider-thumb { appearance: none; width: 0; height: 0; }
+.cc-slider::-moz-range-track { height: 22px; background: rgba(0,0,0,0.1); border-radius: 11px; }
+
+/* ===== MISSION CONTROL ===== */
+#mission-control {
+  position: fixed; inset: 0; z-index: 2200;
+  background: rgba(20,20,30,0.88);
+  backdrop-filter: blur(20px);
+  display: none;
+  padding: 60px;
+}
+#mission-control.open { display: block; animation: win-open 0.22s; }
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+  align-content: start;
+}
+.mc-thumb {
+  background: var(--win-bg);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 16/10;
+  position: relative;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  transition: transform 0.15s, border-color 0.15s;
+}
+.mc-thumb:hover { transform: scale(1.04); border-color: rgba(255,255,255,0.6); }
+.mc-thumb .mc-tb-tb { background: rgba(255,255,255,0.6); height: 22px; padding: 0 8px; display: flex; align-items: center; gap: 6px; }
+.mc-thumb .mc-tb-tb .dot { width: 8px; height: 8px; border-radius: 50%; }
+.mc-thumb .mc-tb-tb .dot.r { background: #ff5f57; }
+.mc-thumb .mc-tb-tb .dot.y { background: #febc2e; }
+.mc-thumb .mc-tb-tb .dot.g { background: #28c840; }
+.mc-thumb .mc-tb-title { font-size: 9px; color: #1d1d1f; flex: 1; text-align: center; }
+.mc-thumb .mc-tb-body { padding: 12px; font-size: 11px; color: #1d1d1f; height: 100%; }
+.mc-label {
+  text-align: center; color: #fff; font-size: 13px;
+  margin-top: 10px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+/* ===== ABOUT MODAL ===== */
+#about-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(20px);
+  z-index: 2400;
+  display: none; align-items: center; justify-content: center;
+}
+#about-modal.open { display: flex; }
+.about-card {
+  width: 480px; padding: 32px; text-align: center; color: #1d1d1f;
+  background: rgba(245,245,247,0.92);
+  border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+}
+.about-card .logo { font-size: 64px; margin-bottom: 12px; }
+.about-card h2 { font-size: 20px; margin-bottom: 4px; }
+.about-card .ver { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+.about-card .specs { text-align: left; font-size: 12px; line-height: 1.7; }
+.about-card .specs span { color: var(--text-muted); display: inline-block; width: 110px; }
+.about-card button {
+  margin-top: 20px; background: var(--accent); color: #fff;
+  border: none; padding: 6px 20px; border-radius: 6px; font-size: 13px;
+}
+
+/* ===== FINDER ===== */
+.finder-body { display: flex; flex: 1; min-height: 0; }
+.finder-sidebar {
+  width: 180px; flex-shrink: 0;
+  background: rgba(245,245,247,0.6);
+  border-right: 1px solid rgba(0,0,0,0.06);
+  padding: 12px 0;
+  font-size: 13px;
+  overflow-y: auto;
+}
+.finder-sidebar h4 {
+  font-size: 11px; font-weight: 600; color: #86868b;
+  text-transform: uppercase; padding: 6px 14px 4px; letter-spacing: 0.05em;
+}
+.finder-sidebar ul { list-style: none; }
+.finder-sidebar li {
+  padding: 4px 14px; display: flex; align-items: center; gap: 8px;
+  cursor: pointer; color: #1d1d1f;
+}
+.finder-sidebar li:hover { background: rgba(0,0,0,0.04); }
+.finder-sidebar li.active { background: rgba(0,122,255,0.18); }
+.finder-sidebar li svg { width: 16px; height: 16px; flex-shrink: 0; }
+.finder-main {
+  flex: 1; padding: 16px; overflow: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px; align-content: start;
+}
+.finder-item {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 6px; border-radius: 6px; cursor: pointer;
+  position: relative;
+}
+.finder-item:hover { background: rgba(0,0,0,0.04); }
+.finder-item.selected { background: rgba(0,122,255,0.2); }
+.finder-item.dropping { background: rgba(0,122,255,0.3); outline: 2px solid var(--accent); }
+.finder-item .ficon { width: 48px; height: 48px; margin-bottom: 4px; pointer-events: none; }
+.finder-item .fname { font-size: 11px; color: #1d1d1f; line-height: 1.2; word-break: break-word; pointer-events: none; }
+.finder-toolbar {
+  height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: rgba(255,255,255,0.3);
+  font-size: 12px;
+}
+.finder-toolbar .breadcrumbs { color: #1d1d1f; font-weight: 500; }
+
+/* ===== SAFARI ===== */
+.safari-toolbar {
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  background: rgba(255,255,255,0.4);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.safari-btn {
+  width: 28px; height: 24px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.05);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  color: #1d1d1f;
+}
+.safari-btn:hover { background: rgba(0,0,0,0.1); }
+.safari-btn:disabled { opacity: 0.3; cursor: default; }
+.safari-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.safari-url {
+  flex: 1; height: 26px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 0 12px; font-size: 12px; color: #1d1d1f;
+  display: flex; align-items: center; gap: 6px;
+  cursor: text;
+}
+.safari-content { flex: 1; overflow: auto; background: #fff; }
+.safari-page { padding: 28px 36px; color: #1d1d1f; line-height: 1.6; font-size: 14px; }
+.safari-page h1 { font-size: 28px; margin-bottom: 14px; }
+.safari-page p { margin-bottom: 12px; }
+.start-page-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 20px;
+  padding: 28px 36px;
+}
+.fav {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #f0f0f4, #e5e5e9);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; cursor: pointer;
+  transition: transform 0.15s;
+  color: #1d1d1f;
+}
+.fav:hover { transform: scale(1.05); }
+.fav .fname { font-size: 11px; color: #86868b; margin-top: 4px; }
+
+/* ===== NOTES ===== */
+.notes-body { display: flex; flex: 1; min-height: 0; }
+.notes-list-pane {
+  width: 240px; flex-shrink: 0;
+  background: rgba(252,246,220,0.5);
+  border-right: 1px solid rgba(0,0,0,0.06);
+  padding: 8px 0; overflow: auto;
+}
+.note-item { padding: 8px 14px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.note-item:hover { background: rgba(0,0,0,0.03); }
+.note-item.active { background: rgba(255,204,0,0.25); }
+.note-item .nt { font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 2px; }
+.note-item .np { font-size: 11px; color: #86868b; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-editor {
+  flex: 1; padding: 24px 32px;
+  background: rgba(255,251,230,0.6);
+  overflow: auto;
+}
+.notes-editor .note-title {
+  font-size: 22px; color: #1d1d1f; margin-bottom: 4px; font-weight: 600;
+  border: none; background: transparent; outline: none; width: 100%;
+}
+.notes-editor .meta { font-size: 11px; color: #86868b; margin-bottom: 14px; }
+.notes-editor .note-body {
+  font-size: 14px; line-height: 1.55; color: #1d1d1f;
+  border: none; background: transparent; outline: none;
+  width: 100%; min-height: 300px; resize: none; font-family: inherit;
+}
+
+/* ===== TERMINAL ===== */
+.terminal-body {
+  flex: 1;
+  background: rgba(20,20,20,0.92);
+  color: #f0f0f0;
+  font-family: "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 13px;
+  padding: 12px;
+  overflow: auto;
+  cursor: text;
+}
+.term-line { white-space: pre-wrap; word-break: break-all; line-height: 1.4; }
+.term-prompt-line { display: flex; }
+.term-prompt { color: #5af78e; flex-shrink: 0; }
+.term-input { flex: 1; background: transparent; border: none; outline: none; color: #f0f0f0; font: inherit; padding-left: 6px; }
+.term-cursor {
+  display: inline-block; width: 7px; height: 14px;
+  background: #f0f0f0; vertical-align: middle;
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ===== CALCULATOR ===== */
+.calc-body {
+  flex: 1; display: flex; flex-direction: column;
+  background: #1d1d1f; padding: 14px; gap: 8px;
+}
+.calc-display {
+  text-align: right;
+  font-size: 56px;
+  color: #fff;
+  font-weight: 200;
+  padding: 10px 14px;
+  min-height: 80px;
+  word-break: break-all;
+  overflow: hidden;
+}
+.calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; }
+.calc-btn {
+  border: none; border-radius: 50%;
+  font-size: 22px; font-weight: 400;
+  cursor: pointer;
+  background: #505050; color: #fff;
+  aspect-ratio: 1;
+}
+.calc-btn:hover { filter: brightness(1.2); }
+.calc-btn.fn { background: #a5a5a5; color: #1d1d1f; }
+.calc-btn.op { background: #ff9500; color: #fff; font-size: 26px; }
+.calc-btn.zero { aspect-ratio: 2.1/1; border-radius: 999px; grid-column: span 2; text-align: left; padding-left: 26px; }
+
+/* ===== CALENDAR ===== */
+.cal-body { flex: 1; display: flex; flex-direction: column; padding: 16px; overflow: auto; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.cal-head h2 { font-size: 22px; color: #1d1d1f; font-weight: 600; }
+.cal-nav button {
+  background: rgba(0,0,0,0.05); border: none; padding: 4px 10px; border-radius: 6px;
+  margin-left: 6px; color: #1d1d1f; font-size: 12px;
+}
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: rgba(0,0,0,0.06); border-radius: 6px; overflow: hidden; }
+.cal-dow { background: rgba(255,255,255,0.7); padding: 8px 6px; font-size: 11px; color: #86868b; font-weight: 600; text-transform: uppercase; }
+.cal-cell {
+  background: rgba(255,255,255,0.7); padding: 6px;
+  min-height: 70px; font-size: 12px; color: #1d1d1f;
+  cursor: pointer;
+}
+.cal-cell.other { color: #c7c7cc; background: rgba(245,245,247,0.5); }
+.cal-cell:hover { background: rgba(0,122,255,0.08); }
+.cal-cell .dnum { font-weight: 500; }
+.cal-cell.today .dnum {
+  background: #ff3b30; color: #fff;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-event {
+  background: var(--accent); color: #fff;
+  font-size: 10px; padding: 1px 4px; border-radius: 3px;
+  margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ===== WEATHER ===== */
+.weather-body {
+  flex: 1;
+  background: linear-gradient(180deg, #4a90e2 0%, #2e5fa0 100%);
+  color: #fff;
+  padding: 24px;
+  overflow: auto;
+}
+.weather-current { text-align: center; margin-bottom: 24px; }
+.weather-current .city { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+.weather-current .cond { font-size: 13px; opacity: 0.85; margin-bottom: 8px; }
+.weather-current .temp { font-size: 76px; font-weight: 200; line-height: 1; }
+.weather-current .hilo { font-size: 14px; opacity: 0.85; margin-top: 4px; }
+.weather-hourly {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex; gap: 16px; overflow-x: auto;
+}
+.weather-hour { flex-shrink: 0; text-align: center; min-width: 50px; }
+.weather-hour .h { font-size: 12px; opacity: 0.85; }
+.weather-hour .ic { font-size: 20px; margin: 4px 0; }
+.weather-hour .t { font-size: 14px; font-weight: 500; }
+.weather-week {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  padding: 12px;
+}
+.weather-day {
+  display: flex; align-items: center; padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+.weather-day:last-child { border: none; }
+.weather-day .dn { width: 70px; font-size: 14px; }
+.weather-day .di { width: 30px; text-align: center; font-size: 18px; }
+.weather-day .dt { margin-left: auto; font-size: 14px; }
+
+/* ===== PHOTOS ===== */
+.photos-body { flex: 1; display: flex; min-height: 0; }
+.photos-side {
+  width: 200px; flex-shrink: 0;
+  background: rgba(245,245,247,0.6);
+  border-right: 1px solid rgba(0,0,0,0.06);
+  padding: 12px 0; font-size: 13px;
+}
+.photos-side h4 { font-size: 11px; font-weight: 600; color: #86868b; text-transform: uppercase; padding: 6px 14px 4px; }
+.photos-side .pi { padding: 4px 14px; cursor: pointer; color: #1d1d1f; }
+.photos-side .pi:hover { background: rgba(0,0,0,0.04); }
+.photos-side .pi.active { background: rgba(0,122,255,0.18); }
+.photos-grid {
+  flex: 1; overflow: auto; padding: 16px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.photo-tile {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  background: #ddd;
+}
+.photo-tile:hover { transform: scale(1.02); transition: transform 0.15s; }
+
+/* ===== MUSIC ===== */
+.music-body { flex: 1; display: flex; min-height: 0; }
+.music-side {
+  width: 200px; flex-shrink: 0;
+  background: linear-gradient(180deg, #fc2a4e, #c0144a);
+  color: #fff;
+  padding: 12px 0; font-size: 13px;
+  overflow: auto;
+}
+.music-side h4 { font-size: 11px; font-weight: 600; opacity: 0.7; text-transform: uppercase; padding: 8px 14px 4px; }
+.music-side .mi { padding: 4px 14px; cursor: pointer; }
+.music-side .mi:hover, .music-side .mi.active { background: rgba(255,255,255,0.2); }
+.music-main { flex: 1; overflow: auto; background: rgba(255,255,255,0.7); }
+.music-header {
+  padding: 24px;
+  background: linear-gradient(135deg, #fc2a4e, #fb6f92);
+  color: #fff;
+  display: flex; gap: 18px; align-items: end;
+}
+.music-cover { width: 140px; height: 140px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); flex-shrink: 0; }
+.music-meta .kind { font-size: 11px; text-transform: uppercase; opacity: 0.8; }
+.music-meta .title { font-size: 30px; font-weight: 700; margin: 4px 0; }
+.music-meta .desc { font-size: 13px; opacity: 0.85; }
+.music-tracks { padding: 6px 12px; }
+.music-track {
+  display: grid; grid-template-columns: 24px 1fr 80px;
+  gap: 12px; padding: 8px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  align-items: center; cursor: pointer;
+  font-size: 13px; color: #1d1d1f;
+}
+.music-track:hover { background: rgba(0,0,0,0.03); }
+.music-track .num { color: #86868b; text-align: center; }
+.music-track .dur { color: #86868b; text-align: right; }
+.music-track.playing { color: var(--accent); }
+.music-track.playing .num { color: var(--accent); }
+
+/* ===== MAPS ===== */
+.maps-body { flex: 1; position: relative; overflow: hidden; }
+.maps-canvas {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0)) ,
+    repeating-linear-gradient(90deg, #cce6ff 0 50px, #b8d8f5 50px 100px),
+    repeating-linear-gradient(0deg, transparent 0 80px, rgba(0,0,0,0.05) 80px 81px);
+}
+.maps-search {
+  position: absolute; top: 12px; left: 12px;
+  background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
+  border-radius: 10px;
+  padding: 8px 14px; font-size: 13px; color: #1d1d1f;
+  width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.maps-pin { position: absolute; transform: translate(-50%, -100%); cursor: pointer; }
+.maps-pin svg { width: 30px; height: 38px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+
+/* ===== SYSTEM SETTINGS ===== */
+.set-body { flex: 1; display: flex; min-height: 0; }
+.set-side {
+  width: 220px; flex-shrink: 0;
+  background: rgba(245,245,247,0.6);
+  border-right: 1px solid rgba(0,0,0,0.06);
+  padding: 12px 0; font-size: 13px;
+  overflow-y: auto;
+}
+.set-search {
+  margin: 0 12px 8px; padding: 6px 10px;
+  background: rgba(0,0,0,0.05); border-radius: 6px;
+  font-size: 12px; color: #86868b;
+}
+.set-side .sec { padding: 4px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #1d1d1f; border-radius: 6px; margin: 0 6px; }
+.set-side .sec:hover { background: rgba(0,0,0,0.04); }
+.set-side .sec.active { background: rgba(0,122,255,0.85); color: #fff; }
+.set-side .sec .ic {
+  width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #fff;
+}
+.set-main { flex: 1; padding: 24px 32px; overflow: auto; color: #1d1d1f; }
+.set-main h2 { font-size: 22px; margin-bottom: 16px; }
+.set-row {
+  background: rgba(255,255,255,0.7); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px;
+}
+.set-row .left { display: flex; align-items: center; gap: 10px; }
+.set-row .desc { font-size: 11px; color: #86868b; margin-top: 2px; }
+.set-toggle {
+  width: 38px; height: 22px; background: #c7c7cc; border-radius: 11px;
+  position: relative; cursor: pointer; transition: background 0.18s;
+}
+.set-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.18s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.set-toggle.on { background: #34c759; }
+.set-toggle.on::after { left: 18px; }
+
+/* SCROLLBARS */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); background-clip: padding-box; border: 2px solid transparent; }
+
+
+/* ===== ДОБАВЛЕНО: слой окон, тема, новые элементы ===== */
+#windows { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+#windows .window { pointer-events: auto; }
+.window.focused { box-shadow: 0 28px 70px rgba(0,0,0,0.42), 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.6); }
+.window:not(.focused) .titlebar-title { opacity: 0.55; }
+.window:not(.focused) .tl { filter: grayscale(1) opacity(0.5); }
+.window .win-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.titlebar-title { margin-right: 60px; }
+#menubar .apple-logo svg { width: 15px; height: 15px; display: block; }
+#menubar .menu-item.hidden { display: none; }
+#menubar .icon-btn.static { cursor: default; }
+#menubar .icon-btn.static:hover { background: none; }
+#menubar .icon-btn.off svg { opacity: 0.4; }
+.menu-dropdown .item.checked::before { content: "✓"; position: absolute; left: 4px; }
+.menu-dropdown .item { position: relative; padding-left: 18px; }
+.dock-icon .badge { position: absolute; top: -4px; right: -4px; background: #ff3b30; color: #fff; border-radius: 9px; font-size: 11px; min-width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0 5px; pointer-events: none; }
+#dock.no-magnify .dock-icon:hover, #dock.no-magnify .dock-icon:hover + .dock-icon, #dock.no-magnify .dock-icon:has(+ .dock-icon:hover) { transform: none; }
+#dock-wrap.autohide { transform: translate(-50%, calc(100% + 4px)); transition: transform 0.25s; }
+#dock-wrap.autohide.show { transform: translate(-50%, 0); }
+#dock-hotzone { position: fixed; left: 0; right: 0; bottom: 0; height: 6px; z-index: 899; display: none; }
+#dock-hotzone.on { display: block; }
+.lp-grid { grid-template-columns: repeat(auto-fill, 110px); max-width: min(1100px, 92vw); justify-content: center; gap: 26px 30px; padding: 40px 20px; }
+#launchpad { overflow: auto; }
+#launchpad .lp-search { position: absolute; top: 36px; left: 50%; transform: translateX(-50%); width: 240px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.15); color: #fff; outline: none; font-size: 13px; }
+#launchpad .lp-search::placeholder { color: rgba(255,255,255,0.6); }
+.desktop-icon { position: absolute; }
+#desktop-icons { top: 36px; right: 0; bottom: 90px; width: 110px; }
+.desktop-icon.selected .label { background: var(--accent); border-radius: 4px; padding: 0 3px; }
+.desktop-icon.dragging { opacity: 0.7; }
+
+/* Диалоги оболочки вместо alert/prompt/confirm */
+.sheet-back { position: fixed; inset: 0; z-index: 2600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.25); }
+.sheet { width: min(360px, calc(100vw - 24px)); background: rgba(245,245,247,0.97); color: #1d1d1f; border-radius: 12px; padding: 18px; box-shadow: 0 24px 60px rgba(0,0,0,0.45); font-size: 13px; }
+.sheet h3 { font-size: 14px; margin-bottom: 8px; }
+.sheet p { color: #555; margin-bottom: 12px; line-height: 1.45; word-break: break-word; }
+.sheet input { width: 100%; padding: 6px 8px; border: 1px solid #c7c7cc; border-radius: 6px; font: inherit; margin-bottom: 4px; outline: none; background: #fff; color: #1d1d1f; user-select: text; }
+.sheet input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,122,255,0.2); }
+.sheet .err { color: #d70015; font-size: 11px; min-height: 14px; margin-bottom: 8px; }
+.sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+.sheet button { border: none; border-radius: 6px; padding: 5px 14px; font-size: 13px; background: rgba(0,0,0,0.08); color: #1d1d1f; }
+.sheet button.ok { background: var(--accent); color: #fff; }
+.sheet dl { display: grid; grid-template-columns: 90px 1fr; gap: 4px 10px; margin-bottom: 14px; }
+.sheet dt { color: #86868b; }
+.sheet pre { white-space: pre-wrap; background: #fff; border: 1px solid #e0e0e5; border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; font: 12px/1.5 Menlo, Consolas, monospace; margin-bottom: 12px; user-select: text; }
+
+/* Файлы */
+.finder-toolbar { gap: 6px; }
+.finder-toolbar .nav { width: 24px; height: 22px; border: none; border-radius: 5px; background: rgba(0,0,0,0.05); color: #1d1d1f; font-size: 13px; }
+.finder-toolbar .nav:disabled { opacity: 0.3; cursor: default; }
+.finder-toolbar .crumb { cursor: pointer; padding: 1px 4px; border-radius: 4px; }
+.finder-toolbar .crumb:hover { background: rgba(0,0,0,0.06); }
+.finder-toolbar .grow { flex: 1; }
+.finder-toolbar .tbtn { border: none; background: rgba(0,0,0,0.05); border-radius: 5px; padding: 2px 8px; font-size: 12px; color: #1d1d1f; }
+.finder-toolbar .tbtn:hover { background: rgba(0,0,0,0.1); }
+.finder-main .empty { grid-column: 1 / -1; color: #86868b; text-align: center; padding: 40px 0; font-size: 13px; }
+.finder-sidebar li.drop { background: rgba(0,122,255,0.3); }
+.finder-status { height: 22px; flex-shrink: 0; font-size: 11px; color: #86868b; display: flex; align-items: center; padding: 0 12px; border-top: 1px solid rgba(0,0,0,0.06); }
+
+/* Браузер */
+.safari-url input { flex: 1; border: none; outline: none; background: transparent; font: inherit; color: #1d1d1f; user-select: text; min-width: 0; }
+.fav { flex-direction: column; font-size: 26px; }
+.offline { text-align: center; padding-top: 60px; }
+
+/* Заметки */
+.notes-list-pane { display: flex; flex-direction: column; padding: 0; }
+.notes-tools { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.notes-tools input { flex: 1; min-width: 0; border: none; border-radius: 6px; padding: 4px 8px; background: rgba(0,0,0,0.06); font: inherit; font-size: 12px; outline: none; color: #1d1d1f; user-select: text; }
+.notes-tools button { border: none; border-radius: 6px; background: rgba(0,0,0,0.06); width: 26px; font-size: 14px; color: #1d1d1f; }
+.notes-tools button:hover { background: rgba(0,0,0,0.12); }
+#notes-items { flex: 1; overflow: auto; }
+.notes-editor { display: flex; flex-direction: column; }
+.notes-editor .note-body { flex: 1; user-select: text; }
+.notes-editor .note-title { user-select: text; }
+.notes-empty { color: #86868b; padding: 30px; text-align: center; font-size: 13px; }
+
+/* Калькулятор */
+.calc-display { white-space: nowrap; word-break: normal; font-variant-numeric: tabular-nums; }
+.calc-btn.op.active { background: #fff; color: #ff9500; }
+
+/* Календарь */
+.cal-event { cursor: pointer; }
+.cal-hint { font-size: 11px; color: #86868b; margin-top: 8px; }
+
+/* Погода */
+.weather-demo { text-align: center; font-size: 11px; opacity: 0.7; margin-top: 10px; }
+
+/* Фото */
+.photos-side .pi .cnt { float: right; color: #86868b; font-size: 11px; }
+.photo-tile .heart { position: absolute; right: 6px; bottom: 4px; color: #fff; font-size: 16px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.photo-tile .cap { position: absolute; left: 8px; top: 6px; color: rgba(255,255,255,0.9); font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+.photo-viewer { position: absolute; inset: 0; background: rgba(0,0,0,0.92); display: flex; flex-direction: column; z-index: 5; }
+.photo-viewer .pv-img { flex: 1; margin: 16px 60px; border-radius: 8px; }
+.photo-viewer .pv-bar { display: flex; justify-content: center; gap: 10px; padding: 10px; color: #fff; align-items: center; font-size: 13px; }
+.photo-viewer button { background: rgba(255,255,255,0.15); color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 13px; }
+.photo-viewer button:hover { background: rgba(255,255,255,0.28); }
+
+/* Музыка */
+.music-main { display: flex; flex-direction: column; }
+.music-tracks { flex: 1; overflow: auto; }
+.music-track { grid-template-columns: 24px 1fr 30px 60px; }
+.music-track .like { color: #ff2d55; text-align: center; }
+.music-player { height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-top: 1px solid rgba(0,0,0,0.08); background: rgba(255,255,255,0.85); color: #1d1d1f; font-size: 13px; }
+.music-player button { border: none; background: rgba(0,0,0,0.06); border-radius: 50%; width: 32px; height: 32px; font-size: 13px; color: #1d1d1f; }
+.music-player button:disabled { opacity: 0.35; cursor: default; }
+.music-player .mp-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-player .mp-bar { width: 160px; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; overflow: hidden; }
+.music-player .mp-bar div { height: 100%; width: 0; background: var(--accent); }
+.music-player .mp-time { width: 70px; text-align: right; color: #86868b; font-variant-numeric: tabular-nums; }
+
+/* Карты */
+.maps-body { cursor: grab; touch-action: none; }
+.maps-body.panning { cursor: grabbing; }
+.maps-world { position: absolute; left: 0; top: 0; width: 2400px; height: 1600px; transform-origin: 0 0; }
+.maps-world .maps-canvas { position: absolute; inset: 0; }
+.maps-road { position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.06); }
+.maps-water { position: absolute; background: #9fd0f5; border-radius: 40% 60% 55% 45%; }
+.maps-park { position: absolute; background: #b6e3a8; border-radius: 30px; }
+.maps-place { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.maps-place svg { width: 26px; height: 34px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.35)); }
+.maps-place span { font-size: 11px; background: rgba(255,255,255,0.9); color: #1d1d1f; border-radius: 4px; padding: 0 4px; margin-top: 2px; white-space: nowrap; }
+.maps-place.active span { background: var(--accent); color: #fff; }
+.maps-search { padding: 0; width: 260px; cursor: default; }
+.maps-search input { width: 100%; border: none; outline: none; background: transparent; padding: 8px 14px; font: inherit; font-size: 13px; color: #1d1d1f; user-select: text; }
+.maps-results div { padding: 6px 14px; font-size: 13px; cursor: pointer; border-top: 1px solid rgba(0,0,0,0.06); }
+.maps-results div:hover { background: rgba(0,122,255,0.1); }
+.maps-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.maps-zoom button { width: 30px; height: 30px; border: none; border-radius: 8px; background: rgba(255,255,255,0.95); font-size: 16px; color: #1d1d1f; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+/* Настройки */
+.set-search { padding: 0; }
+.set-search input { width: 100%; border: none; outline: none; background: transparent; padding: 6px 10px; font: inherit; font-size: 12px; color: #1d1d1f; user-select: text; }
+.set-row input[type=range] { width: 220px; max-width: 45%; accent-color: var(--accent); }
+.set-seg { display: flex; gap: 6px; }
+.set-seg .opt { width: 54px; height: 36px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+.set-seg .opt.on { border-color: var(--accent); }
+.set-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+.set-dot.on { border-color: #1d1d1f; }
+.set-walls { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.set-wall { height: 74px; border-radius: 8px; cursor: pointer; border: 3px solid transparent; position: relative; }
+.set-wall.on { border-color: var(--accent); }
+.set-wall span { position: absolute; left: 8px; bottom: 5px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.set-note { font-size: 12px; color: #86868b; line-height: 1.5; margin: 6px 2px 12px; }
+.set-btn { border: none; border-radius: 6px; padding: 5px 12px; background: rgba(0,0,0,0.08); color: #1d1d1f; font-size: 13px; }
+
+/* Экран блокировки и фильтры экрана */
+#lock { position: fixed; inset: 0; z-index: 5000; display: none; flex-direction: column; align-items: center; color: #fff; cursor: pointer; }
+#lock.open { display: flex; }
+#lock .lk-bg { position: absolute; inset: 0; filter: blur(18px) brightness(0.85); transform: scale(1.08); }
+#lock .lk-date { position: relative; margin-top: 10vh; font-size: 20px; font-weight: 500; text-shadow: 0 1px 6px rgba(0,0,0,0.3); }
+#lock .lk-time { position: relative; font-size: clamp(64px, 12vw, 120px); font-weight: 600; line-height: 1.05; text-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+#lock .lk-user { position: relative; margin-top: auto; margin-bottom: 12vh; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 14px; }
+#lock .lk-avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #5ac8fa, #5856d6); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+#lock .lk-hint { font-size: 12px; opacity: 0.8; }
+#dim-layer { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 6000; }
+#night-layer { position: fixed; inset: 0; background: rgba(255,150,50,0.16); mix-blend-mode: multiply; pointer-events: none; z-index: 6001; display: none; }
+.about-card .logo svg { width: 72px; height: 72px; }
+.about-card .note { margin-top: 14px; font-size: 12px; color: #6e6e73; }
+
+/* Тёмное оформление окон */
+body.dark { --win-bg: rgba(40,40,44,0.86); }
+body.dark .window { color: #f2f2f7; border-color: rgba(255,255,255,0.15); }
+body.dark .window-content { background: rgba(30,30,32,0.75); }
+body.dark .titlebar { background: rgba(255,255,255,0.06); border-bottom-color: rgba(255,255,255,0.08); }
+body.dark .titlebar-title, body.dark .finder-item .fname, body.dark .finder-toolbar .breadcrumbs, body.dark .finder-sidebar li,
+body.dark .set-main, body.dark .set-side .sec, body.dark .note-item .nt, body.dark .notes-editor .note-title, body.dark .notes-editor .note-body,
+body.dark .cal-head h2, body.dark .cal-cell, body.dark .safari-page, body.dark .music-track, body.dark .photos-side .pi,
+body.dark .finder-toolbar .nav, body.dark .finder-toolbar .tbtn, body.dark .notes-tools button, body.dark .notes-tools input,
+body.dark .safari-url input, body.dark .set-search input, body.dark .cal-nav button, body.dark .music-player, body.dark .music-player button { color: #f2f2f7; }
+body.dark .finder-sidebar, body.dark .set-side, body.dark .photos-side { background: rgba(50,50,55,0.6); border-right-color: rgba(255,255,255,0.06); }
+body.dark .set-row, body.dark .cal-cell, body.dark .cal-dow { background: rgba(255,255,255,0.07); }
+body.dark .cal-cell.other { background: rgba(255,255,255,0.03); color: #6e6e73; }
+body.dark .notes-list-pane { background: rgba(60,55,40,0.5); }
+body.dark .notes-editor { background: rgba(45,42,32,0.6); }
+body.dark .safari-content { background: #1c1c1e; }
+body.dark .music-main { background: rgba(30,30,32,0.8); }
+body.dark .music-player { background: rgba(40,40,44,0.9); }
+body.dark .safari-url { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.1); }
+body.dark .safari-toolbar, body.dark .finder-toolbar { background: rgba(255,255,255,0.04); }
+body.dark .fav { background: linear-gradient(135deg, #3a3a3c, #2c2c2e); color: #f2f2f7; }
+body.dark .set-dot.on { border-color: #fff; }
+body.dark .set-btn { background: rgba(255,255,255,0.12); color: #f2f2f7; }
+body.reduce-glass .window, body.reduce-glass #dock, body.reduce-glass #menubar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.reduce-glass .window { background: #ececef; }
+body.reduce-glass.dark .window { background: #2c2c2e; }
+body.reduce-glass #dock::before { display: none; }
+
+@media (max-width: 760px) {
+  #menubar .menu-item { margin-right: 4px; }
+  #menubar .menu-item[data-menu="go"], #menubar .menu-item[data-menu="help"] { display: none; }
+  .dock-icon { width: 40px; height: 40px; }
+}
+.music-side { background: linear-gradient(180deg, #8b5cf6, #5b21b6); }
+.music-header { background: linear-gradient(135deg, #7c3aed, #c084fc); }
+.music-track .like { color: #8b5cf6; }
+/* Калькулятор: пять рядов кнопок делят высоту окна, ничего не обрезается при любом размере */
+.calc-body { min-height: 0; }
+.calc-display { min-height: 64px; flex-shrink: 0; }
+.calc-grid { grid-template-rows: repeat(5, minmax(0, 1fr)); min-height: 0; }
+.calc-btn { aspect-ratio: auto; border-radius: 999px; min-height: 0; }
+.calc-btn.zero { aspect-ratio: auto; }
+
+.dock-icon { width: var(--dock, 52px); height: var(--dock, 52px); }
+.dock-icon .ti, .dock-icon .ti svg { display: block; width: 100%; height: 100%; }
+.desktop-icon { pointer-events: auto; }
+.term-art { color: #5af78e; }
+</style>
+</head>
+<body>
+<svg class="sr-only" aria-hidden="true">
+  <defs>
+    <filter id="glass-distort" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.012" numOctaves="2" seed="7" result="turb"/>
+      <feGaussianBlur in="turb" stdDeviation="1.2" result="softTurb"/>
+      <feDisplacementMap in="SourceGraphic" in2="softTurb" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- Свой знак оболочки «Тахо»: круг с волнами озера. Не логотип какой-либо компании. -->
+    <symbol id="tahoeMark" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/>
+      <path d="M7 14c3-3 6-3 9 0s6 3 9 0M7 20c3-3 6-3 9 0s6 3 9 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="desktop"></div>
+<div id="desktop-icons"></div>
+<div id="windows"></div>
+
+<div id="menubar">
+  <span class="apple-logo" data-menu="system" title="Меню системы"><svg><use href="#tahoeMark"/></svg></span>
+  <span class="app-name" id="active-app">Рабочий стол</span>
+  <span class="menu-item" data-menu="file">Файл</span>
+  <span class="menu-item" data-menu="view">Вид</span>
+  <span class="menu-item" data-menu="go">Переход</span>
+  <span class="menu-item" data-menu="window">Окно</span>
+  <span class="menu-item" data-menu="help">Справка</span>
+  <div class="right">
+    <span class="icon-btn static" id="mb-battery" title="Батарея">
+      <svg viewBox="0 0 24 24"><rect x="2" y="8" width="16" height="8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.5"/><rect x="3" y="9" width="13" height="6" fill="#fff"/><rect x="19" y="10" width="2" height="4" fill="#fff"/></svg>
+    </span>
+    <span class="icon-btn" id="mb-wifi" title="Wi-Fi">
+      <svg viewBox="0 0 24 24"><path d="M12 18a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-5c2 0 3.8.8 5.2 2L16 16.2A5.5 5.5 0 0012 14.5a5.5 5.5 0 00-4 1.7L6.8 15c1.4-1.2 3.2-2 5.2-2zm0-5c3.5 0 6.6 1.4 9 3.6L19.6 13a10.5 10.5 0 00-15.2 0L3 11.6C5.4 9.4 8.5 8 12 8z" fill="#fff"/></svg>
+    </span>
+    <span class="icon-btn" id="mb-search" title="Поиск (Ctrl+Пробел)">
+      <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 014.6 9.9l4.7 4.7-1.4 1.4-4.7-4.7A6 6 0 1110 4zm0 2a4 4 0 100 8 4 4 0 000-8z" fill="#fff"/></svg>
+    </span>
+    <span class="icon-btn" id="mb-cc" title="Пункт управления">
+      <svg viewBox="0 0 24 24"><circle cx="6" cy="8" r="2" fill="#fff"/><rect x="10" y="6" width="11" height="4" rx="2" fill="#fff" opacity="0.6"/><rect x="3" y="14" width="11" height="4" rx="2" fill="#fff" opacity="0.6"/><circle cx="18" cy="16" r="2" fill="#fff"/></svg>
+    </span>
+    <span class="clock" id="clock" title="Открыть календарь"></span>
+  </div>
+</div>
+<div class="menu-dropdown" id="menu-dropdown" role="menu"></div>
+
+<div id="spotlight" role="dialog" aria-label="Поиск">
+  <div class="spotlight-bar">
+    <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 014.6 9.9l4.7 4.7-1.4 1.4-4.7-4.7A6 6 0 1110 4zm0 2a4 4 0 100 8 4 4 0 000-8z"/></svg>
+    <input id="spotlight-input" placeholder="Поиск программ, файлов, заметок и настроек" autocomplete="off"/>
+  </div>
+  <div class="spotlight-results" id="spotlight-results"></div>
+</div>
+
+<div id="launchpad" role="dialog" aria-label="Все программы">
+  <input class="lp-search" id="lp-search" placeholder="Поиск" autocomplete="off">
+  <div class="lp-grid" id="lp-grid"></div>
+</div>
+
+<div id="control-center" role="dialog" aria-label="Пункт управления">
+  <div class="cc-grid">
+    <div class="cc-tile" id="cc-wifi" data-cc="wifi">
+      <div class="cc-icon-circle"><svg viewBox="0 0 24 24"><path d="M12 18a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-5c2 0 3.8.8 5.2 2L16 16.2A5.5 5.5 0 0012 14.5a5.5 5.5 0 00-4 1.7L6.8 15c1.4-1.2 3.2-2 5.2-2zm0-5c3.5 0 6.6 1.4 9 3.6L19.6 13a10.5 10.5 0 00-15.2 0L3 11.6C5.4 9.4 8.5 8 12 8z"/></svg></div>
+      <div class="cc-tile-text">Wi-Fi<div class="sub"></div></div>
+    </div>
+    <div class="cc-tile" id="cc-bt" data-cc="bt">
+      <div class="cc-icon-circle"><svg viewBox="0 0 24 24"><path d="M8 4l8 8-4 4v4l8-8-4-4v-4z" stroke="#fff" stroke-width="1.5" fill="none"/></svg></div>
+      <div class="cc-tile-text">Bluetooth<div class="sub"></div></div>
+    </div>
+    <div class="cc-tile" id="cc-dnd" data-cc="dnd">
+      <div class="cc-icon-circle"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" fill="#fff"/></svg></div>
+      <div class="cc-tile-text">Не беспокоить<div class="sub"></div></div>
+    </div>
+    <div class="cc-tile" id="cc-dark" data-cc="dark">
+      <div class="cc-icon-circle"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 4a8 8 0 010 16z" fill="#fff"/></svg></div>
+      <div class="cc-tile-text">Тёмное оформление<div class="sub"></div></div>
+    </div>
+  </div>
+  <div class="cc-slider-row">
+    <div class="label"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="#86868b"/><g stroke="#86868b" stroke-width="1.5"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></g></svg> Яркость</div>
+    <input type="range" class="cc-slider" id="cc-brightness" min="30" max="100" aria-label="Яркость"/>
+  </div>
+  <div class="cc-slider-row">
+    <div class="label"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3z" fill="#86868b"/><path d="M16 8c2 1.5 2 6.5 0 8" stroke="#86868b" stroke-width="1.5" fill="none"/></svg> Звук</div>
+    <input type="range" class="cc-slider" id="cc-volume" min="0" max="100" aria-label="Громкость"/>
+  </div>
+</div>
+
+<div id="mission-control" role="dialog" aria-label="Обзор окон"><div class="mc-grid" id="mc-grid"></div></div>
+
+<div id="about-modal" role="dialog" aria-label="Об этом компьютере">
+  <div class="about-card">
+    <div class="logo" style="color:#5856d6"><svg><use href="#tahoeMark"/></svg></div>
+    <h2>Тахо</h2>
+    <div class="ver">Оболочка в духе настольных систем, версия 2.0</div>
+    <div class="specs">
+      <div><span>Оболочка</span> HTML, CSS и JavaScript в одном файле</div>
+      <div><span>Хранилище</span> память этого браузера (localStorage)</div>
+      <div><span>Сеть</span> не нужна</div>
+      <div><span>Открыто окон</span> <b id="about-wins">0</b></div>
+    </div>
+    <div class="note">Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung. Значки, знак и обои нарисованы заново, шрифты системные.</div>
+    <button id="about-ok">Готово</button>
+  </div>
+</div>
+
+<div class="context-menu" id="context-menu" role="menu"></div>
+
+<div id="dock-wrap"><div id="dock"></div></div>
+<div id="dock-hotzone"></div>
+
+<div id="lock" role="dialog" aria-label="Экран блокировки">
+  <div class="lk-bg" id="lk-bg"></div>
+  <div class="lk-date" id="lk-date"></div>
+  <div class="lk-time" id="lk-time"></div>
+  <div class="lk-user"><div class="lk-avatar">П</div><div>Пользователь</div><div class="lk-hint">Щёлкните или нажмите любую клавишу, чтобы войти</div></div>
+</div>
+<div id="dim-layer"></div>
+<div id="night-layer"></div>
+
+<script>
+'use strict';
+// ================================================================
+// Тахо: оболочка в духе настольной системы. Фан-концепт интерфейса,
+// не связан с Microsoft/Apple/Samsung. Всё работает без сети,
+// состояние хранится в localStorage под префиксом «macos-tahoe.».
+// ================================================================
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad2 = n => String(n).padStart(2, '0');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('macos-tahoe.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('macos-tahoe.' + k, JSON.stringify(v)); } catch (e) { /* хранилище недоступно */ } },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('macos-tahoe.')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* нет доступа */ } },
+};
+const listeners = {};
+const on = (ev, fn) => { (listeners[ev] = listeners[ev] || new Set()).add(fn); return () => listeners[ev].delete(fn); };
+const emit = ev => (listeners[ev] || []).forEach(fn => fn());
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const MONTHS_SHORT = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
+const DAYS_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const DAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+
+// ================= Настройки и оформление =================
+const WALLPAPERS = {
+  tahoe: { name: 'Тахо', blend: 'screen, screen, screen, screen, screen, normal', css: 'radial-gradient(ellipse at 20% 10%, #f4a85f 0%, transparent 45%), radial-gradient(ellipse at 80% 20%, #e8704a 0%, transparent 50%), radial-gradient(ellipse at 50% 60%, #b3408a 0%, transparent 55%), radial-gradient(ellipse at 90% 90%, #5b2a8c 0%, transparent 50%), radial-gradient(ellipse at 10% 90%, #2e1a5e 0%, transparent 55%), linear-gradient(180deg, #3a1d6e 0%, #1a0c3a 100%)' },
+  lake: { name: 'Озеро', blend: 'normal', css: 'radial-gradient(ellipse at 30% 20%, #7dd3fc 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, #0e7490 0%, transparent 55%), linear-gradient(180deg, #0c4a6e 0%, #082f49 100%)' },
+  dawn: { name: 'Рассвет', blend: 'normal', css: 'radial-gradient(ellipse at 50% 100%, #fde68a 0%, transparent 55%), linear-gradient(180deg, #312e81 0%, #be185d 70%, #fb923c 100%)' },
+  forest: { name: 'Лес', blend: 'normal', css: 'radial-gradient(ellipse at 70% 30%, #86efac 0%, transparent 45%), linear-gradient(160deg, #064e3b 0%, #14532d 60%, #1a2e05 100%)' },
+  graphite: { name: 'Графит', blend: 'normal', css: 'radial-gradient(ellipse at 50% 30%, #52525b 0%, transparent 60%), linear-gradient(180deg, #27272a 0%, #09090b 100%)' },
+};
+const ACCENTS = ['#007aff', '#5856d6', '#ff2d55', '#ff9500', '#34c759', '#8e8e93'];
+const DEFAULTS = { wallpaper: 'tahoe', dark: false, accent: '#007aff', glass: true, dockSize: 52, magnify: true, autohide: false,
+  brightness: 100, night: false, volume: 60, wifi: true, bt: true, dnd: false };
+const S = Object.assign({}, DEFAULTS, store.get('settings', {}));
+function applySettings() {
+  const wp = WALLPAPERS[S.wallpaper] || WALLPAPERS.tahoe;
+  const d = $('desktop');
+  d.style.background = wp.css; d.style.backgroundBlendMode = wp.blend;
+  $('lk-bg').style.background = wp.css;
+  document.body.classList.toggle('dark', S.dark);
+  document.body.classList.toggle('reduce-glass', !S.glass);
+  document.documentElement.style.setProperty('--accent', S.accent);
+  document.documentElement.style.setProperty('--dock', S.dockSize + 'px');
+  $('dock').classList.toggle('no-magnify', !S.magnify);
+  $('dock-wrap').classList.toggle('autohide', S.autohide);
+  $('dock-hotzone').classList.toggle('on', S.autohide);
+  $('dim-layer').style.opacity = String((100 - S.brightness) / 100 * 0.7);
+  $('night-layer').style.display = S.night ? 'block' : 'none';
+  $('mb-wifi').classList.toggle('off', !S.wifi);
+  const cc = { wifi: [S.wifi, S.wifi ? 'Подключено' : 'Выключено'], bt: [S.bt, S.bt ? 'Включён' : 'Выключен'], dnd: [S.dnd, S.dnd ? 'Включено' : 'Выключено'], dark: [S.dark, S.dark ? 'Включено' : 'Выключено'] };
+  Object.entries(cc).forEach(([k, [v, sub]]) => { const t = $('cc-' + k); t.querySelector('.cc-icon-circle').classList.toggle('off', !v); t.querySelector('.sub').textContent = sub; });
+  [['cc-brightness', S.brightness], ['cc-volume', S.volume]].forEach(([id, v]) => { const s = $(id); s.value = v; s.style.setProperty('--v', ((v - s.min) / (s.max - s.min) * 100) + '%'); });
+  emit('settings');
+}
+function setS(k, v) { S[k] = v; store.set('settings', S); applySettings(); }
+
+// ================= Значки (свои, нарисованы заново) =================
+function icon(id) {
+  const now = new Date();
+  const I = {
+    files: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-files" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-files)"/><path d="M14 22h13l4 5h19v19a3 3 0 01-3 3H17a3 3 0 01-3-3z" fill="#fff"/><path d="M14 30h36" stroke="#93c5fd" stroke-width="2"/></svg>',
+    launchpad: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#3f3f46"/>' + ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#22d3ee', '#a3e635'].map((c, i) => '<circle cx="' + (19 + (i % 3) * 13) + '" cy="' + (19 + Math.floor(i / 3) * 13) + '" r="5" fill="' + c + '"/>').join('') + '</svg>',
+    browser: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-br" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-br)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="3"/><path d="M14 32h36M32 14c-8 8-8 28 0 36M32 14c8 8 8 28 0 36" fill="none" stroke="#fff" stroke-width="2.5"/></svg>',
+    maps: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#d9f99d"/><path d="M2 40l60-16v10L2 50z" fill="#fff"/><path d="M40 2v60" stroke="#fff" stroke-width="6"/><circle cx="24" cy="24" r="9" fill="#ef4444"/><circle cx="24" cy="24" r="3.5" fill="#fff"/><path d="M24 33l-5-6h10z" fill="#ef4444"/></svg>',
+    photos: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-ph" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdba74"/><stop offset="1" stop-color="#f43f5e"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-ph)"/><circle cx="44" cy="20" r="6" fill="#fef9c3"/><path d="M8 50l16-20 10 12 8-8 14 16z" fill="#fff"/></svg>',
+    music: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-mu" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c084fc"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-mu)"/><path d="M26 44V20l20-5v24" fill="none" stroke="#fff" stroke-width="3.5"/><circle cx="21" cy="44" r="6" fill="#fff"/><circle cx="41" cy="40" r="6" fill="#fff"/></svg>',
+    notes: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#fffbe6"/><rect x="2" y="2" width="60" height="14" rx="14" fill="#fde047"/><rect x="2" y="12" width="60" height="4" fill="#fde047"/><g stroke="#e0d480" stroke-width="1.2"><line x1="14" y1="26" x2="50" y2="26"/><line x1="14" y1="34" x2="50" y2="34"/><line x1="14" y1="42" x2="42" y2="42"/><line x1="14" y1="50" x2="48" y2="50"/></g></svg>',
+    calendar: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#fff"/><rect x="2" y="2" width="60" height="16" rx="14" fill="#ef4444"/><rect x="2" y="12" width="60" height="6" fill="#ef4444"/><text x="32" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="system-ui, sans-serif">' + MONTHS_SHORT[now.getMonth()] + '</text><text x="32" y="50" text-anchor="middle" font-size="28" font-weight="300" fill="#1d1d1f" font-family="system-ui, sans-serif">' + now.getDate() + '</text></svg>',
+    weather: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-we" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fb1ff"/><stop offset="1" stop-color="#2864c8"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-we)"/><circle cx="22" cy="22" r="9" fill="#ffcc00"/><path d="M14 38c-4 0-7 3-7 7s3 7 7 7h32c4 0 7-3 7-7s-3-7-7-7c0-5-4-9-9-9-3 0-6 2-8 4-1-1-3-2-5-2-5 0-9 4-9 7z" fill="#fff"/></svg>',
+    calculator: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#27272a"/><rect x="10" y="10" width="44" height="12" rx="3" fill="#52525b"/><g fill="#71717a"><rect x="10" y="28" width="10" height="9" rx="2"/><rect x="23" y="28" width="10" height="9" rx="2"/><rect x="10" y="40" width="10" height="9" rx="2"/><rect x="23" y="40" width="10" height="9" rx="2"/><rect x="10" y="52" width="23" height="6" rx="2"/></g><g fill="#fb923c"><rect x="36" y="28" width="18" height="9" rx="2"/><rect x="36" y="40" width="18" height="18" rx="2"/></g></svg>',
+    terminal: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#18181b"/><path d="M14 22l10 9-10 9" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M28 42h20" stroke="#e4e4e7" stroke-width="4" stroke-linecap="round"/></svg>',
+    settings: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-set" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a1a1aa"/><stop offset="1" stop-color="#52525b"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-set)"/><g transform="translate(32,32)" fill="#fff">' + [0, 45, 90, 135, 180, 225, 270, 315].map(a => '<rect x="-3.5" y="-21" width="7" height="9" rx="1.5" transform="rotate(' + a + ')"/>').join('') + '<circle r="13"/><circle r="5" fill="#71717a"/></g></svg>',
+    trash: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M22 22h20v22a4 4 0 01-4 4H26a4 4 0 01-4-4z"/><path d="M18 22h28"/><path d="M28 18h8"/><path d="M28 30v12M36 30v12"/></g></svg>',
+    trashFull: '<svg viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)"/><path d="M24 22l6-8 8 5 6-5" fill="#fff" opacity="0.85"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M22 22h20v22a4 4 0 01-4 4H26a4 4 0 01-4-4z"/><path d="M18 22h28"/><path d="M28 30v12M36 30v12"/></g></svg>',
+  };
+  return I[id] || I.launchpad;
+}
+const FILE_ICONS = {
+  folder: '<svg viewBox="0 0 64 64"><defs><linearGradient id="g-fol" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7eb6ff"/><stop offset="1" stop-color="#3a86e0"/></linearGradient></defs><path d="M6 16h18l4 5h30c2 0 4 2 4 4v25c0 2-2 4-4 4H6c-2 0-4-2-4-4V20c0-2 2-4 4-4z" fill="url(#g-fol)"/></svg>',
+  text: '<svg viewBox="0 0 64 64"><rect x="12" y="6" width="40" height="52" rx="3" fill="#fff" stroke="#c7c7cc"/><line x1="18" y1="18" x2="46" y2="18" stroke="#1d1d1f" stroke-width="1.5"/><g stroke="#8e8e93"><line x1="18" y1="26" x2="46" y2="26"/><line x1="18" y1="34" x2="46" y2="34"/><line x1="18" y1="42" x2="40" y2="42"/></g></svg>',
+  code: '<svg viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" rx="4" fill="#1d1d1f"/><text x="32" y="40" text-anchor="middle" font-family="monospace" font-size="20" fill="#4ade80">{ }</text></svg>',
+  sheet: '<svg viewBox="0 0 64 64"><rect x="10" y="6" width="44" height="52" rx="3" fill="#fff" stroke="#c7c7cc"/><rect x="14" y="14" width="36" height="12" fill="#34c759"/><g stroke="#8e8e93"><line x1="14" y1="34" x2="50" y2="34"/><line x1="14" y1="42" x2="50" y2="42"/><line x1="32" y1="28" x2="32" y2="50"/></g></svg>',
+  image: '<svg viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" rx="4" fill="#3a3a3c"/><circle cx="22" cy="26" r="6" fill="#ffd60a"/><polygon points="8,56 26,38 36,46 56,28 56,56" fill="#34c759"/></svg>',
+  archive: '<svg viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" rx="4" fill="#5e5e63"/><rect x="28" y="8" width="8" height="48" fill="#3a3a3c"/><g fill="#ffcc00"><rect x="30" y="14" width="4" height="4"/><rect x="30" y="22" width="4" height="4"/><rect x="30" y="30" width="4" height="4"/></g></svg>',
+  other: '<svg viewBox="0 0 64 64"><rect x="12" y="6" width="40" height="52" rx="3" fill="#fff" stroke="#c7c7cc"/><text x="32" y="40" text-anchor="middle" font-size="14" fill="#8e8e93" font-family="system-ui, sans-serif">?</text></svg>',
+};
+
+// ================= Файлы: одна файловая система для Файлов, рабочего стола, Терминала и Корзины =================
+const PHOTO_GRADIENTS = ['linear-gradient(135deg,#ff7e5f,#feb47b)', 'linear-gradient(135deg,#4a90e2,#2e5fa0)', 'linear-gradient(135deg,#b86fc9,#5e3a87)', 'linear-gradient(135deg,#ffcc00,#ff9500)',
+  'linear-gradient(135deg,#34c759,#1f8f3a)', 'linear-gradient(135deg,#5ac8fa,#007aff)', 'linear-gradient(135deg,#ff2d55,#af1f3a)', 'linear-gradient(135deg,#af52de,#6b2db2)',
+  'linear-gradient(160deg,#2e1a5e,#5b2a8c)', 'linear-gradient(135deg,#f4a85f,#e8704a)', 'linear-gradient(180deg,#7dd3fc,#0e7490)', 'linear-gradient(135deg,#a8d99a,#5fa353)'];
+const SYS_FOLDERS = ['home', 'documents', 'desktop', 'downloads', 'pictures', 'trash'];
+const FOLDER_ORDER = [['home', 'Домой'], ['documents', 'Документы'], ['desktop', 'Рабочий стол'], ['downloads', 'Загрузки'], ['pictures', 'Изображения']];
+function typeOf(name) {
+  const ext = (name.match(/\.([^.]+)$/) || [])[1];
+  if (!ext) return 'other';
+  const e = ext.toLowerCase();
+  if (['txt', 'md', 'log'].includes(e)) return 'text';
+  if (['py', 'js', 'html', 'css', 'json', 'sh'].includes(e)) return 'code';
+  if (['csv', 'tsv'].includes(e)) return 'sheet';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(e)) return 'image';
+  if (['zip', 'rar', '7z', 'dmg'].includes(e)) return 'archive';
+  return 'other';
+}
+function defaultFS() {
+  let n = 0;
+  const f = (name, parent, extra = {}) => Object.assign({ id: 'e' + (++n), name, type: typeOf(name), parent }, extra);
+  return [
+    { id: 'home', name: 'Пользователь', type: 'folder', parent: null },
+    { id: 'documents', name: 'Документы', type: 'folder', parent: 'home' },
+    { id: 'desktop', name: 'Рабочий стол', type: 'folder', parent: 'home' },
+    { id: 'downloads', name: 'Загрузки', type: 'folder', parent: 'home' },
+    { id: 'pictures', name: 'Изображения', type: 'folder', parent: 'home' },
+    { id: 'trash', name: 'Корзина', type: 'folder', parent: null },
+    f('Отчёт.txt', 'documents', { content: 'Отчёт\n\n1. Введение\n2. Что сделано\n3. Что осталось\n' }),
+    f('script.py', 'documents', { content: 'def hello(name):\n    print(f"Привет, {name}!")\n\nhello("Тахо")\n' }),
+    f('Бюджет.csv', 'documents', { content: 'статья;сумма\nеда;12000\nпроезд;2500\nкниги;1800\n' }),
+    { id: 'projects', name: 'Проекты', type: 'folder', parent: 'documents' },
+    f('план.txt', 'projects', { content: '- доделать оболочку\n- проверить на маленьком экране\n' }),
+    f('Заметка.txt', 'desktop', { content: 'Двойной щелчок по значку открывает файл.\nЗначки на рабочем столе можно перетаскивать.\n' }),
+    f('Снимок экрана.png', 'desktop', { grad: 10 }),
+    f('архив.zip', 'downloads', { size: 2345678 }),
+    f('обои.png', 'downloads', { grad: 0 }),
+    f('Горы.png', 'pictures', { grad: 8 }),
+    f('Море.png', 'pictures', { grad: 5 }),
+  ];
+}
+let FS = store.get('fs', null) || defaultFS();
+const saveFS = () => { store.set('fs', FS); emit('fs'); };
+const entry = id => FS.find(e => e.id === id);
+const childrenOf = id => FS.filter(e => e.parent === id).sort((a, b) => (a.type === 'folder') === (b.type === 'folder') ? a.name.localeCompare(b.name, 'ru') : a.type === 'folder' ? -1 : 1);
+const sizeOf = e => e.type === 'folder' ? childrenOf(e.id).reduce((s, c) => s + sizeOf(c), 0) : e.content != null ? new Blob([e.content]).size : (e.size || 0);
+const fmtSize = b => b < 1024 ? b + ' Б' : b < 1048576 ? (b / 1024).toFixed(1).replace('.', ',') + ' КБ' : (b / 1048576).toFixed(1).replace('.', ',') + ' МБ';
+function pathOf(id) { const p = []; let e = entry(id); while (e) { p.unshift(e); e = e.parent ? entry(e.parent) : null; } return p; }
+function isInside(id, folderId) { let e = entry(id); while (e) { if (e.id === folderId) return true; e = e.parent ? entry(e.parent) : null; } return false; }
+function uniqueName(parent, base, ext = '') { let n = base + ext, i = 2; while (FS.some(e => e.parent === parent && e.name === n)) n = base + ' ' + (i++) + ext; return n; }
+function nameError(parent, name, selfId) {
+  if (!name) return 'Введите имя';
+  if (/[\/\\:]/.test(name)) return 'Имя не может содержать / \\ :';
+  if (FS.some(e => e.parent === parent && e.name === name && e.id !== selfId)) return 'Здесь уже есть объект с таким именем';
+  return '';
+}
+function newId() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function createEntry(parent, name, type, extra = {}) { const e = Object.assign({ id: newId(), name, type, parent }, extra); FS.push(e); saveFS(); return e; }
+function renameEntry(id, name) { const e = entry(id); e.name = name; if (e.type !== 'folder') e.type = typeOf(name); saveFS(); }
+function moveEntry(id, to) {
+  const e = entry(id);
+  if (!e || SYS_FOLDERS.includes(id) || e.parent === to || isInside(to, id)) return false;
+  e.name = uniqueName(to, e.name.replace(/(\.[^.]+)?$/, ''), (e.name.match(/\.[^.]+$/) || [''])[0]);
+  if (to === 'trash') e.from = e.parent; else delete e.from;
+  e.parent = to; saveFS(); return true;
+}
+const trashEntry = id => moveEntry(id, 'trash');
+function restoreEntry(id) { const e = entry(id); const to = e && e.from && entry(e.from) && !isInside(e.from, 'trash') ? e.from : 'home'; return moveEntry(id, to); }
+function deleteForever(id) { const kill = new Set(); const walk = x => { kill.add(x); FS.filter(e => e.parent === x).forEach(e => walk(e.id)); }; walk(id); FS = FS.filter(e => !kill.has(e.id)); saveFS(); }
+function emptyTrash() { childrenOf('trash').forEach(e => deleteForever(e.id)); }
+function duplicateEntry(id) {
+  const e = entry(id); if (!e || e.type === 'folder') return;
+  const m = e.name.match(/^(.*?)(\.[^.]+)?$/);
+  createEntry(e.parent, uniqueName(e.parent, m[1] + ' копия', m[2] || ''), e.type, { content: e.content, grad: e.grad, size: e.size });
+}
+
+// ================= Диалоги оболочки (вместо alert/prompt/confirm) =================
+function sheet({ title, text = '', input = null, buttons = ['OK'], html = '', validate }) {
+  return new Promise(resolve => {
+    const back = document.createElement('div');
+    back.className = 'sheet-back';
+    back.innerHTML = '<div class="sheet" role="dialog">' + (title ? '<h3>' + esc(title) + '</h3>' : '') + (text ? '<p>' + esc(text) + '</p>' : '') + html +
+      (input !== null ? '<input maxlength="80"><div class="err"></div>' : '') +
+      '<div class="row">' + buttons.map((b, i) => '<button data-i="' + i + '"' + (i === buttons.length - 1 ? ' class="ok"' : '') + '>' + esc(b) + '</button>').join('') + '</div></div>';
+    document.body.appendChild(back);
+    const inp = back.querySelector('input');
+    const done = v => { back.remove(); resolve(v); };
+    const ok = () => {
+      if (!inp) return done(buttons.length - 1);
+      const v = inp.value.trim(), err = validate ? validate(v) : (v ? '' : 'Введите значение');
+      if (err) { back.querySelector('.err').textContent = err; inp.focus(); return; }
+      done(v);
+    };
+    back.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; const i = +b.dataset.i; if (i === buttons.length - 1) ok(); else done(inp ? null : i); });
+    back.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Escape') done(inp ? null : 0);
+      if (e.key === 'Enter' && (inp || !e.target.closest('button'))) { e.preventDefault(); ok(); }
+    });
+    back.addEventListener('mousedown', e => { if (e.target === back) done(inp ? null : 0); });
+    if (inp) { inp.value = input; inp.focus(); const dot = input.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : input.length); }
+    else back.querySelector('.ok').focus();
+  });
+}
+const askName = (title, value, parent, selfId) => sheet({ title, input: value, buttons: ['Отмена', 'Готово'], validate: v => nameError(parent, v, selfId) });
+async function previewEntry(e) {
+  if (e.type === 'folder') { openFiles(e.id); return; }
+  if (e.type === 'image') {
+    await sheet({ title: e.name, html: '<div style="height:200px;border-radius:8px;margin-bottom:12px;background:' + PHOTO_GRADIENTS[(e.grad || 0) % PHOTO_GRADIENTS.length] + '"></div>', buttons: ['Закрыть'] });
+    return;
+  }
+  if (e.content == null) { await sheet({ title: e.name, text: 'Этот файл нельзя открыть в демо: у него нет содержимого (' + fmtSize(sizeOf(e)) + ').', buttons: ['Закрыть'] }); return; }
+  const r = await sheet({ title: e.name, html: '<pre>' + esc(e.content || '(пустой файл)') + '</pre>', buttons: ['Изменить', 'Закрыть'] });
+  if (r === 0) editEntry(e);
+}
+function editEntry(e) {
+  const back = document.createElement('div');
+  back.className = 'sheet-back';
+  back.innerHTML = '<div class="sheet" style="width:min(560px,calc(100vw - 24px))"><h3>' + esc(e.name) + '</h3><textarea style="width:100%;height:40vh;font:12px/1.5 Menlo,Consolas,monospace;border:1px solid #c7c7cc;border-radius:6px;padding:8px;margin-bottom:12px;resize:none;outline:none;user-select:text"></textarea><div class="row"><button data-x>Отмена</button><button class="ok" data-s>Сохранить</button></div></div>';
+  document.body.appendChild(back);
+  const ta = back.querySelector('textarea');
+  ta.value = e.content || '';
+  ta.focus();
+  const close = () => back.remove();
+  back.querySelector('[data-x]').onclick = close;
+  back.querySelector('[data-s]').onclick = () => { e.content = ta.value; saveFS(); close(); };
+  back.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Escape') close(); if ((ev.ctrlKey || ev.metaKey) && ev.code === 'KeyS') { ev.preventDefault(); back.querySelector('[data-s]').click(); } });
+}
+async function showInfo(e) {
+  await sheet({ title: 'Свойства', html: '<dl><dt>Имя</dt><dd>' + esc(e.name) + '</dd><dt>Вид</dt><dd>' + ({ folder: 'Папка', text: 'Текст', code: 'Код', sheet: 'Таблица', image: 'Изображение', archive: 'Архив', other: 'Документ' }[e.type]) +
+    '</dd><dt>Размер</dt><dd>' + fmtSize(sizeOf(e)) + '</dd><dt>Где</dt><dd>' + esc(pathOf(e.parent).map(p => p.name).join(' › ') || '—') + '</dd></dl>', buttons: ['Готово'] });
+}
+
+// ================= Приложения =================
+const APPS = {
+  files: { name: 'Файлы', w: 760, h: 480, init: initFiles },
+  browser: { name: 'Браузер', w: 820, h: 540, init: initBrowser },
+  maps: { name: 'Карты', w: 760, h: 500, init: initMaps },
+  photos: { name: 'Фото', w: 800, h: 520, init: initPhotos },
+  music: { name: 'Музыка', w: 820, h: 520, init: initMusic },
+  notes: { name: 'Заметки', w: 720, h: 460, init: initNotes },
+  calendar: { name: 'Календарь', w: 720, h: 560, init: initCalendar },
+  weather: { name: 'Погода', w: 380, h: 560, minW: 340, minH: 420, init: initWeather },
+  calculator: { name: 'Калькулятор', w: 280, h: 440, minW: 260, minH: 400, init: initCalculator },
+  terminal: { name: 'Терминал', w: 680, h: 420, init: initTerminal },
+  settings: { name: 'Настройки', w: 780, h: 540, init: initSettings },
+};
+const DOCK_APPS = ['files', 'launchpad', 'browser', 'maps', 'photos', 'music', 'notes', 'calendar', 'weather', 'calculator', 'terminal', 'settings'];
+const appName = id => id === 'launchpad' ? 'Все программы' : id === 'trash' ? 'Корзина' : APPS[id].name;
+
+// ================= Диспетчер окон =================
+const wins = {};         // id -> { el, body, maxed, min, prev, onKey, cleanup }
+let order = [];          // порядок наложения (последний - сверху)
+let activeId = null;
+const TOP = 28;
+const area = () => ({ w: innerWidth, h: innerHeight - TOP });
+
+function openApp(id, arg) {
+  closeOverlays();
+  if (id === 'launchpad') { openLaunchpad(); return; }
+  if (id === 'trash') { openFiles('trash'); return; }
+  const app = APPS[id]; if (!app) return;
+  let w = wins[id];
+  if (!w) w = createWindow(id);
+  if (w.min) restoreWindow(id);
+  if (arg !== undefined && w.onArg) w.onArg(arg);
+  focusWindow(id);
+}
+function createWindow(id) {
+  const app = APPS[id];
+  const el = document.createElement('div');
+  el.className = 'window open opening';
+  el.id = 'win-' + id;
+  el.dataset.app = id;
+  el.innerHTML = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(d => '<div class="resize-handle resize-' + d + '" data-dir="' + d + '"></div>').join('') +
+    '<div class="titlebar"><div class="traffic-lights"><span class="tl tl-close" data-act="close" title="Закрыть"><span>×</span></span>' +
+    '<span class="tl tl-min" data-act="min" title="Свернуть"><span>−</span></span><span class="tl tl-max" data-act="max" title="Во весь экран"><span>+</span></span></div>' +
+    '<div class="titlebar-title"></div></div><div class="window-content"></div>';
+  $('windows').appendChild(el);
+  const w = { id, el, body: el.querySelector('.window-content'), maxed: false, min: false, prev: null, cleanup: [] };
+  w.setTitle = t => { el.querySelector('.titlebar-title').textContent = t; };
+  w.setTitle(app.name);
+  wins[id] = w;
+  order.push(id);
+  const a = area(), saved = store.get('win.' + id, null);
+  const n = Object.keys(wins).length % 5;
+  const width = Math.min(saved ? saved.w : app.w, a.w), height = Math.min(saved ? saved.h : app.h, a.h);
+  Object.assign(el.style, { width: width + 'px', height: height + 'px',
+    left: (saved ? saved.x : (a.w - width) / 2 + (n - 2) * 24) + 'px', top: (saved ? saved.y : TOP + (a.h - height) / 2 - 30 + (n - 2) * 20) + 'px' });
+  if (app.minW) el.style.minWidth = app.minW + 'px';
+  if (app.minH) el.style.minHeight = app.minH + 'px';
+  setTimeout(() => el.classList.remove('opening'), 240);
+  el.querySelectorAll('.tl').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    ({ close: closeWindow, min: minimizeWindow, max: toggleMaximize })[b.dataset.act](id);
+  }));
+  el.addEventListener('pointerdown', () => focusWindow(id), true);
+  const tb = el.querySelector('.titlebar');
+  tb.addEventListener('dblclick', e => { if (!e.target.closest('.traffic-lights')) toggleMaximize(id); });
+  enableDrag(w, tb);
+  el.querySelectorAll('.resize-handle').forEach(h => enableResize(w, h));
+  app.init(w);
+  clampWindow(w);
+  if (saved && saved.max) toggleMaximize(id);
+  updateDock();
+  return w;
+}
+function focusWindow(id) {
+  const w = wins[id]; if (!w || w.min) return;
+  order = order.filter(x => x !== id).concat(id);
+  restack();
+}
+function restack() {
+  order.forEach((id, i) => { wins[id].el.style.zIndex = i + 1; });
+  const top = [...order].reverse().find(id => !wins[id].min) || null;
+  activeId = top;
+  Object.values(wins).forEach(w => w.el.classList.toggle('focused', w.id === top));
+  $('active-app').textContent = top ? APPS[top].name : 'Рабочий стол';
+  updateDock();
+}
+function rememberWindow(w) {
+  const r = w.maxed && w.prev ? w.prev : { left: w.el.style.left, top: w.el.style.top, width: w.el.style.width, height: w.el.style.height };
+  store.set('win.' + w.id, { x: parseFloat(r.left), y: parseFloat(r.top), w: parseFloat(r.width), h: parseFloat(r.height), max: w.maxed });
+}
+function closeWindow(id) {
+  const w = wins[id]; if (!w) return;
+  rememberWindow(w);
+  w.cleanup.forEach(f => f());
+  w.el.remove();
+  delete wins[id];
+  order = order.filter(x => x !== id);
+  restack();
+}
+function minimizeWindow(id) {
+  const w = wins[id]; if (!w || w.min) return;
+  w.min = true;
+  w.el.classList.add('minimizing');
+  setTimeout(() => { if (w.min) { w.el.classList.remove('minimizing', 'open'); } }, 380);
+  restack();
+}
+function restoreWindow(id) {
+  const w = wins[id]; if (!w) return;
+  w.min = false;
+  w.el.classList.remove('minimizing');
+  w.el.classList.add('open', 'opening');
+  setTimeout(() => w.el.classList.remove('opening'), 240);
+}
+function toggleMaximize(id) {
+  const w = wins[id]; if (!w) return;
+  const s = w.el.style;
+  if (w.maxed) { Object.assign(s, w.prev); w.maxed = false; w.el.classList.remove('maximized'); clampWindow(w); }
+  else { w.prev = { left: s.left, top: s.top, width: s.width, height: s.height }; w.maxed = true; w.el.classList.add('maximized'); }
+  rememberWindow(w);
+  focusWindow(id);
+}
+// Окно всегда целиком на экране: не выше строки меню, не правее и не ниже края.
+function clampWindow(w) {
+  if (w.maxed) return;
+  const a = area(), el = w.el, s = el.style;
+  const minW = parseFloat(el.style.minWidth) || 380, minH = parseFloat(el.style.minHeight) || 240;
+  const width = Math.max(Math.min(minW, a.w), Math.min(el.offsetWidth || parseFloat(s.width), a.w));
+  const height = Math.max(Math.min(minH, a.h), Math.min(el.offsetHeight || parseFloat(s.height), a.h));
+  s.width = width + 'px'; s.height = height + 'px';
+  s.left = Math.max(0, Math.min(parseFloat(s.left) || 0, a.w - width)) + 'px';
+  s.top = Math.max(TOP, Math.min(parseFloat(s.top) || TOP, TOP + a.h - height)) + 'px';
+}
+addEventListener('resize', () => { Object.values(wins).forEach(clampWindow); layoutDesktopIcons(); });
+function enableDrag(w, tb) {
+  tb.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('.traffic-lights')) return;
+    const el = w.el, sx = e.clientX, sy = e.clientY;
+    let dx = sx - el.offsetLeft, dy = sy - el.offsetTop, started = false;
+    tb.setPointerCapture(e.pointerId);
+    const move = ev => {
+      if (!started) {
+        if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+        started = true;
+        if (w.maxed) { // развёрнутое окно при перетаскивании возвращается к прежнему размеру под курсором
+          const ratio = sx / innerWidth;
+          toggleMaximize(w.id);
+          el.style.left = (sx - el.offsetWidth * ratio) + 'px'; el.style.top = TOP + 'px';
+          dx = sx - el.offsetLeft; dy = sy - el.offsetTop;
+        }
+      }
+      el.style.left = (ev.clientX - dx) + 'px'; el.style.top = (ev.clientY - dy) + 'px';
+      clampWindow(w);
+    };
+    const up = () => { tb.removeEventListener('pointermove', move); tb.removeEventListener('pointerup', up); tb.removeEventListener('pointercancel', up); if (started) rememberWindow(w); };
+    tb.addEventListener('pointermove', move); tb.addEventListener('pointerup', up); tb.addEventListener('pointercancel', up);
+  });
+}
+function enableResize(w, h) {
+  h.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || w.maxed) return;
+    e.stopPropagation();
+    const el = w.el, dir = h.dataset.dir, a = area();
+    const st = { x: e.clientX, y: e.clientY, left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+    const minW = parseFloat(el.style.minWidth) || 380, minH = parseFloat(el.style.minHeight) || 240;
+    h.setPointerCapture(e.pointerId);
+    const move = ev => {
+      const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+      let { left, top, width, height } = st;
+      if (dir.includes('e')) width = Math.min(a.w - left, Math.max(minW, st.width + dx));
+      if (dir.includes('s')) height = Math.min(TOP + a.h - top, Math.max(minH, st.height + dy));
+      if (dir.includes('w')) { const nl = Math.max(0, Math.min(st.left + st.width - minW, st.left + dx)); width = st.width + st.left - nl; left = nl; }
+      if (dir.includes('n')) { const nt = Math.max(TOP, Math.min(st.top + st.height - minH, st.top + dy)); height = st.height + st.top - nt; top = nt; }
+      Object.assign(el.style, { left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px' });
+    };
+    const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); clampWindow(w); rememberWindow(w); };
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
+}
+
+// ================= Dock (панель приложений) =================
+function buildDock() {
+  const dock = $('dock');
+  dock.innerHTML = DOCK_APPS.map(id => '<div class="dock-icon" data-app="' + id + '" role="button" aria-label="' + esc(appName(id)) + '">' + icon(id) + '<div class="tooltip">' + esc(appName(id)) + '</div></div>').join('') +
+    '<div class="separator"></div><div class="dock-icon" data-app="trash" role="button" aria-label="Корзина"><span class="ti"></span><div class="tooltip">Корзина</div></div>';
+  dock.addEventListener('click', e => { const i = e.target.closest('.dock-icon'); if (i) dockClick(i.dataset.app); });
+  dock.addEventListener('contextmenu', e => {
+    const i = e.target.closest('.dock-icon'); if (!i) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = i.dataset.app;
+    if (id === 'trash') { showMenu(e.clientX, e.clientY, [{ label: 'Открыть', action: () => openFiles('trash') }, { label: 'Очистить корзину', disabled: !childrenOf('trash').length, action: confirmEmptyTrash }]); return; }
+    if (id === 'launchpad') { showMenu(e.clientX, e.clientY, [{ label: 'Открыть', action: openLaunchpad }]); return; }
+    const w = wins[id];
+    showMenu(e.clientX, e.clientY, w ? [
+      { label: w.min ? 'Развернуть' : 'Показать', action: () => openApp(id) },
+      { label: 'Свернуть', disabled: w.min, action: () => minimizeWindow(id) },
+      { sep: true }, { label: 'Закрыть', action: () => closeWindow(id) },
+    ] : [{ label: 'Открыть', action: () => openApp(id) }]);
+  });
+  const wrap = $('dock-wrap');
+  $('dock-hotzone').addEventListener('mouseenter', () => wrap.classList.add('show'));
+  wrap.addEventListener('mouseleave', () => wrap.classList.remove('show'));
+  updateDock();
+}
+// Как в настольной системе с панелью: щелчок открывает программу, возвращает свёрнутое окно или поднимает его.
+function dockClick(id) { openApp(id); }
+
+function updateDock() {
+  document.querySelectorAll('#dock .dock-icon').forEach(i => {
+    const w = wins[i.dataset.app];
+    i.classList.toggle('running', !!w);
+    i.classList.toggle('minimized', !!(w && w.min));
+  });
+  // значки перерисовываются только при изменении, а не каждую секунду
+  const full = childrenOf('trash').length > 0, t = document.querySelector('#dock .dock-icon[data-app="trash"] .ti');
+  if (t && t.dataset.full !== String(full)) { t.innerHTML = icon(full ? 'trashFull' : 'trash'); t.dataset.full = full; }
+
+  const cal = document.querySelector('#dock .dock-icon[data-app="calendar"] svg');
+  if (cal && cal.dataset.day !== String(new Date().getDate())) { cal.outerHTML = icon('calendar'); document.querySelector('#dock .dock-icon[data-app="calendar"] svg').dataset.day = new Date().getDate(); }
+}
+async function confirmEmptyTrash() {
+  const n = childrenOf('trash').length; if (!n) return;
+  if ((await sheet({ title: 'Очистить корзину?', text: 'Объектов в корзине: ' + n + '. Их нельзя будет вернуть.', buttons: ['Отмена', 'Очистить'] })) === 1) emptyTrash();
+}
+on('fs', updateDock);
+
+// ================= Строка меню =================
+const focusedId = () => activeId;
+function menuItems(key) {
+  const f = focusedId();
+  if (key === 'system') return [
+    { label: 'Об этом компьютере', action: showAbout },
+    { sep: true }, { label: 'Настройки…', action: () => openApp('settings') },
+    { label: 'Обзор окон', shortcut: 'Ctrl+↑', action: openMissionControl },
+    { sep: true }, { label: 'Заблокировать экран', action: lockScreen },
+    { label: 'Перезагрузить…', action: restartShell },
+  ];
+  if (key === 'file') {
+    const items = [];
+    if (f === 'notes') items.push({ label: 'Новая заметка', action: () => wins.notes.newNote() });
+    if (f === 'files' || !f) items.push({ label: 'Новая папка', action: () => newFolderIn(f ? wins.files.folder() : 'desktop') }, { label: 'Новый текстовый файл', action: () => newTextIn(f ? wins.files.folder() : 'desktop') });
+    if (f === 'terminal') items.push({ label: 'Очистить экран', action: () => wins.terminal.clear() });
+    if (f === 'calendar') items.push({ label: 'Новое событие сегодня', action: () => wins.calendar.addToday() });
+    if (items.length) items.push({ sep: true });
+    items.push({ label: 'Открыть Файлы', action: () => openApp('files') }, { label: 'Закрыть окно', disabled: !f, action: () => closeWindow(f) });
+    return items;
+  }
+  if (key === 'view') return [
+    { label: f && wins[f].maxed ? 'Выйти из полноэкранного режима' : 'Во весь экран', disabled: !f, action: () => toggleMaximize(f) },
+    { sep: true }, { label: 'Тёмное оформление', checked: S.dark, action: () => setS('dark', !S.dark) },
+    { label: 'Автоматически скрывать панель', checked: S.autohide, action: () => setS('autohide', !S.autohide) },
+  ];
+  if (key === 'go') return FOLDER_ORDER.map(([id, n]) => ({ label: n, action: () => openFiles(id) })).concat([{ sep: true }, { label: 'Корзина', action: () => openFiles('trash') }]);
+  if (key === 'window') {
+    const list = order.map(id => ({ label: APPS[id].name + (wins[id].min ? ' (свёрнуто)' : ''), checked: id === f, action: () => openApp(id) }));
+    return [
+      { label: 'Свернуть', disabled: !f, action: () => minimizeWindow(f) },
+      { label: 'Увеличить', disabled: !f, action: () => toggleMaximize(f) },
+      { label: 'Вернуть все свёрнутые', disabled: !order.some(id => wins[id].min), action: () => order.filter(id => wins[id].min).forEach(id => openApp(id)) },
+      { label: 'Обзор окон', action: openMissionControl },
+    ].concat(list.length ? [{ sep: true }].concat(list) : []);
+  }
+  if (key === 'help') return [{ label: 'Горячие клавиши', action: showHelp }, { label: 'Об этом компьютере', action: showAbout }];
+  return [];
+}
+let openMenuKey = null;
+function renderMenu(el, items) {
+  el.innerHTML = items.map((it, i) => it.sep ? '<div class="sep"></div>' :
+    '<div class="item' + (it.disabled ? ' disabled' : '') + (it.checked ? ' checked' : '') + '" data-i="' + i + '" role="menuitem"><span>' + esc(it.label) + '</span>' + (it.shortcut ? '<span class="shortcut">' + esc(it.shortcut) + '</span>' : '') + '</div>').join('');
+  el.onclick = e => { const it = e.target.closest('.item'); if (!it || it.classList.contains('disabled')) return; const def = items[+it.dataset.i]; closeMenus(); def.action(); };
+}
+function openMenu(key) {
+  const btn = document.querySelector('#menubar [data-menu="' + key + '"]');
+  const dd = $('menu-dropdown');
+  closeMenus();
+  renderMenu(dd, menuItems(key));
+  dd.classList.add('open');
+  dd.style.left = Math.min(btn.getBoundingClientRect().left, innerWidth - dd.offsetWidth - 4) + 'px';
+  btn.classList.add('open');
+  openMenuKey = key;
+}
+function closeMenus() {
+  $('menu-dropdown').classList.remove('open');
+  document.querySelectorAll('#menubar [data-menu]').forEach(i => i.classList.remove('open'));
+  openMenuKey = null;
+}
+document.querySelectorAll('#menubar [data-menu]').forEach(item => {
+  item.addEventListener('click', e => { e.stopPropagation(); const k = item.dataset.menu; if (openMenuKey === k) closeMenus(); else { closeOverlays(); openMenu(k); } });
+  item.addEventListener('mouseenter', () => { if (openMenuKey && openMenuKey !== item.dataset.menu) openMenu(item.dataset.menu); });
+});
+$('mb-search').addEventListener('click', e => { e.stopPropagation(); openSpotlight(); });
+$('mb-wifi').addEventListener('click', e => { e.stopPropagation(); toggleCC(); });
+$('mb-cc').addEventListener('click', e => { e.stopPropagation(); toggleCC(); });
+$('clock').addEventListener('click', e => { e.stopPropagation(); openApp('calendar'); });
+
+// ================= Контекстное меню =================
+const ctxMenu = $('context-menu');
+function showMenu(x, y, items) {
+  closeMenus();
+  renderMenu(ctxMenu, items);
+  ctxMenu.onclick = e => { const it = e.target.closest('.item'); if (!it || it.classList.contains('disabled')) return; const def = items[+it.dataset.i]; ctxMenu.classList.remove('open'); def.action(); };
+  ctxMenu.classList.add('open');
+  ctxMenu.style.left = Math.max(4, Math.min(x, innerWidth - ctxMenu.offsetWidth - 4)) + 'px';
+  ctxMenu.style.top = Math.max(TOP, Math.min(y, innerHeight - ctxMenu.offsetHeight - 4)) + 'px';
+}
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest('.context-menu')) ctxMenu.classList.remove('open');
+  if (!e.target.closest('.menu-dropdown') && !e.target.closest('#menubar [data-menu]')) closeMenus();
+  if (!e.target.closest('#control-center') && !e.target.closest('#mb-cc') && !e.target.closest('#mb-wifi')) $('control-center').classList.remove('open');
+  if (!e.target.closest('#spotlight') && !e.target.closest('#mb-search')) $('spotlight').classList.remove('open');
+});
+document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea, .terminal-body')) e.preventDefault(); });
+
+// ================= Рабочий стол =================
+let iconPos = store.get('iconPos', {});
+let selectedIcon = null;
+function renderDesktopIcons() {
+  const box = $('desktop-icons');
+  const items = childrenOf('desktop');
+  box.innerHTML = items.map(e => '<div class="desktop-icon' + (e.id === selectedIcon ? ' selected' : '') + '" data-id="' + e.id + '" tabindex="0">' +
+    '<div class="icon-img">' + (FILE_ICONS[e.type] || FILE_ICONS.other) + '</div><span class="label">' + esc(e.name) + '</span></div>').join('');
+  layoutDesktopIcons();
+}
+function layoutDesktopIcons() {
+  const box = $('desktop-icons'); if (!box) return;
+  const icons = [...box.querySelectorAll('.desktop-icon')];
+  const colH = Math.max(1, Math.floor((innerHeight - 130) / 96));
+  icons.forEach((el, i) => {
+    const p = iconPos[el.dataset.id];
+    const x = p ? p.x : innerWidth - 96 - Math.floor(i / colH) * 90;
+    const y = p ? p.y : 40 + (i % colH) * 96;
+    el.style.left = Math.max(0, Math.min(x, innerWidth - 84)) + 'px';
+    el.style.top = Math.max(TOP + 4, Math.min(y, innerHeight - 100)) + 'px';
+  });
+}
+(function wireDesktopIcons() {
+  const box = $('desktop-icons');
+  // слой значков на весь экран: координаты значков - это координаты экрана
+  Object.assign(box.style, { top: '0', left: '0', right: '0', bottom: '0', width: 'auto', pointerEvents: 'none' });
+
+  box.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.desktop-icon'); if (!el || e.button !== 0) return;
+    selectIcon(el.dataset.id);
+    const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
+    let moved = false;
+    el.setPointerCapture(e.pointerId);
+    const move = ev => {
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 5) return;
+      moved = true; el.classList.add('dragging');
+      el.style.left = Math.max(0, Math.min(ox + ev.clientX - sx, innerWidth - 84)) + 'px';
+      el.style.top = Math.max(TOP + 4, Math.min(oy + ev.clientY - sy, innerHeight - 100)) + 'px';
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up);
+      el.classList.remove('dragging');
+      if (moved) { iconPos[el.dataset.id] = { x: el.offsetLeft, y: el.offsetTop }; store.set('iconPos', iconPos); }
+    };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+  });
+  box.addEventListener('dblclick', e => { const el = e.target.closest('.desktop-icon'); if (el) previewEntry(entry(el.dataset.id)); });
+  box.addEventListener('keydown', e => {
+    const el = e.target.closest('.desktop-icon'); if (!el) return;
+    if (e.key === 'Enter') previewEntry(entry(el.dataset.id));
+    if (e.key === 'Delete') { trashEntry(el.dataset.id); }
+  });
+  box.addEventListener('contextmenu', e => {
+    const el = e.target.closest('.desktop-icon'); if (!el) return;
+    e.preventDefault(); e.stopPropagation();
+    const it = entry(el.dataset.id); selectIcon(it.id);
+    showMenu(e.clientX, e.clientY, [
+      { label: 'Открыть', action: () => previewEntry(it) },
+      { label: 'Свойства', action: () => showInfo(it) },
+      { label: 'Переименовать', action: async () => { const n = await askName('Переименовать', it.name, it.parent, it.id); if (n) renameEntry(it.id, n); } },
+      { label: 'Дублировать', disabled: it.type === 'folder', action: () => duplicateEntry(it.id) },
+      { sep: true }, { label: 'Переместить в корзину', action: () => trashEntry(it.id) },
+    ]);
+  });
+  $('desktop').addEventListener('pointerdown', () => selectIcon(null));
+  $('desktop').addEventListener('contextmenu', e => {
+    e.preventDefault();
+    showMenu(e.clientX, e.clientY, [
+      { label: 'Новая папка', action: () => newFolderIn('desktop') },
+      { label: 'Новый текстовый файл', action: () => newTextIn('desktop') },
+      { sep: true },
+      { label: 'Упорядочить значки', action: () => { iconPos = {}; store.set('iconPos', iconPos); layoutDesktopIcons(); } },
+      { label: 'Показать в Файлах', action: () => openFiles('desktop') },
+      { sep: true }, { label: 'Сменить обои…', action: () => openApp('settings', 'wallpaper') },
+    ]);
+  });
+  on('fs', renderDesktopIcons);
+})();
+function selectIcon(id) { selectedIcon = id; document.querySelectorAll('.desktop-icon').forEach(el => el.classList.toggle('selected', el.dataset.id === id)); }
+async function newFolderIn(folder) { const n = await askName('Новая папка', uniqueName(folder, 'Новая папка'), folder); if (n) createEntry(folder, n, 'folder'); }
+async function newTextIn(folder) { const n = await askName('Новый текстовый файл', uniqueName(folder, 'Без названия', '.txt'), folder); if (n) createEntry(folder, n, typeOf(n), { content: '' }); }
+
+// ================= Часы =================
+function tickClock() {
+  const d = new Date();
+  const txt = DAYS_SHORT[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3) + '. ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  if ($('clock').textContent !== txt) $('clock').textContent = txt;
+  $('lk-time').textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  $('lk-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + d.toLocaleDateString('ru-RU', { month: 'long' }).replace(/^\d+\s*/, '');
+  updateDock();
+}
+setInterval(tickClock, 1000);
+
+// ================= Пункт управления =================
+function toggleCC() { const o = !$('control-center').classList.contains('open'); closeOverlays(); $('control-center').classList.toggle('open', o); }
+document.querySelectorAll('#control-center [data-cc]').forEach(t => t.addEventListener('click', () => setS(t.dataset.cc, !S[t.dataset.cc])));
+$('cc-brightness').addEventListener('input', e => setS('brightness', +e.target.value));
+$('cc-volume').addEventListener('input', e => setS('volume', +e.target.value));
+
+// ================= Обзор окон =================
+function openMissionControl() {
+  closeOverlays();
+  const grid = $('mc-grid');
+  grid.innerHTML = order.length ? order.map(id => '<div><div class="mc-thumb" data-app="' + id + '"><div class="mc-tb-tb"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="mc-tb-title">' + esc(APPS[id].name) + '</div></div>' +
+    '<div class="mc-tb-body" style="display:flex;align-items:center;justify-content:center"><div style="width:64px;height:64px">' + icon(id) + '</div></div></div><div class="mc-label">' + esc(APPS[id].name) + (wins[id].min ? ' (свёрнуто)' : '') + '</div></div>').join('')
+    : '<div style="color:#fff;opacity:0.75;font-size:14px">Открытых окон нет</div>';
+  $('mission-control').classList.add('open');
+}
+$('mission-control').addEventListener('click', e => {
+  const t = e.target.closest('.mc-thumb');
+  $('mission-control').classList.remove('open');
+  if (t) openApp(t.dataset.app);
+});
+
+// ================= Все программы =================
+function openLaunchpad() {
+  closeOverlays();
+  $('lp-search').value = '';
+  renderLaunchpad();
+  $('launchpad').classList.add('open');
+  $('lp-search').focus();
+}
+function renderLaunchpad() {
+  const q = $('lp-search').value.trim().toLowerCase();
+  const ids = Object.keys(APPS).filter(id => APPS[id].name.toLowerCase().includes(q));
+  $('lp-grid').innerHTML = ids.length ? ids.map(id => '<div class="lp-app" data-app="' + id + '"><div class="lpicon">' + icon(id) + '</div><div class="lpname">' + esc(APPS[id].name) + '</div></div>').join('')
+    : '<div style="color:#fff;grid-column:1/-1;text-align:center">Ничего не найдено</div>';
+}
+$('lp-search').addEventListener('input', renderLaunchpad);
+$('lp-search').addEventListener('keydown', e => { if (e.key === 'Enter') { const a = $('lp-grid').querySelector('.lp-app'); if (a) a.click(); } });
+$('launchpad').addEventListener('click', e => {
+  const a = e.target.closest('.lp-app');
+  if (a) { $('launchpad').classList.remove('open'); openApp(a.dataset.app); }
+  else if (e.target.id === 'launchpad' || e.target.id === 'lp-grid') $('launchpad').classList.remove('open');
+});
+
+// ================= Поиск =================
+function openSpotlight() {
+  closeOverlays();
+  $('spotlight').classList.add('open');
+  $('spotlight-input').value = '';
+  $('spotlight-results').classList.remove('show');
+  $('spotlight-input').focus();
+}
+let spMatches = [], spActive = 0;
+function spIndex() {
+  const idx = Object.keys(APPS).map(id => ({ name: APPS[id].name, kind: 'Программа', icon: icon(id), action: () => openApp(id) }));
+  SET_SECTIONS.forEach(s => idx.push({ name: s.name, kind: 'Настройки', icon: icon('settings'), action: () => openApp('settings', s.id) }));
+  FS.filter(e => !isInside(e.id, 'trash') && e.parent).forEach(e => idx.push({ name: e.name, kind: e.type === 'folder' ? 'Папка' : 'Файл', icon: FILE_ICONS[e.type] || FILE_ICONS.other, action: () => e.type === 'folder' ? openFiles(e.id) : previewEntry(e) }));
+  loadNotes().forEach(n => idx.push({ name: n.title || 'Без названия', kind: 'Заметка', icon: icon('notes'), action: () => { openApp('notes'); wins.notes.select(n.id); } }));
+  idx.push({ name: 'Об этом компьютере', kind: 'Система', icon: icon('settings'), action: showAbout });
+  idx.push({ name: 'Обзор окон', kind: 'Система', icon: icon('launchpad'), action: openMissionControl });
+  return idx;
+}
+function renderSpotlight() {
+  const q = $('spotlight-input').value.toLowerCase().trim(), res = $('spotlight-results');
+  spMatches = q ? spIndex().filter(it => it.name.toLowerCase().includes(q)).slice(0, 9) : [];
+  spActive = 0;
+  res.innerHTML = spMatches.length ? spMatches.map((m, i) => '<div class="spotlight-result' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"><div class="ricon">' + m.icon + '</div><div class="rname">' + esc(m.name) + '</div><div class="rkind">' + m.kind + '</div></div>').join('')
+    : (q ? '<div class="spotlight-result"><div class="rname">Ничего не найдено</div></div>' : '');
+  res.classList.toggle('show', !!q);
+}
+$('spotlight-input').addEventListener('input', renderSpotlight);
+$('spotlight-results').addEventListener('click', e => { const r = e.target.closest('[data-i]'); if (r) { $('spotlight').classList.remove('open'); spMatches[+r.dataset.i].action(); } });
+$('spotlight-input').addEventListener('keydown', e => {
+  const items = $('spotlight-results').querySelectorAll('[data-i]');
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length) {
+    e.preventDefault();
+    spActive = Math.max(0, Math.min(items.length - 1, spActive + (e.key === 'ArrowDown' ? 1 : -1)));
+    items.forEach((it, i) => it.classList.toggle('active', i === spActive));
+  } else if (e.key === 'Enter' && items.length) { $('spotlight').classList.remove('open'); spMatches[spActive].action(); }
+});
+
+// ================= О компьютере, справка, блокировка, перезагрузка =================
+function showAbout() { closeOverlays(); $('about-wins').textContent = order.length; $('about-modal').classList.add('open'); $('about-ok').focus(); }
+$('about-ok').onclick = () => $('about-modal').classList.remove('open');
+$('about-modal').addEventListener('click', e => { if (e.target.id === 'about-modal') $('about-modal').classList.remove('open'); });
+function showHelp() {
+  sheet({ title: 'Горячие клавиши', html: '<dl style="grid-template-columns:130px 1fr"><dt>Ctrl+Пробел</dt><dd>поиск</dd><dt>Ctrl+↑</dt><dd>обзор окон</dd><dt>Esc</dt><dd>закрыть меню и панели</dd>' +
+    '<dt>Двойной щелчок</dt><dd>по заголовку окна - во весь экран</dd><dt>Enter / Delete</dt><dd>открыть / в корзину (Файлы)</dd><dt>Ctrl+S</dt><dd>сохранить файл при правке</dd></dl>', buttons: ['Понятно'] });
+}
+function lockScreen() { closeOverlays(); tickClock(); $('lock').classList.add('open'); emit('lock'); }
+function unlock() { $('lock').classList.remove('open'); }
+$('lock').addEventListener('click', unlock);
+async function restartShell() {
+  if ((await sheet({ title: 'Перезагрузить?', text: 'Все окна будут закрыты. Файлы, заметки и настройки сохранятся.', buttons: ['Отмена', 'Перезагрузить'] })) !== 1) return;
+  Object.keys(wins).forEach(closeWindow);
+  document.body.style.transition = 'opacity 0.3s'; document.body.style.opacity = '0';
+  setTimeout(() => { document.body.style.opacity = '1'; }, 600);
+}
+function closeOverlays() {
+  closeMenus();
+  ctxMenu.classList.remove('open');
+  ['spotlight', 'launchpad', 'mission-control', 'control-center', 'about-modal'].forEach(id => $(id).classList.remove('open'));
+}
+
+// ================= Клавиатура =================
+document.addEventListener('keydown', e => {
+  if ($('lock').classList.contains('open')) { e.preventDefault(); unlock(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Space') { e.preventDefault(); openSpotlight(); return; }
+  if (e.ctrlKey && e.key === 'ArrowUp') { e.preventDefault(); openMissionControl(); return; }
+  if (e.key === 'Escape') { closeOverlays(); if (activeId && wins[activeId].onKey) wins[activeId].onKey(e); return; }
+  const t = e.target;
+  if (t.closest && t.closest('input, textarea, [contenteditable]')) return;
+  if (activeId && wins[activeId].onKey && (t === document.body || wins[activeId].el.contains(t))) wins[activeId].onKey(e);
+});
+
+// ================= Приложение «Файлы» =================
+function openFiles(folder) { openApp('files', folder); }
+function initFiles(w) {
+  let folder = 'documents', selected = null;
+  const hist = [], fwd = [];
+  w.body.style.overflow = 'hidden';
+  w.body.innerHTML = '<div class="finder-toolbar"><button class="nav" data-nav="back" title="Назад">‹</button><button class="nav" data-nav="fwd" title="Вперёд">›</button>' +
+    '<span class="breadcrumbs"></span><span class="grow"></span><button class="tbtn" data-new="folder">+ Папка</button><button class="tbtn" data-new="text">+ Файл</button></div>' +
+    '<div class="finder-body"><div class="finder-sidebar"><h4>Избранное</h4><ul>' +
+    FOLDER_ORDER.map(([id, n]) => '<li data-folder="' + id + '">' + '<svg viewBox="0 0 16 16" fill="#007aff"><path d="M2 4h5l1 1.5h6V13H2z"/></svg> ' + n + '</li>').join('') +
+    '</ul><h4>Места</h4><ul><li data-folder="trash"><svg viewBox="0 0 16 16" fill="#8e8e93"><path d="M4 5h8l-1 9H5zM3 3h10v1.5H3z"/></svg> Корзина</li></ul></div>' +
+    '<div style="flex:1;display:flex;flex-direction:column;min-width:0"><div class="finder-main"></div><div class="finder-status"></div></div></div>';
+  const main = w.body.querySelector('.finder-main');
+  w.folder = () => folder;
+  function go(id, noHist) { if (!entry(id)) id = 'home'; if (!noHist && id !== folder) { hist.push(folder); fwd.length = 0; } folder = id; selected = null; render(); }
+  w.onArg = id => go(id);
+  function render() {
+    if (!entry(folder)) folder = 'home';
+    const inTrash = folder === 'trash';
+    const items = childrenOf(folder);
+    w.setTitle(entry(folder).name);
+    w.body.querySelector('.breadcrumbs').innerHTML = pathOf(folder).map(p => '<span class="crumb" data-go="' + p.id + '">' + esc(p.name) + '</span>').join(' › ');
+    w.body.querySelectorAll('.finder-sidebar li').forEach(li => li.classList.toggle('active', li.dataset.folder === folder));
+    w.body.querySelector('[data-nav=back]').disabled = !hist.length;
+    w.body.querySelector('[data-nav=fwd]').disabled = !fwd.length;
+    w.body.querySelectorAll('[data-new]').forEach(b => { b.hidden = inTrash; });
+    main.innerHTML = items.length ? items.map(e => '<div class="finder-item' + (e.id === selected ? ' selected' : '') + '" draggable="true" data-id="' + e.id + '" tabindex="0">' +
+      '<div class="ficon">' + (FILE_ICONS[e.type] || FILE_ICONS.other) + '</div><span class="fname">' + esc(e.name) + '</span></div>').join('')
+      : '<div class="empty">' + (inTrash ? 'Корзина пуста' : 'Папка пуста') + '</div>';
+    w.body.querySelector('.finder-status').textContent = 'Объектов: ' + items.length + (inTrash && items.length ? ' · правый щелчок по пустому месту - очистить' : '');
+  }
+  function mark() { main.querySelectorAll('.finder-item').forEach(x => x.classList.toggle('selected', x.dataset.id === selected)); }
+  function open(id) { const e = entry(id); if (!e) return; if (e.type === 'folder') go(e.id); else previewEntry(e); }
+  w.body.addEventListener('click', e => {
+    const c = e.target.closest('[data-go]'); if (c) { go(c.dataset.go); return; }
+    const li = e.target.closest('.finder-sidebar li'); if (li) { go(li.dataset.folder); return; }
+    const nav = e.target.closest('[data-nav]');
+    if (nav && !nav.disabled) { if (nav.dataset.nav === 'back') { fwd.push(folder); folder = hist.pop(); } else { hist.push(folder); folder = fwd.pop(); } selected = null; render(); return; }
+    const nb = e.target.closest('[data-new]'); if (nb) { nb.dataset.new === 'folder' ? newFolderIn(folder) : newTextIn(folder); return; }
+    const it = e.target.closest('.finder-item'); selected = it ? it.dataset.id : null; mark();
+  });
+  main.addEventListener('dblclick', e => { const it = e.target.closest('.finder-item'); if (it) open(it.dataset.id); });
+  main.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    const it = e.target.closest('.finder-item');
+    if (!it) {
+      showMenu(e.clientX, e.clientY, folder === 'trash' ? [{ label: 'Очистить корзину', disabled: !childrenOf('trash').length, action: confirmEmptyTrash }]
+        : [{ label: 'Новая папка', action: () => newFolderIn(folder) }, { label: 'Новый текстовый файл', action: () => newTextIn(folder) }]);
+      return;
+    }
+    const x = entry(it.dataset.id); selected = x.id; mark();
+    showMenu(e.clientX, e.clientY, folder === 'trash' ? [
+      { label: 'Вернуть', action: () => restoreEntry(x.id) }, { sep: true },
+      { label: 'Удалить навсегда', action: async () => { if ((await sheet({ title: 'Удалить «' + x.name + '» навсегда?', text: 'Это нельзя отменить.', buttons: ['Отмена', 'Удалить'] })) === 1) deleteForever(x.id); } },
+    ] : [
+      { label: 'Открыть', action: () => open(x.id) }, { label: 'Свойства', action: () => showInfo(x) },
+      { label: 'Переименовать', disabled: SYS_FOLDERS.includes(x.id), action: async () => { const n = await askName('Переименовать', x.name, x.parent, x.id); if (n) renameEntry(x.id, n); } },
+      { label: 'Дублировать', disabled: x.type === 'folder', action: () => duplicateEntry(x.id) },
+      { sep: true }, { label: 'Переместить в корзину', disabled: SYS_FOLDERS.includes(x.id), action: () => trashEntry(x.id) },
+    ]);
+  });
+  // Перетаскивание: на папку в списке или в боковой панели
+  let dragId = null;
+  main.addEventListener('dragstart', e => { const it = e.target.closest('.finder-item'); if (!it) return; dragId = it.dataset.id; e.dataTransfer.setData('text/plain', dragId); e.dataTransfer.effectAllowed = 'move'; });
+  main.addEventListener('dragend', () => { dragId = null; });
+  const dropTarget = e => { const it = e.target.closest('.finder-item'); if (it && entry(it.dataset.id).type === 'folder') return it; return e.target.closest('.finder-sidebar li'); };
+  w.body.addEventListener('dragover', e => { const t = dropTarget(e); if (t && dragId) { e.preventDefault(); w.body.querySelectorAll('.drop,.dropping').forEach(x => x.classList.remove('drop', 'dropping')); t.classList.add(t.tagName === 'LI' ? 'drop' : 'dropping'); } });
+  w.body.addEventListener('dragleave', e => { const t = dropTarget(e); if (t) t.classList.remove('drop', 'dropping'); });
+  w.body.addEventListener('drop', e => {
+    const t = dropTarget(e); if (!t || !dragId) return;
+    e.preventDefault(); t.classList.remove('drop', 'dropping');
+    moveEntry(dragId, t.dataset.id || t.dataset.folder);
+  });
+  w.onKey = e => {
+    if (e.key === 'Escape') return;
+    const ids = childrenOf(folder).map(x => x.id);
+    if (e.key === 'Enter' && selected) { e.preventDefault(); open(selected); }
+    else if ((e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) && selected && !SYS_FOLDERS.includes(selected)) { e.preventDefault(); if (folder === 'trash') deleteForever(selected); else trashEntry(selected); }
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const i = ids.indexOf(selected); selected = ids[Math.max(0, Math.min(ids.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))] || null; mark(); }
+    else if (e.key === 'Backspace') { const p = entry(folder).parent; if (p) go(p); }
+  };
+  w.cleanup.push(on('fs', render));
+  render();
+}
+
+// ================= Браузер (без сети) =================
+function initBrowser(w) {
+  const PAGES = {
+    'about:start': { title: 'Стартовая страница', html: () => '<div class="start-page-grid">' + [['about:help', '📖', 'Справка'], ['about:system', 'ℹ️', 'О системе'], ['about:clock', '🕒', 'Часы'], ['app:notes', '📝', 'Заметки']]
+      .map(f => '<div class="fav" data-go="' + f[0] + '">' + f[1] + '<div class="fname">' + f[2] + '</div></div>').join('') + '</div><p class="safari-page" style="color:#86868b;padding-top:0">Браузер работает без интернета: доступны только встроенные страницы.</p>' },
+    'about:help': { title: 'Справка', html: () => '<div class="safari-page"><h1>Справка</h1><p>Введите адрес в строке сверху. Страницы <b>about:start</b>, <b>about:help</b>, <b>about:system</b> и <b>about:clock</b> встроены в оболочку.</p><p>Внешние сайты не открываются: оболочка работает без сети.</p></div>' },
+    'about:system': { title: 'О системе', html: () => '<div class="safari-page"><h1>О системе</h1><p>Тахо - оболочка в духе настольных систем в одной странице HTML.</p><p><b>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</b></p><p>Открыто окон: ' + order.length + '. Файлов в «Документах»: ' + childrenOf('documents').length + '.</p></div>' },
+    'about:clock': { title: 'Часы', html: () => '<div class="safari-page" style="text-align:center"><h1 style="font-size:64px;font-weight:300;margin-top:40px" data-clock>' + new Date().toLocaleTimeString('ru-RU') + '</h1><p>' + new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '</p></div>' },
+  };
+  const hist = [], fwd = [];
+  let cur = 'about:start';
+  w.body.innerHTML = '<div class="safari-toolbar"><button class="safari-btn" data-b="back" title="Назад"><svg viewBox="0 0 16 16"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>' +
+    '<button class="safari-btn" data-b="fwd" title="Вперёд"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>' +
+    '<form class="safari-url"><svg width="11" height="11" viewBox="0 0 16 16" fill="#86868b"><path d="M11 7V5a3 3 0 00-6 0v2H4v8h8V7zm-5-2a2 2 0 014 0v2H6z"/></svg><input aria-label="Адрес" placeholder="Введите адрес или about:help" spellcheck="false"></form>' +
+    '<button class="safari-btn" data-b="home" title="Стартовая страница">⌂</button></div><div class="safari-content"></div>';
+  const content = w.body.querySelector('.safari-content'), input = w.body.querySelector('input');
+  let timer = null;
+  function render() {
+    clearInterval(timer);
+    const p = PAGES[cur];
+    content.innerHTML = p ? p.html() : '<div class="safari-page offline"><div style="font-size:48px">📡</div><h1>Нет подключения</h1><p>Страница <b>' + esc(cur) + '</b> не открыта: оболочка работает без сети.</p><p><a href="#" data-go="about:start">Стартовая страница</a></p></div>';
+    w.setTitle((p ? p.title : 'Нет подключения') + ' - Браузер');
+    input.value = cur === 'about:start' ? '' : cur;
+    w.body.querySelector('[data-b=back]').disabled = !hist.length;
+    w.body.querySelector('[data-b=fwd]').disabled = !fwd.length;
+    const c = content.querySelector('[data-clock]');
+    if (c) timer = setInterval(() => { c.textContent = new Date().toLocaleTimeString('ru-RU'); }, 1000);
+  }
+  function nav(url) {
+    url = url.trim(); if (!url) return;
+    if (url.startsWith('app:')) { openApp(url.slice(4)); return; }
+    if (!/^[a-z]+:/i.test(url)) url = /^[\w-]+(\.[\w-]+)+/.test(url) ? 'https://' + url : 'about:help';
+    if (url !== cur) { hist.push(cur); fwd.length = 0; cur = url; }
+    render();
+  }
+  w.body.querySelector('form').addEventListener('submit', e => { e.preventDefault(); nav(input.value); });
+  w.body.addEventListener('click', e => {
+    const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); nav(g.dataset.go); return; }
+    const b = e.target.closest('[data-b]'); if (!b || b.disabled) return;
+    if (b.dataset.b === 'back') { fwd.push(cur); cur = hist.pop(); render(); }
+    else if (b.dataset.b === 'fwd') { hist.push(cur); cur = fwd.pop(); render(); }
+    else nav('about:start');
+  });
+  w.cleanup.push(() => clearInterval(timer));
+  render();
+}
+
+// ================= Заметки =================
+function defaultNotes() {
+  const t = Date.now();
+  return [
+    { id: 'n1', title: 'Добро пожаловать в Тахо', updated: t, body: 'Это оболочка в духе настольной системы в одном файле.\n\nПопробуйте:\n• Ctrl+Пробел - поиск\n• «Все программы» в панели снизу\n• правый щелчок по рабочему столу и по файлам\n• перетаскивание файлов между папками в «Файлах»\n• пункт управления справа вверху\n• жёлтая кнопка сворачивает окно\n\nЗаметки сохраняются сами.' },
+    { id: 'n2', title: 'Список покупок', updated: t - 86400000, body: '• Молоко\n• Хлеб\n• Кофе\n• Яблоки' },
+    { id: 'n3', title: 'Идеи проектов', updated: t - 3 * 86400000, body: '1. Игра на Qt\n2. Свой калькулятор\n3. Оболочка с вкладками' },
+  ];
+}
+const loadNotes = () => store.get('notes', null) || defaultNotes();
+function initNotes(w) {
+  let notes = loadNotes(), active = (notes[0] || {}).id, q = '';
+  const save = () => store.set('notes', notes);
+  w.body.classList.add('notes-body');
+  w.body.style.flexDirection = 'row';
+  w.body.innerHTML = '<div class="notes-list-pane"><div class="notes-tools"><input placeholder="Поиск" aria-label="Поиск заметок"><button data-n="new" title="Новая заметка">＋</button><button data-n="del" title="Удалить заметку">🗑</button></div><div id="notes-items"></div></div>' +
+    '<div class="notes-editor"><input class="note-title" aria-label="Заголовок"><div class="meta"></div><textarea class="note-body" aria-label="Текст заметки"></textarea></div>';
+  const list = w.body.querySelector('#notes-items'), title = w.body.querySelector('.note-title'), bodyEl = w.body.querySelector('.note-body'), meta = w.body.querySelector('.meta');
+  const fmt = t => { const d = new Date(t); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) + ' в ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+  function renderList() {
+    notes.sort((a, b) => b.updated - a.updated);
+    const shown = notes.filter(n => !q || (n.title + ' ' + n.body).toLowerCase().includes(q));
+    list.innerHTML = shown.length ? shown.map(n => '<div class="note-item' + (n.id === active ? ' active' : '') + '" data-id="' + n.id + '"><div class="nt">' + esc(n.title || 'Без названия') + '</div><div class="np">' +
+      esc(new Date(n.updated).toLocaleDateString('ru-RU')) + ' · ' + esc((n.body.split('\n').find(l => l.trim()) || '').slice(0, 50)) + '</div></div>').join('') : '<div class="notes-empty">' + (q ? 'Ничего не найдено' : 'Заметок нет') + '</div>';
+  }
+  function renderEditor() {
+    const n = notes.find(x => x.id === active);
+    w.body.querySelector('.notes-editor').style.visibility = n ? 'visible' : 'hidden';
+    if (!n) return;
+    title.value = n.title; bodyEl.value = n.body; meta.textContent = 'Изменено ' + fmt(n.updated);
+  }
+  function edit() { const n = notes.find(x => x.id === active); if (!n) return; n.title = title.value; n.body = bodyEl.value; n.updated = Date.now(); meta.textContent = 'Изменено ' + fmt(n.updated); save(); renderList(); }
+  w.newNote = () => { const n = { id: 'n' + Date.now(), title: 'Новая заметка', body: '', updated: Date.now() }; notes.unshift(n); active = n.id; save(); renderList(); renderEditor(); title.focus(); title.select(); };
+  w.select = id => { active = id; renderList(); renderEditor(); };
+  title.addEventListener('input', edit); bodyEl.addEventListener('input', edit);
+  w.body.querySelector('.notes-tools input').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); renderList(); });
+  w.body.addEventListener('click', async e => {
+    const it = e.target.closest('.note-item'); if (it) { w.select(it.dataset.id); return; }
+    const b = e.target.closest('[data-n]'); if (!b) return;
+    if (b.dataset.n === 'new') w.newNote();
+    else if (active) {
+      const n = notes.find(x => x.id === active);
+      if ((await sheet({ title: 'Удалить заметку «' + (n.title || 'Без названия') + '»?', buttons: ['Отмена', 'Удалить'] })) === 1) {
+        notes = notes.filter(x => x.id !== active); active = (notes[0] || {}).id; save(); renderList(); renderEditor();
+      }
+    }
+  });
+  renderList(); renderEditor();
+}
+
+// ================= Терминал (работает с той же файловой системой) =================
+function initTerminal(w) {
+  let cwd = 'home';
+  const hist = []; let hIdx = -1;
+  w.body.innerHTML = '<div class="terminal-body"></div>';
+  const tb = w.body.querySelector('.terminal-body');
+  const print = (t, cls) => { const d = document.createElement('div'); d.className = 'term-line' + (cls ? ' ' + cls : ''); d.textContent = t; tb.appendChild(d); };
+  const dirName = () => cwd === 'home' ? '~' : entry(cwd).name;
+  const findIn = (dir, name) => FS.find(e => e.parent === dir && e.name === name);
+  function resolve(arg) {
+    if (!arg || arg === '~') return 'home';
+    let dir = arg.startsWith('~/') ? 'home' : cwd;
+    for (const part of arg.replace(/^~\//, '').split('/').filter(Boolean)) {
+      if (part === '.') continue;
+      if (part === '..') { const p = entry(dir).parent; dir = p || dir; continue; }
+      const e = findIn(dir, part); if (!e) return null; dir = e.id;
+    }
+    return dir;
+  }
+  function showPrompt() {
+    const wrap = document.createElement('div'); wrap.className = 'term-prompt-line';
+    wrap.innerHTML = '<span class="term-prompt">пользователь@тахо ' + esc(dirName()) + ' %</span>';
+    const input = document.createElement('input'); input.className = 'term-input'; input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('aria-label', 'Команда');
+    wrap.appendChild(input); tb.appendChild(wrap);
+    setTimeout(() => { input.focus(); tb.scrollTop = tb.scrollHeight; }, 10);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const cmd = input.value.trim();
+        input.replaceWith(document.createTextNode(' ' + cmd));
+        if (cmd) hist.unshift(cmd); hIdx = -1;
+        run(cmd);
+        if (wins.terminal) showPrompt();
+      } else if (e.key === 'ArrowUp') { e.preventDefault(); if (hIdx < hist.length - 1) hIdx++; input.value = hist[hIdx] || ''; }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (hIdx > -1) hIdx--; input.value = hIdx === -1 ? '' : hist[hIdx]; }
+      else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); w.clear(); }
+    });
+  }
+  w.clear = () => { tb.innerHTML = ''; showPrompt(); };
+  function run(cmd) {
+    if (!cmd) return;
+    const [bin, ...args] = cmd.split(/\s+/);
+    const name = args.join(' ');
+    switch (bin) {
+      case 'help': ['Команды:', '  ls [-l], cd <папка>, pwd, cat <файл>, mkdir <имя>, touch <имя>, rm <имя>', '  echo, date, whoami, history, clear, open <программа или файл>, uname, neofetch, exit'].forEach(l => print(l)); break;
+      case 'ls': {
+        const items = childrenOf(cwd);
+        if (args[0] === '-l') items.forEach(e => print((e.type === 'folder' ? 'd' : '-') + 'rw-r--r--  ' + String(sizeOf(e)).padStart(8) + '  ' + e.name + (e.type === 'folder' ? '/' : '')));
+        else print(items.map(e => e.name + (e.type === 'folder' ? '/' : '')).join('   ') || '');
+        break;
+      }
+      case 'cd': { const d = resolve(name); if (d && entry(d).type === 'folder') cwd = d; else print('cd: нет такой папки: ' + name); break; }
+      case 'pwd': print('/' + pathOf(cwd).map(p => p.name).join('/')); break;
+      case 'cat': { const e = name && findIn(cwd, name); if (!e) print('cat: ' + (name || '?') + ': нет такого файла'); else if (e.type === 'folder') print('cat: ' + name + ': это папка'); else if (e.content == null) print('cat: ' + name + ': двоичный файл'); else e.content.split('\n').forEach(l => print(l)); break; }
+      case 'mkdir': case 'touch': {
+        const err = nameError(cwd, name);
+        if (err) print(bin + ': ' + err); else createEntry(cwd, name, bin === 'mkdir' ? 'folder' : typeOf(name), bin === 'touch' ? { content: '' } : {});
+        break;
+      }
+      case 'rm': { const e = name && findIn(cwd, name); if (!e || SYS_FOLDERS.includes(e.id)) print('rm: ' + (name || '?') + ': нельзя удалить'); else { trashEntry(e.id); print('перемещено в корзину: ' + name); } break; }
+      case 'echo': print(name); break;
+      case 'date': print(new Date().toLocaleString('ru-RU', { dateStyle: 'full', timeStyle: 'medium' })); break;
+      case 'whoami': print('пользователь'); break;
+      case 'history': hist.slice().reverse().forEach((c, i) => print((i + 1) + '  ' + c)); break;
+      case 'clear': tb.innerHTML = ''; break;
+      case 'open': {
+        const id = Object.keys(APPS).find(k => k === name.toLowerCase() || APPS[k].name.toLowerCase() === name.toLowerCase());
+        const f = !id && name && findIn(cwd, name);
+        if (id) { openApp(id); print('открыто: ' + APPS[id].name); } else if (f) previewEntry(f); else print('open: не найдено: ' + name);
+        break;
+      }
+      case 'uname': print('TahoeShell 2.0 (браузер)'); break;
+      case 'neofetch': ['   ~~~~~     пользователь@тахо', '  ~ ~ ~ ~    ----------------', ' ~~~~~~~~~   ОС: Тахо 2.0 (фан-концепт)', '  ~ ~ ~ ~    Оболочка: HTML/CSS/JS', '   ~~~~~     Окон: ' + order.length + ', файлов: ' + FS.filter(e => e.type !== 'folder').length].forEach(l => print(l, 'term-art')); break;
+      case 'exit': closeWindow('terminal'); break;
+      default: print('команда не найдена: ' + bin + ' (наберите help)');
+    }
+  }
+  print('Добро пожаловать в Терминал Тахо. Наберите help, чтобы увидеть команды.');
+  showPrompt();
+  tb.addEventListener('click', () => { const i = tb.querySelector('.term-input'); if (i && !getSelection().toString()) i.focus(); });
+}
+
+// ================= Калькулятор =================
+function initCalculator(w) {
+  w.body.style.background = '#1d1d1f';
+  w.el.querySelector('.titlebar').style.cssText = 'background: rgba(0,0,0,0.3); border-bottom-color: rgba(255,255,255,0.1);';
+  w.el.querySelector('.titlebar-title').style.color = '#fff';
+  const keys = [['AC', 'fn'], ['±', 'fn', 'neg'], ['%', 'fn'], ['÷', 'op', '/'], ['7'], ['8'], ['9'], ['×', 'op', '*'], ['4'], ['5'], ['6'], ['−', 'op', '-'], ['1'], ['2'], ['3'], ['+', 'op', '+'], ['0', 'zero'], [',', '', '.'], ['=', 'op', '=']];
+  w.body.innerHTML = '<div class="calc-body"><div class="calc-display">0</div><div class="calc-grid">' + keys.map(k => '<button class="calc-btn ' + (k[1] || '') + '" data-key="' + (k[2] || k[0]) + '">' + k[0] + '</button>').join('') + '</div></div>';
+  const disp = w.body.querySelector('.calc-display'), acBtn = w.body.querySelector('[data-key="AC"]');
+  let cur = '0', prev = null, op = null, fresh = false, error = false;
+  const fmt = s => { if (error) return 'Ошибка'; const n = parseFloat(s); if (Math.abs(n) >= 1e9 || (n !== 0 && Math.abs(n) < 1e-7)) return n.toExponential(4).replace('.', ','); const [a, b] = s.split('.'); return a.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (b !== undefined ? ',' + b : ''); };
+  const num = x => String(parseFloat(x.toPrecision(10)));
+  function show() {
+    disp.textContent = fmt(cur);
+    disp.style.fontSize = Math.min(56, Math.floor((disp.clientWidth || 230) / (disp.textContent.length * 0.6))) + 'px';
+    acBtn.textContent = cur !== '0' && !fresh ? 'C' : 'AC';
+    w.body.querySelectorAll('.calc-btn.op').forEach(b => b.classList.toggle('active', fresh && b.dataset.key === op));
+  }
+  function compute() { const a = parseFloat(prev), b = parseFloat(cur); const r = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : b === 0 ? NaN : a / b; if (!isFinite(r)) { error = true; return '0'; } return num(r); }
+  function press(k) {
+    if (error && k !== 'AC') { error = false; cur = '0'; prev = null; op = null; }
+    if (/^\d$/.test(k)) { if (fresh || cur === '0') { cur = k; fresh = false; } else if (cur.replace(/[-.]/g, '').length < 9) cur += k; }
+    else if (k === '.') { if (fresh) { cur = '0.'; fresh = false; } else if (!cur.includes('.')) cur += '.'; }
+    else if (k === 'AC') { if (acBtn.textContent === 'C') cur = '0'; else { cur = '0'; prev = null; op = null; } error = false; fresh = false; }
+    else if (k === 'neg') { if (cur !== '0') cur = cur.startsWith('-') ? cur.slice(1) : '-' + cur; }
+    else if (k === '%') cur = num(parseFloat(cur) / 100);
+    else if (k === 'back') { if (!fresh) cur = cur.length > 1 && cur !== '-0' && !/^-\d$/.test(cur) ? cur.slice(0, -1) : '0'; }
+    else if ('+-*/'.includes(k)) { if (op && !fresh) { cur = compute(); } prev = cur; op = k; fresh = true; }
+    else if (k === '=') { if (op) { cur = compute(); op = null; prev = null; fresh = true; } }
+    show();
+  }
+  w.body.addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (b) press(b.dataset.key); });
+  w.onKey = e => {
+    const map = { Enter: '=', '=': '=', Backspace: 'back', Delete: 'AC', Escape: 'AC', ',': '.', '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%' };
+    const k = /^\d$/.test(e.key) ? e.key : map[e.key];
+    if (k) { e.preventDefault(); press(k); }
+  };
+  show();
+}
+
+// ================= Календарь =================
+function initCalendar(w) {
+  let month = new Date(); month.setDate(1);
+  let events = store.get('events', null);
+  if (!events) { // пара примерных событий рядом с сегодняшним днём
+    const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + pad2(x.getMonth() + 1) + '-' + pad2(x.getDate()); };
+    events = { [d(1)]: [{ title: 'Встреча', color: '#007aff' }], [d(4)]: [{ title: 'Тренировка', color: '#34c759' }] };
+  }
+  const save = () => store.set('events', events);
+  const COLORS = ['#007aff', '#34c759', '#ff9500', '#ff2d55', '#af52de'];
+  w.body.innerHTML = '<div class="cal-body"><div class="cal-head"><h2></h2><div class="cal-nav"><button data-c="prev" title="Предыдущий месяц">‹</button><button data-c="today">Сегодня</button><button data-c="next" title="Следующий месяц">›</button></div></div>' +
+    '<div class="cal-grid"></div><div class="cal-hint">Щелчок по дню - новое событие, щелчок по событию - удалить.</div></div>';
+  const key = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  function render() {
+    w.body.querySelector('h2').textContent = MONTHS[month.getMonth()][0].toUpperCase() + MONTHS[month.getMonth()].slice(1) + ' ' + month.getFullYear();
+    const start = new Date(month); start.setDate(1 - (month.getDay() + 6) % 7);
+    const today = key(new Date());
+    let html = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => '<div class="cal-dow">' + d + '</div>').join('');
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const k = key(d), evs = events[k] || [];
+      html += '<div class="cal-cell' + (d.getMonth() !== month.getMonth() ? ' other' : '') + (k === today ? ' today' : '') + '" data-day="' + k + '"><div class="dnum">' + d.getDate() + '</div>' +
+        evs.map((e, j) => '<div class="cal-event" data-ev="' + j + '" style="background:' + e.color + '" title="' + esc(e.title) + '">' + esc(e.title) + '</div>').join('') + '</div>';
+    }
+    w.body.querySelector('.cal-grid').innerHTML = html;
+  }
+  async function add(k) {
+    const t = await sheet({ title: 'Новое событие', text: new Date(k + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }), input: '', buttons: ['Отмена', 'Добавить'], validate: v => v ? '' : 'Введите название' });
+    if (!t) return;
+    (events[k] = events[k] || []).push({ title: t, color: COLORS[Math.floor(Math.random() * COLORS.length)] });
+    save(); render();
+  }
+  w.addToday = () => add(key(new Date()));
+  w.body.addEventListener('click', async e => {
+    const c = e.target.closest('[data-c]');
+    if (c) { if (c.dataset.c === 'today') { month = new Date(); month.setDate(1); } else month.setMonth(month.getMonth() + (c.dataset.c === 'next' ? 1 : -1)); render(); return; }
+    const ev = e.target.closest('[data-ev]'), cell = e.target.closest('[data-day]');
+    if (ev) {
+      const k = cell.dataset.day, j = +ev.dataset.ev;
+      if ((await sheet({ title: 'Удалить событие «' + events[k][j].title + '»?', buttons: ['Отмена', 'Удалить'] })) === 1) { events[k].splice(j, 1); if (!events[k].length) delete events[k]; save(); render(); }
+      return;
+    }
+    if (cell) add(cell.dataset.day);
+  });
+  render();
+}
+
+// ================= Погода (демо-данные, без сети) =================
+function initWeather(w) {
+  w.el.querySelector('.titlebar').style.cssText = 'background: rgba(74,144,226,0.6); border-bottom-color: rgba(255,255,255,0.2);';
+  w.el.querySelector('.titlebar-title').style.color = '#fff';
+  const now = new Date(), base = 17;
+  const hours = Array.from({ length: 11 }, (_, i) => { const h = (now.getHours() + i) % 24; const night = h < 6 || h >= 21; return { h: i ? pad2(h) : 'Сейчас', t: Math.round(base + 3 * Math.sin((h - 9) / 24 * Math.PI * 2)), ic: night ? '🌙' : i % 4 === 2 ? '🌤️' : '⛅' }; });
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return { d: i ? DAYS[d.getDay()][0].toUpperCase() + DAYS[d.getDay()].slice(1) : 'Сегодня', i: ['⛅', '☀️', '☀️', '🌧️', '⛅', '☀️', '🌤️'][i], l: 11 + (i % 3), h: 20 + (i * 2) % 6 }; });
+  w.body.innerHTML = '<div class="weather-body"><div class="weather-current"><div class="city">Лиссабон</div><div class="temp">' + hours[0].t + '°</div><div class="cond">Переменная облачность</div><div class="hilo">Макс.: ' + days[0].h + '°, мин.: ' + days[0].l + '°</div></div>' +
+    '<div class="weather-hourly">' + hours.map(x => '<div class="weather-hour"><div class="h">' + x.h + '</div><div class="ic">' + x.ic + '</div><div class="t">' + x.t + '°</div></div>').join('') + '</div>' +
+    '<div class="weather-week">' + days.map(x => '<div class="weather-day"><div class="dn" style="width:110px">' + x.d + '</div><div class="di">' + x.i + '</div><div class="dt"><span style="opacity:0.7">' + x.l + '°</span> &nbsp; ' + x.h + '°</div></div>').join('') + '</div>' +
+    '<div class="weather-demo">Демо-данные: оболочка работает без интернета</div></div>';
+}
+
+// ================= Фото =================
+function initPhotos(w) {
+  const PHOTOS = Array.from({ length: 24 }, (_, i) => ({ id: i, name: ['Закат', 'Озеро', 'Сумерки', 'Поле', 'Лес', 'Небо', 'Маки', 'Лаванда', 'Ночь', 'Персик', 'Бухта', 'Луг'][i % 12] + ' ' + (Math.floor(i / 12) + 1), grad: PHOTO_GRADIENTS[i % PHOTO_GRADIENTS.length] }));
+  let favs = new Set(store.get('photoFavs', [])), view = 'all', open = -1;
+  w.body.innerHTML = '<div class="photos-body" style="position:relative"><div class="photos-side"><h4>Медиатека</h4><div class="pi" data-v="all">Все фото <span class="cnt"></span></div><div class="pi" data-v="fav">Избранное <span class="cnt"></span></div></div><div class="photos-grid"></div></div>';
+  const list = () => view === 'fav' ? PHOTOS.filter(p => favs.has(p.id)) : PHOTOS;
+  function render() {
+    w.body.querySelectorAll('.pi').forEach(p => { p.classList.toggle('active', p.dataset.v === view); p.querySelector('.cnt').textContent = p.dataset.v === 'fav' ? favs.size : PHOTOS.length; });
+    const l = list();
+    w.body.querySelector('.photos-grid').innerHTML = l.length ? l.map(p => '<div class="photo-tile" data-p="' + p.id + '" style="background:' + p.grad + '" title="' + esc(p.name) + '"><span class="cap">' + esc(p.name) + '</span>' + (favs.has(p.id) ? '<span class="heart">♥</span>' : '') + '</div>').join('')
+      : '<div style="grid-column:1/-1;color:#86868b;text-align:center;padding:40px">В избранном пока пусто: откройте фото и нажмите ♡</div>';
+    const old = w.body.querySelector('.photo-viewer'); if (old) old.remove();
+    if (open >= 0) {
+      const p = PHOTOS[open];
+      const v = document.createElement('div'); v.className = 'photo-viewer';
+      v.innerHTML = '<div class="pv-img" style="background:' + p.grad + '"></div><div class="pv-bar"><button data-pv="prev">‹</button><span>' + esc(p.name) + '</span><button data-pv="fav">' + (favs.has(p.id) ? '♥ В избранном' : '♡ В избранное') + '</button><button data-pv="next">›</button><button data-pv="close">Закрыть</button></div>';
+      w.body.querySelector('.photos-body').appendChild(v);
+    }
+  }
+  function step(d) { const l = list(); const i = l.findIndex(p => p.id === open); if (l.length) { open = l[(i + d + l.length) % l.length].id; render(); } }
+  w.body.addEventListener('click', e => {
+    const pi = e.target.closest('[data-v]'); if (pi) { view = pi.dataset.v; open = -1; render(); return; }
+    const t = e.target.closest('[data-p]'); if (t) { open = +t.dataset.p; render(); return; }
+    const b = e.target.closest('[data-pv]'); if (!b) return;
+    if (b.dataset.pv === 'close') { open = -1; render(); }
+    else if (b.dataset.pv === 'fav') { favs.has(open) ? favs.delete(open) : favs.add(open); store.set('photoFavs', [...favs]); render(); }
+    else step(b.dataset.pv === 'next' ? 1 : -1);
+  });
+  w.onKey = e => { if (open < 0) return; if (e.key === 'Escape') { open = -1; render(); } else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); };
+  render();
+}
+
+// ================= Музыка: мелодии синтезируются на месте (WebAudio), файлов и сети не нужно =================
+function initMusic(w) {
+  const TRACKS = [['Солнечный дрейф', 'Аврора'], ['Отражения', 'Кассия'], ['Ночи у озера', 'Мира'], ['Хрустальный дождь', 'Эхо'], ['Туманный рассвет', 'Пирс'],
+    ['Северное сияние', 'Полярная'], ['Бархатный код', 'Компиляторы'], ['Гранит', 'Долина'], ['Прибрежное шоссе', 'Побережье'], ['Колыбельная', 'Тихий час']].map((t, i) => ({ id: i, title: t[0], artist: t[1] }));
+  const LEN = 24; // секунд в демо-фрагменте
+  let likes = new Set(store.get('musicLikes', [])), view = 'all', cur = -1, ctx = null, gain = null, playing = false, startAt = 0, offset = 0, nodes = [], tick = null;
+  w.body.innerHTML = '<div class="music-body"><div class="music-side"><h4>Медиатека</h4><div class="mi" data-v="all">Все треки</div><div class="mi" data-v="liked">Любимые</div></div>' +
+    '<div class="music-main"><div class="music-header"><div class="music-cover" style="background:linear-gradient(135deg,#c084fc,#7c3aed)"></div><div class="music-meta"><div class="kind">Плейлист</div><div class="title"></div><div class="desc">Мелодии собираются прямо в браузере, без файлов и без сети.</div></div></div>' +
+    '<div class="music-tracks"></div><div class="music-player"><button data-m="prev" title="Предыдущий">⏮</button><button data-m="play" title="Играть">▶</button><button data-m="next" title="Следующий">⏭</button><div class="mp-title">Ничего не играет</div><div class="mp-bar"><div></div></div><div class="mp-time">0:00 / 0:' + LEN + '</div></div></div></div>';
+  const list = () => view === 'liked' ? TRACKS.filter(t => likes.has(t.id)) : TRACKS;
+  function render() {
+    w.body.querySelectorAll('.mi').forEach(m => m.classList.toggle('active', m.dataset.v === view));
+    w.body.querySelector('.music-meta .title').textContent = view === 'liked' ? 'Любимые' : 'Все треки';
+    const l = list();
+    w.body.querySelector('.music-tracks').innerHTML = l.length ? l.map(t => '<div class="music-track' + (t.id === cur ? ' playing' : '') + '" data-t="' + t.id + '"><div class="num">' + (t.id === cur && playing ? '▶' : t.id + 1) + '</div><div><b>' + esc(t.title) + '</b><br><span style="color:#86868b;font-size:12px">' + esc(t.artist) + '</span></div>' +
+      '<div class="like" data-like="' + t.id + '" title="Любимое">' + (likes.has(t.id) ? '♥' : '♡') + '</div><div class="dur">0:' + LEN + '</div></div>').join('') : '<div style="padding:30px;color:#86868b;text-align:center">Отметьте треки сердечком ♡</div>';
+    w.body.querySelector('[data-m=play]').textContent = playing ? '⏸' : '▶';
+    w.body.querySelector('.mp-title').textContent = cur >= 0 ? TRACKS[cur].title + ' - ' + TRACKS[cur].artist : 'Ничего не играет';
+  }
+  function stopNodes() { nodes.forEach(n => { try { n.stop(); } catch (e) { /* уже остановлен */ } }); nodes = []; }
+  function schedule(from) {
+    // простая мелодия из пентатоники: у каждого трека своя, начиная с позиции from
+    const scale = [0, 2, 4, 7, 9, 12, 14, 16], root = 220 * Math.pow(2, (cur % 5) / 12), beat = 0.3 + (cur % 3) * 0.05;
+    let seed = cur * 9301 + 49297; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const t0 = ctx.currentTime - from;
+    for (let t = 0, i = 0; t < LEN; t += beat, i++) {
+      const note = scale[Math.floor(rnd() * scale.length)];
+      if (t < from) continue;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = i % 4 === 0 ? 'triangle' : 'sine';
+      o.frequency.value = root * Math.pow(2, note / 12);
+      g.gain.setValueAtTime(0, t0 + t); g.gain.linearRampToValueAtTime(0.25, t0 + t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t0 + t + beat * 0.95);
+      o.connect(g); g.connect(gain); o.start(t0 + t); o.stop(t0 + t + beat); nodes.push(o);
+    }
+  }
+  function play(id, from = 0) {
+    try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; }
+    stopNodes();
+    cur = id; offset = from; playing = true;
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); gain = gain || ctx.createGain(); gain.connect(ctx.destination); gain.gain.value = S.volume / 100; schedule(from); startAt = ctx.currentTime - from; }
+    else startAt = performance.now() / 1000 - from;
+    clearInterval(tick); tick = setInterval(progress, 250);
+    render();
+  }
+  function now() { return ctx ? ctx.currentTime : performance.now() / 1000; }
+  function pause() { if (!playing) return; offset = now() - startAt; playing = false; stopNodes(); clearInterval(tick); render(); }
+  function progress() {
+    const t = Math.min(LEN, now() - startAt);
+    w.body.querySelector('.mp-bar div').style.width = (t / LEN * 100) + '%';
+    w.body.querySelector('.mp-time').textContent = '0:' + pad2(Math.floor(t)) + ' / 0:' + LEN;
+    if (t >= LEN) next();
+  }
+  function next(d = 1) { const l = list(); if (!l.length) return; const i = l.findIndex(t => t.id === cur); play(l[(i + d + l.length) % l.length].id); }
+  w.body.addEventListener('click', e => {
+    const v = e.target.closest('[data-v]'); if (v) { view = v.dataset.v; render(); return; }
+    const lk = e.target.closest('[data-like]'); if (lk) { const id = +lk.dataset.like; likes.has(id) ? likes.delete(id) : likes.add(id); store.set('musicLikes', [...likes]); render(); return; }
+    const t = e.target.closest('[data-t]'); if (t) { play(+t.dataset.t); return; }
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'play') { if (playing) pause(); else if (cur >= 0) play(cur, offset); else next(); }
+    else next(m.dataset.m === 'next' ? 1 : -1);
+  });
+  w.cleanup.push(() => { stopNodes(); clearInterval(tick); if (ctx) ctx.close(); }, on('settings', () => { if (gain) gain.gain.value = S.volume / 100; }), on('lock', pause));
+  w.state = () => ({ playing, cur });
+  render();
+}
+
+// ================= Карты =================
+function initMaps(w) {
+  const PLACES = [['Центральная площадь', 1200, 800], ['Набережная', 700, 1080], ['Городской парк', 1650, 520], ['Вокзал', 420, 380], ['Библиотека', 1020, 560], ['Стадион', 1880, 1120], ['Музей', 1350, 980], ['Кафе «Сосна»', 860, 260]];
+  let zoom = 1, px = -700, py = -500, sel = -1;
+  w.body.innerHTML = '<div class="maps-body"><div class="maps-world"><div class="maps-canvas"></div>' +
+    '<div class="maps-water" style="left:300px;top:1000px;width:900px;height:380px"></div><div class="maps-park" style="left:1500px;top:380px;width:360px;height:280px"></div>' +
+    [[0, 780, 2400, 26], [0, 300, 2400, 16], [0, 1250, 2400, 18], [600, 0, 18, 1600], [1150, 0, 26, 1600], [1750, 0, 18, 1600]].map(r => '<div class="maps-road" style="left:' + r[0] + 'px;top:' + r[1] + 'px;width:' + r[2] + 'px;height:' + r[3] + 'px"></div>').join('') +
+    PLACES.map((p, i) => '<div class="maps-place" data-pl="' + i + '" style="left:' + p[1] + 'px;top:' + p[2] + 'px"><svg viewBox="0 0 30 38"><path d="M15 0C7 0 1 6 1 14c0 9 14 24 14 24s14-15 14-24c0-8-6-14-14-14z" fill="' + ['#ff3b30', '#007aff', '#34c759', '#ff9500'][i % 4] + '"/><circle cx="15" cy="14" r="5" fill="#fff"/></svg><span>' + esc(p[0]) + '</span></div>').join('') +
+    '</div><div class="maps-search"><input placeholder="Поиск на карте" aria-label="Поиск на карте"><div class="maps-results"></div></div><div class="maps-zoom"><button data-z="1" title="Приблизить">+</button><button data-z="-1" title="Отдалить">−</button></div></div>';
+  const bodyEl = w.body.querySelector('.maps-body'), world = w.body.querySelector('.maps-world'), input = w.body.querySelector('input'), res = w.body.querySelector('.maps-results');
+  function apply() {
+    const vw = bodyEl.clientWidth, vh = bodyEl.clientHeight;
+    px = Math.min(0, Math.max(vw - 2400 * zoom, px)); py = Math.min(0, Math.max(vh - 1600 * zoom, py));
+    world.style.transform = 'translate(' + px + 'px,' + py + 'px) scale(' + zoom + ')';
+    world.querySelectorAll('.maps-place').forEach(p => p.classList.toggle('active', +p.dataset.pl === sel));
+  }
+  function focusPlace(i) { sel = i; const p = PLACES[i]; px = bodyEl.clientWidth / 2 - p[1] * zoom; py = bodyEl.clientHeight / 2 - p[2] * zoom; res.innerHTML = ''; input.value = p[0]; apply(); }
+  bodyEl.addEventListener('pointerdown', e => {
+    if (e.target.closest('.maps-search, .maps-zoom, .maps-place')) return;
+    const sx = e.clientX - px, sy = e.clientY - py;
+    bodyEl.setPointerCapture(e.pointerId); bodyEl.classList.add('panning');
+    const move = ev => { px = ev.clientX - sx; py = ev.clientY - sy; apply(); };
+    const up = () => { bodyEl.classList.remove('panning'); bodyEl.removeEventListener('pointermove', move); bodyEl.removeEventListener('pointerup', up); };
+    bodyEl.addEventListener('pointermove', move); bodyEl.addEventListener('pointerup', up);
+  });
+  w.body.addEventListener('click', e => {
+    const z = e.target.closest('[data-z]');
+    if (z) { const cx = bodyEl.clientWidth / 2, cy = bodyEl.clientHeight / 2, old = zoom; zoom = Math.max(0.5, Math.min(1.8, zoom + 0.25 * z.dataset.z)); px = cx - (cx - px) * zoom / old; py = cy - (cy - py) * zoom / old; apply(); return; }
+    const p = e.target.closest('[data-pl]'); if (p) focusPlace(+p.dataset.pl);
+    const r = e.target.closest('[data-r]'); if (r) focusPlace(+r.dataset.r);
+  });
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    res.innerHTML = q ? (PLACES.map((p, i) => [p, i]).filter(([p]) => p[0].toLowerCase().includes(q)).map(([p, i]) => '<div data-r="' + i + '">' + esc(p[0]) + '</div>').join('') || '<div>Ничего не найдено</div>') : '';
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { const r = res.querySelector('[data-r]'); if (r) focusPlace(+r.dataset.r); } });
+  const ro = new ResizeObserver(apply); ro.observe(bodyEl);
+  w.cleanup.push(() => ro.disconnect());
+  apply();
+}
+
+// ================= Настройки =================
+const SET_SECTIONS = [
+  { id: 'wifi', name: 'Wi-Fi', color: '#007aff', icon: '📶' },
+  { id: 'bt', name: 'Bluetooth', color: '#007aff', icon: '🔵' },
+  { id: 'appear', name: 'Оформление', color: '#1d1d1f', icon: '🎨' },
+  { id: 'wallpaper', name: 'Обои', color: '#5ac8fa', icon: '🖼️' },
+  { id: 'dock', name: 'Панель приложений', color: '#5e5e63', icon: '🪟' },
+  { id: 'display', name: 'Экран', color: '#5856d6', icon: '🖥️' },
+  { id: 'sound', name: 'Звук', color: '#ff3b30', icon: '🔊' },
+  { id: 'about', name: 'Об этом компьютере', color: '#8e8e93', icon: 'ℹ️' },
+];
+function initSettings(w) {
+  let active = 'appear', q = '';
+  w.body.innerHTML = '<div class="set-body"><div class="set-side"><div class="set-search"><input placeholder="Поиск" aria-label="Поиск настроек"></div><div class="secs"></div></div><div class="set-main"></div></div>';
+  const tog = (k, label, desc) => '<div class="set-row"><div class="left"><div>' + label + (desc ? '<div class="desc">' + desc + '</div>' : '') + '</div></div><div class="set-toggle' + (S[k] ? ' on' : '') + '" data-toggle="' + k + '" role="switch" aria-checked="' + !!S[k] + '" aria-label="' + label + '"></div></div>';
+  const range = (k, label, min, max) => '<div class="set-row"><div class="left"><div>' + label + '</div></div><input type="range" min="' + min + '" max="' + max + '" value="' + S[k] + '" data-range="' + k + '" aria-label="' + label + '"></div>';
+  const PANES = {
+    wifi: () => '<h2>Wi-Fi</h2>' + tog('wifi', 'Wi-Fi') + '<div class="set-row"><div class="left"><div>Домашняя сеть<div class="desc">' + (S.wifi ? 'Подключено · защищена' : 'Wi-Fi выключен') + '</div></div></div><div>' + (S.wifi ? '✓' : '') + '</div></div><div class="set-note">Сеть здесь условная: оболочка работает без интернета.</div>',
+    bt: () => '<h2>Bluetooth</h2>' + tog('bt', 'Bluetooth') + '<div class="set-note">' + (S.bt ? 'Устройств поблизости нет.' : 'Bluetooth выключен.') + '</div>',
+    appear: () => '<h2>Оформление</h2><div class="set-row"><div class="left"><div>Тема<div class="desc">Светлая или тёмная</div></div></div><div class="set-seg">' +
+      '<div class="opt' + (!S.dark ? ' on' : '') + '" data-dark="0" title="Светлая" style="background:#fff;border-color:' + (!S.dark ? '' : '#c7c7cc') + '"></div><div class="opt' + (S.dark ? ' on' : '') + '" data-dark="1" title="Тёмная" style="background:#1d1d1f"></div></div></div>' +
+      '<div class="set-row"><div class="left"><div>Акцентный цвет</div></div><div class="set-seg">' + ACCENTS.map(c => '<div class="set-dot' + (S.accent === c ? ' on' : '') + '" data-accent="' + c + '" style="background:' + c + '" title="' + c + '"></div>').join('') + '</div></div>' +
+      tog('glass', 'Прозрачность окон', 'Размытие фона под окнами и панелями'),
+    wallpaper: () => '<h2>Обои</h2><div class="set-walls">' + Object.entries(WALLPAPERS).map(([k, v]) => '<div class="set-wall' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" style="background:' + v.css + ';background-blend-mode:' + v.blend + '"><span>' + v.name + '</span></div>').join('') + '</div><div class="set-note">Обои - градиенты, нарисованные в самой странице.</div>',
+    dock: () => '<h2>Панель приложений</h2>' + range('dockSize', 'Размер значков', 36, 64) + tog('magnify', 'Увеличение при наведении') + tog('autohide', 'Автоматически скрывать', 'Панель появляется, когда мышь у нижнего края'),
+    display: () => '<h2>Экран</h2>' + range('brightness', 'Яркость', 30, 100) + tog('night', 'Ночной режим', 'Тёплые цвета экрана'),
+    sound: () => '<h2>Звук</h2>' + range('volume', 'Громкость', 0, 100) + '<div class="set-note">Громкость действует на «Музыку».</div>',
+    about: () => '<h2>Об этом компьютере</h2><div class="set-row"><div class="left"><div>Тахо, версия 2.0<div class="desc">Оболочка в одной странице HTML, работает без сети</div></div></div></div>' +
+      '<div class="set-note"><b>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</b> Значки, знак и обои нарисованы заново, шрифты системные.</div>' +
+      '<div class="set-row"><div class="left"><div>Сброс<div class="desc">Вернуть файлы, заметки, события и настройки к исходным</div></div></div><button class="set-btn" data-reset>Сбросить всё</button></div>',
+  };
+  w.onArg = id => { if (PANES[id]) { active = id; render(); } };
+  let own = false;
+  function render() {
+    const secs = SET_SECTIONS.filter(s => !q || s.name.toLowerCase().includes(q));
+    w.body.querySelector('.secs').innerHTML = secs.map(s => '<div class="sec' + (s.id === active ? ' active' : '') + '" data-sec="' + s.id + '"><div class="ic" style="background:' + s.color + '">' + s.icon + '</div>' + s.name + '</div>').join('') || '<div class="set-note" style="padding:0 12px">Ничего не найдено</div>';
+    w.body.querySelector('.set-main').innerHTML = PANES[active]();
+  }
+  w.body.querySelector('.set-search input').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render(); });
+  w.body.addEventListener('click', async e => {
+    const t = e.target;
+    const sec = t.closest('[data-sec]'); if (sec) { active = sec.dataset.sec; render(); return; }
+    const tg = t.closest('[data-toggle]'); if (tg) { setS(tg.dataset.toggle, !S[tg.dataset.toggle]); return; }
+    const dk = t.closest('[data-dark]'); if (dk) { setS('dark', dk.dataset.dark === '1'); return; }
+    const ac = t.closest('[data-accent]'); if (ac) { setS('accent', ac.dataset.accent); return; }
+    const wl = t.closest('[data-wall]'); if (wl) { setS('wallpaper', wl.dataset.wall); return; }
+    if (t.closest('[data-reset]') && (await sheet({ title: 'Сбросить всё?', text: 'Файлы, заметки, события, избранное и настройки вернутся к исходным.', buttons: ['Отмена', 'Сбросить'] })) === 1) { store.clear(); location.reload(); }
+  });
+  w.body.addEventListener('input', e => { const r = e.target.closest('[data-range]'); if (r) { own = true; setS(r.dataset.range, +r.value); own = false; } });
+  w.cleanup.push(on('settings', () => { if (!own) render(); }));
+  render();
+}
+
+// ================= Запуск =================
+buildDock();
+applySettings();
+renderDesktopIcons();
+tickClock();
+if (!store.get('seen', false)) { store.set('seen', true); setTimeout(() => openApp('notes'), 200); }
+</script>
+</body>
+</html>
