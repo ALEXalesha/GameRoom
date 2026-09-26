@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Paint</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  html, body { height: 100%; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; background: #1e1e1e; color: #e0e0e0; }
+  .topbar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: #2a2a2a; border-bottom: 1px solid #333;
+  }
+  .topbar button, .topbar label {
+    background: #3a3a3a; border: none; color: #e0e0e0; padding: 6px 12px;
+    border-radius: 4px; cursor: pointer; font-size: 13px; display: inline-flex;
+    align-items: center; gap: 4px;
+  }
+  .topbar button:hover, .topbar label:hover { background: #4a4a4a; }
+  .topbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .topbar .spacer { flex: 1; }
+  .main { flex: 1; display: flex; min-height: 0; }
+  .toolpanel {
+    width: 56px; background: #252525; border-right: 1px solid #333;
+    display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 4px;
+  }
+  .tool {
+    width: 40px; height: 40px; border-radius: 4px; border: none;
+    background: transparent; color: #e0e0e0; cursor: pointer; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool:hover { background: #3a3a3a; }
+  .tool.active { background: #0066cc; color: #fff; }
+  .workspace {
+    flex: 1; display: flex; flex-direction: column; min-width: 0; background: #1e1e1e;
+  }
+  .options {
+    display: flex; gap: 16px; padding: 8px 12px;
+    background: #252525; border-bottom: 1px solid #333;
+    align-items: center; flex-wrap: wrap; font-size: 13px;
+  }
+  .options label { display: flex; align-items: center; gap: 6px; color: #bbb; }
+  .options input[type=range] { width: 100px; accent-color: #0066cc; }
+  .options input[type=color] {
+    width: 32px; height: 32px; border: 1px solid #444;
+    background: transparent; cursor: pointer; border-radius: 4px;
+  }
+  .options input[type=checkbox] { accent-color: #0066cc; }
+  .canvas-wrap {
+    flex: 1; overflow: auto; padding: 20px; display: flex;
+    align-items: center; justify-content: center;
+    background-image:
+      linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+      linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+      linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, 10px 0;
+  }
+  canvas {
+    background: white; cursor: crosshair; touch-action: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 100%;
+  }
+  .palette {
+    display: flex; gap: 4px; padding: 10px 12px;
+    background: #252525; border-top: 1px solid #333; align-items: center; flex-wrap: wrap;
+  }
+  .swatch {
+    width: 26px; height: 26px; border-radius: 4px; cursor: pointer;
+    border: 2px solid #444; transition: transform 0.1s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: #0066cc; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button id="undoBtn" title="Отмена (Ctrl+Z)">↶ Отмена</button>
+  <button id="redoBtn" title="Повтор (Ctrl+Y)">↷ Повтор</button>
+  <button id="clearBtn" title="Очистить">🗑 Очистить</button>
+  <button id="saveBtn" title="Сохранить PNG">💾 Скачать</button>
+  <label title="Загрузить изображение">
+    📂 Открыть
+    <input type="file" id="loadInput" accept="image/*" style="display:none">
+  </label>
+  <div class="spacer"></div>
+  <span style="font-size:12px;color:#888">900 × 600</span>
+</div>
+<div class="main">
+  <div class="toolpanel" id="toolpanel"></div>
+  <div class="workspace">
+    <div class="options">
+      <label>Размер <input type="range" id="sizeInput" min="1" max="80" value="4"><span id="sizeVal">4</span></label>
+      <label>Прозрачность <input type="range" id="alphaInput" min="5" max="100" value="100"><span id="alphaVal">100%</span></label>
+      <label id="filledWrap"><input type="checkbox" id="filledInput"> Залить фигуру</label>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="900" height="600"></canvas>
+    </div>
+    <div class="palette">
+      <label style="color:#bbb">Цвет <input type="color" id="colorInput" value="#000000"></label>
+      <div style="width:1px;height:24px;background:#444;margin:0 4px"></div>
+      <div id="swatches"></div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+const TOOLS = [
+  { id: 'brush', icon: '✏️', name: 'Кисть (B)', key: 'KeyB' },
+  { id: 'eraser', icon: '🧽', name: 'Ластик (E)', key: 'KeyE' },
+  { id: 'line', icon: '/', name: 'Линия (L)', key: 'KeyL' },
+  { id: 'rect', icon: '▭', name: 'Прямоугольник (R)', key: 'KeyR' },
+  { id: 'circle', icon: '○', name: 'Эллипс (O)', key: 'KeyO' },
+  { id: 'fill', icon: '🪣', name: 'Заливка (F)', key: 'KeyF' },
+  { id: 'pick', icon: '💧', name: 'Пипетка (I)', key: 'KeyI' },
+];
+const PALETTE = ['#000000','#7f7f7f','#c3c3c3','#ffffff','#880015','#ed1c24','#ff7f27','#fff200',
+                 '#22b14c','#00a2e8','#3f48cc','#a349a4','#b97a57','#ffaec9','#b5e61d','#ffc90e'];
+
+let tool = 'brush', color = '#000000', size = 4, alpha = 1, filled = false;
+let drawing = false, startX = 0, startY = 0, snapshot = null, points = [];
+// История - снимки ImageData: отмена и повтор срабатывают сразу, без асинхронной загрузки картинок.
+const history = [], redoStack = [], HISTORY_MAX = 20;
+function remember(img) {
+  history.push(img || ctx.getImageData(0, 0, canvas.width, canvas.height));
+  if (history.length > HISTORY_MAX) history.shift();
+  redoStack.length = 0;
+  updateButtons();
+}
+function updateButtons() {
+  document.getElementById('undoBtn').disabled = history.length === 0;
+  document.getElementById('redoBtn').disabled = redoStack.length === 0;
+}
+function undo() {
+  if (!history.length) return;
+  redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  ctx.putImageData(history.pop(), 0, 0);
+  updateButtons();
+}
+function redo() {
+  if (!redoStack.length) return;
+  history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  ctx.putImageData(redoStack.pop(), 0, 0);
+  updateButtons();
+}
+
+const toolpanel = document.getElementById('toolpanel');
+function setTool(id) {
+  tool = id;
+  toolpanel.querySelectorAll('.tool').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
+  document.getElementById('filledWrap').style.visibility = id === 'rect' || id === 'circle' ? 'visible' : 'hidden';
+}
+TOOLS.forEach(t => {
+  const btn = document.createElement('button');
+  btn.className = 'tool';
+  btn.dataset.tool = t.id;
+  btn.textContent = t.icon;
+  btn.title = t.name;
+  btn.onclick = () => setTool(t.id);
+  toolpanel.appendChild(btn);
+});
+setTool('brush');
+
+const swatches = document.getElementById('swatches');
+swatches.style.display = 'flex'; swatches.style.gap = '4px'; swatches.style.flexWrap = 'wrap';
+function setColor(c) {
+  color = c;
+  document.getElementById('colorInput').value = c;
+  swatches.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.c === c));
+}
+PALETTE.forEach(c => {
+  const sw = document.createElement('div');
+  sw.className = 'swatch';
+  sw.dataset.c = c;
+  sw.title = c;
+  sw.style.background = c;
+  sw.onclick = () => setColor(c);
+  swatches.appendChild(sw);
+});
+setColor('#000000');
+
+document.getElementById('colorInput').oninput = e => setColor(e.target.value);
+document.getElementById('sizeInput').oninput = e => { size = +e.target.value; document.getElementById('sizeVal').textContent = size; };
+document.getElementById('alphaInput').oninput = e => { alpha = +e.target.value / 100; document.getElementById('alphaVal').textContent = e.target.value + '%'; };
+document.getElementById('filledInput').onchange = e => { filled = e.target.checked; };
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) * canvas.width / rect.width, y: (e.clientY - rect.top) * canvas.height / rect.height };
+}
+function drawShape(x1, y1, x2, y2, shift) {
+  if (shift && tool !== 'line') { // Shift - квадрат или круг
+    const d = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    x2 = x1 + Math.sign(x2 - x1 || 1) * d; y2 = y1 + Math.sign(y2 - y1 || 1) * d;
+  }
+  ctx.beginPath();
+  if (tool === 'line') { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+  else if (tool === 'rect') { if (filled) ctx.fillRect(x1, y1, x2 - x1, y2 - y1); else ctx.strokeRect(x1, y1, x2 - x1, y2 - y1); }
+  else if (tool === 'circle') {
+    ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+    if (filled) ctx.fill(); else ctx.stroke();
+  }
+}
+// Мазок перерисовывается целиком поверх снимка: при прозрачности меньше 100% он ровный, без тёмных наплывов.
+function drawStroke() {
+  ctx.putImageData(snapshot, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = ctx.fillStyle = tool === 'eraser' ? '#ffffff' : color;
+  ctx.lineWidth = size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (points.length === 1) { ctx.arc(points[0].x, points[0].y, size / 2, 0, Math.PI * 2); ctx.fill(); }
+  else { ctx.moveTo(points[0].x, points[0].y); points.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); }
+  ctx.restore();
+}
+function hexToRgb(hex) { const h = hex.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+// Заливка с допуском: сглаженные края линий тоже закрашиваются, без белой каймы.
+function floodFill(x, y) {
+  const W = canvas.width, H = canvas.height;
+  const img = ctx.getImageData(0, 0, W, H), data = img.data;
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (tx < 0 || ty < 0 || tx >= W || ty >= H) return false;
+  const i0 = (ty * W + tx) * 4, target = [data[i0], data[i0 + 1], data[i0 + 2], data[i0 + 3]];
+  const rgb = hexToRgb(color);
+  const rep = [0, 1, 2].map(k => Math.round(rgb[k] * alpha + target[k] * (1 - alpha)));
+  if (rep[0] === target[0] && rep[1] === target[1] && rep[2] === target[2]) return false;
+  const TOL = 48, seen = new Uint8Array(W * H);
+  const match = p => { const i = p * 4; return Math.abs(data[i] - target[0]) + Math.abs(data[i + 1] - target[1]) + Math.abs(data[i + 2] - target[2]) + Math.abs(data[i + 3] - target[3]) <= TOL; };
+  const stack = [ty * W + tx];
+  while (stack.length) {
+    const p = stack.pop();
+    if (seen[p] || !match(p)) continue;
+    seen[p] = 1;
+    const i = p * 4;
+    data[i] = rep[0]; data[i + 1] = rep[1]; data[i + 2] = rep[2]; data[i + 3] = 255;
+    const px = p % W;
+    if (px > 0) stack.push(p - 1);
+    if (px < W - 1) stack.push(p + 1);
+    if (p >= W) stack.push(p - W);
+    if (p < W * (H - 1)) stack.push(p + W);
+  }
+  ctx.putImageData(img, 0, 0);
+  return true;
+}
+function pickColor(x, y) {
+  const px = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+  setColor('#' + [px[0], px[1], px[2]].map(c => c.toString(16).padStart(2, '0')).join(''));
+}
+
+// Указатель захватывается холстом: мазок продолжается, даже если мышь вышла за край.
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const p = getPos(e);
+  if (tool === 'pick') { pickColor(p.x, p.y); return; }
+  if (tool === 'fill') {
+    const before = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    if (floodFill(p.x, p.y)) remember(before);
+    return;
+  }
+  canvas.setPointerCapture(e.pointerId);
+  remember();
+  drawing = true;
+  startX = p.x; startY = p.y;
+  snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  if (tool === 'brush' || tool === 'eraser') { points = [p]; drawStroke(); }
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  const p = getPos(e);
+  if (tool === 'brush' || tool === 'eraser') { points.push(p); drawStroke(); return; }
+  ctx.putImageData(snapshot, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.fillStyle = color;
+  ctx.lineWidth = size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  drawShape(startX, startY, p.x, p.y, e.shiftKey);
+  ctx.restore();
+});
+function endDraw() { drawing = false; snapshot = null; points = []; }
+canvas.addEventListener('pointerup', endDraw);
+canvas.addEventListener('pointercancel', endDraw);
+
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('redoBtn').onclick = redo;
+document.getElementById('clearBtn').onclick = () => {
+  remember();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+};
+document.getElementById('saveBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.download = 'рисунок.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+};
+document.getElementById('loadInput').onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    remember();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const ratio = Math.min(canvas.width / img.width, canvas.height / img.height, 1);
+    const w = img.width * ratio, h = img.height * ratio;
+    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+  e.target.value = '';
+};
+// Клавиши по физическим кнопкам (e.code): работают и в русской раскладке.
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.ctrlKey || e.metaKey) {
+    if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (e.code === 'KeyY' || (e.code === 'KeyZ' && e.shiftKey)) { e.preventDefault(); redo(); }
+    return;
+  }
+  const t = TOOLS.find(x => x.key === e.code);
+  if (t) setTool(t.id);
+  if (e.code === 'BracketLeft' || e.code === 'BracketRight') {
+    size = Math.max(1, Math.min(80, size + (e.code === 'BracketRight' ? 2 : -2)));
+    document.getElementById('sizeInput').value = size;
+    document.getElementById('sizeVal').textContent = size;
+  }
+});
+updateButtons();
+</script>
+</body>
+</html>

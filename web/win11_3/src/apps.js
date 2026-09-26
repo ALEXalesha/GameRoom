@@ -18,7 +18,7 @@ const APPS = {
 };
 
 // ---------------- Проводник ----------------
-const NAV_ITEMS = [['', 'Этот компьютер', ICON.pc], ...ROOTS.map(r => [r, r, fileIcon(r)])];
+const NAV_ITEMS = () => [['', 'Этот компьютер', ICON.pc], ...ROOTS.map(r => [r, r, fileIcon(r)])];
 let CLIP = null; // { mode: 'cut'|'copy', paths: [] }
 function createExplorer(w, start) {
   let path = start !== undefined && (start === '' || FS.has(start)) ? start : 'Документы';
@@ -48,7 +48,7 @@ function createExplorer(w, start) {
   function render() {
     if (path !== '' && !FS.has(path)) path = '';
     w.setTitle(path === '' ? 'Этот компьютер' : baseName(path));
-    nav.innerHTML = NAV_ITEMS.map(([p, n, ic]) => '<button class="nav-item' + ((path === p || (p && path.startsWith(p + '/'))) ? ' active' : '') + '" data-go="' + esc(p) + '" data-drop="' + esc(p) + '">' + ic + '<span>' + esc(n) + '</span></button>').join('') +
+    nav.innerHTML = NAV_ITEMS().map(([p, n, ic]) => '<button class="nav-item' + ((path === p || (p && path.startsWith(p + '/'))) ? ' active' : '') + '" data-go="' + esc(p) + '" data-drop="' + esc(p) + '">' + ic + '<span>' + esc(n) + '</span></button>').join('') +
       '<div class="nav-sep"></div><button class="nav-item" data-recycle="1" data-drop="__trash">' + (TRASH.length ? ICON.recycleFull : ICON.recycle) + '<span>Корзина</span></button>';
     const parts = path ? path.split('/') : [];
     crumbs.innerHTML = '<a data-go="">Этот компьютер</a>' + parts.map((p, i) => '<i>' + '›' + '</i><a data-go="' + esc(parts.slice(0, i + 1).join('/')) + '">' + esc(p) + '</a>').join('');
@@ -363,8 +363,8 @@ function createCalc(w) {
 
 // ---------------- Параметры ----------------
 const SETTINGS_PAGES = [['system', 'Система', SI.display], ['network', 'Сеть и Интернет', SI.network], ['personal', 'Персонализация', SI.brush], ['apps', 'Приложения', SI.apps], ['accounts', 'Учётные записи', SI.person], ['time', 'Время и язык', SI.time], ['access', 'Специальные возможности', SI.access], ['about', 'О системе', SI.info]];
-function createSettings(w, page) {
-  let cur = page || 'system';
+function createSettings(w, startPage) {
+  let cur = startPage || 'system';
   w.onArg = p => { cur = p || cur; render(); };
   const tog = (k, title, sub, icon) => '<div class="row-card"><span class="rc-ic">' + (icon || '') + '</span><div class="rc-main"><div class="rc-title">' + title + '</div>' + (sub ? '<div class="rc-sub">' + sub + '</div>' : '') + '</div><span class="muted" style="font-size:13px">' + (S[k] ? 'Вкл.' : 'Откл.') + '</span><button class="toggle' + (S[k] ? ' on' : '') + '" data-tog="' + k + '" role="switch" aria-checked="' + !!S[k] + '" aria-label="' + title + '"></button></div>';
   const range = (k, title, min, max, icon) => '<div class="row-card"><span class="rc-ic">' + icon + '</span><div class="rc-main"><div class="rc-title">' + title + '</div></div><input type="range" min="' + min + '" max="' + max + '" value="' + S[k] + '" data-range="' + k + '" aria-label="' + title + '" style="width:200px"><span style="width:30px;text-align:right">' + S[k] + '</span></div>';
@@ -375,8 +375,8 @@ function createSettings(w, page) {
     if (cur === 'network') return '<h1>Сеть и Интернет</h1>' + tog('wifi', 'Wi-Fi', S.wifi ? 'Подключено, условная сеть' : 'Отключено', SI.wifi) + tog('bt', 'Bluetooth', '', SI.bt) + tog('airplane', 'Режим «в самолёте»', 'Отключает Wi-Fi и Bluetooth', SI.plane) + '<p class="muted" style="margin-top:12px;font-size:13px">Оболочка работает без интернета: переключатели условные.</p>';
     if (cur === 'personal') {
       const imgs = [...FS.values()].filter(e => e.type === 'file' && isImage(e.path));
-      return '<h1>Персонализация</h1><div class="wall-prev" style="background:' + wallpaperCss(d) + ';background-size:cover"></div><div class="subtitle">Фон</div><div class="walls">' +
-        Object.entries(WALLS).map(([k, v]) => '<button class="wall' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" title="' + v.name + '" aria-label="' + v.name + '" style="background:' + v.css(d) + ';background-size:cover"></button>').join('') +
+      return '<h1>Персонализация</h1><div class="wall-prev" style="background:' + esc(wallpaperCss(d)) + ';background-size:cover"></div><div class="subtitle">Фон</div><div class="walls">' +
+        Object.entries(WALLS).map(([k, v]) => '<button class="wall' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" title="' + v.name + '" aria-label="' + v.name + '" style="background:' + esc(v.css(d)) + ';background-size:cover"></button>').join('') +
         imgs.map(e => fileUrl(e) ? '<button class="wall' + (S.wallpaper === 'fs:' + e.path ? ' on' : '') + '" data-wall="fs:' + esc(e.path) + '" title="' + esc(baseName(e.path)) + '" style="background-image:url(&quot;' + fileUrl(e) + '&quot;)"></button>' : '').join('') + '</div>' +
         '<div class="subtitle">Цвета</div><div class="row-card"><span class="rc-ic">' + SI.brush + '</span><div class="rc-main"><div class="rc-title">Режим</div><div class="rc-sub">Цвет окон, панели задач и меню</div></div><div class="seg"><button data-theme-set="light" class="' + (!d ? 'on' : '') + '">Светлый</button><button data-theme-set="dark" class="' + (d ? 'on' : '') + '">Тёмный</button></div></div>' +
         '<div class="row-card" style="align-items:flex-start"><span class="rc-ic">' + SI.brush + '</span><div class="rc-main"><div class="rc-title" style="margin-bottom:10px">Контрастный цвет</div><div class="accents">' + ACCENTS.map((a, i) => '<button data-accent="' + i + '" class="' + (S.accent === i ? 'on' : '') + '" style="background:' + (d ? a[0] : a[1]) + '" aria-label="Цвет ' + (i + 1) + '"></button>').join('') + '</div></div></div>' +
@@ -463,7 +463,6 @@ function createBrowser(w) {
 function createPhotos(w, start) {
   let view = null; // путь файла или ключ обоев 'wall:<id>'
   const listAll = () => [...[...FS.values()].filter(e => e.type === 'file' && isImage(e.path)).map(e => e.path), ...Object.keys(WALLS).map(k => 'wall:' + k)];
-  const urlOf = id => id.startsWith('wall:') ? (() => { const c = WALLS[id.slice(5)].css(S.theme === 'dark'); return c.startsWith('url(') ? c.slice(5, -2) : null; })() : fileUrl(FS.get(id));
   const bgOf = id => { if (id.startsWith('wall:')) return WALLS[id.slice(5)].css(S.theme === 'dark'); const u = fileUrl(FS.get(id)); return u ? 'url("' + u + '")' : 'none'; };
   const nameOf = id => id.startsWith('wall:') ? WALLS[id.slice(5)].name : baseName(id);
   w.onArg = p => { view = p; render(); };
@@ -472,7 +471,7 @@ function createPhotos(w, start) {
     const imgs = [...FS.values()].filter(e => e.type === 'file' && isImage(e.path));
     let html = '<div class="photos"><div class="cmdbar"><button class="tbtn" data-ph="import">' + SI.import + ' Импорт</button><button class="tbtn" data-open-app="explorer">' + SI.open + ' Папка «Изображения»</button></div><div class="ph-grid">' +
       '<div class="ph-sec">Ваши изображения (' + imgs.length + ')</div>' + (imgs.length ? imgs.map(e => '<button class="ph-tile" data-view="' + esc(e.path) + '" title="' + esc(baseName(e.path)) + '" style="background-image:url(&quot;' + (fileUrl(e) || '') + '&quot;)"></button>').join('') : '<div class="muted" style="grid-column:1/-1;padding:0 4px">Импортируйте картинки или сохраните их в «Изображения»</div>') +
-      '<div class="ph-sec">Обои оболочки</div>' + Object.entries(WALLS).map(([k, v]) => '<button class="ph-tile" data-view="wall:' + k + '" title="' + v.name + '" style="background:' + v.css(S.theme === 'dark') + ';background-size:cover"></button>').join('') + '</div><input type="file" accept="image/*" multiple hidden class="ph-in"></div>';
+      '<div class="ph-sec">Обои оболочки</div>' + Object.entries(WALLS).map(([k, v]) => '<button class="ph-tile" data-view="wall:' + k + '" title="' + v.name + '" style="background:' + esc(v.css(S.theme === 'dark')) + ';background-size:cover"></button>').join('') + '</div><input type="file" accept="image/*" multiple hidden class="ph-in"></div>';
     if (view) {
       const all = listAll(), i = all.indexOf(view);
       html += '<div class="ph-view"><div class="pv-bar"><button class="tbtn" data-ph="close" aria-label="Назад">' + SI.back + '</button><span>' + esc(nameOf(view)) + ' · ' + (i + 1) + ' из ' + all.length + '</span>' +
@@ -618,7 +617,7 @@ function createClock(w, tab0) {
 function createWeather(w) {
   const d = new Date(), temp = h => Math.round(16 + 4 * Math.sin((h - 9) / 24 * Math.PI * 2));
   const hours = Array.from({ length: 10 }, (_, i) => { const h = (d.getHours() + i) % 24; return [i ? pad(h) + ':00' : 'Сейчас', h < 6 || h > 20 ? '🌙' : ['⛅', '☁️', '🌤️', '☀️'][i % 4], temp(h)]; });
-  const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return [i ? DAYS[x.getDay()].slice(0, 2) + ', ' + x.getDate() : 'Сегодня', ['⛅', '🌧️', '☀️', '☀️', '⛅', '🌦️', '☀️'][i], 11 + i % 4, 18 + (i * 3) % 7]; });
+  const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return [i ? ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][x.getDay()] + ', ' + x.getDate() : 'Сегодня', ['⛅', '🌧️', '☀️', '☀️', '⛅', '🌦️', '☀️'][i], 11 + i % 4, 18 + (i * 3) % 7]; });
   w.body.innerHTML = '<div class="weather"><div class="w-now"><div style="font-size:72px">⛅</div><div><div style="font-size:18px">Лиссабон</div><div class="w-temp">' + temp(d.getHours()) + '°</div><div>Переменная облачность · ощущается как ' + (temp(d.getHours()) - 1) + '°</div></div></div>' +
     '<div class="w-cards">' + hours.map(h => '<div class="w-card"><div>' + h[0] + '</div><div style="font-size:26px;margin:6px 0">' + h[1] + '</div><b>' + h[2] + '°</b></div>').join('') + '</div>' +
     '<div class="w-cards">' + days.map(x => '<div class="w-card"><div>' + x[0] + '</div><div style="font-size:26px;margin:6px 0">' + x[1] + '</div><b>' + x[3] + '°</b> <span style="opacity:.7">' + x[2] + '°</span></div>').join('') + '</div>' +
@@ -651,7 +650,7 @@ function createTerminal(w, startDir) {
     line.innerHTML = '<span></span><input aria-label="Команда" spellcheck="false" autocomplete="off">';
     line.querySelector('span').textContent = winPath(cwd) + '>';
     out.appendChild(line);
-    const inp = line.querySelector('input'); setTimeout(() => inp.focus(), 10); out.scrollTop = out.scrollHeight;
+    const inp = line.querySelector('input'); inp.focus({ preventScroll: true }); setTimeout(() => { if (activeWin === w) inp.focus({ preventScroll: true }); }, 10); out.scrollTop = out.scrollHeight;
     inp.addEventListener('keydown', e => {
       e.stopPropagation();
       if (e.key === 'Enter') { const cmd = inp.value; line.remove(); print(winPath(cwd) + '>' + cmd); if (cmd.trim()) { hist.unshift(cmd); } hi = -1; run(cmd.trim()); if (wins.includes(w)) prompt(); }

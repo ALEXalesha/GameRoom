@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>MiniCraft</title>
+<!-- Кубическая песочница на three.js (MIT, vendor/three.global.min.js). Название своё, не связано с какими-либо играми и компаниями. -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #87CEEB; font-family: 'Courier New', monospace; }
+  canvas { display: block; }
+  #info {
+    position: absolute; top: 10px; left: 10px; color: white;
+    background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px;
+    font-size: 13px; line-height: 1.5; pointer-events: none;
+  }
+  #crosshair {
+    position: absolute; top: 50%; left: 50%;
+    width: 20px; height: 20px; margin: -10px 0 0 -10px; pointer-events: none;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: white; box-shadow: 0 0 2px black;
+  }
+  #crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
+  #crosshair::after { top: 9px; left: 0; width: 20px; height: 2px; }
+  #hotbar {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px; padding: 4px;
+    background: rgba(0,0,0,0.5); border-radius: 4px;
+  }
+  .slot {
+    width: 50px; height: 50px; border: 2px solid #555;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: bold; font-size: 11px;
+    text-align: center; line-height: 1.1;
+  }
+  .slot.active { border-color: white; box-shadow: 0 0 8px white; }
+  #start {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); color: white;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 10;
+  }
+  #start h1 { font-size: 42px; margin-bottom: 16px; letter-spacing: 4px; }
+  #start p { font-size: 14px; margin: 4px 0; opacity: 0.9; }
+  #start .hint { margin-top: 24px; font-size: 14px; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div id="info">
+  FPS: <span id="fps">0</span><br>
+  Позиция: <span id="pos">0, 0, 0</span><br>
+  Блоков: <span id="blocks">0</span>
+</div>
+<div id="crosshair"></div>
+<div id="hotbar"></div>
+<div id="start">
+  <h1>MINICRAFT</h1>
+  <p>WASD - ходьба</p>
+  <p>Пробел - прыжок</p>
+  <p>Мышь - осмотр</p>
+  <p>ЛКМ - сломать блок</p>
+  <p>ПКМ - поставить блок</p>
+  <p>1-5 - выбор блока</p>
+  <p class="hint">Нажми, чтобы начать</p>
+</div>
+
+<script src="../vendor/three.global.min.js"></script>
+<script>
+(() => {
+'use strict';
+const THREE = window.THREE;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 50, 120);
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(50, 100, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 200;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+function makeTexture(drawFn) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 16;
+  drawFn(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  return t;
+}
+function noisyFill(ctx, base, variance) {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const v = (Math.random() - 0.5) * variance;
+    const r = Math.max(0, Math.min(255, base[0] + v));
+    const g = Math.max(0, Math.min(255, base[1] + v));
+    const b = Math.max(0, Math.min(255, base[2] + v));
+    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+const texGrassTop = makeTexture(ctx => noisyFill(ctx, [95, 159, 53], 40));
+const texDirt = makeTexture(ctx => noisyFill(ctx, [134, 96, 67], 35));
+const texGrassSide = makeTexture(ctx => {
+  noisyFill(ctx, [134, 96, 67], 35);
+  for (let x = 0; x < 16; x++) {
+    const h = 2 + (Math.random() * 3 | 0);
+    for (let y = 0; y < h; y++) {
+      const v = (Math.random() - 0.5) * 40;
+      ctx.fillStyle = `rgb(${95+v|0},${159+v|0},${53+v|0})`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+});
+const texStone = makeTexture(ctx => noisyFill(ctx, [125, 125, 125], 35));
+const texWood = makeTexture(ctx => {
+  noisyFill(ctx, [110, 75, 45], 25);
+  ctx.fillStyle = 'rgba(70, 45, 25, 0.6)';
+  for (let y = 0; y < 16; y++) if (y % 4 === 0) ctx.fillRect(0, y, 16, 1);
+});
+const texLeaves = makeTexture(ctx => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const v = (Math.random() - 0.5) * 50;
+    const alpha = Math.random() > 0.1 ? 1 : 0.7;
+    ctx.fillStyle = `rgba(${50+v|0},${120+v|0},${40+v|0},${alpha})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+});
+const texSand = makeTexture(ctx => noisyFill(ctx, [219, 205, 150], 25));
+
+const BLOCKS = {
+  grass: { name: 'Трава', mats: [
+    new THREE.MeshLambertMaterial({ map: texGrassSide }),
+    new THREE.MeshLambertMaterial({ map: texGrassSide }),
+    new THREE.MeshLambertMaterial({ map: texGrassTop }),
+    new THREE.MeshLambertMaterial({ map: texDirt }),
+    new THREE.MeshLambertMaterial({ map: texGrassSide }),
+    new THREE.MeshLambertMaterial({ map: texGrassSide })] },
+  dirt: { name: 'Земля', mats: Array(6).fill(new THREE.MeshLambertMaterial({ map: texDirt })) },
+  stone: { name: 'Камень', mats: Array(6).fill(new THREE.MeshLambertMaterial({ map: texStone })) },
+  wood: { name: 'Дерево', mats: Array(6).fill(new THREE.MeshLambertMaterial({ map: texWood })) },
+  leaves: { name: 'Листья', mats: Array(6).fill(new THREE.MeshLambertMaterial({ map: texLeaves, transparent: true })) },
+  sand: { name: 'Песок', mats: Array(6).fill(new THREE.MeshLambertMaterial({ map: texSand })) }
+};
+const HOTBAR = ['grass', 'stone', 'wood', 'leaves', 'sand'];
+
+const hotbarEl = document.getElementById('hotbar');
+let selectedSlot = 0;
+HOTBAR.forEach((type, i) => {
+  const el = document.createElement('div');
+  el.className = 'slot' + (i === 0 ? ' active' : '');
+  el.textContent = BLOCKS[type].name;
+  hotbarEl.appendChild(el);
+});
+function setSlot(i) {
+  selectedSlot = i;
+  [...hotbarEl.children].forEach((el, j) => el.classList.toggle('active', i === j));
+}
+
+// Мир хранит все блоки, но сетку (Mesh) получают только видимые: у которых есть открытая грань.
+// Раньше каждый из ~20 000 блоков был отдельной сеткой, и игра тормозила даже в пустом мире.
+const world = new Map();
+const colBottom = new Map();   // нижний блок каждого столбца: под ним «коренная порода», грань не видна
+const geo = new THREE.BoxGeometry(1, 1, 1);
+function key(x, y, z) { return `${x},${y},${z}`; }
+const NEIGHBORS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+function opaqueAt(x, y, z) {
+  const b = world.get(key(x, y, z));
+  if (b) return b.type !== 'leaves';
+  const bottom = colBottom.get(x + ',' + z);
+  return bottom !== undefined && y < bottom;
+}
+function refresh(x, y, z) {
+  const b = world.get(key(x, y, z));
+  if (!b) return;
+  const visible = NEIGHBORS.some(([dx, dy, dz]) => !opaqueAt(x + dx, y + dy, z + dz));
+  if (visible && !b.mesh) {
+    const mesh = new THREE.Mesh(geo, BLOCKS[b.type].mats);
+    mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { x, y, z, type: b.type };
+    scene.add(mesh);
+    b.mesh = mesh;
+  } else if (!visible && b.mesh) {
+    scene.remove(b.mesh);
+    b.mesh = null;
+  }
+}
+function refreshAround(x, y, z) {
+  refresh(x, y, z);
+  NEIGHBORS.forEach(([dx, dy, dz]) => refresh(x + dx, y + dy, z + dz));
+}
+let generating = true;
+function addBlock(x, y, z, type) {
+  const k = key(x, y, z);
+  if (world.has(k)) return;
+  world.set(k, { type, mesh: null });
+  if (!generating) refreshAround(x, y, z);
+}
+function removeBlock(x, y, z) {
+  const k = key(x, y, z);
+  const b = world.get(k);
+  if (!b) return;
+  if (b.mesh) scene.remove(b.mesh);
+  world.delete(k);
+  refreshAround(x, y, z);
+}
+
+function pseudoNoise(x, z) {
+  return Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3 + Math.sin(x * 0.05 + z * 0.07) * 2);
+}
+const WORLD_SIZE = 24;
+for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) for (let z = -WORLD_SIZE; z < WORLD_SIZE; z++) {
+  const h = pseudoNoise(x, z);
+  addBlock(x, h, z, 'grass');
+  addBlock(x, h - 1, z, 'dirt');
+  addBlock(x, h - 2, z, 'dirt');
+  for (let y = h - 3; y >= h - 6; y--) addBlock(x, y, z, 'stone');
+  colBottom.set(x + ',' + z, h - 6);
+}
+function makeTree(x, z) {
+  let y = 10;
+  while (y > -10 && !world.has(key(x, y, z))) y--;
+  const base = y + 1;
+  for (let i = 0; i < 4; i++) addBlock(x, base + i, z, 'wood');
+  const top = base + 4;
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 2; dy++) {
+    if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+    if (dy === 2 && (Math.abs(dx) + Math.abs(dz)) > 1) continue;
+    if (dx === 0 && dz === 0 && dy < 2) continue;
+    addBlock(x + dx, top + dy, z + dz, 'leaves');
+  }
+}
+for (let i = 0; i < 15; i++) {
+  makeTree((Math.random() * WORLD_SIZE * 2 - WORLD_SIZE) | 0, (Math.random() * WORLD_SIZE * 2 - WORLD_SIZE) | 0);
+}
+generating = false;
+for (const k of world.keys()) { const [x, y, z] = k.split(',').map(Number); refresh(x, y, z); }
+
+const player = {
+  pos: new THREE.Vector3(0.5, 12, 0.5), vel: new THREE.Vector3(),
+  onGround: false, height: 1.7, radius: 0.3, yaw: 0, pitch: 0
+};
+camera.rotation.order = 'YXZ';
+
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code.startsWith('Digit')) {
+    const n = parseInt(e.code.slice(5)) - 1;
+    if (n >= 0 && n < HOTBAR.length) setSlot(n);
+  }
+});
+addEventListener('keyup', e => keys[e.code] = false);
+// окно потеряло фокус - клавиши считаются отпущенными, иначе игрок бежит сам
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+const startEl = document.getElementById('start');
+startEl.addEventListener('click', () => renderer.domElement.requestPointerLock());
+document.addEventListener('pointerlockchange', () => {
+  startEl.style.display = document.pointerLockElement ? 'none' : 'flex';
+});
+document.addEventListener('mousemove', e => {
+  if (!document.pointerLockElement) return;
+  player.yaw -= e.movementX * 0.002;
+  player.pitch -= e.movementY * 0.002;
+  player.pitch = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, player.pitch));
+});
+
+const raycaster = new THREE.Raycaster();
+raycaster.far = 6;
+function raycastBlock() {
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  // луч длиной 6 блоков: проверяем только видимые блоки рядом с игроком
+  const meshes = [];
+  for (const b of world.values()) if (b.mesh && b.mesh.position.distanceToSquared(player.pos) < 64) meshes.push(b.mesh);
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (!hits.length) return null;
+  const hit = hits[0];
+  const p = hit.point.clone().addScaledVector(hit.face.normal, -0.5);
+  const placePos = hit.point.clone().addScaledVector(hit.face.normal, 0.5);
+  return {
+    block: { x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z) },
+    place: { x: Math.floor(placePos.x), y: Math.floor(placePos.y), z: Math.floor(placePos.z) }
+  };
+}
+document.addEventListener('mousedown', e => {
+  if (!document.pointerLockElement) return;
+  const hit = raycastBlock();
+  if (!hit) return;
+  if (e.button === 0) removeBlock(hit.block.x, hit.block.y, hit.block.z);
+  else if (e.button === 2) {
+    const px = Math.floor(player.pos.x), py = Math.floor(player.pos.y);
+    const py2 = Math.floor(player.pos.y - player.height + 0.1);
+    const pz = Math.floor(player.pos.z);
+    const { x, y, z } = hit.place;
+    if (x === px && z === pz && (y === py || y === py2)) return;
+    addBlock(x, y, z, HOTBAR[selectedSlot]);
+  }
+});
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+function blockAt(x, y, z) {
+  return world.has(key(Math.floor(x), Math.floor(y), Math.floor(z)));
+}
+function collides(pos) {
+  const r = player.radius, h = player.height;
+  for (let dx = -r; dx <= r; dx += r) for (let dz = -r; dz <= r; dz += r) {
+    for (let dy = -h + 0.1; dy <= 0; dy += 0.5) {
+      if (blockAt(pos.x + dx, pos.y + dy, pos.z + dz)) return true;
+    }
+    if (blockAt(pos.x + dx, pos.y, pos.z + dz)) return true;
+  }
+  return false;
+}
+
+const SPEED = 5, JUMP = 8.5, GRAVITY = 25;
+let lastTime = performance.now(), frames = 0, fpsTime = 0;
+const posEl = document.getElementById('pos');
+const blocksEl = document.getElementById('blocks');
+const fpsEl = document.getElementById('fps');
+const showBlocks = () => { blocksEl.textContent = world.size + ' (видно ' + scene.children.filter(o => o.isMesh).length + ')'; };
+showBlocks();
+
+function update(dt) {
+  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  const move = new THREE.Vector3();
+  if (keys['KeyW']) move.add(forward);
+  if (keys['KeyS']) move.sub(forward);
+  if (keys['KeyD']) move.add(right);
+  if (keys['KeyA']) move.sub(right);
+  if (move.lengthSq() > 0) move.normalize().multiplyScalar(SPEED);
+  player.vel.x = move.x; player.vel.z = move.z;
+  if (keys['Space'] && player.onGround) { player.vel.y = JUMP; player.onGround = false; }
+  player.vel.y -= GRAVITY * dt;
+  if (player.vel.y < -30) player.vel.y = -30;
+
+  const newPos = player.pos.clone();
+  newPos.x += player.vel.x * dt;
+  if (collides(newPos)) { newPos.x = player.pos.x; player.vel.x = 0; }
+  newPos.z += player.vel.z * dt;
+  if (collides(newPos)) { newPos.z = player.pos.z; player.vel.z = 0; }
+  newPos.y += player.vel.y * dt;
+  if (collides(newPos)) {
+    if (player.vel.y < 0) player.onGround = true;
+    newPos.y = player.pos.y; player.vel.y = 0;
+  } else player.onGround = false;
+  if (newPos.y < -30) { newPos.set(0.5, 12, 0.5); player.vel.set(0, 0, 0); }
+  player.pos.copy(newPos);
+  camera.position.copy(player.pos);
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+// Пока игра не идёт (нет захвата мыши), мир неподвижен: кадр рисуется один раз, а не 60 раз в секунду.
+// Иначе простаивающая игра в окне оболочки съедала процессор у всех остальных окон.
+let needRender = true;
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+  const playing = !!document.pointerLockElement;
+  if (playing) update(dt);
+  if (!playing && !needRender) return;
+  needRender = false;
+  renderer.render(scene, camera);
+  frames++; fpsTime += dt;
+  if (fpsTime >= 0.5) {
+    fpsEl.textContent = Math.round(frames / fpsTime);
+    frames = 0; fpsTime = 0;
+    posEl.textContent = `${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)}`;
+    showBlocks();
+
+  }
+}
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  needRender = true;
+});
+
+loop();
+})();
+</script>
+</body>
+</html>

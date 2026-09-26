@@ -37,6 +37,8 @@ body { font-family: var(--font); font-size: 14px; color: var(--fg); background: 
 input, textarea, [contenteditable] { user-select: text; font-family: inherit; color: inherit; }
 button { font: inherit; color: inherit; background: none; border: none; cursor: default; }
 svg { flex-shrink: 0; }
+[hidden] { display: none !important; }
+.window:focus, .window:focus-visible { outline: none; }
 body.no-anim *, body.no-anim *::before, body.no-anim *::after, body.paused *, body.paused *::before, body.paused *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 body.paused * { animation-play-state: paused !important; }
 body.no-transparency { --mica: var(--mica-solid); --acrylic: var(--acrylic-solid); --flyout: var(--acrylic-solid); }
@@ -198,6 +200,8 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #60a5fa, #a78bfa); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; }
 .power-btn { width: 40px; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
 .power-btn:hover { background: var(--subtle-hover); }
+.power-btn svg { width: 16px; height: 16px; }
+.sec-head button svg { width: 12px; height: 12px; }
 .menu { position: absolute; background: var(--flyout); border: 1px solid var(--stroke2); border-radius: 8px; padding: 4px; box-shadow: var(--shadow); min-width: 200px; z-index: 30;
   backdrop-filter: blur(60px); -webkit-backdrop-filter: blur(60px); display: none; }
 .menu.open { display: block; animation: menuIn 0.18s var(--ease); }
@@ -260,6 +264,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .cal-nav div { display: flex; }
 .cal-nav button { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
 .cal-nav button:hover { background: var(--subtle-hover); }
+.cal-nav button svg { width: 14px; height: 14px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: 13px; }
 .cal-grid .dow { color: var(--fg2); height: 32px; display: flex; align-items: center; justify-content: center; }
 .cal-grid .d { height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
@@ -280,7 +285,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .toast .n-x:hover { background: var(--subtle-hover); }
 
 /* Макеты прикрепления у кнопки «Развернуть» */
-#snap-flyout { position: fixed; z-index: 2700; padding: 12px; display: none; gap: 12px; flex-wrap: wrap; width: 260px; }
+#snap-flyout { position: fixed; z-index: 2700; padding: 12px; display: none; gap: 12px; flex-wrap: wrap; width: 270px; }
 #snap-flyout.open { display: flex; visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
 .layout { width: 112px; height: 64px; display: flex; gap: 3px; padding: 3px; border-radius: 6px; background: var(--layer2); }
 .layout .col { display: flex; flex-direction: column; gap: 3px; }
@@ -301,7 +306,9 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .tv-card .tv-top button:hover { background: var(--close-hover); color: #fff; }
 .tv-card .tv-top svg { width: 16px; height: 16px; }
 .tv-card .tv-body { height: 160px; display: flex; align-items: center; justify-content: center; background: var(--layer2); }
-.tv-card .tv-body svg { width: 56px; height: 56px; }
+.tv-card .tv-body > svg { width: 56px; height: 56px; }
+.tv-card .tv-body { position: relative; overflow: hidden; }
+.tv-clone { pointer-events: none; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: var(--mica-solid) !important; }
 .tv-empty { color: #fff; font-size: 16px; text-align: center; width: 100%; padding-top: 30vh; }
 
 /* Экран блокировки, фильтры экрана, загрузка */
@@ -462,6 +469,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 .mb-seek input { width: min(320px, 30vw); accent-color: var(--accent); }
 .mb-right { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 .mb-right input { width: 100px; accent-color: var(--accent); }
+.mb-play svg, .mb-right svg { width: 16px; height: 16px; }
 
 .clockapp { flex: 1; display: flex; min-height: 0; }
 .clock-main { flex: 1; overflow: auto; padding: 16px 32px; min-width: 0; }
@@ -486,6 +494,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 
 .term { flex: 1; display: flex; flex-direction: column; min-height: 0; background: #0c0c0c; color: #cccccc; }
 .term-tabs { height: 36px; display: flex; align-items: flex-end; padding: 0 8px; background: #1f1f1f; flex-shrink: 0; }
+.term-tabs span svg { width: 14px; height: 14px; }
 .term-tabs span { height: 30px; padding: 0 14px; display: flex; align-items: center; gap: 8px; background: #0c0c0c; border-radius: 6px 6px 0 0; font-size: 12px; color: #fff; }
 .term-out { flex: 1; overflow: auto; padding: 8px 12px; font-family: var(--mono); font-size: 14px; line-height: 1.35; white-space: pre-wrap; word-break: break-all; cursor: text; }
 .term-line { display: flex; }

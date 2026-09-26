@@ -110,6 +110,10 @@ const SI = { // системные значки 16x16, цвет от текст�
   apps: G('ap', '<rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="9" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/>', '0 0 16 16'),
 };
 
+// Значки в разметке: data-ic - цветные, data-si - системные
+document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = ICON[e.dataset.ic]; });
+document.querySelectorAll('[data-si]').forEach(e => { e.innerHTML = SI[e.dataset.si]; });
+
 // ================= Обои: генерируются кодом (SVG), своих картинок нет =================
 function svgUrl(svg) { return 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '")'; }
 function bloomSVG(dark, hue = 220) {
@@ -838,6 +842,17 @@ function showTaskView() {
   const tv = $('taskview');
   tv.innerHTML = '<div class="tv-grid">' + (wins.length ? [...wins].reverse().map(w => '<div class="tv-card" data-tv="' + w.id + '" role="button"><div class="tv-top">' + APPS[w.app].icon + '<span>' + esc(w.title) + '</span><button data-tvx="' + w.id + '" title="Закрыть">' + SI.x + '</button></div><div class="tv-body">' + APPS[w.app].icon + '</div></div>').join('')
     : '<div class="tv-empty">Нет открытых окон</div>') + '</div>';
+  // Живые миниатюры: копия содержимого окна, уменьшенная до карточки (окна-рамки показываем значком)
+  tv.querySelectorAll('[data-tv]').forEach(card => {
+    const w = wins.find(k => k.id === card.dataset.tv); if (!w || w.iframe) return;
+    const body = card.querySelector('.tv-body'), W = w.el.offsetWidth || 800, H = w.el.offsetHeight || 500;
+    const k = Math.min(276 / W, 160 / H);
+    const c = w.el.cloneNode(true);
+    c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    c.classList.remove('minimized', 'opening', 'inactive'); c.classList.add('tv-clone');
+    Object.assign(c.style, { position: 'absolute', left: '50%', top: '50%', width: W + 'px', height: H + 'px', transform: 'translate(-50%,-50%) scale(' + k + ')', visibility: 'visible', zIndex: 'auto' });
+    body.innerHTML = ''; body.appendChild(c);
+  });
   tv.classList.add('open'); $('btn-tv').classList.add('open');
 }
 function hideTaskView() { $('taskview').classList.remove('open'); $('btn-tv').classList.remove('open'); }
