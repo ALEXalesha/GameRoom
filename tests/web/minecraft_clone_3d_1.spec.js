@@ -256,6 +256,36 @@ test.describe('minecraft_clone_3d_1: управление и блоки', () => 
     expect(r.sinkWater).toBeLessThan(1.5);          // в воздухе за полсекунды - 3.5 блока
   });
 
+  test('звуки синтезируются: шаги по поверхности, слом и установка блока, всплеск; файлов звуков нет', async ({ page }) => {
+    const requests = [];
+    page.on('request', (r) => requests.push(r.url()));
+    await openVoxel(page);
+    await newWorld(page, { seed: 8 });
+    await flatArena(page, 70, 6);
+    const r = await page.evaluate(() => {
+      const v = __voxel, A = v.VX.audio, c = A.counts;
+      A.init();
+      const was = { ...c };
+      const surf = [];
+      const orig = A.play; A.play = (n, o) => { if (o && o.surface) surf.push(n + ':' + o.surface); return orig(n, o); };
+      v.look(0, 0); v.key('KeyW'); v.step(0.02, 150); v.key('KeyW', false);
+      v.select(1); v.look(0, -0.6); v.place(); v.breakTarget();
+      const p = v.player, x = Math.floor(p.pos.x), z = Math.floor(p.pos.z);
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (let y = 66; y < 70; y++) v.setBlock(x + dx, y, z + dz, v.core.B.water);
+      p.pos.y = 75; p.vel.y = -10; p.flying = false; v.step(0.02, 60);
+      A.play = orig;
+      return { ctx: A.ready, step: (c.step || 0) - (was.step || 0), place: (c.place || 0) - (was.place || 0), brk: (c.break || 0) - (was.break || 0), splash: (c.splash || 0) - (was.splash || 0), surf };
+    });
+    expect(r.ctx).toBe(true);                        // WebAudio создан
+    expect(r.step).toBeGreaterThan(2);
+    expect(r.place).toBe(1);
+    expect(r.brk).toBe(1);
+    expect(r.splash).toBe(1);
+    expect(r.surf).toContain('step:stone');          // пол арены - камень
+    expect(r.surf).toContain('place:gravel');        // земля звучит как гравий/земля
+    expect(requests.filter((u) => /\.(mp3|ogg|wav|m4a)(\?|$)/i.test(u))).toEqual([]);
+  });
+
   test('панель быстрого доступа: колесо и клавиши 1-9, СКМ берёт блок под прицелом', async ({ page }) => {
     await openVoxel(page);
     await newWorld(page, { seed: 8 });
