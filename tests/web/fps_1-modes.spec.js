@@ -76,4 +76,17 @@ test.describe('fps_1: режимы', () => {
     await expect(page.locator('#menu')).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('после разминки мишени не переезжают в следующий матч', async ({ page }) => {
+    await openTactical(page);
+    const r = await page.evaluate(() => {
+      const count = () => { let n = 0; __tactical.app.scene.traverse((o) => { if (o.geometry && o.geometry.type === 'TorusGeometry') n++; }); return n; };
+      __tactical.start({ mode: 'train', map: 'range' });
+      const inTrain = count();
+      __tactical.start({ mode: 'dm', map: 'port', ai: false });
+      return { inTrain, after: count() };
+    });
+    expect(r.inTrain).toBeGreaterThan(5);
+    expect(r.after).toBe(0);
+  });
 });
