@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кубик-паркур (фан-версия, не связана с правообладателем)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; background: #87ceeb; }
+  canvas { display: block; }
+  .box {
+    position: fixed; color: #fff; background: rgba(0,0,0,0.5); padding: 8px 14px; border-radius: 8px;
+    user-select: none; pointer-events: none;
+  }
+  #ui { top: 10px; left: 10px; font-size: 16px; line-height: 1.5; }
+  #controls { bottom: 10px; left: 10px; font-size: 13px; }
+  .screen {
+    position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6); color: #fff; text-align: center; gap: 10px;
+  }
+  .screen.show { display: flex; }
+  .screen h1 { margin: 0; font-size: 40px; }
+  .screen p { margin: 0; font-size: 17px; max-width: 520px; line-height: 1.5; }
+  .screen small { opacity: 0.7; }
+  .screen button { margin-top: 8px; font-size: 18px; padding: 10px 26px; border-radius: 10px; border: none; background: #ffcc33; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="ui" class="box">Монеты: <b id="coins">0</b> / <b id="total">0</b><br>Время: <b id="time">0.0</b> с · Рекорд: <b id="best">-</b></div>
+<div id="controls" class="box">WASD - бег · Пробел - прыжок · мышь с зажатой кнопкой или стрелки - камера · P / Esc - пауза · R - заново</div>
+
+<div id="start" class="screen show">
+  <h1>КУБИК-ПАРКУР</h1>
+  <p>Собери все монеты на платформах как можно быстрее. Одна платформа ездит - прыгай вовремя.</p>
+  <button id="startBtn" type="button">Старт (Enter)</button>
+  <small>Фан-версия, не связана с правообладателем. Персонаж и мир собраны из простых фигур.</small>
+</div>
+<div id="pause" class="screen"><h1>ПАУЗА</h1><p>P или Esc - продолжить</p></div>
+<div id="win" class="screen">
+  <h1>ПОБЕДА!</h1>
+  <p id="winText"></p>
+  <button id="againBtn" type="button">Ещё раз (Enter)</button>
+</div>
+
+<!-- three.js r149 лежит рядом (vendor/): без интернета и по адресу file:// -->
+<script src="vendor/three.min.js"></script>
+<script>
+'use strict';
+const BEST_KEY = 'parkour_best_ms';
+const GRAVITY = -30, MOVE_SPEED = 8, JUMP = 11;
+const PW = 0.9, PD = 0.9, PH = 3.4;          // размеры героя: ступни в точке position
+
+function loadBest() { try { const v = Number(localStorage.getItem(BEST_KEY)); return v > 0 ? v : 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
+
+let actx = null;
+function beep(freq, dur, type = 'triangle', vol = 0.06) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch (e) { /* звук недоступен */ }
+}
+
+// ---------- Сцена ----------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60 });
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+// ---------- Платформы (земля - тоже платформа, одна, без двойника) ----------
+const platforms = [];
+function addPlatform(x, y, z, w, h, d, color, move) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  scene.add(mesh);
+  const p = { mesh, w, h, d, move: move || null, base: new THREE.Vector3(x, y, z), delta: new THREE.Vector3() };
+  platforms.push(p);
+  return p;
+}
+const ground = addPlatform(0, -0.5, 0, 100, 1, 100, 0x55aa55);
+addPlatform(8, 1, 0, 3, 1, 3, 0xcc4444);
+addPlatform(14, 2.5, 2, 3, 1, 3, 0xcc8844);
+addPlatform(18, 4, -2, 3, 1, 3, 0xccaa44);
+addPlatform(22, 5.5, 2, 3, 1, 3, 0x44cc44);
+addPlatform(26, 7, 0, 4, 1, 4, 0x4488cc);
+const mover = addPlatform(26, 7, -7, 3, 1, 3, 0xffffff, { axis: 'x', amp: 5, speed: 0.9 });   // ездит между x=21 и x=31
+addPlatform(26, 8.5, -13, 3, 1, 3, 0x9966ff);
+addPlatform(20, 10, -17, 3, 1, 3, 0xff66cc);
+// Левая ветка: раньше вторая платформа была дальше и выше прыжка - до неё и до третьей было не добраться
+addPlatform(-8, 1, 4, 3, 1, 3, 0xaa44cc);
+addPlatform(-12.5, 2.5, 1, 3, 1, 3, 0xff6699);
+addPlatform(-18, 4, -1, 4, 1, 4, 0xffcc44);
+addPlatform(-4, 3, 12, 6, 6, 1, 0x777788);            // стена: сквозь неё не пройти
+const START = new THREE.Vector3(0, 0, 0);
+
+// ---------- Герой: начало координат - в ступнях ----------
+const player = new THREE.Group();
+function part(w, h, d, color, x, y) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  m.position.set(x, y, 0); m.castShadow = true;
+  player.add(m);
+  return m;
+}
+function limb(color, x, y) {           // ось вращения - в плече/бедре
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, 0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), new THREE.MeshLambertMaterial({ color }));
+  m.position.y = -0.6; m.castShadow = true;
+  pivot.add(m);
+  player.add(pivot);
+  return pivot;
+}
+part(1, 1.5, 0.6, 0xe8622c, 0, 1.95);        // туловище 1.2..2.7
+part(0.8, 0.8, 0.8, 0xffd7a8, 0, 3.1);       // голова 2.7..3.5
+part(0.5, 0.15, 0.1, 0x333333, 0, 3.15).position.z = 0.41;   // глаза-полоска
+const armL = limb(0xe8622c, -0.7, 2.6), armR = limb(0xe8622c, 0.7, 2.6);
+const legL = limb(0x2c4a8a, -0.25, 1.2), legR = limb(0x2c4a8a, 0.25, 1.2);
+scene.add(player);
+
+// ---------- Монеты ----------
+const coins = [];
+function addCoin(x, y, z) {
+  const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.12, 20), new THREE.MeshLambertMaterial({ color: 0xffdd33, emissive: 0x886600 }));
+  coin.position.set(x, y, z);
+  coin.rotation.x = Math.PI / 2;
+  coin.userData.baseY = y;
+  coin.castShadow = true;
+  scene.add(coin);
+  coins.push(coin);
+}
+const COIN_SPOTS = [[8, 2.5, 0], [14, 4, 2], [18, 5.5, -2], [22, 7, 2], [26, 8.5, 0], [26, 10, -13], [20, 11.5, -17], [-8, 2.5, 4], [-12.5, 4, 1], [-18, 5.5, -1]];
+
+// ---------- Состояние ----------
+const vel = new THREE.Vector3();
+const state = { phase: 'start', time: 0, got: 0, best: loadBest(), onGround: false, standOn: null, anim: 0, clock: 0 };
+const keys = {};
+let yaw = 0, pitch = 0.35, dragging = false;
+document.getElementById('total').textContent = COIN_SPOTS.length;
+
+function resetRun() {
+  for (const c of coins) scene.remove(c);
+  coins.length = 0;
+  for (const s of COIN_SPOTS) addCoin(...s);
+  player.position.copy(START);
+  vel.set(0, 0, 0);
+  state.time = 0; state.got = 0; state.clock = 0; state.onGround = false; state.standOn = null;
+  yaw = 0; pitch = 0.35;
+}
+function startRun() {
+  resetRun();
+  state.phase = 'play';
+  showScreen(null);
+  updateHud();
+}
+function showScreen(id) { for (const s of ['start', 'pause', 'win']) document.getElementById(s).classList.toggle('show', s === id); }
+function togglePause() {
+  if (state.phase === 'play') { state.phase = 'paused'; showScreen('pause'); for (const k in keys) keys[k] = false; }
+  else if (state.phase === 'paused') { state.phase = 'play'; showScreen(null); }
+}
+function win() {
+  state.phase = 'won';
+  const ms = Math.round(state.time * 1000);
+  const record = !state.best || ms < state.best;
+  if (record) { state.best = ms; saveBest(ms); }
+  document.getElementById('winText').textContent = 'Все монеты за ' + (ms / 1000).toFixed(1) + ' с. ' + (record ? 'Новый рекорд!' : 'Рекорд: ' + (state.best / 1000).toFixed(1) + ' с');
+  showScreen('win');
+  beep(523, 0.15); setTimeout(() => beep(784, 0.3), 150);
+  updateHud();
+}
+
+// ---------- Столкновения: герой - прямоугольный ящик против ящиков платформ ----------
+function box(p) {
+  const c = p.mesh.position;
+  return { minX: c.x - p.w / 2, maxX: c.x + p.w / 2, minY: c.y - p.h / 2, maxY: c.y + p.h / 2, minZ: c.z - p.d / 2, maxZ: c.z + p.d / 2 };
+}
+function overlaps(b, x, y, z) {
+  return x + PW / 2 > b.minX && x - PW / 2 < b.maxX && y + PH > b.minY && y < b.maxY && z + PD / 2 > b.minZ && z - PD / 2 < b.maxZ;
+}
+function moveAxis(axis, amount) {
+  const p = player.position;
+  p[axis] += amount;
+  for (const pl of platforms) {
+    const b = box(pl);
+    if (!overlaps(b, p.x, p.y, p.z)) continue;
+    if (axis === 'x') p.x = amount > 0 ? b.minX - PW / 2 - 1e-4 : b.maxX + PW / 2 + 1e-4;
+    else if (axis === 'z') p.z = amount > 0 ? b.minZ - PD / 2 - 1e-4 : b.maxZ + PD / 2 + 1e-4;
+    else {
+      if (amount <= 0) { p.y = b.maxY; state.onGround = true; state.standOn = pl; }
+      else p.y = b.minY - PH - 1e-4;                // удар головой снизу
+      vel.y = 0;
+    }
+  }
+}
+
+function update(dt) {
+  // Ездящая платформа движется всегда, а героя, стоящего на ней, везёт с собой
+  state.clock += state.phase === 'paused' ? 0 : dt;
+  for (const pl of platforms) {
+    if (!pl.move) continue;
+    const prev = pl.mesh.position.clone();
+    pl.mesh.position[pl.move.axis] = pl.base[pl.move.axis] + Math.sin(state.clock * pl.move.speed) * pl.move.amp;
+    pl.delta.subVectors(pl.mesh.position, prev);
+  }
+  if (state.phase !== 'play') return;
+  state.time += dt;
+  if (state.onGround && state.standOn && state.standOn.move) {
+    player.position.add(state.standOn.delta);
+  }
+
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const move = new THREE.Vector3();
+  if (keys.KeyW) move.add(forward);
+  if (keys.KeyS) move.sub(forward);
+  if (keys.KeyD) move.add(right);
+  if (keys.KeyA) move.sub(right);
+  if (keys.ArrowLeft) yaw += 2.2 * dt;
+  if (keys.ArrowRight) yaw -= 2.2 * dt;
+  if (keys.ArrowUp) pitch = Math.min(1.2, pitch + 1.5 * dt);
+  if (keys.ArrowDown) pitch = Math.max(0.1, pitch - 1.5 * dt);
+  const moving = move.lengthSq() > 0;
+  if (moving) {
+    move.normalize().multiplyScalar(MOVE_SPEED);
+    vel.x = move.x; vel.z = move.z;
+    player.rotation.y = Math.atan2(move.x, move.z);
+  } else {
+    const k = Math.exp(-12 * dt);
+    vel.x *= k; vel.z *= k;
+  }
+  if (keys.Space && state.onGround) { vel.y = JUMP; state.onGround = false; state.standOn = null; beep(440, 0.08); }
+  vel.y += GRAVITY * dt;
+
+  state.onGround = false;
+  moveAxis('x', vel.x * dt);
+  moveAxis('z', vel.z * dt);
+  moveAxis('y', vel.y * dt);
+  if (!state.onGround) state.standOn = null;
+
+  if (player.position.y < -10) {        // упал с края мира - назад на старт, время идёт
+    player.position.copy(START);
+    vel.set(0, 0, 0);
+  }
+
+  state.anim += dt;
+  const swing = moving && state.onGround ? Math.sin(state.anim * 10) * 0.8 : 0;
+  legL.rotation.x = swing; legR.rotation.x = -swing;
+  armL.rotation.x = -swing; armR.rotation.x = swing;
+
+  const chest = player.position.clone(); chest.y += 1.7;
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    c.rotation.z += dt * 3;
+    c.position.y = c.userData.baseY + Math.sin(state.clock * 3 + i) * 0.15;
+    if (c.position.distanceTo(chest) < 1.6) {
+      scene.remove(c);
+      coins.splice(i, 1);
+      state.got++;
+      beep(990, 0.12);
+      if (coins.length === 0) win();
+    }
+  }
+}
+
+function updateCamera() {
+  const dist = 9;
+  const off = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
+  camera.position.copy(player.position).add(off).add(new THREE.Vector3(0, 1.5, 0));
+  camera.lookAt(player.position.x, player.position.y + 2, player.position.z);
+}
+
+let hudCache = '';
+function updateHud() {
+  const s = [state.got, state.time.toFixed(1), state.best].join('|');
+  if (s === hudCache) return;
+  hudCache = s;
+  document.getElementById('coins').textContent = state.got;
+  document.getElementById('time').textContent = state.time.toFixed(1);
+  document.getElementById('best').textContent = state.best ? (state.best / 1000).toFixed(1) + ' с' : '-';
+}
+
+// ---------- Ввод ----------
+addEventListener('keydown', (e) => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Enter' && (state.phase === 'start' || state.phase === 'won')) { startRun(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  if (e.code === 'KeyR' && state.phase !== 'start') { startRun(); return; }
+  keys[e.code] = true;
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; dragging = false; if (state.phase === 'play') togglePause(); });
+renderer.domElement.addEventListener('mousedown', () => { dragging = true; });
+addEventListener('mouseup', () => { dragging = false; });
+addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  yaw -= e.movementX * 0.004;
+  pitch = Math.max(0.1, Math.min(1.2, pitch - e.movementY * 0.004));
+});
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+document.getElementById('startBtn').addEventListener('click', startRun);
+document.getElementById('againBtn').addEventListener('click', startRun);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+let last = performance.now();
+function frame(now) {
+  update(Math.min(0.05, (now - last) / 1000));
+  last = now;
+  updateCamera();
+  updateHud();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+resetRun();
+updateHud();
+requestAnimationFrame(frame);
+
+// ---------- Крючок для проверок ----------
+window.__game = {
+  ready: true,
+  state, keys, player, vel, coins, platforms, ground, mover, scene, PH,
+  step(dt, n = 1) { for (let i = 0; i < n; i++) update(dt); updateHud(); },
+  start: startRun, togglePause,
+  setYaw(v) { yaw = v; },
+  heroBottom() { return new THREE.Box3().setFromObject(player).min.y; },
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дино-бег (фан-версия, не связана с правообладателем)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #f7f7f7;
+    color: #535353;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-family: Consolas, 'Courier New', monospace;
+    user-select: none;
+    overflow: hidden;
+    padding: 16px;
+  }
+  h1 { font-size: 20px; letter-spacing: 2px; }
+  canvas { display: block; background: #f7f7f7; border: 1px solid #ccc; touch-action: manipulation; }
+  #info { font-size: 14px; text-align: center; line-height: 1.6; }
+  .note { font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+<h1>ДИНО-БЕГ</h1>
+<canvas id="game" width="800" height="200" aria-label="Игровое поле"></canvas>
+<div id="info">
+  Пробел / ↑ / клик - прыжок (держи дольше - выше) · ↓ - пригнуться · P / Esc - пауза · M - звук<br>
+  <span class="note">Фан-версия, не связана с правообладателем. Спрайты нарисованы в коде.</span>
+</div>
+
+<script>
+'use strict';
+// ---------- Настройки поля (логические единицы, холст масштабируется под окно) ----------
+const W = 800, H = 200;
+const GROUND_Y = 130;          // верх динозаврика, когда он стоит на земле
+const FLOOR = GROUND_Y + 47;    // линия земли
+const STEP_MS = 1000 / 60;      // фиксированный шаг физики: скорость одинакова при 60 и 144 Гц
+const GRAVITY = 0.6, JUMP_V = -12, JUMP_CUT = -5, FAST_FALL = 1.2;
+const START_SPEED = 6, MAX_SPEED = 13;
+const RESTART_DELAY = 25;       // шагов после проигрыша, когда рестарт не срабатывает (зажатый пробел)
+const HI_KEY = 'dino_hi';
+
+// ---------- Случайность: ?seed=N делает игру повторяемой (для проверок) ----------
+const params = new URLSearchParams(location.search);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+// ---------- Хранилище (в file:// и в Electron работает; если запрещено - просто без рекорда) ----------
+function loadHi() { try { return parseInt(localStorage.getItem(HI_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
+function saveHi(v) { try { localStorage.setItem(HI_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
+
+// ---------- Звук: синтез WebAudio, без файлов ----------
+let actx = null, muted = false;
+function beep(freq, dur, type = 'square', vol = 0.06, slideTo) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch (e) { /* звук недоступен */ }
+}
+const SFX = {
+  jump: () => beep(520, 0.12, 'square', 0.05, 900),
+  point: () => { beep(880, 0.07); setTimeout(() => beep(1320, 0.1), 70); },
+  die: () => beep(220, 0.35, 'sawtooth', 0.07, 60),
+};
+
+// ---------- Состояние ----------
+const state = {
+  phase: 'ready',   // ready | running | paused | over
+  score: 0,         // дистанция в очках (дробная, показывается целой)
+  hiScore: loadHi(),
+  speed: START_SPEED,
+  frame: 0,
+  overTimer: 0,
+  nextGap: 0,       // расстояние до следующего препятствия
+  flash: 0,         // мигание счёта на каждой сотне
+};
+const dino = { x: 50, y: GROUND_Y, vy: 0, jumping: false, ducking: false };
+const obstacles = [];
+const clouds = [];
+const groundDots = [];
+const keys = {};
+
+function initScenery() {
+  groundDots.length = 0; clouds.length = 0;
+  for (let i = 0; i < 60; i++) groundDots.push({ x: rnd() * W, y: FLOOR + 4 + rnd() * 8, len: 1 + rnd() * 4 });
+  for (let i = 0; i < 3; i++) clouds.push({ x: rnd() * W, y: 30 + rnd() * 50 });
+}
+
+function reset() {
+  state.phase = 'running';
+  state.score = 0;
+  state.speed = START_SPEED;
+  state.frame = 0;
+  state.overTimer = 0;
+  state.flash = 0;
+  state.nextGap = 300;
+  obstacles.length = 0;
+  dino.y = GROUND_Y; dino.vy = 0; dino.jumping = false; dino.ducking = false;
+}
+
+// Препятствия. Размеры кактусов подобраны так, чтобы любой перепрыгивался.
+const CACTI_SMALL = [{ w: 17, h: 35 }, { w: 34, h: 35 }, { w: 51, h: 35 }];
+const CACTI_BIG = [{ w: 25, h: 50 }, { w: 50, h: 50 }];
+// Птицы: высоко (безопасно, можно не реагировать), средне (пригнуться или прыгнуть), низко (прыгать).
+const BIRD_Y = { high: 88, mid: 120, low: 146 };
+
+function makeCactus(v) { return { type: 'cactus', x: W, y: FLOOR - v.h, w: v.w, h: v.h }; }
+function makeBird(level) { return { type: 'bird', level, x: W, y: BIRD_Y[level], w: 46, h: 28 }; }
+
+function spawnObstacle() {
+  const r = rnd();
+  let o;
+  if (state.score > 300 && r < 0.3) o = makeBird(pick(['high', 'mid', 'low']));
+  else if (state.score > 150 && r < 0.55) o = makeCactus(pick(CACTI_BIG));
+  else o = makeCactus(pick(CACTI_SMALL));
+  obstacles.push(o);
+  // Промежуток растёт со скоростью: за время прыжка (~40 шагов) нужно успеть приземлиться.
+  const minGap = 40 * state.speed + o.w;
+  state.nextGap = minGap + rnd() * 260;
+}
+
+// Хитбоксы: у стоящего два прямоугольника (голова и тело), чтобы касание пустого места не убивало.
+function dinoBoxes() {
+  if (dino.ducking && !dino.jumping) {
+    return [{ x: dino.x, y: dino.y + 22, w: 70, h: 25 }];
+  }
+  return [
+    { x: dino.x + 15, y: dino.y, w: 29, h: 20 },   // голова
+    { x: dino.x, y: dino.y + 12, w: 32, h: 35 },   // тело и ноги
+  ];
+}
+function hit(a, b) {
+  const pad = 3;
+  return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x && a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
+}
+function collides() {
+  const boxes = dinoBoxes();
+  return obstacles.some((o) => boxes.some((b) => hit(b, o)));
+}
+
+function jumpPressed() { return keys.Space || keys.ArrowUp || keys.pointer; }
+
+// Один шаг мира (1/60 секунды).
+function update() {
+  if (state.phase === 'over') { if (state.overTimer > 0) state.overTimer--; return; }
+  if (state.phase !== 'running') return;
+
+  state.frame++;
+  const before = Math.floor(state.score / 100);
+  state.score += state.speed / 60;
+  if (Math.floor(state.score / 100) > before) { state.flash = 40; SFX.point(); }
+  if (state.flash > 0) state.flash--;
+  if (state.frame % 100 === 0 && state.speed < MAX_SPEED) state.speed = Math.min(MAX_SPEED, state.speed + 0.2);
+
+  if (jumpPressed() && !dino.jumping && !keys.ArrowDown) {
+    dino.vy = JUMP_V; dino.jumping = true; SFX.jump();
+  }
+  dino.ducking = !!keys.ArrowDown;
+  if (dino.jumping) {
+    if (!jumpPressed() && dino.vy < JUMP_CUT) dino.vy = JUMP_CUT;   // отпустил рано - прыжок ниже
+    if (keys.ArrowDown) dino.vy += FAST_FALL;
+    dino.vy += GRAVITY;
+    dino.y += dino.vy;
+    if (dino.y >= GROUND_Y) { dino.y = GROUND_Y; dino.vy = 0; dino.jumping = false; }
+  }
+
+  for (const o of obstacles) o.x -= o.type === 'bird' ? state.speed + 0.8 : state.speed;
+  while (obstacles.length && obstacles[0].x + obstacles[0].w < -10) obstacles.shift();
+  state.nextGap -= state.speed;
+  if (state.nextGap <= 0) spawnObstacle();
+
+  for (const c of clouds) {
+    c.x -= state.speed * 0.2;
+    if (c.x < -40) { c.x = W + rnd() * 100; c.y = 30 + rnd() * 50; }
+  }
+  for (const d of groundDots) {
+    d.x -= state.speed;
+    if (d.x < 0) { d.x = W + rnd() * 50; d.y = FLOOR + 4 + rnd() * 8; d.len = 1 + rnd() * 4; }
+  }
+
+  if (collides()) gameOver();
+}
+
+function gameOver() {
+  state.phase = 'over';
+  state.overTimer = RESTART_DELAY;
+  const s = Math.floor(state.score);
+  if (s > state.hiScore) { state.hiScore = s; saveHi(s); }
+  SFX.die();
+}
+
+function togglePause() {
+  if (state.phase === 'running') state.phase = 'paused';
+  else if (state.phase === 'paused') state.phase = 'running';
+}
+
+// ---------- Рисование ----------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const INK = '#535353', BG = '#f7f7f7';
+
+function fitCanvas() {
+  // Холст по ширине окна (с полями), но не выше, чем позволяет высота окна.
+  const maxW = Math.min(window.innerWidth - 32, 1100, (window.innerHeight - 140) * (W / H));
+  const cssW = Math.max(300, Math.floor(maxW));
+  const cssH = Math.round(cssW * H / W);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  render();
+}
+
+function drawDino() {
+  ctx.fillStyle = INK;
+  const x = dino.x, y = dino.y;
+  const run = Math.floor(state.frame / 6) % 2 === 0;
+  if (dino.ducking && !dino.jumping) {
+    const dy = y + 22;
+    ctx.fillRect(x, dy + 4, 56, 18);
+    ctx.fillRect(x + 48, dy, 22, 14);
+    ctx.fillStyle = BG; ctx.fillRect(x + 60, dy + 3, 3, 3); ctx.fillStyle = INK;
+    ctx.fillRect(x + 10, dy + 22, 6, run ? 3 : 1);
+    ctx.fillRect(x + 30, dy + 22, 6, run ? 1 : 3);
+    return;
+  }
+  ctx.fillRect(x, y + 12, 22, 28);            // тело
+  ctx.fillRect(x + 15, y, 29, 18);            // голова
+  ctx.fillRect(x + 34, y + 18, 8, 3);         // рот
+  ctx.fillRect(x + 22, y + 22, 8, 4);         // лапка
+  ctx.fillRect(x - 6, y + 16, 6, 12);         // хвост
+  ctx.fillStyle = BG; ctx.fillRect(x + 22, y + 4, 4, 4); ctx.fillStyle = INK;  // глаз
+  if (dino.jumping) {
+    ctx.fillRect(x + 4, y + 40, 6, 7); ctx.fillRect(x + 14, y + 40, 6, 7);
+  } else if (run) {
+    ctx.fillRect(x + 4, y + 40, 6, 7); ctx.fillRect(x + 14, y + 40, 6, 3);
+  } else {
+    ctx.fillRect(x + 4, y + 40, 6, 3); ctx.fillRect(x + 14, y + 40, 6, 7);
+  }
+  if (state.phase === 'over') { ctx.fillStyle = BG; ctx.fillRect(x + 21, y + 3, 6, 6); ctx.fillStyle = INK; ctx.fillRect(x + 23, y + 5, 2, 2); }
+}
+
+function drawCactus(o) {
+  ctx.fillStyle = INK;
+  const n = Math.max(1, Math.round(o.w / 17));
+  const sw = o.w / n;
+  for (let i = 0; i < n; i++) {
+    const cx = o.x + i * sw;
+    const top = o.y + (i % 2) * 4;
+    ctx.fillRect(cx + sw * 0.3, top, sw * 0.4, o.y + o.h - top);
+    ctx.fillRect(cx, top + o.h * 0.3, sw * 0.2, o.h * 0.25);
+    ctx.fillRect(cx + sw * 0.8, top + o.h * 0.2, sw * 0.2, o.h * 0.25);
+    ctx.fillRect(cx, top + o.h * 0.5, sw, 3);
+  }
+}
+
+function drawBird(o) {
+  ctx.fillStyle = INK;
+  const up = Math.floor(state.frame / 10) % 2 === 0;
+  ctx.fillRect(o.x + 8, o.y + 12, 30, 7);       // тело
+  ctx.fillRect(o.x, o.y + 10, 10, 6);           // клюв и голова
+  ctx.fillRect(o.x + 36, o.y + 13, 10, 4);      // хвост
+  if (up) ctx.fillRect(o.x + 16, o.y, 12, 12); else ctx.fillRect(o.x + 16, o.y + 19, 12, 9);
+  ctx.fillStyle = BG; ctx.fillRect(o.x + 4, o.y + 11, 2, 2);
+}
+
+function drawCloud(c) {
+  ctx.fillStyle = '#d0d0d0';
+  ctx.fillRect(c.x + 8, c.y, 20, 4);
+  ctx.fillRect(c.x + 3, c.y + 4, 32, 4);
+  ctx.fillRect(c.x, c.y + 8, 40, 4);
+}
+
+function drawGround() {
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, FLOOR, W, 1);
+  for (const d of groundDots) ctx.fillRect(d.x, d.y, d.len, 1);
+}
+
+function centerText(text, y, size) {
+  ctx.font = `bold ${size}px Consolas, "Courier New", monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, W / 2, y);
+  ctx.textAlign = 'left';
+}
+
+function drawHud() {
+  ctx.fillStyle = INK;
+  ctx.font = 'bold 16px Consolas, "Courier New", monospace';
+  ctx.textAlign = 'right';
+  const s = String(Math.floor(state.score)).padStart(5, '0');
+  if (!(state.flash > 0 && Math.floor(state.flash / 5) % 2 === 0)) ctx.fillText(s, W - 10, 25);
+  if (state.hiScore > 0) {
+    ctx.fillStyle = '#8a8a8a';
+    ctx.fillText('РЕКОРД ' + String(state.hiScore).padStart(5, '0'), W - 80, 25);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = INK;
+  if (muted) { ctx.font = '12px Consolas, monospace'; ctx.fillText('звук выкл (M)', 10, 20); }
+  if (state.phase === 'ready') {
+    centerText('ДИНО-БЕГ', 70, 26);
+    centerText('Пробел или клик - старт', 98, 15);
+  } else if (state.phase === 'paused') {
+    centerText('ПАУЗА', 70, 26);
+    centerText('P или Esc - продолжить', 98, 15);
+  } else if (state.phase === 'over') {
+    centerText('И Г Р А   О К О Н Ч Е Н А', 70, 24);
+    centerText(state.overTimer > 0 ? '...' : 'Пробел или клик - ещё раз', 98, 15);
+  }
+}
+
+function render() {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  for (const c of clouds) drawCloud(c);
+  drawGround();
+  for (const o of obstacles) (o.type === 'cactus' ? drawCactus : drawBird)(o);
+  drawDino();
+  drawHud();
+}
+
+// ---------- Ввод ----------
+function onAction() {
+  if (state.phase === 'ready') { reset(); return true; }
+  if (state.phase === 'over') { if (state.overTimer === 0) { reset(); return true; } return false; }
+  return false;
+}
+document.addEventListener('keydown', (e) => {
+  if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  if (e.code === 'KeyM') { muted = !muted; return; }
+  if ((e.code === 'Space' || e.code === 'ArrowUp') && !e.repeat && onAction()) return;
+  keys[e.code] = true;
+});
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (state.phase === 'paused') { togglePause(); return; }
+  if (onAction()) return;
+  keys.pointer = true;
+});
+window.addEventListener('pointerup', () => { keys.pointer = false; });
+// Окно потеряло фокус - пауза и отпускание всех клавиш (иначе динозаврик «залипает» в прыжке).
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  if (state.phase === 'running') state.phase = 'paused';
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && state.phase === 'running') state.phase = 'paused'; });
+window.addEventListener('resize', fitCanvas);
+
+// ---------- Цикл: физика фиксированными шагами, рисование по кадрам ----------
+let last = performance.now(), acc = 0;
+function loop(now) {
+  acc += Math.min(now - last, 250);
+  last = now;
+  while (acc >= STEP_MS) { update(); acc -= STEP_MS; }
+  render();
+  requestAnimationFrame(loop);
+}
+
+initScenery();
+fitCanvas();
+requestAnimationFrame(loop);
+
+// ---------- Крючок для проверок: не влияет на обычную игру ----------
+window.__game = {
+  ready: true,
+  W, H, FLOOR,
+  state, dino, obstacles, keys,
+  step(n = 1) { for (let i = 0; i < n; i++) update(); render(); },
+  start: reset,
+  togglePause,
+  collides,
+  makeCactus, makeBird,
+  clearObstacles() { obstacles.length = 0; state.nextGap = 1e9; },
+};
+</script>
+</body>
+</html>

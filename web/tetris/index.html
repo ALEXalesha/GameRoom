@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Блоки (фан-версия игры с падающими фигурами, не связана с правообладателями)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #0a0a12;
+    color: #e0e0f0;
+    font-family: Consolas, 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    overflow: hidden;
+  }
+  .game { display: flex; gap: 20px; align-items: flex-start; }
+  .panel { background: #14141e; border: 2px solid #2a2a3a; padding: 12px; border-radius: 4px; }
+  .panel h3 { font-size: 12px; color: #888; margin-bottom: 8px; letter-spacing: 2px; }
+  .stat-value { font-size: 22px; color: #fff; margin-bottom: 12px; font-weight: bold; }
+  .stat-value:last-child { margin-bottom: 0; }
+  canvas { display: block; background: #000; border: 2px solid #2a2a3a; }
+  .side { display: flex; flex-direction: column; gap: 12px; width: 150px; }
+  .controls { font-size: 11px; color: #888; line-height: 1.6; }
+  .controls span { color: #ddd; }
+  .board-wrap { position: relative; }
+  .overlay {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.88); padding: 20px 30px; border: 2px solid #2a2a3a;
+    text-align: center; font-size: 24px; pointer-events: none; white-space: nowrap;
+  }
+  .overlay small { display: block; font-size: 14px; margin-top: 8px; color: #aaa; }
+  .flash {
+    position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+    color: #f0a; font-size: 22px; font-weight: bold; text-shadow: 0 0 10px #f0a;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s; white-space: nowrap;
+  }
+  .note { font-size: 11px; color: #666; }
+</style>
+</head>
+<body>
+<div class="game">
+  <div class="side">
+    <div class="panel">
+      <h3>ЗАПАС</h3>
+      <canvas id="hold" width="120" height="80"></canvas>
+    </div>
+    <div class="panel">
+      <h3>ОЧКИ</h3>
+      <div class="stat-value" id="score">0</div>
+      <h3>РЕКОРД</h3>
+      <div class="stat-value" id="best">0</div>
+      <h3>УРОВЕНЬ</h3>
+      <div class="stat-value" id="level">1</div>
+      <h3>ЛИНИИ</h3>
+      <div class="stat-value" id="lines">0</div>
+    </div>
+    <div class="panel controls">
+      <h3>УПРАВЛЕНИЕ</h3>
+      <span>← →</span> сдвиг<br>
+      <span>↓</span> вниз<br>
+      <span>Пробел</span> сбросить<br>
+      <span>↑ / X</span> поворот ↻<br>
+      <span>Z</span> поворот ↺<br>
+      <span>C / Shift</span> в запас<br>
+      <span>P / Esc</span> пауза<br>
+      <span>R</span> заново · <span>M</span> звук
+    </div>
+  </div>
+  <div class="board-wrap">
+    <canvas id="board" width="300" height="600"></canvas>
+    <div id="flash" class="flash"></div>
+    <div id="overlay" class="overlay" style="display:none"></div>
+  </div>
+  <div class="side">
+    <div class="panel">
+      <h3>ДАЛЕЕ</h3>
+      <canvas id="next" width="120" height="400"></canvas>
+    </div>
+  </div>
+</div>
+<div class="note">Фан-версия, не связана с правообладателями похожих игр. Клавиши работают в любой раскладке.</div>
+
+<script>
+'use strict';
+const COLS = 10, ROWS = 20, CELL = 30;
+const board = document.getElementById('board').getContext('2d');
+const holdCv = document.getElementById('hold').getContext('2d');
+const nextCv = document.getElementById('next').getContext('2d');
+const BEST_KEY = 'tetris_best';
+
+// ?seed=N - повторяемая последовательность фигур (для проверок).
+const params = new URLSearchParams(location.search);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+
+const COLORS = {
+  I: '#00e0e0', O: '#e8e000', T: '#a000f0',
+  S: '#00d000', Z: '#e00000', J: '#2040f0', L: '#f0a000',
+  empty: '#0a0a0a'
+};
+
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]]
+};
+
+// Отскоки от стен по системе SRS
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+};
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+  '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
+  '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+  '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+  '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+};
+
+let grid, current, hold, canHold, queue, score, lines, level, gameOver, paused, best;
+let dropTimer, dropInterval;
+let lockTimer, lockResets, isLocking, lowestY;
+let lastMoveWasRotation, lastKickIndex;
+
+const DAS = 133, ARR = 10, SOFT_DROP_MS = 30, LOCK_MS = 500, MAX_LOCK_RESETS = 15;
+const keys = {};
+const keyTimers = {};
+
+function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
+
+// ---------- Звук (синтез, без файлов) ----------
+let actx = null, muted = false;
+function beep(freq, dur, type = 'square', vol = 0.04) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch (e) { /* звук недоступен */ }
+}
+const SFX = {
+  rotate: () => beep(660, 0.04, 'triangle'),
+  lock: () => beep(180, 0.06, 'square', 0.03),
+  clear: (n) => { for (let i = 0; i < n; i++) setTimeout(() => beep(520 + i * 130, 0.09), i * 70); },
+  over: () => { beep(300, 0.2, 'sawtooth'); setTimeout(() => beep(200, 0.35, 'sawtooth'), 180); },
+};
+
+function newGrid() {
+  return Array.from({length: ROWS}, () => Array(COLS).fill(0));
+}
+
+function shuffleBag() {
+  const bag = ['I','O','T','S','Z','J','L'];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+
+function fillQueue() {
+  while (queue.length < 7) queue.push(...shuffleBag());
+}
+
+function spawnPiece(type) {
+  const shape = SHAPES[type].map(r => [...r]);
+  return {
+    type, shape,
+    x: Math.floor((COLS - shape[0].length) / 2),
+    y: type === 'I' ? -1 : 0,
+    rot: 0
+  };
+}
+
+function resetLockState() {
+  isLocking = false;
+  lockTimer = 0;
+  lockResets = 0;
+  lastMoveWasRotation = false;
+  dropTimer = 0;
+  lowestY = current.y;
+}
+
+function setCurrent(piece) {
+  current = piece;
+  resetLockState();
+  if (collides(current, 0, 0)) endGame();   // новой фигуре некуда встать - конец
+}
+
+function nextPiece() {
+  fillQueue();
+  canHold = true;
+  setCurrent(spawnPiece(queue.shift()));
+}
+
+function endGame() {
+  gameOver = true;
+  if (score > best) { best = score; saveBest(best); }
+  updateStats();
+  showOverlay('КОНЕЦ ИГРЫ<small>R или Enter - заново</small>');
+  SFX.over();
+}
+
+function collides(p, dx, dy, shape) {
+  const s = shape || p.shape;
+  for (let y = 0; y < s.length; y++) {
+    for (let x = 0; x < s[y].length; x++) {
+      if (!s[y][x]) continue;
+      const nx = p.x + x + dx, ny = p.y + y + dy;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+      if (ny >= 0 && grid[ny][nx]) return true;
+    }
+  }
+  return false;
+}
+
+function rotate(shape, dir) {
+  const n = shape.length;
+  const r = Array.from({length: n}, () => Array(n).fill(0));
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      if (dir === 1) r[x][n-1-y] = shape[y][x];
+      else r[n-1-x][y] = shape[y][x];
+    }
+  }
+  return r;
+}
+
+function tryRotate(dir) {
+  if (current.type === 'O') return false;
+  const newRot = (current.rot + (dir === 1 ? 1 : 3)) % 4;
+  const newShape = rotate(current.shape, dir);
+  const key = `${current.rot}>${newRot}`;
+  const kicks = current.type === 'I' ? KICKS_I[key] : KICKS_JLSTZ[key];
+  for (let i = 0; i < kicks.length; i++) {
+    const [kx, ky] = kicks[i];
+    if (!collides(current, kx, -ky, newShape)) {
+      current.shape = newShape;
+      current.rot = newRot;
+      current.x += kx;
+      current.y += -ky;
+      lastMoveWasRotation = true;
+      lastKickIndex = i;
+      onSuccessfulMove();
+      SFX.rotate();
+      return true;
+    }
+  }
+  return false;
+}
+
+// Сдвиг или поворот на земле продлевает задержку фиксации, но не больше 15 раз.
+function onSuccessfulMove() {
+  if (isLocking && lockResets < MAX_LOCK_RESETS) {
+    lockTimer = 0;
+    lockResets++;
+  }
+}
+
+function move(dx) {
+  if (!collides(current, dx, 0)) {
+    current.x += dx;
+    lastMoveWasRotation = false;
+    onSuccessfulMove();
+    return true;
+  }
+  return false;
+}
+
+function drop(soft) {
+  if (!collides(current, 0, 1)) {
+    current.y++;
+    lastMoveWasRotation = false;
+    if (soft) { score += 1; updateStats(); }
+    if (current.y > lowestY) { lowestY = current.y; lockResets = 0; }  // новая глубина - счётчик сначала
+    return true;
+  }
+  return false;
+}
+
+function hardDrop() {
+  let d = 0;
+  while (!collides(current, 0, 1)) { current.y++; d++; }
+  score += d * 2;
+  if (d > 0) lastMoveWasRotation = false;
+  lockPiece();
+}
+
+function isTSpin() {
+  if (current.type !== 'T' || !lastMoveWasRotation) return 0;
+  const cx = current.x + 1, cy = current.y + 1;
+  const corners = [[cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1]];
+  let filled = 0;
+  for (const [x,y] of corners) {
+    if (x < 0 || x >= COLS || y >= ROWS || (y >= 0 && grid[y][x])) filled++;
+  }
+  if (filled < 3) return 0;
+  const facing = [
+    [[0,0],[2,0]],
+    [[2,0],[2,2]],
+    [[0,2],[2,2]],
+    [[0,0],[0,2]]
+  ][current.rot];
+  let frontFilled = 0;
+  for (const [fx, fy] of facing) {
+    const x = current.x + fx, y = current.y + fy;
+    if (x < 0 || x >= COLS || y >= ROWS || (y >= 0 && grid[y][x])) frontFilled++;
+  }
+  if (frontFilled === 2) return 2;
+  if (lastKickIndex === 4) return 2;
+  return 1;
+}
+
+function lockPiece() {
+  const tspin = isTSpin();
+  let above = false;
+  for (let y = 0; y < current.shape.length; y++) {
+    for (let x = 0; x < current.shape[y].length; x++) {
+      if (!current.shape[y][x]) continue;
+      const ny = current.y + y;
+      if (ny < 0) { above = true; continue; }
+      grid[ny][current.x + x] = current.type;
+    }
+  }
+  SFX.lock();
+  const cleared = clearLines(tspin);
+  // Фигура зафиксировалась выше поля и ничего не очистила - поле переполнено.
+  if (above && cleared === 0) { endGame(); return; }
+  nextPiece();
+}
+
+const LINE_POINTS = [0, 100, 300, 500, 800];
+
+function clearLines(tspin) {
+  let cleared = 0;
+  for (let y = ROWS - 1; y >= 0; y--) {
+    if (grid[y].every(c => c)) {
+      grid.splice(y, 1);
+      grid.unshift(Array(COLS).fill(0));
+      cleared++;
+      y++;
+    }
+  }
+  let pts = 0, label = '';
+  if (tspin === 2) {
+    pts = [400, 800, 1200, 1600][cleared] * level;
+    label = ['T-ВРАЩЕНИЕ', 'T-ВРАЩЕНИЕ: 1', 'T-ВРАЩЕНИЕ: 2', 'T-ВРАЩЕНИЕ: 3'][cleared];
+  } else if (tspin === 1) {
+    pts = [100, 200, 400, 400][cleared] * level;
+    label = 'МИНИ T-ВРАЩЕНИЕ';
+  } else if (cleared) {
+    pts = LINE_POINTS[cleared] * level;
+    label = ['', '', 'ДВЕ ЛИНИИ', 'ТРИ ЛИНИИ', 'ЧЕТЫРЕ ЛИНИИ!'][cleared];
+  }
+  score += pts;
+  lines += cleared;
+  const newLevel = Math.floor(lines / 10) + 1;
+  if (newLevel !== level) {
+    level = newLevel;
+    dropInterval = computeGravity(level);
+  }
+  if (cleared) SFX.clear(cleared);
+  if (label) flash(label);
+  updateStats();
+  return cleared;
+}
+
+function computeGravity(lv) {
+  // Формула скорости падения из правил серии (в миллисекундах на клетку)
+  const sec = Math.pow(0.8 - (lv - 1) * 0.007, lv - 1);
+  return Math.max(sec * 1000, 50);
+}
+
+function holdPiece() {
+  if (!canHold) return false;
+  const t = hold;
+  hold = current.type;
+  if (t) {
+    setCurrent(spawnPiece(t));
+  } else {
+    fillQueue();
+    setCurrent(spawnPiece(queue.shift()));
+  }
+  canHold = false;
+  return true;
+}
+
+function getGhostY() {
+  let dy = 0;
+  while (!collides(current, 0, dy + 1)) dy++;
+  return current.y + dy;
+}
+
+function drawCell(ctx, x, y, color, size = CELL) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x * size, y * size, size, size);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(x * size, y * size, size, 3);
+  ctx.fillRect(x * size, y * size, 3, size);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x * size, y * size + size - 3, size, 3);
+  ctx.fillRect(x * size + size - 3, y * size, 3, size);
+}
+
+function drawBoard() {
+  board.fillStyle = COLORS.empty;
+  board.fillRect(0, 0, COLS * CELL, ROWS * CELL);
+  board.strokeStyle = '#1a1a2a';
+  board.lineWidth = 1;
+  board.beginPath();
+  for (let x = 1; x < COLS; x++) { board.moveTo(x * CELL + 0.5, 0); board.lineTo(x * CELL + 0.5, ROWS * CELL); }
+  for (let y = 1; y < ROWS; y++) { board.moveTo(0, y * CELL + 0.5); board.lineTo(COLS * CELL, y * CELL + 0.5); }
+  board.stroke();
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (grid[y][x]) drawCell(board, x, y, COLORS[grid[y][x]]);
+    }
+  }
+  if (current && !gameOver) {
+    const gy = getGhostY();
+    board.strokeStyle = COLORS[current.type];
+    board.lineWidth = 2;
+    for (let y = 0; y < current.shape.length; y++) {
+      for (let x = 0; x < current.shape[y].length; x++) {
+        if (!current.shape[y][x]) continue;
+        const py = gy + y;
+        if (py >= 0) board.strokeRect((current.x + x) * CELL + 2, py * CELL + 2, CELL - 4, CELL - 4);
+      }
+    }
+    for (let y = 0; y < current.shape.length; y++) {
+      for (let x = 0; x < current.shape[y].length; x++) {
+        if (!current.shape[y][x]) continue;
+        const py = current.y + y;
+        if (py >= 0) drawCell(board, current.x + x, py, COLORS[current.type]);
+      }
+    }
+  }
+}
+
+function drawMini(ctx, type, w, offsetY = 0) {
+  if (!type) return;
+  const shape = SHAPES[type];
+  const size = 18;
+  const ox = (w - shape[0].length * size) / 2;
+  const oy = offsetY + (type === 'I' ? -size/2 : type === 'O' ? size/2 : 0);
+  for (let y = 0; y < shape.length; y++) {
+    for (let x = 0; x < shape[y].length; x++) {
+      if (!shape[y][x]) continue;
+      ctx.fillStyle = COLORS[type];
+      ctx.fillRect(ox + x * size, oy + y * size, size, size);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(ox + x * size, oy + y * size, size, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(ox + x * size, oy + y * size + size - 2, size, 2);
+    }
+  }
+}
+
+function drawHold() {
+  holdCv.fillStyle = '#000';
+  holdCv.fillRect(0, 0, 120, 80);
+  if (hold) {
+    holdCv.globalAlpha = canHold ? 1 : 0.4;
+    drawMini(holdCv, hold, 120, 20);
+    holdCv.globalAlpha = 1;
+  }
+}
+
+function drawNext() {
+  nextCv.fillStyle = '#000';
+  nextCv.fillRect(0, 0, 120, 400);
+  for (let i = 0; i < 5 && i < queue.length; i++) drawMini(nextCv, queue[i], 120, i * 80 + 20);
+}
+
+function updateStats() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('best').textContent = Math.max(best, score);
+  document.getElementById('level').textContent = level;
+  document.getElementById('lines').textContent = lines;
+}
+
+function showOverlay(html) {
+  const o = document.getElementById('overlay');
+  o.innerHTML = html;
+  o.style.display = 'block';
+}
+function hideOverlay() {
+  document.getElementById('overlay').style.display = 'none';
+}
+
+let flashTimer = 0;
+function flash(text) {
+  const el = document.getElementById('flash');
+  el.textContent = text;
+  el.style.opacity = '1';
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.style.opacity = '0'; }, 800);
+}
+
+function clearKeys() {
+  for (const k in keys) keys[k] = false;
+  for (const k in keyTimers) keyTimers[k] = 0;
+}
+
+function reset() {
+  grid = newGrid();
+  queue = [];
+  fillQueue();
+  hold = null;
+  score = 0;
+  lines = 0;
+  level = 1;
+  gameOver = false;
+  paused = false;
+  dropInterval = computeGravity(1);
+  clearKeys();
+  hideOverlay();
+  nextPiece();
+  updateStats();
+}
+
+function setPaused(p) {
+  if (gameOver) return;
+  paused = p;
+  clearKeys();
+  if (paused) showOverlay('ПАУЗА<small>P или Esc - продолжить</small>'); else hideOverlay();
+}
+
+// Логика за dt миллисекунд. dt ограничен, чтобы после сворачивания окна фигура не падала сразу на дно.
+function tick(dt) {
+  if (gameOver || paused) return;
+  dt = Math.min(dt, 100);
+  handleAutoRepeat(dt);
+  const grav = keys.ArrowDown ? Math.min(SOFT_DROP_MS, dropInterval) : dropInterval;
+  dropTimer += dt;
+  while (dropTimer >= grav && !gameOver) {
+    dropTimer -= grav;
+    if (!drop(keys.ArrowDown)) { dropTimer = 0; break; }
+  }
+  if (collides(current, 0, 1)) {
+    if (!isLocking) { isLocking = true; lockTimer = 0; }
+    lockTimer += dt;
+    if (lockTimer >= LOCK_MS || lockResets >= MAX_LOCK_RESETS) lockPiece();
+  } else {
+    isLocking = false;
+  }
+}
+
+function draw() {
+  drawBoard();
+  drawHold();
+  drawNext();
+}
+
+let lastTime = null;
+function loop(time) {
+  if (lastTime === null) lastTime = time;
+  tick(time - lastTime);
+  lastTime = time;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function handleAutoRepeat(dt) {
+  for (const k of ['ArrowLeft', 'ArrowRight']) {
+    if (!keys[k]) continue;
+    keyTimers[k] = (keyTimers[k] || 0) + dt;
+    if (keyTimers[k] >= DAS) {
+      const arr = keyTimers[k] - DAS;
+      const steps = Math.floor(arr / ARR);
+      if (steps > 0) {
+        for (let i = 0; i < steps; i++) move(k === 'ArrowLeft' ? -1 : 1);
+        keyTimers[k] = DAS + (arr % ARR);
+      }
+    }
+  }
+}
+
+// Клавиши по физическому коду (e.code): Z, X, C, P, R работают и в русской раскладке.
+document.addEventListener('keydown', e => {
+  const code = e.code;
+  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'].includes(code)) e.preventDefault();
+  if (code === 'KeyM') { muted = !muted; return; }
+  if (gameOver) {
+    if (code === 'KeyR' || code === 'Enter') reset();
+    return;
+  }
+  if (code === 'KeyP' || code === 'Escape') { setPaused(!paused); return; }
+  if (code === 'KeyR') { reset(); return; }
+  if (paused || e.repeat) return;
+  switch (code) {
+    case 'ArrowLeft':
+    case 'ArrowRight':
+      keys[code] = true;
+      keyTimers[code] = 0;
+      move(code === 'ArrowLeft' ? -1 : 1);
+      break;
+    case 'ArrowDown':
+      keys.ArrowDown = true;
+      break;
+    case 'ArrowUp':
+    case 'KeyX':
+      tryRotate(1);
+      break;
+    case 'KeyZ':
+    case 'ControlLeft':
+      tryRotate(-1);
+      break;
+    case 'Space':
+      hardDrop();
+      break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      holdPiece();
+      break;
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { keys[e.code] = false; keyTimers[e.code] = 0; }
+  if (e.code === 'ArrowDown') keys.ArrowDown = false;
+});
+// Потеря фокуса: пауза и отпускание клавиш (иначе фигура «уезжает» сама).
+window.addEventListener('blur', () => { if (!gameOver && !paused) setPaused(true); else clearKeys(); });
+
+best = loadBest();
+reset();
+requestAnimationFrame(loop);
+
+// Крючок для проверок: не влияет на обычную игру.
+window.__game = {
+  ready: true,
+  get grid() { return grid; }, set grid(g) { grid = g; },
+  get current() { return current; },
+  get queue() { return queue; },
+  get hold() { return hold; },
+  get score() { return score; },
+  get lines() { return lines; },
+  get level() { return level; },
+  get best() { return best; },
+  get gameOver() { return gameOver; },
+  get paused() { return paused; },
+  COLS, ROWS,
+  reset, tick, move, drop, hardDrop, tryRotate, holdPiece, collides,
+  setPiece(type) { canHold = true; setCurrent(spawnPiece(type)); },
+};
+</script>
+</body>
+</html>
