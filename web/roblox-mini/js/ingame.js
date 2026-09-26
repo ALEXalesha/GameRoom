@@ -128,6 +128,7 @@
       $('g-chat').hidden = chatOff;
       $('g-chat-btn').hidden = chatOff;
       B.sound.applyVolumes();
+      this.needsRender = true;
     }
 
     // ---------- Ввод ----------
@@ -514,7 +515,8 @@
         while (G.acc >= STEP && n < 8) { g.fixedStep(STEP); G.acc -= STEP; n++; }
         if (n === 8) G.acc = 0;
       }
-      g.render(B.params.manual ? 1 : G.acc / STEP, frameDt);
+      // на паузе (меню) кадр не перерисовывается: холст держит последний; после смены настроек - один раз
+      if (!g.paused || g.needsRender) { g.render(B.params.manual ? 1 : G.acc / STEP, g.paused ? 0 : frameDt); g.needsRender = false; }
       g.boardT -= frameDt;
       if (g.boardT <= 0) { g.boardT = 0.25; g.drawBoard(); updatePerf(g); autoQuality(g); }
       g.drawHud();
