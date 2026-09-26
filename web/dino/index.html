@@ -583,7 +583,9 @@ function hudText(t, x, y, size, align = 'left', color = '#fff') {
   ctx.fillStyle = color; ctx.fillText(t, x, y);
   ctx.textAlign = 'left';
 }
+let bannerRect = null;
 function drawHud() {
+  bannerRect = null;
   if (state.mode === 'demo') return;
   flag(14, 12, '#ffcc33');
   hudText(Math.floor(state.dist) + ' м', 32, 25, 18);
@@ -597,10 +599,13 @@ function drawHud() {
   } else {
     hudText('Рекорд ' + Math.max(records.endless, Math.floor(state.dist)) + ' м', W - 14, 25, 15, 'right');
   }
-  if (state.banner) {
+  bannerRect = null;
+  if (state.banner && kit.mode === 'play') {        // под паузой и окнами надпись не рисуется
     ctx.globalAlpha = Math.min(1, state.banner.t / 30);
     hudText(state.banner.text, W / 2, 110, 24, 'center', '#ffe27a');
     ctx.globalAlpha = 1;
+    const w = ctx.measureText(state.banner.text).width;
+    bannerRect = { x: W / 2 - w / 2, y: 110 - 22, w, h: 30 };
   }
 }
 
@@ -755,6 +760,11 @@ window.__game = {
   get autopilot() { return autopilot; },
   clearObstacles() { obstacles.length = 0; state.nextGap = 1e9; },
   reseed(n) { rnd = mulberry32(n); },
+  bannerCss() {
+    if (!bannerRect) return null;
+    const c = canvas.getBoundingClientRect(), k = c.width / W;
+    return { left: c.left + bannerRect.x * k, top: c.top + bannerRect.y * k, right: c.left + (bannerRect.x + bannerRect.w) * k, bottom: c.top + (bannerRect.y + bannerRect.h) * k };
+  },
 };
 </script>
 </body>

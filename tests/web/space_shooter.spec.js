@@ -4,7 +4,7 @@
 // прогресс после перезагрузки, сложность, пауза при скрытии вкладки, переназначение огня.
 const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
-const { hideTab, showTab } = require('./_kit-helpers');
+const { hideTab, showTab, blurWindow, focusWindow, pauseLayout } = require('./_kit-helpers');
 
 // Бой до мастерской или победы: автоприцел, огонь зажат, корабль неуязвим (проверяем путь, а не ловкость)
 const FIGHT = `(maxSteps) => {
@@ -173,6 +173,30 @@ test.describe('space_shooter: правила боя', () => {
 });
 
 test.describe('space_shooter: пауза, настройки, окно', () => {
+  for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+    test(`пауза ${size.width}x${size.height}: надпись игры не наезжает на окно «Пауза»`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openGame(page, 'space_shooter', 'seed=1');
+      await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+      await page.waitForTimeout(150);
+      const r = await pauseLayout(page);
+      expect(r.during, 'в игре надпись видна').not.toBe(null);
+      expect(r.overlap).toBe(false);
+    });
+  }
+
+  test('потеря фокуса окна ставит паузу, возврат фокуса паузу не снимает - только игрок', async ({ page }) => {
+    await openGame(page, 'space_shooter', 'seed=1');
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    await blurWindow(page);
+    await focusWindow(page);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => __game.kit.mode)).toBe('paused');
+    await expect(page.locator('[data-screen=pause]')).toBeVisible();
+    await page.click('[data-screen=pause] [data-id=resume]');
+    expect(await page.evaluate(() => __game.kit.mode)).toBe('play');
+  });
+
   test('скрытие вкладки - пауза и тишина, после возврата пауза остаётся; Esc продолжает', async ({ page }) => {
     await openGame(page, 'space_shooter', 'seed=1&fast');
     await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');

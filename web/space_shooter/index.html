@@ -800,7 +800,9 @@ function text(t, x, y, size, color = '#fff', align = 'left') {
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(t, x + 2, y + 2);
   ctx.fillStyle = color; ctx.fillText(t, x, y); ctx.textAlign = 'left';
 }
+let bannerRect = null;                 // где последний раз нарисована надпись волны (единицы поля)
 function drawHud() {
+  bannerRect = null;
   if (S.mode === 'demo') return;
   icon('hp', 26, 28);
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(42, 20, 220, 16);
@@ -819,7 +821,13 @@ function drawHud() {
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(bx, 34, bw, 12);
     ctx.fillStyle = boss.color; ctx.fillRect(bx, 34, bw * Math.max(0, boss.hp / boss.maxHp), 12);
   }
-  if (S.banner) { ctx.globalAlpha = Math.min(1, S.banner.t / 25); text(S.banner.text, W / 2, H * 0.36, 34, '#00e5ff', 'center'); ctx.globalAlpha = 1; }
+  // Надпись волны - только во время боя: под паузой и окнами она наезжала на их заголовки
+  bannerRect = null;
+  if (S.banner && kit.mode === 'play') {
+    ctx.globalAlpha = Math.min(1, S.banner.t / 25); text(S.banner.text, W / 2, H * 0.36, 34, '#00e5ff', 'center'); ctx.globalAlpha = 1;
+    const w = ctx.measureText(S.banner.text).width;
+    bannerRect = { x: W / 2 - w / 2, y: H * 0.36 - 30, w, h: 38 };
+  }
   // прицел
   if (!kit.settings.autoAim && kit.mode === 'play') {
     ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1.5;
@@ -853,6 +861,12 @@ function render() {
 }
 function updateParticles() {
   for (let i = particles.length - 1; i >= 0; i--) { const q = particles[i]; q.x += q.vx; q.y += q.vy; q.vx *= 0.96; q.vy *= 0.96; if (--q.life <= 0) particles.splice(i, 1); }
+}
+
+function cssRect(r) {
+  if (!r) return null;
+  const c = canvas.getBoundingClientRect(), k = c.width / W;
+  return { left: c.left + r.x * k, top: c.top + r.y * k, right: c.left + (r.x + r.w) * k, bottom: c.top + (r.y + r.h) * k };
 }
 
 // ================= Мышь =================
@@ -980,6 +994,7 @@ window.__game = {
   step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
   startCampaign, startSurvival, startDemo, spawnEnemy, spawnBoss, startFinale, buy, useBomb, damagePlayer, showShop,
   reseed(n) { rnd = mulberry32(n); },
+  bannerCss() { return cssRect(bannerRect); },
   aimAt(x, y) { mouse.x = x; mouse.y = y; mouse.lastMove = performance.now(); },
   setHeld(v) { mouse.held = v; },
 };

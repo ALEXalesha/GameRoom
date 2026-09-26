@@ -4,7 +4,7 @@
 // (клик, очередь, общий темп с клавишей, мимо поля не стреляет), пауза при скрытии вкладки.
 const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
-const { hideTab, showTab } = require('./_kit-helpers');
+const { hideTab, showTab, blurWindow, focusWindow, pauseLayout } = require('./_kit-helpers');
 
 // Прогон миссии «рукой» (неуязвимой: проверяем путь и босса, а не ловкость)
 const RUN = `(maxSteps) => {
@@ -226,6 +226,30 @@ test.describe('jungle-strike: огонь левой кнопкой мыши', ()
 });
 
 test.describe('jungle-strike: пауза и окно', () => {
+  for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+    test(`пауза ${size.width}x${size.height}: надпись игры не наезжает на окно «Пауза»`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openGame(page, 'jungle-strike', 'seed=1');
+      await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+      await page.waitForTimeout(150);
+      const r = await pauseLayout(page);
+      expect(r.during, 'в игре надпись видна').not.toBe(null);
+      expect(r.overlap).toBe(false);
+    });
+  }
+
+  test('потеря фокуса окна ставит паузу, возврат фокуса паузу не снимает - только игрок', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
+    await blurWindow(page);
+    await focusWindow(page);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => __game.kit.mode)).toBe('paused');
+    await expect(page.locator('[data-screen=pause]')).toBeVisible();
+    await page.click('[data-screen=pause] [data-id=resume]');
+    expect(await page.evaluate(() => __game.kit.mode)).toBe('play');
+  });
+
   test('скрытие вкладки - пауза, после возврата пауза остаётся', async ({ page }) => {
     await openGame(page, 'jungle-strike', 'seed=1');
     await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
