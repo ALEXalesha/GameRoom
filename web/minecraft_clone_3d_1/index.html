@@ -14,7 +14,7 @@
   #app { position: fixed; inset: 0; overflow: hidden; }
   #gc { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; transition: filter .3s; }
   body.menu #gc { filter: blur(3px) brightness(.85); }
-  #ui { position: absolute; inset: 0; pointer-events: none; }
+  #ui { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   body.dim #ui::before { content: ''; position: absolute; inset: 0; background: rgba(8, 8, 12, .62); }
 
   .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; gap: 8px; text-shadow: var(--shadow); }
@@ -75,7 +75,7 @@
   .death h2 { font-size: 34px; }
 
   /* HUD */
-  .hud { position: absolute; inset: 0; display: none; pointer-events: none; }
+  .hud { position: absolute; inset: 0; display: none; pointer-events: none; overflow: hidden; }
   .hud.show { display: block; }
   body.dim #crosshair, body.dim #itemName { display: none; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; mix-blend-mode: difference; }
@@ -161,7 +161,7 @@
   .victory .roll { position: absolute; left: 0; right: 0; text-align: center; padding: 0 20px; animation: roll 22s linear forwards; font-size: 15px; line-height: 1.6; }
   .victory .roll .big { font-size: 20px; }
   .victory h2 { font-size: 34px; }
-  @keyframes roll { from { top: 100%; } to { top: -40%; } }
+  @keyframes roll { from { top: 12%; } to { top: -75%; } }
 </style>
 </head>
 <body class="menu">
@@ -182,6 +182,8 @@
 <script src="js/sky.js"></script>
 <script src="js/player.js"></script>
 <script src="js/game.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ach.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/hook.js"></script>
 <script>VX.game.boot();</script>

@@ -72,6 +72,10 @@
     return url;
   };
 
+  // свет сцены - только для предметов и существ (блоки освещает свой шейдер)
+  const sceneAmb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(sceneAmb);
+  const sceneSun = new THREE.DirectionalLight(0xffffff, 0.45); sceneSun.position.set(0.4, 1, 0.3); scene.add(sceneSun);
+
   // ---------- Рамка выбора и трещины ----------
   const selBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.004, 1.004, 1.004)), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }));
   selBox.visible = false;
@@ -243,7 +247,11 @@
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === canvas;
     G.locked = locked;
-    if (locked) { G.needClick = false; return; }
+    if (locked) {
+      // захват пришёл с опозданием, а игра уже в меню (пауза, победа, окно) - отпускаем мышь сразу
+      if (G.state !== 'play') { expectUnlock = true; document.exitPointerLock(); return; }
+      G.needClick = false; return;
+    }
     if (expectUnlock) { expectUnlock = false; return; }
     if (G.state === 'play') G.pause();
   });
@@ -433,7 +441,7 @@
   G.useTarget = function () {
     const t = G.target();
     const held = inv.held();
-    if (held && D.info(held.id).food && G.mode === 'survival') return G.eatHeld();
+    if (held && D.info(held.id).food && G.mode === 'survival' && G.player.food < 20) { G.eating = 0; return 'eat'; }
     if (!t) return null;
     if (!player.sneaking && t.id === B.crafting_table) { G.openContainer('table', t); return 'table'; }
     if (!player.sneaking && (t.id >= B.furnace && t.id <= B.furnace + 3 || t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
@@ -617,7 +625,7 @@
   function playerEvent(ev, d) {
     if (ev === 'hurt') { VX.audio.play('hurt'); }
     if (ev === 'land' && d > 1.2) { const b = world.getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1), Math.floor(player.pos.z)); VX.audio.play('step', { surface: surfaceOf(b) }); }
-    if (ev === 'death') { G.onDeath(d); }
+    if (ev === 'death' && G.state !== 'dead') { G.onDeath(d); }
     if (ev === 'jump' && G.mode === 'survival') player.exhaust(player.sprinting ? 0.2 : 0.05);
   }
   G.onDeath = function () {
@@ -648,6 +656,7 @@
     const wasWater = player.inWater;
     const inp = G.state === 'play' ? inputState() : {};
     if (G.state !== 'dead') player.update(dt, inp, world, G.mode, playerEvent);
+    if (player.dead && G.state !== 'dead') { G.onDeath(player.lastDamage && player.lastDamage.cause); return; }
     if (player.inWater && !wasWater && Math.abs(player.vel.y) > 2) VX.audio.play('splash');
     // шаги
     if (player.onGround && !player.flying && (Math.abs(player.vel.x) + Math.abs(player.vel.z)) > 0.5) {
@@ -662,7 +671,12 @@
     }
     if (G.state === 'play') {
       updateMining(dt);
-      if (G.mouse.r) { G.placeCool -= dt; if (G.placeCool <= 0) { G.placeCool = 0.2; G.useTarget(); } }
+      const hf = inv.held();
+      if (G.mouse.r && G.eating !== undefined && hf && D.info(hf.id).food) {
+        G.eating += dt; G.swing = Math.max(G.swing, 0.3);
+        if (G.eating >= 1.6) { G.eatHeld(); G.eating = undefined; }
+      } else if (G.mouse.r) { G.eating = undefined; G.placeCool -= dt; if (G.placeCool <= 0) { G.placeCool = 0.2; G.useTarget(); } }
+      else G.eating = undefined;
     }
     G.fluidT = (G.fluidT || 0) + dt;
     if (G.fluidT > 0.25) { G.fluidT = 0; fluidStep(); }
@@ -780,7 +794,9 @@
     const m = G.mining;
     crack.visible = !!(m && m.p > 0 && G.mode === 'survival');
     if (crack.visible) { crack.position.set(m.x + 0.5, m.y + 0.5, m.z + 0.5); crackTex.offset.x = Math.min(9, Math.floor(m.p * 10)) / 10; }
-    if (VX.entities) VX.entities.render(dt, camera);
+    const LL = G.localLight();
+    sceneAmb.intensity = 0.65 * LL; sceneSun.intensity = 0.45 * LL;
+    if (VX.entities && G.meta && !G.panorama) VX.entities.render(dt, camera);
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем

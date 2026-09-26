@@ -21,6 +21,10 @@
     get settings() { return G.settings; },
     get ticks() { return G.ticks; },
     get storage() { return VX.store.kind; },
+    get entities() { return VX.entities; },
+    get ach() { return G.meta && G.meta.ach; },
+    // моб перед игроком на расстоянии d (для проверок)
+    spawnMob(type, dx, dz) { const p = G.player; return VX.entities.spawnMob(type, p.pos.x + (dx || 0), p.pos.y, p.pos.z + (dz === undefined ? -2 : dz)); },
     // создать мир и войти в него (ждём, пока вокруг построятся куски)
     async newWorld(o) {
       const meta = await G.createWorld(o || {});
