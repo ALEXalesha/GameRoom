@@ -243,7 +243,9 @@ test.describe('horizon_drift_offline', () => {
     const r = await page.evaluate(() => {
       const C = __drift.core;
       const brake = (surf) => { const c = C.makeCar(C.carStats('kobalt')); c.vz = 25; c.inp.brk = 1; let d = 0; for (let i = 0; i < 3000; i++) { const z0 = c.z; C.stepCar(c, C.DT, surf); d += c.z - z0; if (c.speed < 0.1) break; } return d; };
-      const turn = (surf) => { const c = C.makeCar(C.carStats('kobalt')); c.vz = 22; c.inp.steer = 1; c.inp.thr = 0.3; let a = 0; for (let i = 0; i < 240; i++) { C.stepCar(c, C.DT, surf); if (i > 60) a = Math.max(a, Math.abs(c.w * c.speed)); } return a; };
+      // боковое ускорение по повороту вектора скорости (не по вращению кузова - на снегу машину может крутить)
+      const turn = (surf) => { const c = C.makeCar(C.carStats('kobalt')); c.vz = 22; c.inp.steer = 1; c.inp.thr = 0.3; let a = 0, prev = 0;
+        for (let i = 0; i < 360; i++) { C.stepCar(c, C.DT, surf); if (i % 12 === 0) { const ang = Math.atan2(c.vx, c.vz); let d = ang - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; if (i > 0) a = Math.max(a, Math.abs(d) / (12 * C.DT) * c.speed); prev = ang; } } return a; };
       return { mu: [C.surfMu('asphalt', C.carStats('kobalt')), C.surfMu('gravel', C.carStats('kobalt')), C.surfMu('snow', C.carStats('kobalt'))],
         brakeA: brake('asphalt'), brakeS: brake('snow'), turnA: turn('asphalt'), turnS: turn('snow'), rally: C.surfMu('snow', C.carStats('buran')) };
     });
