@@ -2,133 +2,137 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Python IDE</title>
+<link rel="stylesheet" href="vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="vendor/codemirror/material-darker.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; font-family: -apple-system, "Segoe UI", sans-serif; }
+  html, body { height: 100%; overflow: hidden; font-family: "Segoe UI", -apple-system, sans-serif; }
   body { display: flex; flex-direction: column; background: #1e1e1e; color: #d4d4d4; }
+  button { font-family: inherit; }
 
-  .topbar {
-    height: 36px; background: #323233; display: flex; align-items: center;
-    padding: 0 12px; border-bottom: 1px solid #1e1e1e; gap: 10px;
-    font-size: 13px;
-  }
-  .title { color: #cccccc; font-weight: 500; }
+  .topbar { height: 40px; background: #323233; display: flex; align-items: center; padding: 0 12px; gap: 10px; font-size: 13px; border-bottom: 1px solid #1e1e1e; flex-shrink: 0; }
+  .title { color: #ddd; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .title svg { width: 18px; height: 18px; }
   .spacer { flex: 1; }
-  .status { color: #888; font-size: 12px; }
-
-  .btn {
-    background: #0e639c; color: white; border: none; padding: 5px 14px;
-    border-radius: 3px; cursor: pointer; font-size: 12px;
-  }
-  .btn:hover { background: #1177bb; }
-  .btn:disabled { background: #555; cursor: not-allowed; }
-  .btn-sec { background: #3c3c3c; }
-  .btn-sec:hover { background: #4a4a4a; }
+  .status { color: #9d9d9d; font-size: 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+  .status.loading .dot { background: #d7ba7d; animation: blink 1s infinite; }
+  .status.ready .dot { background: #4ec9b0; }
+  .status.running .dot { background: #569cd6; animation: blink .6s infinite; }
+  .status.failed .dot { background: #f48771; }
+  .status.failed { color: #f48771; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .btn { background: #0e639c; color: #fff; border: none; padding: 6px 14px; border-radius: 3px; cursor: pointer; font-size: 12.5px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { background: #1177bb; }
+  .btn:disabled { background: #3a3d41; color: #888; cursor: default; }
+  .btn.stop { background: #a1260d; }
+  .btn.stop:hover:not(:disabled) { background: #c72e0f; }
+  .btn.stop:disabled { background: #3a3d41; }
+  .btn svg { width: 12px; height: 12px; }
 
   .main { flex: 1; display: flex; min-height: 0; }
-
-  .sidebar {
-    width: 220px; background: #252526; border-right: 1px solid #1e1e1e;
-    display: flex; flex-direction: column;
-  }
-  .sidebar-h {
-    padding: 8px 12px; font-size: 11px; color: #bbb; text-transform: uppercase;
-    letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;
-  }
-  .sidebar-h button {
-    background: none; border: none; color: #bbb; cursor: pointer; font-size: 16px;
-    line-height: 1; padding: 0 4px;
-  }
-  .sidebar-h button:hover { color: white; }
+  .sidebar { width: 210px; background: #252526; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-h { padding: 8px 10px 8px 12px; font-size: 11px; color: #bbb; text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; justify-content: space-between; }
+  .icon-btn { background: none; border: none; color: #bbb; cursor: pointer; width: 22px; height: 22px; border-radius: 4px; font-size: 16px; line-height: 1; display: grid; place-items: center; }
+  .icon-btn:hover { background: #37373d; color: #fff; }
   .files { flex: 1; overflow-y: auto; }
-  .file {
-    padding: 5px 12px; cursor: pointer; font-size: 13px; display: flex;
-    align-items: center; gap: 6px; color: #cccccc;
-  }
+  .file { padding: 4px 8px 4px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; color: #ccc; }
   .file:hover { background: #2a2d2e; }
-  .file.active { background: #37373d; }
+  .file.active { background: #37373d; color: #fff; }
+  .file:focus-visible { outline: 1px solid #007fd4; outline-offset: -1px; }
+  .file-ic { color: #4b8bbe; font-size: 11px; font-weight: 700; }
   .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .file-del {
-    opacity: 0; background: none; border: none; color: #bbb; cursor: pointer;
-    font-size: 14px; padding: 0 4px;
-  }
-  .file:hover .file-del { opacity: 1; }
+  .file .icon-btn { opacity: 0; width: 20px; height: 20px; font-size: 14px; }
+  .file:hover .icon-btn, .file.active .icon-btn, .file .icon-btn:focus-visible { opacity: 1; }
+  .file input, .new-file input { width: 100%; background: #3c3c3c; border: 1px solid #007fd4; color: #fff; font-size: 13px; padding: 2px 4px; outline: none; }
+  .new-file { padding: 4px 8px 4px 12px; }
+  .name-err { color: #f48771; font-size: 11px; padding: 2px 12px 4px; }
+  .side-foot { padding: 8px 12px; font-size: 11px; color: #858585; line-height: 1.5; border-top: 1px solid #333; }
+  .link { background: none; border: none; color: #3794ff; cursor: pointer; font-size: 11px; padding: 0; }
+  .link:hover { text-decoration: underline; }
 
   .workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .tabs {
-    height: 35px; background: #2d2d2d; display: flex; border-bottom: 1px solid #1e1e1e;
-    overflow-x: auto;
-  }
-  .tab {
-    padding: 0 12px; display: flex; align-items: center; gap: 8px;
-    background: #2d2d2d; color: #969696; font-size: 13px; cursor: pointer;
-    border-right: 1px solid #1e1e1e; white-space: nowrap;
-  }
-  .tab.active { background: #1e1e1e; color: white; }
+  .editor-h { height: 32px; background: #252526; display: flex; align-items: center; padding: 0 12px; font-size: 13px; color: #ccc; gap: 10px; border-bottom: 1px solid #1e1e1e; flex-shrink: 0; }
+  .editor-h .hint { color: #777; font-size: 11.5px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .editor-wrap { flex: 1; min-height: 0; position: relative; }
+  .CodeMirror { height: 100%; font-family: Consolas, "Cascadia Mono", Menlo, monospace; font-size: 14px; line-height: 1.5; }
+  .cm-s-material-darker.CodeMirror { background: #1e1e1e; }
+  .cm-s-material-darker .CodeMirror-gutters { background: #1e1e1e; border-right: 1px solid #2a2a2a; }
+  /* Строка с ошибкой видна и тогда, когда на ней стоит курсор (у активной строки свой фон). */
+  .CodeMirror .CodeMirror-linebackground.error-line { background: rgba(244, 135, 113, .22); box-shadow: inset 3px 0 #f48771; }
 
-  .editor-wrap { flex: 1; min-height: 0; }
-  #editor { width: 100%; height: 100%; }
-
-  .terminal {
-    height: 220px; background: #1e1e1e; border-top: 1px solid #333;
-    display: flex; flex-direction: column;
-  }
-  .term-h {
-    padding: 6px 12px; font-size: 11px; color: #bbb; text-transform: uppercase;
-    letter-spacing: 0.5px; background: #252526; display: flex; justify-content: space-between;
-    align-items: center;
-  }
-  .term-clear {
-    background: none; border: none; color: #bbb; cursor: pointer; font-size: 12px;
-  }
-  .term-body {
-    flex: 1; overflow-y: auto; padding: 8px 12px; font-family: "Consolas", "Menlo", monospace;
-    font-size: 13px; line-height: 1.5; white-space: pre-wrap;
-  }
+  .panel { height: 230px; display: flex; border-top: 1px solid #3c3c3c; flex-shrink: 0; }
+  .terminal { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .panel-h { padding: 5px 12px; font-size: 11px; color: #bbb; text-transform: uppercase; letter-spacing: .5px; background: #252526; display: flex; justify-content: space-between; align-items: center; height: 28px; }
+  .panel-h button { background: none; border: none; color: #bbb; cursor: pointer; font-size: 11px; text-transform: none; letter-spacing: 0; }
+  .panel-h button:hover { color: #fff; }
+  .term-body { flex: 1; overflow-y: auto; padding: 6px 12px; font-family: Consolas, Menlo, monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; background: #1e1e1e; user-select: text; }
   .out { color: #d4d4d4; }
   .err { color: #f48771; }
   .info { color: #4ec9b0; }
+  .in { color: #dcdcaa; }
+  .hint-line { color: #d7ba7d; }
+  .goto { text-decoration: underline; cursor: pointer; }
+  .stdin-box { width: 240px; display: flex; flex-direction: column; border-left: 1px solid #3c3c3c; }
+  .stdin-box textarea { flex: 1; background: #1e1e1e; color: #dcdcaa; border: none; outline: none; resize: none; padding: 6px 10px; font: 13px/1.45 Consolas, Menlo, monospace; }
+  .stdin-box textarea:focus { background: #202020; }
+  .toast { position: fixed; left: 50%; bottom: 250px; transform: translateX(-50%); background: #2d2d30; border: 1px solid #454545; color: #ddd; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none; gap: 12px; align-items: center; z-index: 20; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+  .toast.show { display: flex; }
+  @media (max-width: 1100px) { .stdin-box { width: 190px; } .sidebar { width: 180px; } }
 </style>
-<link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/editor/editor.main.css">
 </head>
 <body>
 
 <div class="topbar">
-  <span class="title">Python IDE</span>
+  <span class="title">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" fill="#2d6fa3"/><path d="M6 9l3 3-3 3" fill="none" stroke="#ffd43b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 15h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+    Python IDE
+  </span>
   <span class="spacer"></span>
-  <span class="status" id="status">Загружаю Python...</span>
-  <button class="btn" id="runBtn" disabled>▶ Запустить (Ctrl+Enter)</button>
+  <span class="status loading" id="status" role="status"><span class="dot"></span><span id="statusText">Загружаю Python…</span></span>
+  <button class="btn" id="runBtn" disabled title="Запустить (Ctrl+Enter или F5)"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1l9 5-9 5z"/></svg>Запустить</button>
+  <button class="btn stop" id="stopBtn" disabled title="Остановить (Shift+F5)"><svg viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="8" height="8"/></svg>Стоп</button>
 </div>
 
 <div class="main">
-  <div class="sidebar">
-    <div class="sidebar-h">
-      <span>Файлы</span>
-      <button id="newFile" title="Новый файл">+</button>
-    </div>
-    <div class="files" id="files"></div>
-  </div>
+  <aside class="sidebar">
+    <div class="sidebar-h"><span>Файлы</span><button class="icon-btn" id="newFile" title="Новый файл" aria-label="Новый файл">+</button></div>
+    <div class="files" id="files" role="listbox" aria-label="Файлы"></div>
+    <div class="side-foot">Файлы сохраняются в этом браузере. Модули можно импортировать друг из друга.<br>
+      <button class="link" id="restoreExamples">вернуть примеры</button></div>
+  </aside>
 
   <div class="workspace">
-    <div class="tabs" id="tabs"></div>
-    <div class="editor-wrap"><div id="editor"></div></div>
-    <div class="terminal">
-      <div class="term-h">
-        <span>Терминал</span>
-        <button class="term-clear" id="clearTerm">очистить</button>
+    <div class="editor-h"><span id="fileLabel"></span><span class="hint">Ctrl+Enter - запуск · Ctrl+/ - комментарий · F2 - переименовать</span></div>
+    <div class="editor-wrap"><textarea id="editor"></textarea></div>
+    <div class="panel">
+      <div class="terminal">
+        <div class="panel-h"><span>Терминал</span><button id="clearTerm">очистить</button></div>
+        <div class="term-body" id="term" aria-live="polite"></div>
       </div>
-      <div class="term-body" id="term"></div>
+      <div class="stdin-box">
+        <div class="panel-h"><span>Ввод для input()</span></div>
+        <textarea id="stdin" placeholder="По строке на каждый вызов input()" aria-label="Ввод для input()" spellcheck="false"></textarea>
+      </div>
     </div>
   </div>
 </div>
+<div class="toast" id="toast" role="status"><span id="toastText"></span><button class="link" id="toastUndo">Вернуть</button></div>
 
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+<script src="vendor/codemirror/codemirror.js"></script>
+<script src="vendor/codemirror/python.js"></script>
+<script src="vendor/codemirror/matchbrackets.js"></script>
+<script src="vendor/codemirror/closebrackets.js"></script>
+<script src="vendor/codemirror/active-line.js"></script>
+<script src="vendor/codemirror/comment.js"></script>
+<script src="runtime.js"></script>
 <script>
-const state = {
-  files: {
-    'main.py': `# Привет от Python в браузере
+'use strict';
+const STORE = 'mix.python-ide.v1';
+const EXAMPLES = {
+  'main.py': `# Привет от Python в браузере: всё работает без интернета
 import math
 
 def factorial(n):
@@ -139,146 +143,371 @@ for i in range(1, 8):
 
 print(f"\\npi = {math.pi:.6f}")
 `,
-    'example.py': `# Списковые включения и zip
+  'example.py': `# Списковые включения и zip
 names = ["Анна", "Борис", "Вера"]
 ages = [23, 31, 27]
 
 people = [f"{n} ({a})" for n, a in zip(names, ages)]
 print("\\n".join(people))
-`
-  },
-  active: 'main.py',
-  pyodide: null,
-  editor: null,
-  models: {}
+`,
+  'greet.py': `# input() берёт строки из поля «Ввод для input()» справа от терминала
+name = input("Как вас зовут? ")
+print(f"Привет, {name}!")
+
+from example import people   # файлы проекта импортируются как модули
+print("Знакомые:", ", ".join(people))
+`,
 };
 
-const term = document.getElementById('term');
-const status = document.getElementById('status');
-const runBtn = document.getElementById('runBtn');
+const $ = id => document.getElementById(id);
+let files = {};          // имя → текст
+let order = [];          // порядок в списке
+let active = null;
 
-function log(text, cls = 'out') {
-  const span = document.createElement('span');
-  span.className = cls;
-  span.textContent = text;
-  term.appendChild(span);
-  term.scrollTop = term.scrollHeight;
+// ===== Хранилище =====
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (d && d.files && typeof d.files === 'object' && Object.keys(d.files).length) {
+      files = d.files;
+      order = (Array.isArray(d.order) ? d.order : []).filter(n => n in files);
+      for (const n of Object.keys(files)) if (!order.includes(n)) order.push(n);
+      active = d.active in files ? d.active : order[0];
+      $('stdin').value = typeof d.stdin === 'string' ? d.stdin : '';
+      return;
+    }
+  } catch (e) { /* испорченные данные - начинаем с примеров */ }
+  files = { ...EXAMPLES };
+  order = Object.keys(EXAMPLES);
+  active = 'main.py';
+  $('stdin').value = 'Мир';
+}
+let saveTimer;
+function save(now) {
+  clearTimeout(saveTimer);
+  const doSave = () => {
+    try { localStorage.setItem(STORE, JSON.stringify({ files, order, active, stdin: $('stdin').value })); }
+    catch (e) { toast('Не удалось сохранить: хранилище браузера заполнено или запрещено', false); }
+  };
+  if (now) doSave(); else saveTimer = setTimeout(doSave, 300);
 }
 
-document.getElementById('clearTerm').onclick = () => term.textContent = '';
+// ===== Редактор =====
+const docs = {};
+const cm = CodeMirror.fromTextArea($('editor'), {
+  mode: 'python', theme: 'material-darker', lineNumbers: true, indentUnit: 4, tabSize: 4,
+  indentWithTabs: false, matchBrackets: true, autoCloseBrackets: true, styleActiveLine: true,
+  extraKeys: {
+    'Ctrl-Enter': () => runCode(), 'Cmd-Enter': () => runCode(),
+    'Ctrl-/': 'toggleComment', 'Cmd-/': 'toggleComment',
+    Tab: c => c.somethingSelected() ? c.indentSelection('add') : c.replaceSelection('    ', 'end'),
+    'Shift-Tab': c => c.indentSelection('subtract'),
+  },
+});
+function docFor(name) {
+  if (!docs[name]) {
+    docs[name] = CodeMirror.Doc(files[name], 'python');
+    docs[name].on('change', d => { files[name] = d.getValue(); save(); clearErrorMark(); });
+  }
+  return docs[name];
+}
+function open(name) {
+  if (!(name in files)) return;
+  active = name;
+  cm.swapDoc(docFor(name));
+  $('fileLabel').textContent = name;
+  renderFiles();
+  save();
+  cm.focus();
+}
+
+// ===== Список файлов =====
+const NAME_RE = /^[\p{L}_][\p{L}\p{N}_]*\.py$/u;
+function nameError(name, except) {
+  if (!name) return 'Введите имя';
+  if (!name.endsWith('.py')) return 'Имя должно заканчиваться на .py';
+  if (!NAME_RE.test(name)) return 'Только буквы, цифры и _, не с цифры - иначе файл не импортировать';
+  if (name !== except && Object.keys(files).some(n => n.toLowerCase() === name.toLowerCase())) return 'Такой файл уже есть';
+  return '';
+}
 
 function renderFiles() {
-  const el = document.getElementById('files');
-  el.innerHTML = '';
-  for (const name of Object.keys(state.files)) {
+  const box = $('files');
+  box.innerHTML = '';
+  for (const name of order) {
     const row = document.createElement('div');
-    row.className = 'file' + (name === state.active ? ' active' : '');
-    row.innerHTML = `<span>🐍</span><span class="file-name">${name}</span>`;
-    const del = document.createElement('button');
-    del.className = 'file-del';
-    del.textContent = '×';
-    del.title = 'Удалить';
-    del.onclick = (e) => {
-      e.stopPropagation();
-      if (Object.keys(state.files).length === 1) return;
-      delete state.files[name];
-      if (state.models[name]) { state.models[name].dispose(); delete state.models[name]; }
-      if (state.active === name) state.active = Object.keys(state.files)[0];
-      renderFiles();
-      renderTabs();
-      switchTo(state.active);
+    row.className = 'file' + (name === active ? ' active' : '');
+    row.tabIndex = 0;
+    row.dataset.name = name;
+    row.setAttribute('role', 'option');
+    row.setAttribute('aria-selected', String(name === active));
+    row.innerHTML = '<span class="file-ic">py</span><span class="file-name"></span>' +
+      '<button class="icon-btn" data-act="rename" title="Переименовать (F2)" aria-label="Переименовать">✎</button>' +
+      '<button class="icon-btn" data-act="delete" title="Удалить" aria-label="Удалить">×</button>';
+    row.querySelector('.file-name').textContent = name;
+    row.onclick = e => {
+      const a = e.target.closest('[data-act]');
+      if (a && a.dataset.act === 'delete') removeFile(name);
+      else if (a && a.dataset.act === 'rename') startRename(row, name);
+      else if (name !== active) open(name);
     };
-    row.appendChild(del);
-    row.onclick = () => switchTo(name);
-    el.appendChild(row);
+    row.ondblclick = e => { if (!e.target.closest('[data-act]')) startRename(row, name); };
+    row.onkeydown = e => {
+      if (e.key === 'Enter') open(name);
+      else if (e.key === 'F2') { e.preventDefault(); startRename(row, name); }
+      else if (e.key === 'Delete') removeFile(name);
+    };
+    box.appendChild(row);
   }
 }
 
-function renderTabs() {
-  const el = document.getElementById('tabs');
-  el.innerHTML = '';
-  for (const name of Object.keys(state.files)) {
-    const tab = document.createElement('div');
-    tab.className = 'tab' + (name === state.active ? ' active' : '');
-    tab.textContent = name;
-    tab.onclick = () => switchTo(name);
-    el.appendChild(tab);
-  }
+function nameInput(initial, onDone) {
+  const wrap = document.createElement('div');
+  const inp = document.createElement('input');
+  inp.value = initial;
+  inp.setAttribute('aria-label', 'Имя файла');
+  const err = document.createElement('div');
+  err.className = 'name-err';
+  wrap.append(inp, err);
+  let finished = false;
+  const finish = ok => {
+    if (finished) return;
+    if (ok) {
+      const msg = onDone(inp.value.trim(), true);
+      if (msg) { err.textContent = msg; inp.focus(); return; }
+    } else onDone(null, false);
+    finished = true;
+  };
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    e.stopPropagation();
+  };
+  inp.onblur = () => setTimeout(() => { if (!finished) finish(false); }, 150);
+  setTimeout(() => { inp.focus(); inp.setSelectionRange(0, Math.max(0, initial.length - 3)); });
+  return wrap;
 }
 
-function switchTo(name) {
-  if (state.editor && state.active) {
-    state.files[state.active] = state.editor.getValue();
-  }
-  state.active = name;
-  if (!state.models[name]) {
-    state.models[name] = monaco.editor.createModel(state.files[name], 'python');
-  }
-  state.editor.setModel(state.models[name]);
-  renderFiles();
-  renderTabs();
+function startNew() {
+  const holder = document.createElement('div');
+  holder.className = 'new-file';
+  let n = 1;
+  while (('new' + n + '.py') in files) n++;
+  holder.appendChild(nameInput('new' + n + '.py', (name, ok) => {
+    if (!ok) { holder.remove(); return ''; }
+    const msg = nameError(name);
+    if (msg) return msg;
+    files[name] = '';
+    order.push(name);
+    holder.remove();
+    open(name);
+    save(true);
+    return '';
+  }));
+  $('files').appendChild(holder);
 }
 
-document.getElementById('newFile').onclick = () => {
-  const name = prompt('Имя файла:', 'new.py');
-  if (!name) return;
-  if (state.files[name]) { alert('Уже существует'); return; }
-  state.files[name] = '# ' + name + '\n';
-  switchTo(name);
+function startRename(row, old) {
+  row.replaceChildren(nameInput(old, (name, ok) => {
+    if (!ok || name === old) { renderFiles(); return ''; }
+    const msg = nameError(name, old);
+    if (msg) return msg;
+    files[name] = files[old];
+    delete files[old];
+    order[order.indexOf(old)] = name;
+    if (docs[old]) { delete docs[old]; }
+    if (active === old) active = name;
+    open(active);
+    save(true);
+    return '';
+  }));
+}
+
+let lastRemoved = null;
+function removeFile(name) {
+  if (order.length === 1) { toast('Последний файл удалить нельзя', false); return; }
+  lastRemoved = { name, text: files[name], index: order.indexOf(name) };
+  delete files[name];
+  delete docs[name];
+  order.splice(order.indexOf(name), 1);
+  if (active === name) active = order[Math.max(0, lastRemoved.index - 1)];
+  open(active);
+  save(true);
+  toast(`Файл ${name} удалён`, true);
+}
+
+let toastTimer;
+function toast(text, undo) {
+  $('toastText').textContent = text;
+  $('toastUndo').style.display = undo ? '' : 'none';
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), undo ? 6000 : 2500);
+}
+$('toastUndo').onclick = () => {
+  const r = lastRemoved;
+  if (r && !(r.name in files)) {
+    files[r.name] = r.text;
+    order.splice(Math.min(r.index, order.length), 0, r.name);
+    open(r.name);
+    save(true);
+  }
+  lastRemoved = null;
+  $('toast').classList.remove('show');
 };
 
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
-require(['vs/editor/editor.main'], () => {
-  state.editor = monaco.editor.create(document.getElementById('editor'), {
-    value: state.files[state.active],
-    language: 'python',
-    theme: 'vs-dark',
-    fontSize: 14,
-    minimap: { enabled: true },
-    automaticLayout: true,
-    tabSize: 4
-  });
-  state.models[state.active] = state.editor.getModel();
-  monaco.editor.setModelLanguage(state.models[state.active], 'python');
-  state.models[state.active].setValue(state.files[state.active]);
-
-  state.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runCode);
+$('newFile').onclick = startNew;
+$('restoreExamples').onclick = () => {
+  let added = 0;
+  for (const [n, t] of Object.entries(EXAMPLES)) if (!(n in files)) { files[n] = t; order.push(n); added++; }
   renderFiles();
-  renderTabs();
+  save(true);
+  toast(added ? `Примеры возвращены: ${added}` : 'Все примеры уже на месте', false);
+};
+
+// ===== Терминал =====
+// Вывод копится и дописывается раз в кадр: цикл с print() на миллион строк не вешает страницу.
+const MAX_TERM = 200000;
+const SPAN_MAX = 8192;      // куски не длиннее этого, чтобы обрезать начало по частям
+let pending = [];
+let flushQueued = false;
+let termLen = 0;            // длина текста в терминале: считать textContent на каждом шаге дорого
+let cutNotice = null;
+function write(text, cls) {
+  pending.push([text, cls]);
+  if (!flushQueued) { flushQueued = true; requestAnimationFrame(flush); }
+}
+function flush() {
+  flushQueued = false;
+  const term = $('term');
+  const stick = term.scrollHeight - term.scrollTop - term.clientHeight < 40;
+  for (const [text, cls] of pending) {
+    termLen += text.length;
+    const last = term.lastChild;
+    // Обычный вывод дописывается в последний кусок того же вида; ошибки - отдельно (в них ссылки).
+    if (cls !== 'err' && last && last !== cutNotice && last.className === cls && last.textContent.length < SPAN_MAX) {
+      last.firstChild.appendData(text);
+      continue;
+    }
+    const span = document.createElement('span');
+    span.className = cls;
+    if (cls === 'err') linkify(span, text); else span.textContent = text;
+    term.appendChild(span);
+  }
+  pending = [];
+  if (termLen > MAX_TERM) {
+    if (!cutNotice) {
+      cutNotice = document.createElement('span');
+      cutNotice.className = 'info';
+      cutNotice.textContent = '… начало вывода обрезано …\n';
+    }
+    if (cutNotice.parentNode) cutNotice.remove();
+    while (term.firstChild && termLen > MAX_TERM * 0.8) {
+      termLen -= term.firstChild.textContent.length;
+      term.removeChild(term.firstChild);
+    }
+    term.insertBefore(cutNotice, term.firstChild);
+  }
+  if (stick) term.scrollTop = term.scrollHeight;
+}
+// Строки вида File "/home/pyodide/x.py", line 7 становятся ссылками на место в редакторе.
+function linkify(span, text) {
+  const re = /File "\/home\/pyodide\/([^"]+)", line (\d+)/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    span.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = document.createElement('span');
+    a.className = 'goto';
+    a.textContent = m[0];
+    const file = m[1], line = Number(m[2]);
+    a.title = 'Перейти к строке';
+    a.onclick = () => gotoLine(file, line);
+    span.appendChild(a);
+    last = m.index + m[0].length;
+  }
+  span.appendChild(document.createTextNode(text.slice(last)));
+}
+let errorMark = null;
+function gotoLine(file, line) {
+  if (!(file in files)) return;
+  if (file !== active) open(file);
+  clearErrorMark();
+  errorMark = cm.addLineClass(line - 1, 'background', 'error-line');
+  cm.setCursor({ line: line - 1, ch: 0 });
+  cm.scrollIntoView({ line: line - 1, ch: 0 }, 80);
+  cm.focus();
+}
+function clearErrorMark() { if (errorMark) { cm.removeLineClass(errorMark, 'background', 'error-line'); errorMark = null; } }
+$('clearTerm').onclick = () => { $('term').textContent = ''; pending = []; termLen = 0; };
+
+// ===== Python =====
+let stderrLog = '';
+const rt = new PyRuntime({
+  out: t => write(t, 'out'),
+  err: t => { stderrLog += t; write(t, 'err'); },
+  stdin: t => write(t + '\n', 'in'),
+  state: (s, info) => setStatus(s, info),
 });
 
-async function initPyodide() {
-  log('Загружаю Pyodide...\n', 'info');
-  state.pyodide = await loadPyodide({
-    stdout: (t) => log(t + '\n', 'out'),
-    stderr: (t) => log(t + '\n', 'err')
-  });
-  status.textContent = 'Готово';
-  runBtn.disabled = false;
-  log('Готово. Python ' + state.pyodide.runPython('import sys; sys.version.split()[0]') + '\n\n', 'info');
+function setStatus(s, info = {}) {
+  const st = $('status');
+  st.className = 'status ' + s;
+  const text = {
+    loading: 'Загружаю Python (≈15 МБ, без сети)…',
+    ready: `Python ${info.version || ''} готов`,
+    running: 'Выполняется…',
+    failed: 'Python не запустился',
+  }[s] || '';
+  $('statusText').textContent = text;
+  $('runBtn').disabled = s !== 'ready';
+  $('stopBtn').disabled = s !== 'running';
+  if (s === 'failed') write(`Python не запустился: ${info.message}\nРедактор и файлы работают, запуск кода недоступен.\n`, 'err');
 }
 
 async function runCode() {
-  if (!state.pyodide) return;
-  const code = state.editor.getValue();
-  state.files[state.active] = code;
-
-  log(`─── запуск ${state.active} ───\n`, 'info');
-  const t0 = performance.now();
-
-  try {
-    await state.pyodide.runPythonAsync(code);
-    const dt = ((performance.now() - t0) / 1000).toFixed(2);
-    log(`\n─── готово за ${dt}s ───\n\n`, 'info');
-  } catch (e) {
-    log(String(e.message || e) + '\n', 'err');
-    log(`─── ошибка ───\n\n`, 'err');
+  if (rt.state === 'loading') { toast('Python ещё загружается, подождите пару секунд', false); return; }
+  if (rt.state === 'running') return;
+  if (rt.state !== 'ready') return;
+  save(true);
+  clearErrorMark();
+  stderrLog = '';
+  write(`─── запуск ${active} ───\n`, 'info');
+  const stdin = $('stdin').value.split('\n');
+  if (stdin.length && stdin[stdin.length - 1] === '') stdin.pop();
+  const r = await rt.run({ ...files }, active, stdin);
+  if (r.stopped) { write('\n─── остановлено ───\n\n', 'err'); return; }
+  const m = /File "\/home\/pyodide\/([^"]+)", line (\d+)[^\n]*\n(?![\s\S]*File ")/.exec(stderrLog);
+  if (/EOFError/.test(stderrLog)) write('Подсказка: input() читает строки из поля «Ввод для input()» справа - там кончились строки.\n', 'hint-line');
+  if (/ModuleNotFoundError/.test(stderrLog)) write('Подсказка: без интернета доступна только стандартная библиотека Python и ваши файлы (numpy и другие пакеты не входят).\n', 'hint-line');
+  if (r.code === 0) write(`─── готово за ${(r.ms / 1000).toFixed(2)} с ───\n\n`, 'info');
+  else {
+    write(`─── ошибка (код ${r.code}) ───\n\n`, 'err');
+    if (m) gotoLine(m[1], Number(m[2]));
   }
 }
+async function stopCode() {
+  if (rt.state !== 'running') return;
+  await rt.stop();
+}
 
-runBtn.onclick = runCode;
-initPyodide();
+$('runBtn').onclick = runCode;
+$('stopBtn').onclick = stopCode;
+$('stdin').addEventListener('input', () => save());
+document.addEventListener('keydown', e => {
+  if (e.key === 'F5' && e.shiftKey) { e.preventDefault(); stopCode(); }
+  else if (e.key === 'F5') { e.preventDefault(); runCode(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runCode(); }
+  else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'ы')) { e.preventDefault(); save(true); toast('Сохранено', false); }
+});
+window.addEventListener('beforeunload', () => save(true));
+
+// ===== Запуск =====
+load();
+renderFiles();
+open(active);
+setStatus('loading');
+// Даём странице отрисоваться, потом грузим Python.
+setTimeout(() => rt.start(), 50);
 </script>
-
 </body>
 </html>
