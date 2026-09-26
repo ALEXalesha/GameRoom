@@ -1,6 +1,7 @@
 // Значки приложений и файлов: свои, нарисованы заново (скругленный квадрат в духе настольных систем).
 const MONTHS_SHORT = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
 function icon(id) {
+  if (id && id.startsWith('<svg')) return id;   // готовый значок (игры)
   const now = new Date();
   const I = {
     files: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-files" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-files)"/><path d="M14 22h13l4 5h19v19a3 3 0 01-3 3H17a3 3 0 01-3-3z" fill="#fff"/><path d="M14 30h36" stroke="#93c5fd" stroke-width="2"/></svg>',

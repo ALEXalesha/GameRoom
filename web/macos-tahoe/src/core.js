@@ -449,12 +449,26 @@ function animateDock(w, toDock) {
   const frames = [{ transform: 'none', opacity: 1 }, { transform: 'translate(' + dx * 0.4 + 'px,' + dy * 0.5 + 'px) scale(0.6, 0.45) perspective(600px) rotateX(18deg)', opacity: 0.8, offset: 0.5 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.06)', opacity: 0.2 }];
   return w.el.animate(toDock ? frames : frames.reverse(), { duration: 320, easing: 'cubic-bezier(0.4,0,0.2,1)' }).finished.catch(() => { });
 }
-function minimizeWin(w) { if (w.min) return; w.min = true; restack(); animateDock(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); }
-function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); animateDock(w, false); }
+// Окно-рамка (игра, Paint) свёрнуто или закрывается: внутри страницы - как будто вкладку скрыли
+function framePause(w, paused) {
+  if (!w.iframe) return;
+  try {
+    const d = w.iframe.contentDocument, cw = w.iframe.contentWindow;
+    Object.defineProperty(d, 'hidden', { value: paused, configurable: true });
+    Object.defineProperty(d, 'visibilityState', { value: paused ? 'hidden' : 'visible', configurable: true });
+    d.dispatchEvent(new Event('visibilitychange'));
+    cw.dispatchEvent(new Event(paused ? 'blur' : 'focus'));
+    if (paused) d.querySelectorAll('audio, video').forEach(m => m.pause());
+  } catch (e) { /* страница из другого источника: остаётся обычная потеря фокуса */ }
+  if (paused && document.activeElement === w.iframe) w.iframe.blur();
+}
+function minimizeWin(w) { if (w.min) return; w.min = true; framePause(w, true); restack(); animateDock(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); }
+function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); framePause(w, false); animateDock(w, false); }
 async function closeWin(w) {
   if (w.beforeClose && !(await w.beforeClose())) return false;
   const i = wins.indexOf(w); if (i < 0) return true;
   rememberGeo(w);
+  framePause(w, true);
   wins.splice(i, 1);
   w.cleanup.forEach(f => { try { f(); } catch (e) { /* ничего */ } });
   const el = w.el;
@@ -858,17 +872,25 @@ document.addEventListener('click', e => {
 // ================= Launchpad и Mission Control =================
 function showLaunchpad() {
   closePanels(); hideMenu();
-  $('launchpad').classList.add('open'); $('lp-q').value = ''; renderLaunchpad(); $('lp-q').focus();
+  lpFolder = false; $('launchpad').classList.add('open'); $('lp-q').value = ''; renderLaunchpad(); $('lp-q').focus();
 }
 function hideLaunchpad() { $('launchpad').classList.remove('open'); }
+let lpFolder = false;
 function renderLaunchpad() {
   const q = $('lp-q').value.trim().toLowerCase();
-  const ids = Object.keys(APPS).filter(id => APPS[id].title.toLowerCase().includes(q));
+  // игры лежат папкой «Игры»; при поиске и внутри папки показываются по одной
+  const ids = Object.keys(APPS).filter(id => APPS[id].title.toLowerCase().includes(q) && (lpFolder ? APPS[id].game : q || !APPS[id].game));
+  if (!q && !lpFolder && GAMES.length) { $('lp-grid').innerHTML = ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join('') +
+    '<button class="lp-app" data-lp-folder="games"><span class="ti lp-folder">' + GAMES.slice(0, 9).map(id => icon(APPS[id].icon)).join('') + '</span>Игры</button>'; return; }
+  if (lpFolder && !q) { $('lp-grid').innerHTML = '<div class="lp-folder-title">Игры</div>' + ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join(''); return; }
   $('lp-grid').innerHTML = ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join('') || '<div style="color:#fff;grid-column:1/-1;text-align:center">Ничего не найдено</div>';
 }
 $('lp-q').addEventListener('input', renderLaunchpad);
 $('lp-q').addEventListener('keydown', e => { if (e.key === 'Enter') { const f = $('lp-grid').querySelector('[data-open-app]'); if (f) f.click(); } });
-$('launchpad').addEventListener('click', e => { if (e.target === $('launchpad') || e.target === $('lp-grid')) hideLaunchpad(); });
+$('launchpad').addEventListener('click', e => {
+  if (e.target.closest('[data-lp-folder]')) { lpFolder = true; renderLaunchpad(); return; }
+  if (e.target === $('launchpad') || e.target === $('lp-grid')) { if (lpFolder) { lpFolder = false; renderLaunchpad(); } else hideLaunchpad(); }
+});
 function showMission() {
   closePanels(); hideMenu();
   const mc = $('mission'), grid = $('mc-grid');

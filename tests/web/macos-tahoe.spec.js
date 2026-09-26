@@ -9,7 +9,7 @@ const { openOs, expectInside, dragFrom, dragBy, expectNoPageOverflow, topmostAt,
 
 const NAME = 'macos-tahoe';
 const BUILT_IN = ['finder', 'browser', 'textedit', 'photos', 'music', 'calculator', 'clock', 'weather', 'terminal', 'settings'];
-const FRAMED = ['paint', 'messenger', 'minicraft', 'obby'];
+const FRAMED = ['paint', 'messenger'];
 const MB = 28; // строка меню
 
 async function boot(page, size) {
@@ -64,7 +64,7 @@ test('каждая программа открывается из Launchpad, в 
   expect(errors).toEqual([]);
 });
 
-test('Paint, Мессенджер и игры открываются рамкой из папки apps/', async ({ page }) => {
+test('Paint и Мессенджер открываются рамкой из папки apps/', async ({ page }) => {
   const errors = await boot(page);
   for (const id of FRAMED) {
     const w = await fromLaunchpad(page, id);
@@ -560,3 +560,58 @@ for (const size of [{ width: 1024, height: 700 }, { width: 800, height: 600 }]) 
     await expectNoPageOverflow(page);
   });
 }
+
+// ===== Игры «Игротеки»: полные версии из соседних папок =====
+const vm = require('vm');
+const GAMES = (() => { const ctx = { window: {} }; vm.runInNewContext(fs.readFileSync(path.join(WEB, '_os-shared', 'games.js'), 'utf8'), ctx); return ctx.window.OS_GAMES; })();
+
+test('папка «Игры» в Launchpad, игры находятся поиском; старых встроенных копий нет', async ({ page }) => {
+  await boot(page);
+  expect(fs.existsSync(path.join(WEB, NAME, 'apps', 'minicraft.html')) || fs.existsSync(path.join(WEB, NAME, 'apps', 'obby.html'))).toBe(false);
+  expect(fs.readFileSync(path.join(WEB, NAME, 'index.html'), 'utf8')).not.toMatch(/apps\/(minicraft|obby)\.html/);
+  await page.keyboard.press('F4');
+  await page.click('[data-lp-folder="games"]');
+  for (const g of GAMES) await expect(page.locator(`#lp-grid [data-open-app="game-${g.id}"]`)).toContainText(g.title);
+  await page.mouse.click(640, 740);   // щелчок мимо значков закрывает папку
+  await expect(page.locator('[data-lp-folder="games"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+Space');
+  await page.keyboard.type(GAMES[0].title.slice(0, 5));
+  await expect(page.locator(`#sp-res [data-open-app="game-${GAMES[0].id}"]`)).toBeVisible();
+});
+
+for (const g of GAMES) {
+  test(`игра «${g.title}»: окно открывает ../${g.dir}/index.html, страница есть и работает без ошибок и без сети`, async ({ page }) => {
+    const requests = [];
+    page.on('request', (r) => { if (/^https?:/.test(r.url())) requests.push(r.url()); });
+    const errors = await boot(page);
+    expect(fs.existsSync(path.join(WEB, g.dir, 'index.html')), g.dir + '/index.html').toBe(true);
+    await page.keyboard.press('F4');
+    await page.click('[data-lp-folder="games"]');
+    await page.click(`#lp-grid [data-open-app="game-${g.id}"]`);
+    const w = await ready(win(page, 'game-' + g.id));
+    await expect(w.locator('iframe')).toHaveAttribute('src', `../${g.dir}/index.html`);
+    await expect(w.frameLocator('iframe').locator('body')).toBeAttached();
+    await page.waitForTimeout(1500);
+    expect(errors, 'ошибки на странице игры').toEqual([]);
+    expect(requests, 'запросы в сеть').toEqual([]);
+  });
+}
+
+test('свёрнутое в Dock и закрытое окно игры ставит игру на паузу', async ({ page }) => {
+  await boot(page);
+  const g = GAMES.find((x) => x.id === 'dino') || GAMES[0];
+  const w = await openVia(page, 'game-' + g.id);
+  const frame = page.frames().find((f) => f.url().includes('/' + g.dir + '/'));
+  await expect.poll(() => frame.evaluate(() => document.readyState)).toBe('complete');
+  await frame.evaluate(() => { const log = (window.parent.__gameLog = []); document.addEventListener('visibilitychange', () => log.push('hidden:' + document.hidden)); addEventListener('blur', () => log.push('blur')); addEventListener('focus', () => log.push('focus')); });
+  await w.locator('[data-cap=min]').click();
+  await expect.poll(() => page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:true', 'blur']));
+  await page.evaluate(() => { window.__gameLog.length = 0; });
+  await page.click('#dock .d-mini');
+  await expect.poll(() => page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:false', 'focus']));
+  await page.evaluate(() => { window.__gameLog.length = 0; });
+  await w.locator('[data-cap=close]').click();
+  await expect(page.locator(`.window[data-app="game-${g.id}"]`)).toHaveCount(0);
+  expect(await page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:true', 'blur']));
+});

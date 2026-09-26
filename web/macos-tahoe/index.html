@@ -255,6 +255,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 0.5px solid var(--line)
 .lp-app .ti { width: 80px; height: 80px; transition: transform 0.15s; }
 .lp-app .ti svg { width: 100%; height: 100%; }
 .lp-app:active .ti { transform: scale(0.92); filter: brightness(0.8); }
+.lp-folder { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 7px; border-radius: 18px; background: rgba(255,255,255,0.28); }
+.lp-folder svg { width: 100% !important; height: auto !important; }
+.lp-folder-title { grid-column: 1 / -1; text-align: center; color: #fff; font-size: 26px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
 @keyframes lpApp { from { opacity: 0; transform: scale(0.8); } }
 
 #mission { position: fixed; inset: 0; z-index: 1700; display: none; background: rgba(0,0,0,0.35); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
@@ -506,10 +509,12 @@ body[data-theme="light"] .term { background: rgba(255,255,255,0.95); color: #1d1
 <div id="night"></div>
 <div id="boot"><span data-si="mark" style="display:flex"></span><div class="bar"><i></i></div><div class="boot-note">Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung</div></div>
 
+<script src="../_os-shared/games.js"></script>
 <script>
 // Значки приложений и файлов: свои, нарисованы заново (скругленный квадрат в духе настольных систем).
 const MONTHS_SHORT = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
 function icon(id) {
+  if (id && id.startsWith('<svg')) return id;   // готовый значок (игры)
   const now = new Date();
   const I = {
     files: '<svg viewBox="0 0 64 64"><defs><linearGradient id="gi-files" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gi-files)"/><path d="M14 22h13l4 5h19v19a3 3 0 01-3 3H17a3 3 0 01-3-3z" fill="#fff"/><path d="M14 30h36" stroke="#93c5fd" stroke-width="2"/></svg>',
@@ -993,12 +998,26 @@ function animateDock(w, toDock) {
   const frames = [{ transform: 'none', opacity: 1 }, { transform: 'translate(' + dx * 0.4 + 'px,' + dy * 0.5 + 'px) scale(0.6, 0.45) perspective(600px) rotateX(18deg)', opacity: 0.8, offset: 0.5 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.06)', opacity: 0.2 }];
   return w.el.animate(toDock ? frames : frames.reverse(), { duration: 320, easing: 'cubic-bezier(0.4,0,0.2,1)' }).finished.catch(() => { });
 }
-function minimizeWin(w) { if (w.min) return; w.min = true; restack(); animateDock(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); }
-function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); animateDock(w, false); }
+// Окно-рамка (игра, Paint) свёрнуто или закрывается: внутри страницы - как будто вкладку скрыли
+function framePause(w, paused) {
+  if (!w.iframe) return;
+  try {
+    const d = w.iframe.contentDocument, cw = w.iframe.contentWindow;
+    Object.defineProperty(d, 'hidden', { value: paused, configurable: true });
+    Object.defineProperty(d, 'visibilityState', { value: paused ? 'hidden' : 'visible', configurable: true });
+    d.dispatchEvent(new Event('visibilitychange'));
+    cw.dispatchEvent(new Event(paused ? 'blur' : 'focus'));
+    if (paused) d.querySelectorAll('audio, video').forEach(m => m.pause());
+  } catch (e) { /* страница из другого источника: остаётся обычная потеря фокуса */ }
+  if (paused && document.activeElement === w.iframe) w.iframe.blur();
+}
+function minimizeWin(w) { if (w.min) return; w.min = true; framePause(w, true); restack(); animateDock(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); }
+function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); framePause(w, false); animateDock(w, false); }
 async function closeWin(w) {
   if (w.beforeClose && !(await w.beforeClose())) return false;
   const i = wins.indexOf(w); if (i < 0) return true;
   rememberGeo(w);
+  framePause(w, true);
   wins.splice(i, 1);
   w.cleanup.forEach(f => { try { f(); } catch (e) { /* ничего */ } });
   const el = w.el;
@@ -1402,17 +1421,25 @@ document.addEventListener('click', e => {
 // ================= Launchpad и Mission Control =================
 function showLaunchpad() {
   closePanels(); hideMenu();
-  $('launchpad').classList.add('open'); $('lp-q').value = ''; renderLaunchpad(); $('lp-q').focus();
+  lpFolder = false; $('launchpad').classList.add('open'); $('lp-q').value = ''; renderLaunchpad(); $('lp-q').focus();
 }
 function hideLaunchpad() { $('launchpad').classList.remove('open'); }
+let lpFolder = false;
 function renderLaunchpad() {
   const q = $('lp-q').value.trim().toLowerCase();
-  const ids = Object.keys(APPS).filter(id => APPS[id].title.toLowerCase().includes(q));
+  // игры лежат папкой «Игры»; при поиске и внутри папки показываются по одной
+  const ids = Object.keys(APPS).filter(id => APPS[id].title.toLowerCase().includes(q) && (lpFolder ? APPS[id].game : q || !APPS[id].game));
+  if (!q && !lpFolder && GAMES.length) { $('lp-grid').innerHTML = ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join('') +
+    '<button class="lp-app" data-lp-folder="games"><span class="ti lp-folder">' + GAMES.slice(0, 9).map(id => icon(APPS[id].icon)).join('') + '</span>Игры</button>'; return; }
+  if (lpFolder && !q) { $('lp-grid').innerHTML = '<div class="lp-folder-title">Игры</div>' + ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join(''); return; }
   $('lp-grid').innerHTML = ids.map((id, i) => '<button class="lp-app" data-open-app="' + id + '" style="animation-delay:' + i * 12 + 'ms"><span class="ti">' + icon(APPS[id].icon) + '</span>' + esc(APPS[id].title) + '</button>').join('') || '<div style="color:#fff;grid-column:1/-1;text-align:center">Ничего не найдено</div>';
 }
 $('lp-q').addEventListener('input', renderLaunchpad);
 $('lp-q').addEventListener('keydown', e => { if (e.key === 'Enter') { const f = $('lp-grid').querySelector('[data-open-app]'); if (f) f.click(); } });
-$('launchpad').addEventListener('click', e => { if (e.target === $('launchpad') || e.target === $('lp-grid')) hideLaunchpad(); });
+$('launchpad').addEventListener('click', e => {
+  if (e.target.closest('[data-lp-folder]')) { lpFolder = true; renderLaunchpad(); return; }
+  if (e.target === $('launchpad') || e.target === $('lp-grid')) { if (lpFolder) { lpFolder = false; renderLaunchpad(); } else hideLaunchpad(); }
+});
 function showMission() {
   closePanels(); hideMenu();
   const mc = $('mission'), grid = $('mc-grid');
@@ -1502,9 +1529,15 @@ const APPS = {
   settings: { title: 'Системные настройки', icon: 'settings', w: 860, h: 600, minW: 640, minH: 420, create: createSettings },
   paint: { title: 'Paint', icon: 'paint', w: 960, h: 640, minW: 480, minH: 360, iframe: 'apps/paint.html' },
   messenger: { title: 'Мессенджер', icon: 'notes', w: 900, h: 600, minW: 480, minH: 360, iframe: 'apps/messenger.html' },
-  minicraft: { title: 'MiniCraft', icon: 'maps', w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/minicraft.html' },
-  obby: { title: 'Обби 3D', icon: 'launchpad', w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/obby.html' },
 };
+// Игры «Игротеки»: полные версии из соседних папок репозитория (таблица - web/_os-shared/games.js)
+const GAMES = (window.OS_GAMES || []).map(g => 'game-' + g.id);
+function gameIcon(g) {
+  const id = 'mg-' + g.id;
+  return '<svg viewBox="0 0 64 64"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + g.colors[0] + '"/><stop offset="1" stop-color="' + g.colors[1] + '"/></linearGradient></defs>' +
+    '<rect x="2" y="2" width="60" height="60" rx="14" fill="url(#' + id + ')"/><g transform="translate(5.6 5.6) scale(1.1)">' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || '') + '</g></svg>';
+}
+(window.OS_GAMES || []).forEach(g => { APPS['game-' + g.id] = { title: g.title, icon: gameIcon(g), w: 1000, h: 640, minW: 480, minH: 360, iframe: '../' + g.dir + '/index.html', game: true }; });
 
 // ---------------- Файлы ----------------
 let CLIP = null;

@@ -12,9 +12,15 @@ const APPS = {
   settings: { title: 'Системные настройки', icon: 'settings', w: 860, h: 600, minW: 640, minH: 420, create: createSettings },
   paint: { title: 'Paint', icon: 'paint', w: 960, h: 640, minW: 480, minH: 360, iframe: 'apps/paint.html' },
   messenger: { title: 'Мессенджер', icon: 'notes', w: 900, h: 600, minW: 480, minH: 360, iframe: 'apps/messenger.html' },
-  minicraft: { title: 'MiniCraft', icon: 'maps', w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/minicraft.html' },
-  obby: { title: 'Обби 3D', icon: 'launchpad', w: 900, h: 600, minW: 420, minH: 300, iframe: 'apps/obby.html' },
 };
+// Игры «Игротеки»: полные версии из соседних папок репозитория (таблица - web/_os-shared/games.js)
+const GAMES = (window.OS_GAMES || []).map(g => 'game-' + g.id);
+function gameIcon(g) {
+  const id = 'mg-' + g.id;
+  return '<svg viewBox="0 0 64 64"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + g.colors[0] + '"/><stop offset="1" stop-color="' + g.colors[1] + '"/></linearGradient></defs>' +
+    '<rect x="2" y="2" width="60" height="60" rx="14" fill="url(#' + id + ')"/><g transform="translate(5.6 5.6) scale(1.1)">' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || '') + '</g></svg>';
+}
+(window.OS_GAMES || []).forEach(g => { APPS['game-' + g.id] = { title: g.title, icon: gameIcon(g), w: 1000, h: 640, minW: 480, minH: 360, iframe: '../' + g.dir + '/index.html', game: true }; });
 
 // ---------------- Файлы ----------------
 let CLIP = null;
