@@ -260,8 +260,8 @@ test.describe('horizon_drift_offline', () => {
     await openDrift(page);
     const r = await page.evaluate(() => {
       const C = __drift.core, D = __drift.data;
-      const lap = (diff) => { const d = D.DIFFICULTY[diff]; const race = new C.Race({ track: 'coast', mode: 'time', laps: 1, skipCountdown: true, seed: 5,
-        entries: [{ name: 'ИИ', car: 'kobalt', ai: { pace: 0.88 + d.pace, mistakes: d.mistakes } }] }); race.run(300); return race.cars[0].finished ? race.cars[0].finishT : 999; };
+      const lap = (diff, noMistakes) => { const d = D.DIFFICULTY[diff]; const race = new C.Race({ track: 'coast', mode: 'time', laps: 1, skipCountdown: true, seed: 5,
+        entries: [{ name: 'ИИ', car: 'kobalt', ai: { pace: 0.88 + d.pace, mistakes: noMistakes ? 0 : d.mistakes } }] }); race.run(300); return race.cars[0].finished ? race.cars[0].finishT : 999; };
       // полная гонка из 6 ИИ: все финишируют, ни разу две машины не стоят друг в друге
       const cup = D.CUPS[1];
       const entries = C.eventEntries(cup.events[0], 1, { difficulty: 'normal', car: 'kobalt', seed: 3 }).filter((e) => !e.isPlayer);
@@ -273,9 +273,10 @@ test.describe('horizon_drift_offline', () => {
         const cs = race.cars;
         for (let a = 0; a < cs.length; a++) for (let b = a + 1; b < cs.length; b++) if (cs[a].ghost <= 0 && cs[b].ghost <= 0 && Math.hypot(cs[a].x - cs[b].x, cs[a].z - cs[b].z) < 1.2) overlap++;
       }
-      return { easy: lap('easy'), hard: lap('hard'), all: race.cars.every((c) => c.finished), n: race.cars.length, overlap };
+      return { easy: lap('easy'), hard: lap('hard'), easyClean: lap('easy', true), hardClean: lap('hard', true), all: race.cars.every((c) => c.finished), n: race.cars.length, overlap };
     });
     expect(r.hard).toBeLessThan(r.easy);
+    expect(r.hardClean).toBeLessThan(r.easyClean * 0.97);             // и без ошибок: темп на «сложно» выше
     expect(r.easy).toBeLessThan(999);
     expect(r.n).toBe(5);
     expect(r.all).toBe(true);
