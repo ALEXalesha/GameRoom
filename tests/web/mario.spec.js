@@ -143,9 +143,18 @@ test.describe('mario (Прыг-скок)', () => {
     });
     expect(await page.evaluate(() => __game.state.phase)).toBe('over');
     await expect(page.locator('#msg')).toHaveText('ИГРА ОКОНЧЕНА');
-    await page.click('#againBtn');
-    expect(await page.evaluate(() => ({ p: __game.state.phase, l: __game.state.lives }))).toEqual({ p: 'play', l: 3 });
-    await page.evaluate(() => { __game.clearEnemies(); __game.state.score = 500; });
+    // Кнопка в фокусе (как после клика мышью) нажимается, и в том же кадре, без ожидания
+    // отрисовки: фокус с неё уже снят, а повторное «нажатие» на скрытую кнопку (так Enter
+    // активирует кнопку в фокусе) игру не обнуляет. Всё в одном evaluate - от нагрузки не зависит.
+    const r = await page.evaluate(() => {
+      const g = __game, btn = document.getElementById('againBtn');
+      btn.focus(); btn.click();
+      const after = { p: g.state.phase, l: g.state.lives, focused: document.activeElement === btn };
+      g.clearEnemies(); g.state.score = 500;
+      btn.click();
+      return { ...after, score: g.state.score, p2: g.state.phase };
+    });
+    expect(r).toEqual({ p: 'play', l: 3, focused: false, score: 500, p2: 'play' });
     await page.keyboard.press('Space');
     await page.keyboard.press('Enter');
     expect(await page.evaluate(() => __game.state.score)).toBe(500);
