@@ -552,6 +552,7 @@ function sectorCleared() {
 
 function playerDied() {
   S.phase = 'dead';
+  S.banner = null;
   burst(P.x, P.y, '#00e5ff', 60, 7, 70); burst(P.x, P.y, '#ff9a3c', 40, 5, 60);
   SFX.boom(true); shake(26);
   records.kills = records.kills; kit.save('records', records);
@@ -573,6 +574,7 @@ function playerDied() {
 
 function winCampaign() {
   S.phase = 'won';
+  S.banner = null;
   progress.done = true; progress.sector = SECTORS.length - 1; kit.save('progress', progress);
   const d = kit.settings.difficulty, secs = Math.round(S.stats.steps / 60);
   if (!records.bestTime[d] || secs < records.bestTime[d]) records.bestTime[d] = secs;
@@ -618,6 +620,7 @@ function buy(key) {
 }
 function showShop() {
   S.phase = 'shop';
+  S.banner = null;
   kit.mode = 'menu';
   kit.music.play('menu');
   const node = document.createElement('div');
@@ -908,15 +911,15 @@ kit = GameKit.create({
   credits: `<p><b>Космический стрелок</b> - часть «Игротеки».</p><p>Корабли, взрывы и туманности нарисованы кодом, музыка и звуки синтезируются WebAudio. Ни одного файла из интернета.</p>`,
   drawLogo(g, w, h, t) {
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = 'bold 50px "Segoe UI", Arial, sans-serif';
+    g.font = 'bold 46px "Segoe UI", Arial, sans-serif';
     g.shadowColor = '#00e5ff'; g.shadowBlur = 18 + Math.sin(t * 3) * 6;
     g.fillStyle = '#e8feff'; g.fillText('КОСМИЧЕСКИЙ', w / 2, h * 0.36);
     g.shadowColor = '#ff2e88'; g.fillStyle = '#ff7ab8'; g.fillText('СТРЕЛОК', w / 2, h * 0.76);
     g.shadowBlur = 0;
     const keep = ctx; ctx = g;
     const px = P.x; P.x = 0;
-    drawShip(34, h * 0.5 + Math.sin(t * 2) * 12, Math.sin(t * 2) * 0.3, false);
-    drawShip(w - 34, h * 0.5 + Math.cos(t * 2) * 12, Math.PI + Math.cos(t * 2) * 0.3, false);
+    drawShip(96, h * 0.76 + Math.sin(t * 2) * 6, Math.sin(t * 2) * 0.3, false);        // по бокам короткого слова «СТРЕЛОК»
+    drawShip(w - 96, h * 0.76 + Math.cos(t * 2) * 6, Math.PI + Math.cos(t * 2) * 0.3, false);
     P.x = px; ctx = keep;
   },
   game: {
