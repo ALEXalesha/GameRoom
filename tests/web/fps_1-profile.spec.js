@@ -299,4 +299,55 @@ test.describe('fps_1: статистика, звания, кампания', () 
     expect(warn).toEqual([]);
     expect(r).toEqual({ canvases: 1, lost: false, aa: true });                       // 20-е переключение - «вкл»
   });
+
+  test('испорченные и устаревшие данные в хранилище не ломают вкладки: числа зажаты, чужое выкинуто, звёзды 0..3', async ({ page }) => {
+    test.setTimeout(120000);
+    const errors = await openTactical(page);
+    const bad = {
+      'mix.tactical.inventory': JSON.stringify({ tokens: '1e9', items: [null, 'x', { uid: 1, weapon: 'zzz', pattern: 'qqq', rarity: 'x' }, { uid: 2, weapon: 'burya', pattern: 'tiger', rarity: 'rare' }], equipped: { zzz: 1, burya: 2, osa: 77 }, nextUid: -4, opened: 'a' }),
+      'mix.tactical.stats': JSON.stringify({ matches: 1, kills: -5, shots: 'x', weaponKills: { zzz: 5, grom: 3, burya: 'q' }, byMode: null }),
+      'mix.tactical.settings': JSON.stringify({ video: { renderScale: 40, distance: -50, preset: 'zzz', aa: 7 }, game: { fov: 1, hudScale: 20, hudColor: 'pink', radarZoom: 'x' }, crosshair: { size: 99, gap: -40, color: 'rainbow', alpha: 900 }, audio: { master: 5, eq: 'x' }, input: { sens: 0, keys: { forward: 5, back: null, jump: 'KeyJ', ghost: 'KeyZ' } }, junk: { a: 1 } }),
+      'mix.tactical.campaign': JSON.stringify({ stars: { m1: '0abc', m2: 7, m3: -1, m4: 2.6, zz: 3 }, finished: 'yes' }),
+      'mix.tactical.profile': JSON.stringify({ rankPoints: 'x', rankedMatches: -2 }),
+      'mix.tactical.rangeBest': '"abc"',
+    };
+    await page.evaluate((d) => { localStorage.clear(); for (const [k, v] of Object.entries(d)) localStorage.setItem(k, v); }, bad);
+    await page.reload();
+    await page.waitForFunction(() => window.__tactical && __tactical.ready);
+    for (const t of ['inventory', 'stats', 'campaign', 'settings', 'home', 'play']) await page.evaluate((x) => TAC.menu.openTab(x), t);
+    await page.evaluate(() => { TAC.menu.invSub('cases'); TAC.menu.invSub('loadout'); for (const s of ['game', 'crosshair', 'video', 'audio', 'input']) { TAC.menu.setTab = s; TAC.menu.renderSettings(); } });
+    const r = await page.evaluate(() => {
+      __tactical.start({ mode: 'comp', map: 'quarry' }); __tactical.step(64); __tactical.render();
+      const S = TAC.settings, inv = TAC.inventory.data, st = TAC.stats.data;
+      return {
+        video: [S.video.renderScale, S.video.distance, S.video.preset, S.video.aa], game: [S.game.fov, S.game.hudScale, S.game.hudColor, S.game.radarZoom],
+        xh: [S.crosshair.size, S.crosshair.gap, S.crosshair.color, S.crosshair.alpha], audio: [S.audio.master, S.audio.eq], sens: S.input.sens,
+        keys: [S.input.keys.forward, S.input.keys.back, S.input.keys.jump, 'ghost' in S.input.keys], junk: 'junk' in S,
+        tokens: inv.tokens, items: inv.items.map((i) => i.uid), equipped: inv.equipped, nextUid: inv.nextUid,
+        stats: [st.kills, st.shots, st.weaponKills], fav: TAC.stats.view().favourite,
+        stars: TAC.campaign.data.stars, finished: TAC.campaign.data.finished, total: TAC.campaign.totalStars(),
+        rank: TAC.profile.data.rankPoints, best: TAC.store.get('rangeBest', 0),
+      };
+    });
+    expect(r.video).toEqual([1, 60, 'high', 'on']);
+    expect(r.game).toEqual([75, 1.3, 'white', 1]);
+    expect(r.xh).toEqual([10, -5, 'green', 255]);
+    expect(r.audio).toEqual([1, 'natural']);
+    expect(r.sens).toBe(0.1);
+    expect(r.keys).toEqual(['KeyW', 'KeyS', 'KeyJ', false]);
+    expect(r.junk).toBe(false);
+    expect(r.tokens).toBe(300);
+    expect(r.items).toEqual([2]);
+    expect(r.equipped).toEqual({ burya: 2 });
+    expect(r.nextUid).toBe(3);
+    expect(r.stats).toEqual([0, 0, { grom: 3 }]);
+    expect(r.fav).toBe('grom');
+    expect(r.stars).toEqual({ m1: 0, m2: 3, m3: 0, m4: 2 });
+    expect(r.finished).toBe(false);
+    expect(r.total).toBe(5);
+    expect(r.rank).toBe(0);
+    expect(r.best).toBe(0);
+    await expect(page.locator('#hud')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 });
