@@ -1,6 +1,6 @@
 // ================= Программы «Тахо» =================
 const APPS = {
-  finder: { title: 'Файлы', icon: 'files', w: 900, h: 540, minW: 520, minH: 320, multi: true, create: createFinder, menus: finderMenus },
+  finder: { title: 'Файлы', icon: 'files', w: 900, h: 540, minW: 520, minH: 320, multi: true, create: createFiles, menus: filesMenus },
   browser: { title: 'Браузер', icon: 'browser', w: 980, h: 620, minW: 460, minH: 320, create: createBrowser },
   textedit: { title: 'Текстовый редактор', icon: 'textedit', w: 700, h: 520, minW: 380, minH: 260, multi: true, create: createTextEdit, menus: editMenus },
   photos: { title: 'Фото', icon: 'photos', w: 920, h: 600, minW: 460, minH: 340, create: createPhotos },
@@ -18,7 +18,7 @@ const APPS = {
 
 // ---------------- Файлы ----------------
 let CLIP = null;
-function finderMenus(w) {
+function filesMenus(w) {
   return {
     'Файл': [{ label: 'Новая папка', key: 'Ctrl+Shift+N', disabled: !w.canWrite(), action: () => w.newFolder() }, { label: 'Открыть', key: 'Ctrl+O', disabled: !w.sel().length, action: () => w.openSel() },
       { label: 'Дублировать', key: 'Ctrl+D', disabled: !w.sel().length || !w.canWrite(), action: () => w.duplicate() }, { label: 'Переместить в Корзину', key: 'Ctrl+⌫', disabled: !w.sel().length || !w.canWrite(), action: () => w.del() }],
@@ -27,7 +27,7 @@ function finderMenus(w) {
   };
 }
 const SIDE = () => [['Рабочий стол', SI.deskf], ['Документы', SI.doc], ['Загрузки', SI.down], ['Изображения', SI.photo], ['Музыка', SI.note]];
-function createFinder(w, start) {
+function createFiles(w, start) {
   let path = start === '__trash' || start === '' || (start && FS.has(start) && FS.get(start).type === 'dir') ? start : 'Документы';
   const hist = [], fwd = [];
   let sel = new Set(), view = store.get('fView', 'grid'), sortBy = store.get('fSort', 'name'), q = '', showPrev = false, renaming = null;

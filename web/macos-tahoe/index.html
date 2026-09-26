@@ -1150,7 +1150,9 @@ function sheet(w, { title, text, buttons, input, icon: ic }) {
     const inp = back.querySelector('input');
     if (inp) { inp.value = input; inp.focus(); inp.select(); } else back.querySelector('.btn').focus();
     const done = i => { back.remove(); resolve(inp ? (i === 0 ? inp.value : null) : i); };
-    back.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) done(+b.dataset.i); });
+    const t0 = performance.now();
+    // тот же Enter, что вызвал лист, не должен сразу нажать его кнопку
+    back.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b && !(e.detail === 0 && performance.now() - t0 < 250)) done(+b.dataset.i); });
     back.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') done(buttons.length - 1); if (e.key === 'Enter' && inp) done(0); });
   });
 }
@@ -1223,9 +1225,9 @@ function openMbMenu(btn, items) {
   const was = btn.classList.contains('open');
   hideMenu(); closePanels();
   if (was) return;
-  btn.classList.add('open');
   const r = btn.getBoundingClientRect();
   showMenu(r.left, r.bottom + 4, items);
+  btn.classList.add('open');
 }
 $('menubar').addEventListener('click', e => {
   const b = e.target.closest('.mb-item'); if (!b) return;
@@ -1461,21 +1463,23 @@ async function restartShell() {
 }
 
 // ================= Клавиатура (Ctrl вместо Cmd) =================
+// Системные сочетания ловятся на погружении: работают и внутри полей (Терминал, редактор)
+document.addEventListener('keydown', e => {
+  if ($('lock').classList.contains('open') || !e.ctrlKey || e.shiftKey || !activeWin || activeWin.el.querySelector('.sheet-back')) return;
+  if (e.code === 'KeyW') { e.preventDefault(); e.stopPropagation(); closeWin(activeWin); }
+  else if (e.code === 'KeyM') { e.preventDefault(); e.stopPropagation(); minimizeWin(activeWin); }
+  else if (e.code === 'KeyQ') { e.preventDefault(); e.stopPropagation(); quitApp(activeWin.app); }
+}, true);
 document.addEventListener('keydown', e => {
   if ($('lock').classList.contains('open')) { if (!e.ctrlKey && !e.altKey) { e.preventDefault(); unlock(); } return; }
   if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); toggleSpotlight(); return; }
-  if (e.key === 'F3' || (e.ctrlKey && e.key === 'ArrowUp')) { e.preventDefault(); $('mission').classList.contains('open') ? hideMission() : showMission(); return; }
+  if (e.key === 'F3') { e.preventDefault(); $('mission').classList.contains('open') ? hideMission() : showMission(); return; }
   if (e.key === 'F4') { e.preventDefault(); $('launchpad').classList.contains('open') ? hideLaunchpad() : showLaunchpad(); return; }
   if (e.key === 'Escape') {
     const open = PANELS.some(p => $(p).classList.contains('open')) || ['spotlight', 'launchpad', 'mission'].some(p => $(p).classList.contains('open')) || document.querySelector('.menu');
     if (open) { closePanels(); hideMenu(); return; }
   }
   const t = e.target, inField = t.closest && t.closest('input, textarea');
-  if (e.ctrlKey && !e.shiftKey && activeWin && !activeWin.el.querySelector('.sheet-back')) {
-    if (e.code === 'KeyW') { e.preventDefault(); closeWin(activeWin); return; }
-    if (e.code === 'KeyM') { e.preventDefault(); minimizeWin(activeWin); return; }
-    if (e.code === 'KeyQ') { e.preventDefault(); quitApp(activeWin.app); return; }
-  }
   if (!activeWin || !activeWin.onKey || inField || activeWin.el.querySelector('.sheet-back')) return;
   if (t !== document.body && !activeWin.el.contains(t)) return;
   activeWin.onKey(e);
@@ -1486,7 +1490,7 @@ document.addEventListener('visibilitychange', () => { document.body.classList.to
 
 // ================= Программы «Тахо» =================
 const APPS = {
-  finder: { title: 'Файлы', icon: 'files', w: 900, h: 540, minW: 520, minH: 320, multi: true, create: createFinder, menus: finderMenus },
+  finder: { title: 'Файлы', icon: 'files', w: 900, h: 540, minW: 520, minH: 320, multi: true, create: createFiles, menus: filesMenus },
   browser: { title: 'Браузер', icon: 'browser', w: 980, h: 620, minW: 460, minH: 320, create: createBrowser },
   textedit: { title: 'Текстовый редактор', icon: 'textedit', w: 700, h: 520, minW: 380, minH: 260, multi: true, create: createTextEdit, menus: editMenus },
   photos: { title: 'Фото', icon: 'photos', w: 920, h: 600, minW: 460, minH: 340, create: createPhotos },
@@ -1504,7 +1508,7 @@ const APPS = {
 
 // ---------------- Файлы ----------------
 let CLIP = null;
-function finderMenus(w) {
+function filesMenus(w) {
   return {
     'Файл': [{ label: 'Новая папка', key: 'Ctrl+Shift+N', disabled: !w.canWrite(), action: () => w.newFolder() }, { label: 'Открыть', key: 'Ctrl+O', disabled: !w.sel().length, action: () => w.openSel() },
       { label: 'Дублировать', key: 'Ctrl+D', disabled: !w.sel().length || !w.canWrite(), action: () => w.duplicate() }, { label: 'Переместить в Корзину', key: 'Ctrl+⌫', disabled: !w.sel().length || !w.canWrite(), action: () => w.del() }],
@@ -1513,7 +1517,7 @@ function finderMenus(w) {
   };
 }
 const SIDE = () => [['Рабочий стол', SI.deskf], ['Документы', SI.doc], ['Загрузки', SI.down], ['Изображения', SI.photo], ['Музыка', SI.note]];
-function createFinder(w, start) {
+function createFiles(w, start) {
   let path = start === '__trash' || start === '' || (start && FS.has(start) && FS.get(start).type === 'dir') ? start : 'Документы';
   const hist = [], fwd = [];
   let sel = new Set(), view = store.get('fView', 'grid'), sortBy = store.get('fSort', 'name'), q = '', showPrev = false, renaming = null;

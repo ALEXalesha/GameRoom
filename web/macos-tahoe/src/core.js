@@ -606,7 +606,9 @@ function sheet(w, { title, text, buttons, input, icon: ic }) {
     const inp = back.querySelector('input');
     if (inp) { inp.value = input; inp.focus(); inp.select(); } else back.querySelector('.btn').focus();
     const done = i => { back.remove(); resolve(inp ? (i === 0 ? inp.value : null) : i); };
-    back.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) done(+b.dataset.i); });
+    const t0 = performance.now();
+    // тот же Enter, что вызвал лист, не должен сразу нажать его кнопку
+    back.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b && !(e.detail === 0 && performance.now() - t0 < 250)) done(+b.dataset.i); });
     back.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') done(buttons.length - 1); if (e.key === 'Enter' && inp) done(0); });
   });
 }
@@ -679,9 +681,9 @@ function openMbMenu(btn, items) {
   const was = btn.classList.contains('open');
   hideMenu(); closePanels();
   if (was) return;
-  btn.classList.add('open');
   const r = btn.getBoundingClientRect();
   showMenu(r.left, r.bottom + 4, items);
+  btn.classList.add('open');
 }
 $('menubar').addEventListener('click', e => {
   const b = e.target.closest('.mb-item'); if (!b) return;
@@ -917,21 +919,23 @@ async function restartShell() {
 }
 
 // ================= Клавиатура (Ctrl вместо Cmd) =================
+// Системные сочетания ловятся на погружении: работают и внутри полей (Терминал, редактор)
+document.addEventListener('keydown', e => {
+  if ($('lock').classList.contains('open') || !e.ctrlKey || e.shiftKey || !activeWin || activeWin.el.querySelector('.sheet-back')) return;
+  if (e.code === 'KeyW') { e.preventDefault(); e.stopPropagation(); closeWin(activeWin); }
+  else if (e.code === 'KeyM') { e.preventDefault(); e.stopPropagation(); minimizeWin(activeWin); }
+  else if (e.code === 'KeyQ') { e.preventDefault(); e.stopPropagation(); quitApp(activeWin.app); }
+}, true);
 document.addEventListener('keydown', e => {
   if ($('lock').classList.contains('open')) { if (!e.ctrlKey && !e.altKey) { e.preventDefault(); unlock(); } return; }
   if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); toggleSpotlight(); return; }
-  if (e.key === 'F3' || (e.ctrlKey && e.key === 'ArrowUp')) { e.preventDefault(); $('mission').classList.contains('open') ? hideMission() : showMission(); return; }
+  if (e.key === 'F3') { e.preventDefault(); $('mission').classList.contains('open') ? hideMission() : showMission(); return; }
   if (e.key === 'F4') { e.preventDefault(); $('launchpad').classList.contains('open') ? hideLaunchpad() : showLaunchpad(); return; }
   if (e.key === 'Escape') {
     const open = PANELS.some(p => $(p).classList.contains('open')) || ['spotlight', 'launchpad', 'mission'].some(p => $(p).classList.contains('open')) || document.querySelector('.menu');
     if (open) { closePanels(); hideMenu(); return; }
   }
   const t = e.target, inField = t.closest && t.closest('input, textarea');
-  if (e.ctrlKey && !e.shiftKey && activeWin && !activeWin.el.querySelector('.sheet-back')) {
-    if (e.code === 'KeyW') { e.preventDefault(); closeWin(activeWin); return; }
-    if (e.code === 'KeyM') { e.preventDefault(); minimizeWin(activeWin); return; }
-    if (e.code === 'KeyQ') { e.preventDefault(); quitApp(activeWin.app); return; }
-  }
   if (!activeWin || !activeWin.onKey || inField || activeWin.el.querySelector('.sheet-back')) return;
   if (t !== document.body && !activeWin.el.contains(t)) return;
   activeWin.onKey(e);

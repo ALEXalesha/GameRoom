@@ -24,8 +24,10 @@
 - [x] кадры 1280x800 и 1024x700, светлая и тёмная
 - [x] тесты tests/web/win11_3.spec.js заново + мутации, коммит
 
+### macos-tahoe - готово (24 теста, 18 мутаций красные)
+Исходники web/macos-tahoe/src (style, icons, core, apps, markup, build.js). Файлы, Браузер, Текстовый редактор, Фото, Музыка, Калькулятор, Часы, Погода, Терминал, Настройки + 4 рамки.
+
 ### Дальше
-- macos-tahoe: Liquid Glass, ФС в IndexedDB, Mission Control, центр уведомлений, калькулятор по логике web/calculator
 - ios26, oneui7: переключатель приложений, уведомления, реальный вид
 - explorer_1: вид Проводника Win11, IndexedDB, просмотр, копирование/вставка, импорт
 - кадры docs/screens/os-*.png, отчёт docs/audit/os.md
