@@ -2,260 +2,559 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Мини-браузер</title>
 <style>
+  :root {
+    --bg: #202124; --bar: #323639; --tab: #3c4043; --tab-hover: #48494c;
+    --text: #e8eaed; --muted: #9aa0a6; --line: #5f6368; --accent: #8ab4f8; --danger: #f28b82;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #202124; }
+  html, body { height: 100%; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; background: var(--bg); color: var(--text); overflow: hidden; }
+  button { font-family: inherit; }
 
-  .tabs-bar { display: flex; background: #323639; padding: 6px 6px 0 6px; gap: 2px; align-items: flex-end; }
+  /* Вкладки */
+  .tabs-bar { display: flex; background: var(--bar); padding: 6px 6px 0; gap: 2px; align-items: flex-end; min-width: 0; }
+  .tabs { display: flex; gap: 2px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
   .tab {
-    display: flex; align-items: center; gap: 8px;
-    background: #3c4043; color: #e8eaed;
-    padding: 8px 12px; border-radius: 8px 8px 0 0;
-    font-size: 13px; cursor: pointer; max-width: 200px;
-    border: 1px solid transparent;
+    display: flex; align-items: center; gap: 8px; background: var(--tab); color: var(--text);
+    padding: 7px 8px 7px 12px; border-radius: 8px 8px 0 0; font-size: 13px; cursor: pointer;
+    width: 200px; min-width: 70px; flex: 0 1 200px; border: 1px solid transparent; border-bottom: none;
   }
-  .tab.active { background: #202124; border-color: #5f6368; border-bottom-color: #202124; }
+  .tab:hover { background: var(--tab-hover); }
+  .tab.active { background: var(--bg); border-color: var(--line); }
   .tab .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .tab .close { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
-  .tab .close:hover { background: #5f6368; }
-  .tab-new { background: transparent; color: #e8eaed; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-size: 18px; }
-  .tab-new:hover { background: #3c4043; }
+  .tab .close { width: 20px; height: 20px; border-radius: 50%; border: none; background: none; color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+  .tab .close:hover { background: var(--line); color: var(--text); }
+  .tab-new { background: transparent; border: none; color: var(--text); width: 32px; height: 30px; cursor: pointer; border-radius: 6px; font-size: 20px; flex-shrink: 0; margin-bottom: 2px; }
+  .tab-new:hover { background: var(--tab); }
 
-  .nav-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #202124; border-bottom: 1px solid #3c4043; }
-  .nav-btn {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: transparent; color: #e8eaed; border: none;
-    font-size: 16px; cursor: pointer;
-  }
-  .nav-btn:hover:not(:disabled) { background: #3c4043; }
-  .nav-btn:disabled { color: #5f6368; cursor: default; }
-  .url-bar {
-    flex: 1; height: 36px; border-radius: 18px;
-    background: #3c4043; color: #e8eaed; border: none;
-    padding: 0 16px; font-size: 14px; outline: none;
-  }
-  .url-bar:focus { background: #48494c; }
+  /* Адресная строка */
+  .nav-bar { display: flex; align-items: center; gap: 4px; padding: 7px 10px; background: var(--bg); border-bottom: 1px solid var(--tab); }
+  .nav-btn { width: 32px; height: 32px; border-radius: 50%; background: transparent; color: var(--text); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-btn svg { width: 18px; height: 18px; }
+  .nav-btn:hover:not(:disabled) { background: var(--tab); }
+  .nav-btn:disabled { color: var(--line); cursor: default; }
+  .nav-btn.on { color: #fdd663; }
+  .url-wrap { flex: 1; position: relative; min-width: 0; }
+  .url-bar { width: 100%; height: 36px; border-radius: 18px; background: var(--tab); color: var(--text); border: 2px solid transparent; padding: 0 16px; font-size: 14px; outline: none; }
+  .url-bar:focus { background: #28292c; border-color: var(--accent); }
+  .suggest { position: absolute; top: 40px; left: 0; right: 0; background: #292a2d; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: none; z-index: 20; box-shadow: 0 8px 20px rgba(0,0,0,.4); }
+  .suggest.show { display: block; }
+  .suggest div { padding: 8px 14px; cursor: pointer; font-size: 13px; display: flex; gap: 10px; white-space: nowrap; overflow: hidden; }
+  .suggest div.sel, .suggest div:hover { background: var(--tab); }
+  .suggest .s-url { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 
-  .content { flex: 1; position: relative; background: #202124; }
-  .frame-wrap { position: absolute; inset: 0; display: none; }
-  .frame-wrap.active { display: block; }
-  .frame-wrap iframe { width: 100%; height: 100%; border: none; background: white; }
-  .placeholder {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; color: #9aa0a6; text-align: center; padding: 20px;
-  }
-  .placeholder h2 { color: #e8eaed; margin-bottom: 12px; font-weight: 400; }
-  .placeholder p { max-width: 500px; line-height: 1.6; margin-bottom: 8px; }
-  .placeholder .examples { margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-  .placeholder .examples button {
-    background: #3c4043; color: #e8eaed; border: 1px solid #5f6368;
-    padding: 8px 16px; border-radius: 16px; cursor: pointer; font-size: 13px;
-  }
-  .placeholder .examples button:hover { background: #48494c; }
+  /* Содержимое */
+  .content { flex: 1; overflow: auto; position: relative; }
+  .page { max-width: 860px; margin: 0 auto; padding: 36px 24px 48px; }
+  .page h1 { font-size: 26px; font-weight: 400; margin-bottom: 8px; }
+  .page h2 { font-size: 16px; font-weight: 600; margin: 24px 0 10px; color: var(--muted); }
+  .page p { color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+  .page a, .link { color: var(--accent); cursor: pointer; text-decoration: none; background: none; border: none; font: inherit; }
+  .page a:hover, .link:hover { text-decoration: underline; }
+  .home-search { display: flex; gap: 8px; margin: 18px 0 26px; }
+  .home-search input { flex: 1; height: 44px; border-radius: 22px; border: 1px solid var(--line); background: #303134; color: var(--text); padding: 0 20px; font-size: 15px; outline: none; }
+  .home-search input:focus { border-color: var(--accent); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .tile { background: #303134; border: 1px solid transparent; border-radius: 12px; padding: 16px 12px; cursor: pointer; text-align: center; color: var(--text); font-size: 13px; }
+  .tile:hover, .tile:focus-visible { border-color: var(--line); background: #35363a; outline: none; }
+  .tile .ic { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; background: #3c4a61; color: var(--accent); }
+  .tile .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .u { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+  .list { display: flex; flex-direction: column; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; }
+  .row:hover { background: #2a2b2e; }
+  .row .time { color: var(--muted); font-size: 12px; width: 44px; flex-shrink: 0; }
+  .row .main { flex: 1; min-width: 0; }
+  .row .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .u { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: 50%; }
+  .row .del:hover { background: var(--tab); color: var(--danger); }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+  .toolbar input { flex: 1; min-width: 180px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: #303134; color: var(--text); padding: 0 12px; outline: none; }
+  .btn { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: #303134; color: var(--text); cursor: pointer; font-size: 13px; }
+  .btn:hover { background: var(--tab); }
+  .btn.primary { background: var(--accent); color: #202124; border-color: var(--accent); font-weight: 600; }
+  .btn.danger { color: var(--danger); }
+  .empty { color: var(--muted); padding: 20px 10px; }
+  .error-box { background: #2b2c2f; border: 1px solid var(--line); border-radius: 14px; padding: 24px; margin-top: 18px; }
+  .error-box code { background: #1b1c1e; padding: 2px 6px; border-radius: 4px; color: var(--text); word-break: break-all; }
+  .error-box .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .error-icon { width: 56px; height: 56px; margin-bottom: 12px; color: var(--muted); }
+  textarea.notes { width: 100%; min-height: 360px; background: #303134; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font: 14px/1.6 Consolas, monospace; resize: vertical; outline: none; }
+  textarea.notes:focus { border-color: var(--accent); }
+  .saved { color: var(--muted); font-size: 12px; }
+  kbd { background: #303134; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+  table.keys td { padding: 5px 16px 5px 0; color: var(--muted); }
+  table.keys td:first-child { white-space: nowrap; }
+  iframe.embed { width: 100%; height: 100%; border: none; background: #fff; position: absolute; inset: 0; }
 </style>
 </head>
 <body>
 
-<div class="tabs-bar" id="tabsBar"></div>
+<div class="tabs-bar">
+  <div class="tabs" id="tabs" role="tablist" aria-label="Вкладки"></div>
+  <button class="tab-new" id="newTab" title="Новая вкладка (Ctrl+T)" aria-label="Новая вкладка">+</button>
+</div>
 
 <div class="nav-bar">
-  <button class="nav-btn" id="backBtn" title="Назад">←</button>
-  <button class="nav-btn" id="fwdBtn" title="Вперёд">→</button>
-  <button class="nav-btn" id="reloadBtn" title="Обновить">⟳</button>
-  <button class="nav-btn" id="homeBtn" title="Домой">🏠</button>
-  <input class="url-bar" id="urlBar" placeholder="Введите URL или поисковый запрос">
+  <button class="nav-btn" id="backBtn" title="Назад (Alt+←)" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></button>
+  <button class="nav-btn" id="fwdBtn" title="Вперёд (Alt+→)" aria-label="Вперёд"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+  <button class="nav-btn" id="reloadBtn" title="Обновить (F5)" aria-label="Обновить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+  <button class="nav-btn" id="homeBtn" title="Домой (Alt+Home)" aria-label="Домой"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></button>
+  <div class="url-wrap">
+    <input class="url-bar" id="urlBar" placeholder="Адрес или запрос для поиска по истории и закладкам" autocomplete="off" spellcheck="false" aria-label="Адресная строка">
+    <div class="suggest" id="suggest" role="listbox"></div>
+  </div>
+  <button class="nav-btn" id="starBtn" title="Закладка (Ctrl+D)" aria-label="Добавить в закладки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg></button>
 </div>
 
 <div class="content" id="content"></div>
 
 <script>
+'use strict';
+const STORE = 'mix.browser.v1';
 const HOME = 'about:home';
-let tabs = [];
-let activeId = null;
-let nextId = 1;
+const PAGES = {
+  'about:home': 'Новая вкладка',
+  'about:history': 'История',
+  'about:bookmarks': 'Закладки',
+  'about:notes': 'Заметки',
+  'about:help': 'Справка',
+};
+const MAX_VISITS = 500;
 
-const tabsBar = document.getElementById('tabsBar');
-const content = document.getElementById('content');
-const urlBar = document.getElementById('urlBar');
+// ===== Состояние =====
+let st = {
+  tabs: [],          // { id, history: [url], idx }
+  activeId: null,
+  nextId: 1,
+  bookmarks: [],     // { url, title }
+  visits: [],        // { url, title, time } - новые в начале
+  notes: '',
+};
 
-function createTab(url = HOME) {
-  const id = nextId++;
-  const tab = { id, url, history: [url], historyIdx: 0, title: 'Новая вкладка' };
-  tabs.push(tab);
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (d && Array.isArray(d.tabs)) {
+      st = Object.assign(st, d);
+      st.tabs = st.tabs.filter(t => Array.isArray(t.history) && t.history.length);
+      st.tabs.forEach(t => { t.idx = Math.min(Math.max(0, t.idx | 0), t.history.length - 1); });
+    }
+  } catch (e) { /* испорченные данные - начинаем заново */ }
+  if (!st.tabs.length) { st.tabs = []; newTab(HOME, false); }
+  if (!st.tabs.some(t => t.id === st.activeId)) st.activeId = st.tabs[0].id;
+}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(st)); }
+  catch (e) { /* хранилище недоступно - работаем без сохранения */ }
+}
 
-  const wrap = document.createElement('div');
-  wrap.className = 'frame-wrap';
-  wrap.id = 'frame-' + id;
-  if (url === HOME) {
-    wrap.appendChild(buildHomePlaceholder());
-  } else {
-    const iframe = document.createElement('iframe');
-    iframe.src = url;
-    wrap.appendChild(iframe);
+const activeTab = () => st.tabs.find(t => t.id === st.activeId);
+const urlOf = t => t.history[t.idx];
+const isInternal = u => u.startsWith('about:');
+
+function titleOf(url) {
+  if (PAGES[url]) return PAGES[url];
+  if (url.startsWith('search:')) return 'Поиск: ' + decodeURIComponent(url.slice(7));
+  if (url.startsWith('about:')) return 'Нет такой страницы';
+  try { return new URL(url).hostname || url; } catch (e) { return url; }
+}
+
+// ===== Разбор адресной строки =====
+// Возвращает адрес для перехода: встроенная страница, внешний адрес или поиск по истории.
+function resolveInput(raw) {
+  const s = raw.trim();
+  if (!s) return null;
+  const low = s.toLowerCase();
+  if (low.startsWith('about:')) return low;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
+    try { return new URL(s).href; } catch (e) { return 'about:invalid?' + encodeURIComponent(s); }
   }
-  content.appendChild(wrap);
+  if (/^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/.*)?$/i.test(s)) {
+    try { return new URL('http://' + s).href; } catch (e) { return 'about:invalid?' + encodeURIComponent(s); }
+  }
+  if (!/\s/.test(s) && /^[^\s/]+\.[a-zа-яё]{2,}(:\d+)?(\/.*)?$/i.test(s)) {
+    try { return new URL('https://' + s).href; } catch (e) { return 'about:invalid?' + encodeURIComponent(s); }
+  }
+  return 'search:' + encodeURIComponent(s);
+}
 
-  renderTabs();
-  activate(id);
+// ===== Вкладки и переходы =====
+function newTab(url = HOME, render = true) {
+  const tab = { id: st.nextId++, history: [url], idx: 0 };
+  st.tabs.push(tab);
+  st.activeId = tab.id;
+  if (render) { recordVisit(url); save(); renderAll(); if (url === HOME) focusAddress(); }
   return tab;
 }
 
-function buildHomePlaceholder() {
-  const div = document.createElement('div');
-  div.className = 'placeholder';
-  div.innerHTML = `
-    <h2>Мини-браузер</h2>
-    <p>Введите URL в адресной строке. Имейте в виду: многие сайты (Google, YouTube, GitHub и др.) запрещают встраивание в iframe - они не откроются.</p>
-    <p>Попробуйте сайты, которые разрешают встраивание:</p>
-    <div class="examples">
-      <button data-url="https://ru.wikipedia.org/">Википедия</button>
-      <button data-url="https://example.com/">example.com</button>
-      <button data-url="https://ru.wikibooks.org/">Викиучебник</button>
-      <button data-url="https://www.rfc-editor.org/rfc/rfc2606.html">RFC 2606</button>
-    </div>
-  `;
-  div.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => navigate(btn.dataset.url));
-  });
-  return div;
-}
-
-function renderTabs() {
-  tabsBar.innerHTML = '';
-  tabs.forEach(t => {
-    const el = document.createElement('div');
-    el.className = 'tab' + (t.id === activeId ? ' active' : '');
-    el.innerHTML = `<span class="title"></span><span class="close">×</span>`;
-    el.querySelector('.title').textContent = t.title;
-    el.addEventListener('click', e => {
-      if (e.target.classList.contains('close')) {
-        closeTab(t.id);
-      } else {
-        activate(t.id);
-      }
-    });
-    tabsBar.appendChild(el);
-  });
-  const plus = document.createElement('div');
-  plus.className = 'tab-new';
-  plus.textContent = '+';
-  plus.addEventListener('click', () => createTab());
-  tabsBar.appendChild(plus);
+function closeTab(id) {
+  const i = st.tabs.findIndex(t => t.id === id);
+  if (i < 0) return;
+  st.tabs.splice(i, 1);
+  if (!st.tabs.length) { newTab(HOME); return; }
+  if (st.activeId === id) st.activeId = st.tabs[Math.max(0, i - 1)].id;
+  save();
+  renderAll();
 }
 
 function activate(id) {
-  activeId = id;
-  document.querySelectorAll('.frame-wrap').forEach(el => el.classList.remove('active'));
-  const wrap = document.getElementById('frame-' + id);
-  if (wrap) wrap.classList.add('active');
-  const tab = tabs.find(t => t.id === id);
-  if (tab) {
-    urlBar.value = tab.url === HOME ? '' : tab.url;
-    updateNavButtons();
-  }
-  renderTabs();
+  st.activeId = id;
+  save();
+  renderAll();
 }
 
-function closeTab(id) {
-  const idx = tabs.findIndex(t => t.id === id);
-  if (idx < 0) return;
-  const wrap = document.getElementById('frame-' + id);
-  if (wrap) wrap.remove();
-  tabs.splice(idx, 1);
-  if (tabs.length === 0) {
-    createTab();
-    return;
+function navigate(url) {
+  const tab = activeTab();
+  if (!url || !tab) return;
+  if (urlOf(tab) !== url) {
+    tab.history = tab.history.slice(0, tab.idx + 1);
+    tab.history.push(url);
+    tab.idx = tab.history.length - 1;
   }
-  if (activeId === id) {
-    activate(tabs[Math.max(0, idx - 1)].id);
+  recordVisit(url);
+  save();
+  renderAll();
+}
+
+function go(delta) {
+  const tab = activeTab();
+  const j = tab.idx + delta;
+  if (j < 0 || j >= tab.history.length) return;
+  tab.idx = j;
+  save();
+  renderAll();
+}
+
+function recordVisit(url) {
+  if (url === HOME || url.startsWith('about:invalid') || url.startsWith('search:')) return;
+  st.visits.unshift({ url, title: titleOf(url), time: Date.now() });
+  if (st.visits.length > MAX_VISITS) st.visits.length = MAX_VISITS;
+}
+
+function toggleBookmark() {
+  const tab = activeTab();
+  const url = urlOf(tab);
+  if (url === HOME || url.startsWith('search:') || url.startsWith('about:invalid')) return;
+  const i = st.bookmarks.findIndex(b => b.url === url);
+  if (i >= 0) st.bookmarks.splice(i, 1);
+  else st.bookmarks.push({ url, title: titleOf(url) });
+  save();
+  renderAll();
+}
+
+// ===== Отрисовка =====
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function renderTabs() {
+  const box = $('tabs');
+  box.innerHTML = '';
+  for (const t of st.tabs) {
+    const el = document.createElement('div');
+    el.className = 'tab' + (t.id === st.activeId ? ' active' : '');
+    el.setAttribute('role', 'tab');
+    el.setAttribute('aria-selected', String(t.id === st.activeId));
+    el.dataset.id = t.id;
+    const title = titleOf(urlOf(t));
+    el.title = title;
+    el.innerHTML = '<span class="title"></span><button class="close" title="Закрыть (Ctrl+W)" aria-label="Закрыть вкладку">×</button>';
+    el.querySelector('.title').textContent = title;
+    el.onclick = e => { if (e.target.closest('.close')) closeTab(t.id); else activate(t.id); };
+    el.onauxclick = e => { if (e.button === 1) closeTab(t.id); };
+    box.appendChild(el);
+  }
+}
+
+function renderNav() {
+  const tab = activeTab();
+  const url = urlOf(tab);
+  $('backBtn').disabled = tab.idx <= 0;
+  $('fwdBtn').disabled = tab.idx >= tab.history.length - 1;
+  if (document.activeElement !== $('urlBar')) {
+    $('urlBar').value = url === HOME ? '' : url.startsWith('search:') ? decodeURIComponent(url.slice(7)) : url.startsWith('about:invalid?') ? decodeURIComponent(url.slice(14)) : url;
+  }
+  const marked = st.bookmarks.some(b => b.url === url);
+  $('starBtn').classList.toggle('on', marked);
+  $('starBtn').setAttribute('aria-pressed', String(marked));
+  $('starBtn').title = marked ? 'Убрать из закладок (Ctrl+D)' : 'Добавить в закладки (Ctrl+D)';
+  document.title = titleOf(url) + ' - Мини-браузер';
+}
+
+function renderAll() {
+  renderTabs();
+  renderNav();
+  renderContent();
+}
+
+function tile(url, title, letter) {
+  return `<div class="tile" tabindex="0" data-go="${esc(url)}"><div class="ic">${esc(letter)}</div><div class="t">${esc(title)}</div><div class="u">${esc(url)}</div></div>`;
+}
+
+function bindGo(root) {
+  root.querySelectorAll('[data-go]').forEach(el => {
+    el.onclick = () => navigate(el.dataset.go);
+    el.onkeydown = e => { if (e.key === 'Enter') navigate(el.dataset.go); };
+  });
+}
+
+function renderContent() {
+  const url = urlOf(activeTab());
+  const c = $('content');
+  c.scrollTop = 0;
+  const page = document.createElement('div');
+  page.className = 'page';
+  c.replaceChildren(page);
+
+  if (url === 'about:home') {
+    const marks = st.bookmarks.slice(0, 8).map(b => tile(b.url, b.title, (b.title[0] || '?').toUpperCase())).join('');
+    page.innerHTML = `
+      <h1>Мини-браузер</h1>
+      <p>Работает без интернета: вкладки, история, закладки и заметки хранятся в этом браузере.
+         Внешние сайты внутри страницы не открываются - для них есть кнопка «Открыть в системном браузере».</p>
+      <form class="home-search" id="homeForm"><input id="homeInput" placeholder="Адрес или поиск по истории и закладкам" aria-label="Поиск"><button class="btn primary">Найти</button></form>
+      <div class="tiles">
+        ${tile('about:history', 'История', 'И')}${tile('about:bookmarks', 'Закладки', 'З')}
+        ${tile('about:notes', 'Заметки', 'Н')}${tile('about:help', 'Справка', '?')}
+      </div>
+      ${marks ? `<h2>Закладки</h2><div class="tiles">${marks}</div>` : ''}`;
+    $('homeForm').onsubmit = e => { e.preventDefault(); navigate(resolveInput($('homeInput').value)); };
+  } else if (url === 'about:history') {
+    renderHistory(page);
+  } else if (url === 'about:bookmarks') {
+    renderBookmarks(page);
+  } else if (url === 'about:notes') {
+    page.innerHTML = `<h1>Заметки</h1><p>Сохраняются сами, пока вы печатаете.</p>
+      <textarea class="notes" id="notes" placeholder="Пишите здесь…" aria-label="Заметки"></textarea>
+      <div class="saved" id="savedMark"></div>`;
+    const ta = $('notes');
+    ta.value = st.notes || '';
+    let timer;
+    ta.oninput = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { st.notes = ta.value; save(); $('savedMark').textContent = 'Сохранено ' + new Date().toLocaleTimeString('ru-RU'); }, 300);
+    };
+  } else if (url === 'about:help') {
+    page.innerHTML = `<h1>Справка</h1>
+      <p>Встроенные страницы: <a data-go="about:home">about:home</a>, <a data-go="about:history">about:history</a>,
+         <a data-go="about:bookmarks">about:bookmarks</a>, <a data-go="about:notes">about:notes</a>.</p>
+      <p>Текст без точки в адресной строке ищется по истории и закладкам.</p>
+      <h2>Клавиши</h2>
+      <table class="keys">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>новая вкладка</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>закрыть вкладку</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd></td><td>следующая вкладка</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>к адресной строке</td></tr>
+        <tr><td><kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>→</kbd></td><td>назад / вперёд</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>закладка</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>история</td></tr>
+        <tr><td><kbd>F5</kbd></td><td>обновить</td></tr>
+      </table>
+      <p style="margin-top:14px">В обычном браузере часть сочетаний (Ctrl+T, Ctrl+W) перехватывает сам браузер; в отдельном окне приложения они работают.</p>`;
+  } else if (url.startsWith('search:')) {
+    renderSearch(page, decodeURIComponent(url.slice(7)));
+  } else if (url.startsWith('about:invalid?')) {
+    page.innerHTML = `<div class="error-box"><h1>Неверный адрес</h1>
+      <p>Не получилось разобрать адрес <code>${esc(decodeURIComponent(url.slice(14)))}</code>. Проверьте, нет ли в нём опечатки.</p></div>`;
+  } else if (isInternal(url)) {
+    page.innerHTML = `<div class="error-box"><h1>Нет такой страницы</h1>
+      <p>Встроенной страницы <code>${esc(url)}</code> нет. Список - в <a data-go="about:help">справке</a>.</p></div>`;
   } else {
-    renderTabs();
+    renderExternal(page, url);
   }
+  bindGo(page);
 }
 
-function navigate(input) {
-  const tab = tabs.find(t => t.id === activeId);
-  if (!tab) return;
-  let url = input.trim();
-  if (!url) return;
-  if (url === HOME) {
-    loadInTab(tab, HOME);
-  } else if (url.includes('.') && !url.includes(' ')) {
-    if (!/^https?:\/\//.test(url)) url = 'https://' + url;
-    loadInTab(tab, url);
-  } else {
-    loadInTab(tab, 'https://duckduckgo.com/?q=' + encodeURIComponent(url));
+function renderExternal(page, url) {
+  const online = navigator.onLine;
+  page.innerHTML = `
+    <div class="error-box" id="externalBox">
+      <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/><path d="M4 4l16 16" stroke-width="2"/></svg>
+      <h1>Внешний сайт здесь не открывается</h1>
+      <p>Адрес: <code>${esc(url)}</code></p>
+      <p>Этот мини-браузер - страница внутри другой страницы. Он не показывает внешние сайты:
+        ${online ? '' : 'сейчас нет подключения к сети, и, кроме того, '}большинство сайтов запрещают встраивать себя в чужие страницы
+        (заголовки X-Frame-Options и Content-Security-Policy), а у запрещённых браузер показывает пустое окно без объяснений.</p>
+      <p>Адрес сохранён в истории, его можно добавить в закладки.</p>
+      <div class="actions">
+        <button class="btn primary" id="openOutside">Открыть в системном браузере</button>
+        <button class="btn" id="copyUrl">Скопировать адрес</button>
+        <button class="btn" id="tryEmbed" title="Сработает только для сайтов, которые разрешают встраивание, и только при наличии сети">Всё равно попробовать здесь</button>
+      </div>
+      <p class="saved" id="extMsg" style="margin-top:10px"></p>
+    </div>`;
+  page.querySelector('#openOutside').onclick = () => {
+    const w = window.open(url, '_blank', 'noopener');
+    $('extMsg').textContent = w === null ? 'Браузер заблокировал новое окно. Скопируйте адрес и откройте вручную.' : 'Открыто в новом окне.';
+  };
+  page.querySelector('#copyUrl').onclick = () => {
+    navigator.clipboard.writeText(url).then(() => { $('extMsg').textContent = 'Адрес скопирован.'; }, () => { $('extMsg').textContent = 'Не удалось скопировать: браузер не дал доступ к буферу.'; });
+  };
+  page.querySelector('#tryEmbed').onclick = () => {
+    const f = document.createElement('iframe');
+    f.className = 'embed';
+    f.src = url;
+    f.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin allow-popups');
+    f.setAttribute('referrerpolicy', 'no-referrer');
+    $('content').replaceChildren(f);
+  };
+}
+
+function fmtDay(ts) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Сегодня';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function renderHistory(page) {
+  page.innerHTML = `<h1>История</h1>
+    <div class="toolbar"><input id="histFilter" placeholder="Фильтр по названию или адресу" aria-label="Фильтр истории"><button class="btn danger" id="clearHist">Очистить историю</button></div>
+    <div id="histList"></div>`;
+  const draw = () => {
+    const q = $('histFilter').value.trim().toLowerCase();
+    const items = st.visits.map((v, i) => ({ ...v, i })).filter(v => !q || (v.title + ' ' + v.url).toLowerCase().includes(q));
+    const list = $('histList');
+    if (!items.length) { list.innerHTML = `<div class="empty">${st.visits.length ? 'Ничего не найдено' : 'История пуста'}</div>`; return; }
+    let html = '', day = '';
+    for (const v of items) {
+      const d = fmtDay(v.time);
+      if (d !== day) { html += `<h2>${d}</h2>`; day = d; }
+      html += `<div class="row hist-row"><span class="time">${new Date(v.time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+        <div class="main"><div class="t"><a data-go="${esc(v.url)}">${esc(v.title)}</a></div><div class="u">${esc(v.url)}</div></div>
+        <button class="del" data-del="${v.i}" title="Удалить из истории" aria-label="Удалить из истории">×</button></div>`;
+    }
+    list.innerHTML = html;
+    bindGo(list);
+    list.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { st.visits.splice(Number(b.dataset.del), 1); save(); draw(); });
+  };
+  $('histFilter').oninput = draw;
+  $('clearHist').onclick = () => {
+    const b = $('clearHist');
+    if (b.dataset.armed) { st.visits = []; save(); draw(); b.textContent = 'Очистить историю'; delete b.dataset.armed; }
+    else { b.dataset.armed = '1'; b.textContent = 'Точно очистить? Нажмите ещё раз'; setTimeout(() => { if (b.isConnected) { b.textContent = 'Очистить историю'; delete b.dataset.armed; } }, 4000); }
+  };
+  draw();
+}
+
+function renderBookmarks(page) {
+  page.innerHTML = `<h1>Закладки</h1><p>Добавить текущую страницу - звёздочка справа от адреса или Ctrl+D.</p><div class="list" id="bmList"></div>`;
+  const draw = () => {
+    const list = $('bmList');
+    if (!st.bookmarks.length) { list.innerHTML = '<div class="empty">Закладок пока нет</div>'; return; }
+    list.innerHTML = st.bookmarks.map((b, i) => `<div class="row bm-row">
+      <div class="main"><div class="t"><a data-go="${esc(b.url)}">${esc(b.title)}</a></div><div class="u">${esc(b.url)}</div></div>
+      <button class="del" data-i="${i}" title="Удалить закладку" aria-label="Удалить закладку">×</button></div>`).join('');
+    bindGo(list);
+    list.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { st.bookmarks.splice(Number(b.dataset.i), 1); save(); draw(); renderNav(); });
+  };
+  draw();
+}
+
+function searchLocal(q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const seen = new Set(), out = [];
+  const pool = [
+    ...Object.entries(PAGES).map(([url, title]) => ({ url, title, kind: 'страница' })),
+    ...st.bookmarks.map(b => ({ ...b, kind: 'закладка' })),
+    ...st.visits.map(v => ({ ...v, kind: 'история' })),
+  ];
+  for (const it of pool) {
+    if (seen.has(it.url)) continue;
+    const hay = (it.title + ' ' + it.url).toLowerCase();
+    if (words.every(w => hay.includes(w))) { seen.add(it.url); out.push(it); }
   }
+  return out;
 }
 
-function loadInTab(tab, url) {
-  tab.url = url;
-  tab.title = url === HOME ? 'Домашняя' : new URL(url).hostname;
-  tab.history = tab.history.slice(0, tab.historyIdx + 1);
-  tab.history.push(url);
-  tab.historyIdx = tab.history.length - 1;
-  replaceFrame(tab);
-  urlBar.value = url === HOME ? '' : url;
-  renderTabs();
-  updateNavButtons();
+function renderSearch(page, q) {
+  const res = searchLocal(q);
+  page.innerHTML = `<h1>Поиск: ${esc(q)}</h1>
+    <p>Поиск идёт по встроенным страницам, закладкам и истории. Поиск в интернете откроется в системном браузере:
+      <button class="link" id="webSearch">искать «${esc(q)}» в DuckDuckGo</button></p>
+    <div class="list">${res.length ? res.map(r => `<div class="row search-row"><div class="main"><div class="t"><a data-go="${esc(r.url)}">${esc(r.title)}</a></div><div class="u">${esc(r.kind)} · ${esc(r.url)}</div></div></div>`).join('') : '<div class="empty">Ничего не найдено</div>'}</div>`;
+  page.querySelector('#webSearch').onclick = () => window.open('https://duckduckgo.com/?q=' + encodeURIComponent(q), '_blank', 'noopener');
 }
 
-function replaceFrame(tab) {
-  const wrap = document.getElementById('frame-' + tab.id);
-  wrap.innerHTML = '';
-  if (tab.url === HOME) {
-    wrap.appendChild(buildHomePlaceholder());
-  } else {
-    const iframe = document.createElement('iframe');
-    iframe.src = tab.url;
-    wrap.appendChild(iframe);
+// ===== Подсказки адресной строки =====
+let sugItems = [], sugSel = -1;
+function renderSuggest() {
+  const q = $('urlBar').value.trim();
+  const box = $('suggest');
+  sugItems = q ? searchLocal(q).slice(0, 6) : [];
+  sugSel = -1;
+  if (!sugItems.length) { box.classList.remove('show'); box.innerHTML = ''; return; }
+  box.innerHTML = sugItems.map((s, i) => `<div data-i="${i}" role="option"><span>${esc(s.title)}</span><span class="s-url">${esc(s.url)}</span></div>`).join('');
+  box.classList.add('show');
+  box.querySelectorAll('[data-i]').forEach(d => d.onmousedown = e => { e.preventDefault(); pick(sugItems[Number(d.dataset.i)].url); });
+}
+function moveSel(d) {
+  if (!sugItems.length) return;
+  // -1 - ничего не выбрано (идём по введённому тексту), 0..n-1 - подсказки.
+  const n = sugItems.length + 1;
+  sugSel = ((sugSel + 1 + d) % n + n) % n - 1;
+  [...$('suggest').children].forEach((el, i) => el.classList.toggle('sel', i === sugSel));
+}
+function hideSuggest() { $('suggest').classList.remove('show'); sugSel = -1; }
+function pick(url) { hideSuggest(); $('urlBar').blur(); navigate(url); }
+function focusAddress() { const u = $('urlBar'); u.focus(); u.select(); }
+
+$('urlBar').addEventListener('input', renderSuggest);
+$('urlBar').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    const url = sugSel >= 0 ? sugItems[sugSel].url : resolveInput($('urlBar').value);
+    if (url) pick(url);
+  } else if (e.key === 'Escape') { hideSuggest(); renderNav(); $('urlBar').blur(); }
+});
+$('urlBar').addEventListener('blur', () => setTimeout(hideSuggest, 100));
+$('urlBar').addEventListener('focus', () => $('urlBar').select());
+
+// ===== Кнопки и клавиши =====
+$('newTab').onclick = () => newTab();
+$('backBtn').onclick = () => go(-1);
+$('fwdBtn').onclick = () => go(1);
+$('reloadBtn').onclick = () => renderContent();
+$('homeBtn').onclick = () => navigate(HOME);
+$('starBtn').onclick = toggleBookmark;
+
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && k === 't') { e.preventDefault(); newTab(); }
+  else if (ctrl && k === 'w') { e.preventDefault(); closeTab(st.activeId); }
+  else if (ctrl && k === 'l') { e.preventDefault(); focusAddress(); }
+  else if (ctrl && k === 'd') { e.preventDefault(); toggleBookmark(); }
+  else if (ctrl && k === 'h') { e.preventDefault(); navigate('about:history'); }
+  else if (ctrl && e.key === 'Tab') {
+    e.preventDefault();
+    const i = st.tabs.findIndex(t => t.id === st.activeId);
+    activate(st.tabs[(i + (e.shiftKey ? -1 : 1) + st.tabs.length) % st.tabs.length].id);
   }
-}
-
-function updateNavButtons() {
-  const tab = tabs.find(t => t.id === activeId);
-  document.getElementById('backBtn').disabled = !tab || tab.historyIdx <= 0;
-  document.getElementById('fwdBtn').disabled = !tab || tab.historyIdx >= tab.history.length - 1;
-}
-
-document.getElementById('backBtn').addEventListener('click', () => {
-  const tab = tabs.find(t => t.id === activeId);
-  if (!tab || tab.historyIdx <= 0) return;
-  tab.historyIdx--;
-  tab.url = tab.history[tab.historyIdx];
-  tab.title = tab.url === HOME ? 'Домашняя' : new URL(tab.url).hostname;
-  replaceFrame(tab);
-  urlBar.value = tab.url === HOME ? '' : tab.url;
-  renderTabs();
-  updateNavButtons();
+  else if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+  else if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); go(1); }
+  else if (e.altKey && e.key === 'Home') { e.preventDefault(); navigate(HOME); }
+  else if (e.key === 'F5') { e.preventDefault(); renderContent(); }
 });
 
-document.getElementById('fwdBtn').addEventListener('click', () => {
-  const tab = tabs.find(t => t.id === activeId);
-  if (!tab || tab.historyIdx >= tab.history.length - 1) return;
-  tab.historyIdx++;
-  tab.url = tab.history[tab.historyIdx];
-  tab.title = tab.url === HOME ? 'Домашняя' : new URL(tab.url).hostname;
-  replaceFrame(tab);
-  urlBar.value = tab.url === HOME ? '' : tab.url;
-  renderTabs();
-  updateNavButtons();
+// Другая вкладка этого же браузера изменила закладки или историю - подтягиваем.
+window.addEventListener('storage', e => {
+  if (e.key !== STORE) return;
+  try {
+    const d = JSON.parse(e.newValue || 'null');
+    if (d) { st.bookmarks = d.bookmarks || []; st.visits = d.visits || []; st.notes = d.notes || ''; renderNav(); }
+  } catch (err) {}
 });
 
-document.getElementById('reloadBtn').addEventListener('click', () => {
-  const tab = tabs.find(t => t.id === activeId);
-  if (tab) replaceFrame(tab);
-});
-
-document.getElementById('homeBtn').addEventListener('click', () => navigate(HOME));
-
-urlBar.addEventListener('keydown', e => {
-  if (e.key === 'Enter') navigate(urlBar.value);
-});
-
-createTab();
+load();
+renderAll();
 </script>
-
 </body>
 </html>
