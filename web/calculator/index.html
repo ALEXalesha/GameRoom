@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Калькулятор</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -10,7 +10,7 @@
   html, body {
     height: 100%;
     background: #000;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
@@ -20,42 +20,59 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 12px;
   }
 
+  /* Ширина зависит и от высоты окна: при 1024x700 все пять рядов кнопок влезают без прокрутки. */
   .calculator {
-    width: 100%;
-    max-width: 370px;
+    width: min(370px, calc((100vh - 230px) * 0.8));
+    min-width: 240px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
+
+  .expr {
+    color: #8e8e93;
+    text-align: right;
+    font-size: 20px;
+    min-height: 26px;
+    padding: 0 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;          /* при переполнении видно конец выражения, а не начало */
+  }
+  .expr bdi { direction: ltr; unicode-bidi: isolate; }
 
   .display {
     color: #fff;
     text-align: right;
-    font-size: 88px;
+    font-size: 80px;
     font-weight: 200;
-    letter-spacing: -0.03em;
-    padding: 40px 12px 12px;
-    min-height: 140px;
-    line-height: 1;
-    word-break: break-all;
+    letter-spacing: -0.02em;
+    padding: 0 12px;
+    height: 96px;
+    line-height: 96px;
+    white-space: nowrap;
     overflow: hidden;
-    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    user-select: text;
+    -webkit-user-select: text;
   }
+  .display.error { font-size: 34px; color: #ff9f0a; }
 
   .buttons {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 10px;
   }
 
   button {
     aspect-ratio: 1 / 1;
     border: none;
     border-radius: 50%;
-    font-size: 36px;
+    font-size: 32px;
     font-weight: 400;
     cursor: pointer;
     font-family: inherit;
@@ -65,35 +82,13 @@
     align-items: center;
     justify-content: center;
   }
+  button:active, button.pressed { transform: scale(0.96); filter: brightness(1.35); }
+  button:focus-visible { outline: 3px solid #0a84ff; outline-offset: 2px; }
 
-  button:active {
-    transform: scale(0.96);
-  }
-
-  .fn {
-    background: #a5a5a5;
-    color: #000;
-    font-size: 32px;
-  }
-  .fn:active { filter: brightness(1.3); }
-
-  .num {
-    background: #333;
-    font-size: 36px;
-  }
-  .num:active { filter: brightness(1.5); }
-
-  .op {
-    background: #ff9f0a;
-    font-size: 40px;
-    font-weight: 500;
-  }
-  .op:active { filter: brightness(1.2); }
-
-  .op.active {
-    background: #fff;
-    color: #ff9f0a;
-  }
+  .fn { background: #a5a5a5; color: #000; font-size: 28px; }
+  .num { background: #333; }
+  .op { background: #ff9f0a; font-size: 36px; font-weight: 500; }
+  .op.active { background: #fff; color: #ff9f0a; }
 
   .zero {
     grid-column: span 2;
@@ -102,192 +97,466 @@
     justify-content: flex-start;
     padding-left: 30px;
   }
+
+  .hint {
+    color: #636366;
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.5;
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
   <div class="calculator">
-    <div class="display" id="display">0</div>
+    <div class="expr" id="expr" aria-live="polite"></div>
+    <div class="display" id="display" aria-live="polite" title="Ctrl+C копирует число">0</div>
     <div class="buttons">
-      <button class="fn" data-action="clear">AC</button>
-      <button class="fn" data-action="sign">±</button>
-      <button class="fn" data-action="percent">%</button>
-      <button class="op" data-op="/">÷</button>
+      <button class="fn" data-action="clear" id="clearBtn" title="Esc - всё сбросить, Delete - стереть число">AC</button>
+      <button class="fn" data-action="sign" title="Смена знака (F9)">±</button>
+      <button class="fn" data-action="percent" title="Процент (%)">%</button>
+      <button class="op" data-op="/" title="Деление (/)">÷</button>
 
       <button class="num" data-num="7">7</button>
       <button class="num" data-num="8">8</button>
       <button class="num" data-num="9">9</button>
-      <button class="op" data-op="*">×</button>
+      <button class="op" data-op="*" title="Умножение (*)">×</button>
 
       <button class="num" data-num="4">4</button>
       <button class="num" data-num="5">5</button>
       <button class="num" data-num="6">6</button>
-      <button class="op" data-op="-">−</button>
+      <button class="op" data-op="-" title="Вычитание (-)">−</button>
 
       <button class="num" data-num="1">1</button>
       <button class="num" data-num="2">2</button>
       <button class="num" data-num="3">3</button>
-      <button class="op" data-op="+">+</button>
+      <button class="op" data-op="+" title="Сложение (+)">+</button>
 
       <button class="num zero" data-num="0">0</button>
-      <button class="num" data-action="dot">,</button>
-      <button class="op" data-action="equals">=</button>
+      <button class="num" data-action="dot" title="Десятичная запятая (, или .)">,</button>
+      <button class="op" data-action="equals" title="Равно (Enter или =)">=</button>
     </div>
+    <div class="hint">Клавиатура: 0-9 · запятая или точка · + − * / % · Enter<br>Backspace стирает знак · Delete стирает число · Esc сбрасывает всё · Ctrl+C / Ctrl+V</div>
   </div>
 
 <script>
-  const display = document.getElementById("display");
+'use strict';
+// ===== Точная десятичная арифметика =====
+// Число хранится как целое BigInt m и степень десяти e: значение = m * 10^e.
+// Сложение, вычитание и умножение точные, деление округляется до PREC значащих цифр.
+// Поэтому 0,1 + 0,2 = 0,3, а 1 ÷ 3 × 3 = 1 (после округления для показа).
+const PREC = 34;          // значащих цифр во внутренних вычислениях
+const SHOW = 15;          // значащих цифр на экране
+const MAX_INPUT = 16;     // цифр можно набрать в одно число
+const MAX_EXP = 9999;     // дальше - переполнение
 
-  let current = "0";
-  let previous = null;
-  let operator = null;
-  let waitingForNew = false;
-
-  function formatNumber(n) {
-    if (n === "Error") return n;
-    const num = typeof n === "string" ? parseFloat(n.replace(",", ".")) : n;
-    if (!isFinite(num)) return "Error";
-
-    let str;
-    if (Math.abs(num) >= 1e9 || (Math.abs(num) < 1e-6 && num !== 0)) {
-      str = num.toExponential(5);
-    } else {
-      str = parseFloat(num.toPrecision(10)).toString();
+const Dec = {
+  make(m, e) { return Dec.norm({ m, e }); },
+  norm(x) {
+    let { m, e } = x;
+    if (m === 0n) return { m: 0n, e: 0 };
+    while (m % 10n === 0n) { m /= 10n; e++; }
+    return { m, e };
+  },
+  parse(str) {
+    const s = String(str).trim().replace(',', '.');
+    const r = /^([+-])?(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(s);
+    if (!r || (r[2] === '' && (r[3] === undefined || r[3] === ''))) return null;
+    const frac = r[3] || '';
+    let m = BigInt((r[2] || '0') + frac);
+    if (r[1] === '-') m = -m;
+    return Dec.norm({ m, e: -frac.length + (r[4] ? parseInt(r[4], 10) : 0) });
+  },
+  digits(m) { return (m < 0n ? -m : m).toString().length; },
+  // Округление до n значащих цифр, половина - от нуля.
+  round(x, n) {
+    const d = Dec.digits(x.m);
+    if (d <= n) return x;
+    const cut = d - n;
+    const p = 10n ** BigInt(cut);
+    let q = x.m / p;
+    const r = x.m % p;
+    const twice = (r < 0n ? -r : r) * 2n;
+    if (twice >= p) q += x.m < 0n ? -1n : 1n;
+    return Dec.norm({ m: q, e: x.e + cut });
+  },
+  align(a, b) {
+    const e = Math.min(a.e, b.e);
+    return [a.m * 10n ** BigInt(a.e - e), b.m * 10n ** BigInt(b.e - e), e];
+  },
+  add(a, b) { const [x, y, e] = Dec.align(a, b); return Dec.round(Dec.norm({ m: x + y, e }), PREC); },
+  sub(a, b) { return Dec.add(a, { m: -b.m, e: b.e }); },
+  mul(a, b) { return Dec.round(Dec.norm({ m: a.m * b.m, e: a.e + b.e }), PREC); },
+  div(a, b) {
+    if (b.m === 0n) throw new CalcError('Нельзя делить на ноль');
+    // Сдвигаем делимое так, чтобы в частном было не меньше PREC + 2 цифр.
+    const shift = PREC + 2 + Math.max(0, Dec.digits(b.m) - Dec.digits(a.m));
+    const q = (a.m * 10n ** BigInt(shift)) / b.m;
+    const rem = (a.m * 10n ** BigInt(shift)) % b.m;
+    // Остаток учитываем одной лишней цифрой, чтобы округление было честным.
+    const m = q * 10n + (rem === 0n ? 0n : (rem < 0n) === (b.m < 0n) ? 5n : -5n);
+    return Dec.round(Dec.norm({ m, e: a.e - b.e - shift - 1 }), PREC);
+  },
+  isZero(x) { return x.m === 0n; },
+  neg(x) { return { m: -x.m, e: x.e }; },
+  // Порядок числа: 10^order <= |x| < 10^(order+1)
+  order(x) { return Dec.digits(x.m) - 1 + x.e; },
+  check(x) {
+    if (!Dec.isZero(x) && Math.abs(Dec.order(x)) > MAX_EXP) throw new CalcError('Слишком большое число');
+    return x;
+  },
+  // Обычная запись с точкой, без экспоненты: для буфера обмена и проверок.
+  toPlain(x) {
+    if (x.m === 0n) return '0';
+    const neg = x.m < 0n;
+    let s = (neg ? -x.m : x.m).toString();
+    if (x.e >= 0) s += '0'.repeat(x.e);
+    else {
+      const k = -x.e;
+      if (s.length <= k) s = '0.' + '0'.repeat(k - s.length) + s;
+      else s = s.slice(0, s.length - k) + '.' + s.slice(s.length - k);
     }
+    return (neg ? '-' : '') + s;
+  },
+};
 
-    if (str.includes("e")) return str.replace(".", ",");
+class CalcError extends Error {}
 
-    const [intPart, decPart] = str.split(".");
-    const withSpaces = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-    return decPart !== undefined ? `${withSpaces},${decPart}` : withSpaces;
+// ===== Показ чисел =====
+const NBSP = ' '; // узкий неразрывный пробел между разрядами
+function groupInt(s) { return s.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP); }
+
+// Результат: не больше SHOW значащих цифр, очень большие и очень маленькие - в виде 1,5e+20.
+function formatDec(x) {
+  x = Dec.round(x, SHOW);
+  if (x.m === 0n) return '0';
+  const ord = Dec.order(x);
+  if (ord >= SHOW || ord < -8) {
+    const neg = x.m < 0n;
+    const ds = (neg ? -x.m : x.m).toString();
+    const mant = ds.length > 1 ? ds[0] + ',' + ds.slice(1) : ds;
+    return (neg ? '−' : '') + mant + 'e' + (ord >= 0 ? '+' : '−') + Math.abs(ord);
   }
+  return formatPlain(Dec.toPlain(x));
+}
 
-  function render() {
-    display.textContent = current === "Error" ? "Ошибка" : formatNumber(current);
-    const size = display.textContent.length > 9 ? 64 : 88;
-    display.style.fontSize = size + "px";
-  }
+// Набранное число показываем как набрано: «0,», «1,50» остаются на экране.
+function formatPlain(s) {
+  const neg = s.startsWith('-');
+  if (neg) s = s.slice(1);
+  const [i, f] = s.split('.');
+  return (neg ? '−' : '') + groupInt(i) + (f !== undefined ? ',' + f : '');
+}
 
-  function clearOpHighlight() {
-    document.querySelectorAll(".op.active").forEach(b => b.classList.remove("active"));
-  }
+const OP_SIGN = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+const PRIORITY = { '+': 1, '-': 1, '*': 2, '/': 2 };
 
-  function setOpHighlight(op) {
-    clearOpHighlight();
-    const btn = document.querySelector(`.op[data-op="${op}"]`);
-    if (btn) btn.classList.add("active");
-  }
+// ===== Состояние =====
+// tokens: [число, оп, число, оп, ...] - уже введённая часть выражения.
+// entry: строка набираемого числа (или null, если ждём число после операции).
+// value: Dec текущего числа на экране, когда entry == null (результат или промежуточное).
+const st = {
+  tokens: [],
+  entry: '0',
+  value: null,
+  error: null,
+  justEvaluated: false,
+  lastOp: null,        // для повторного «=»: [оп, число]
+  exprText: '',
+};
 
-  function compute(a, b, op) {
-    const x = parseFloat(a);
-    const y = parseFloat(b);
-    if (op === "+") return x + y;
-    if (op === "-") return x - y;
-    if (op === "*") return x * y;
-    if (op === "/") return y === 0 ? "Error" : x / y;
-    return y;
-  }
+const displayEl = document.getElementById('display');
+const exprEl = document.getElementById('expr');
+const clearBtn = document.getElementById('clearBtn');
 
-  function inputNum(n) {
-    if (current === "Error") reset();
-    if (waitingForNew) {
-      current = n;
-      waitingForNew = false;
-    } else {
-      current = current === "0" ? n : current + n;
+function currentDec() {
+  if (st.entry !== null) return Dec.parse(st.entry === '-' ? '0' : st.entry) || Dec.make(0n, 0);
+  return st.value || Dec.make(0n, 0);
+}
+
+function applyOp(a, op, b) {
+  let r;
+  if (op === '+') r = Dec.add(a, b);
+  else if (op === '-') r = Dec.sub(a, b);
+  else if (op === '*') r = Dec.mul(a, b);
+  else r = Dec.div(a, b);
+  return Dec.check(r);
+}
+
+// Вычисление списка [n, op, n, op, n] с приоритетом × ÷ над + −.
+function evaluate(list) {
+  const nums = [list[0]];
+  const ops = [];
+  for (let i = 1; i < list.length; i += 2) {
+    const op = list[i], n = list[i + 1];
+    while (ops.length && PRIORITY[ops[ops.length - 1]] >= PRIORITY[op]) {
+      const b = nums.pop(), a = nums.pop();
+      nums.push(applyOp(a, ops.pop(), b));
     }
-    clearOpHighlight();
-    render();
+    ops.push(op);
+    nums.push(n);
   }
+  while (ops.length) {
+    const b = nums.pop(), a = nums.pop();
+    nums.push(applyOp(a, ops.pop(), b));
+  }
+  return nums[0];
+}
 
-  function inputDot() {
-    if (current === "Error") reset();
-    if (waitingForNew) {
-      current = "0.";
-      waitingForNew = false;
-    } else if (!current.includes(".")) {
-      current += ".";
+// Промежуточный итог для экрана после нажатия операции: 2 + 3 × → 3, 2 × 3 + → 6.
+// st.tokens всегда заканчивается операцией, её роль играет op.
+function partialForDisplay(op) {
+  const list = st.tokens;
+  const nums = [list[0]];
+  const ops = [];
+  const reduce = (prio) => {
+    while (ops.length && PRIORITY[ops[ops.length - 1]] >= prio) {
+      const b = nums.pop(), a = nums.pop();
+      nums.push(applyOp(a, ops.pop(), b));
     }
-    clearOpHighlight();
-    render();
+  };
+  for (let i = 1; i + 1 < list.length; i += 2) {
+    reduce(PRIORITY[list[i]]);
+    ops.push(list[i]);
+    nums.push(list[i + 1]);
   }
+  reduce(PRIORITY[op]);
+  return nums[nums.length - 1];
+}
 
-  function inputOp(op) {
-    if (current === "Error") return;
-
-    if (operator && !waitingForNew) {
-      const result = compute(previous, current, operator);
-      if (result === "Error") { current = "Error"; operator = null; previous = null; render(); return; }
-      current = result.toString();
-      previous = current;
-    } else {
-      previous = current;
-    }
-
-    operator = op;
-    waitingForNew = true;
-    render();
-    setOpHighlight(op);
+function exprString(list, tail) {
+  const parts = [];
+  for (let i = 0; i < list.length; i++) {
+    parts.push(i % 2 === 0 ? formatDec(list[i]) : OP_SIGN[list[i]]);
   }
+  if (tail) parts.push(tail);
+  return parts.join(' ');
+}
 
-  function equals() {
-    if (current === "Error" || operator === null) return;
-    const result = compute(previous, current, operator);
-    if (result === "Error") { current = "Error"; }
-    else { current = result.toString(); }
-    operator = null;
-    previous = null;
-    waitingForNew = true;
-    clearOpHighlight();
-    render();
-  }
+function fail(e) {
+  if (!(e instanceof CalcError)) throw e;
+  st.error = e.message;
+  st.tokens = [];
+  st.entry = null;
+  st.value = null;
+  st.lastOp = null;
+}
 
-  function reset() {
-    current = "0";
-    previous = null;
-    operator = null;
-    waitingForNew = false;
-    clearOpHighlight();
-    render();
-  }
-
-  function sign() {
-    if (current === "Error" || current === "0") return;
-    current = current.startsWith("-") ? current.slice(1) : "-" + current;
-    render();
-  }
-
-  function percent() {
-    if (current === "Error") return;
-    current = (parseFloat(current) / 100).toString();
-    render();
-  }
-
-  document.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const num = btn.dataset.num;
-      const op = btn.dataset.op;
-      const action = btn.dataset.action;
-
-      if (num !== undefined) inputNum(num);
-      else if (op !== undefined) inputOp(op);
-      else if (action === "dot") inputDot();
-      else if (action === "equals") equals();
-      else if (action === "clear") reset();
-      else if (action === "sign") sign();
-      else if (action === "percent") percent();
-    });
-  });
-
-  document.addEventListener("keydown", e => {
-    if (e.key >= "0" && e.key <= "9") inputNum(e.key);
-    else if (e.key === "." || e.key === ",") inputDot();
-    else if (["+", "-", "*", "/"].includes(e.key)) inputOp(e.key);
-    else if (e.key === "Enter" || e.key === "=") { e.preventDefault(); equals(); }
-    else if (e.key === "Escape" || e.key === "Backspace") reset();
-    else if (e.key === "%") percent();
-  });
-
+// ===== Действия =====
+function inputDigit(d) {
+  if (st.error) reset();
+  if (st.justEvaluated) { st.exprText = ''; st.justEvaluated = false; }
+  if (st.entry === null) st.entry = '0';
+  const digits = st.entry.replace(/[-.]/g, '').replace(/^0+/, '').length;
+  if (digits >= MAX_INPUT) { flashLimit(); return; }
+  if (st.entry === '0') st.entry = d;
+  else if (st.entry === '-0') st.entry = '-' + d;
+  else st.entry += d;
   render();
+}
+
+function inputDot() {
+  if (st.error) reset();
+  if (st.justEvaluated) { st.exprText = ''; st.justEvaluated = false; }
+  if (st.entry === null) st.entry = '0';
+  if (!st.entry.includes('.')) st.entry += '.';
+  render();
+}
+
+function backspace() {
+  if (st.error) { reset(); return; }
+  if (st.entry === null) return;            // результат не редактируется посимвольно
+  let s = st.entry.slice(0, -1);
+  if (s === '' || s === '-') s = '0';
+  st.entry = s;
+  render();
+}
+
+function inputOp(op) {
+  if (st.error) return;
+  if (st.entry === null && st.tokens.length && !st.justEvaluated) {
+    // Две операции подряд - заменяем последнюю.
+    st.tokens[st.tokens.length - 1] = op;
+    try { st.value = partialForDisplay(op); } catch (e) { fail(e); }
+    render();
+    return;
+  }
+  const n = currentDec();
+  if (st.justEvaluated) { st.tokens = []; st.justEvaluated = false; }
+  st.tokens.push(n, op);
+  st.entry = null;
+  try { st.value = partialForDisplay(op); } catch (e) { fail(e); }
+  render();
+}
+
+function equals() {
+  if (st.error) return;
+  try {
+    if (st.tokens.length === 0) {
+      // Повтор последней операции: 2 + 3 = = → 8.
+      if (!st.lastOp) return;
+      const a = currentDec();
+      const [op, b] = st.lastOp;
+      st.value = applyOp(a, op, b);
+      st.exprText = exprString([a, op, b], '=');
+    } else {
+      // «2 + 3 × =» берёт число с экрана: 2 + 3 × 3.
+      const b = currentDec();
+      const list = st.tokens.concat([b]);
+      st.value = evaluate(list);
+      st.lastOp = [list[list.length - 2], b];
+      st.exprText = exprString(list, '=');
+    }
+    st.tokens = [];
+    st.entry = null;
+    st.justEvaluated = true;
+  } catch (e) { fail(e); }
+  render();
+}
+
+function reset() {
+  st.tokens = []; st.entry = '0'; st.value = null; st.error = null;
+  st.justEvaluated = false; st.lastOp = null; st.exprText = '';
+  render();
+}
+
+// C стирает только набираемое число, AC - всё.
+function clearKey() {
+  if (st.error || st.entry === null || st.entry === '0') { reset(); return; }
+  st.entry = '0';
+  render();
+}
+
+function toggleSign() {
+  if (st.error) return;
+  if (st.entry !== null) {
+    st.entry = st.entry.startsWith('-') ? st.entry.slice(1) : '-' + st.entry;
+  } else {
+    st.entry = Dec.toPlain(Dec.neg(currentDec()));
+    if (st.entry === '-0') st.entry = '0';
+    if (st.justEvaluated) { st.justEvaluated = false; st.exprText = ''; }
+  }
+  render();
+}
+
+// Процент как в карманных калькуляторах: 200 + 10 % = 220, 200 × 10 % = 20.
+function percent() {
+  if (st.error) return;
+  const x = currentDec();
+  const hundred = Dec.make(100n, 0);
+  let r;
+  try {
+    const lastOp = st.tokens[st.tokens.length - 1];
+    if (st.tokens.length && (lastOp === '+' || lastOp === '-')) {
+      const base = st.tokens.length >= 2 ? partialForDisplay('+') : st.tokens[0];
+      r = Dec.div(Dec.mul(base, x), hundred);
+    } else {
+      r = Dec.div(x, hundred);
+    }
+    st.entry = Dec.toPlain(Dec.round(r, SHOW + 2));
+    if (st.justEvaluated) { st.justEvaluated = false; st.exprText = ''; }
+  } catch (e) { fail(e); }
+  render();
+}
+
+// ===== Экран =====
+function screenText() {
+  if (st.error) return st.error;
+  if (st.entry !== null) return formatPlain(st.entry);
+  return formatDec(st.value || Dec.make(0n, 0));
+}
+
+function fitDisplay() {
+  // Подбираем размер шрифта, чтобы число целиком влезло в ширину экрана.
+  if (displayEl.classList.contains('error')) { displayEl.style.fontSize = ''; return; }
+  let size = 80;
+  displayEl.style.fontSize = size + 'px';
+  while (displayEl.scrollWidth > displayEl.clientWidth && size > 22) {
+    size -= 2;
+    displayEl.style.fontSize = size + 'px';
+  }
+}
+
+function render() {
+  displayEl.textContent = screenText();
+  displayEl.classList.toggle('error', !!st.error);
+  fitDisplay();
+
+  let expr = '';
+  if (st.tokens.length) expr = exprString(st.tokens, st.entry !== null ? formatPlain(st.entry) : '');
+  else if (st.justEvaluated) expr = st.exprText;
+  exprEl.innerHTML = '';
+  const b = document.createElement('bdi');
+  b.textContent = expr;
+  exprEl.appendChild(b);
+
+  const pendingOp = st.entry === null && !st.justEvaluated && st.tokens.length ? st.tokens[st.tokens.length - 1] : null;
+  document.querySelectorAll('.op[data-op]').forEach(btn => btn.classList.toggle('active', btn.dataset.op === pendingOp));
+  clearBtn.textContent = (st.entry !== null && st.entry !== '0' && !st.error) ? 'C' : 'AC';
+}
+
+function flashLimit() {
+  displayEl.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 150 });
+}
+
+// ===== Кнопки и клавиатура =====
+document.querySelector('.buttons').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const { num, op, action } = btn.dataset;
+  if (num !== undefined) inputDigit(num);
+  else if (op !== undefined) inputOp(op);
+  else if (action === 'dot') inputDot();
+  else if (action === 'equals') equals();
+  else if (action === 'clear') clearKey();
+  else if (action === 'sign') toggleSign();
+  else if (action === 'percent') percent();
+  btn.blur();
+});
+
+function pressVisual(sel) {
+  const btn = document.querySelector(sel);
+  if (!btn) return;
+  btn.classList.add('pressed');
+  setTimeout(() => btn.classList.remove('pressed'), 90);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k >= '0' && k <= '9') { inputDigit(k); pressVisual(`[data-num="${k}"]`); }
+  else if (k === '.' || k === ',') { inputDot(); pressVisual('[data-action="dot"]'); }
+  else if (k in OP_SIGN) { inputOp(k); pressVisual(`[data-op="${k}"]`); }
+  else if (k === 'Enter' || k === '=') { equals(); pressVisual('[data-action="equals"]'); }
+  else if (k === 'Backspace') backspace();
+  else if (k === 'Escape') { reset(); pressVisual('[data-action="clear"]'); }
+  else if (k === 'Delete') clearKey();
+  else if (k === '%') { percent(); pressVisual('[data-action="percent"]'); }
+  else if (k === 'F9') toggleSign();
+  else return;
+  e.preventDefault();
+});
+
+// Копирование числа с экрана и вставка числа из буфера.
+document.addEventListener('copy', e => {
+  if (String(window.getSelection())) return; // пользователь выделил что-то сам
+  if (st.error) return;
+  e.clipboardData.setData('text/plain', Dec.toPlain(st.entry !== null ? currentDec() : Dec.round(currentDec(), SHOW)).replace('.', ','));
+  e.preventDefault();
+});
+document.addEventListener('paste', e => {
+  const raw = (e.clipboardData.getData('text/plain') || '').replace(/[\s  ]/g, '').replace('−', '-');
+  const x = Dec.parse(raw);
+  e.preventDefault();
+  if (!x) return;
+  if (st.error) reset();
+  if (st.justEvaluated) { st.justEvaluated = false; st.exprText = ''; }
+  st.entry = Dec.toPlain(Dec.round(x, MAX_INPUT));
+  render();
+});
+
+window.addEventListener('resize', fitDisplay);
+render();
 </script>
 </body>
 </html>
