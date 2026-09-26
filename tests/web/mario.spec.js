@@ -151,6 +151,25 @@ test.describe('mario (Прыг-скок): уровни', () => {
     expect(r.restHp).toBe(r.max - 1);
   });
 
+  test('после удара по боссу - короткая передышка: касание в первые кадры не ранит, позже ранит', async ({ page }) => {
+    await openGame(page, 'mario', 'seed=1');
+    const r = await page.evaluate(() => {
+      const g = __game; g.kit.set('difficulty', 'normal'); g.startLevel(3); g.clearEnemies();
+      g.player.x = g.level.arena.a + 80; g.step(2, false);
+      const b = g.boss; b.vx = 0; b.t = 1;
+      g.player.x = b.x + b.w / 2 - 11; g.player.y = b.y - 40; g.player.vy = 3; g.player.invuln = 0;
+      for (let i = 0; i < 20 && b.inv === 0; i++) g.step(1, false);
+      const hit = b.hp === b.maxHp - 1;
+      g.player.x = b.x - 12; g.player.y = b.y + b.h - g.player.h; g.player.vy = 0; g.player.invuln = 0;
+      g.step(1, false);
+      const early = g.state.phase;
+      b.inv = 10; g.player.x = b.x - 12; g.player.y = b.y + b.h - g.player.h; g.player.vy = 0;
+      g.step(1, false);
+      return { hit, early, late: g.state.phase };
+    });
+    expect(r).toEqual({ hit: true, early: 'play', late: 'dying' });
+  });
+
   test('после последнего уровня - экран победы с итогами', async ({ page }) => {
     await openGame(page, 'mario', 'seed=1');
     await page.evaluate(() => { localStorage.clear(); __game.startLevel(7); });
@@ -163,6 +182,29 @@ test.describe('mario (Прыг-скок): уровни', () => {
 });
 
 test.describe('mario (Прыг-скок): правила', () => {
+  test('автопилот честно проходит всю кампанию - 8 уровней и два босса - до экрана победы', async ({ page }) => {
+    test.setTimeout(240000);
+    await openGame(page, 'mario', 'seed=1');
+    await page.evaluate(() => localStorage.clear());
+    const runs = [];
+    for (let i = 0; i < 8; i++) {
+      runs.push(await page.evaluate((i) => {
+        const g = __game; g.kit.closeAll(); g.startLevel(i); g.setAutopilot(true);
+        let n = 0, deaths = 0, was = 'play';
+        while (n++ < 20000 && g.state.phase !== 'done' && g.state.phase !== 'over') {
+          g.step(1, false);
+          if (g.state.phase === 'dying' && was !== 'dying') deaths++;
+          was = g.state.phase;
+        }
+        return { i, phase: g.state.phase, deaths };
+      }, i));
+    }
+    expect(runs.filter((r) => r.phase !== 'done')).toEqual([]);
+    expect(runs.reduce((n, r) => n + r.deaths, 0)).toBeLessThanOrEqual(2);
+    await expect(page.locator('[data-screen=victory]')).toBeVisible();
+    expect(await page.evaluate(() => [__game.progress.done, __game.progress.unlocked])).toEqual([true, 7]);
+  });
+
   test('жизни по сложности 5/3/2; гибель возвращает к флажку, монеты второй раз не считаются', async ({ page }) => {
     await openGame(page, 'mario', 'seed=1');
     const r = await page.evaluate(() => {
@@ -237,6 +279,36 @@ test.describe('mario (Прыг-скок): правила', () => {
 });
 
 test.describe('mario (Прыг-скок): пауза, настройки, окно', () => {
+  test('сложность меняет здоровье боссов (2/3/4) и скорость жуков', async ({ page }) => {
+    await openGame(page, 'mario', 'seed=1');
+    const r = await page.evaluate(() => {
+      const g = __game, out = {};
+      for (const d of ['easy', 'normal', 'hard']) {
+        g.kit.set('difficulty', d); g.startLevel(3);
+        g.player.x = g.level.arena.a + 80; g.step(2, false);
+        out[d] = { hp: g.boss.maxHp, v: Math.abs(g.boss.vx) };
+        g.startLevel(0); out[d].beetle = Math.abs(g.level.enemies[0].vx);
+      }
+      return out;
+    });
+    expect([r.easy.hp, r.normal.hp, r.hard.hp]).toEqual([2, 3, 4]);
+    expect(r.easy.beetle).toBeLessThan(r.normal.beetle);
+    expect(r.normal.beetle).toBeLessThan(r.hard.beetle);
+    expect(r.easy.v).toBeLessThan(r.hard.v);
+  });
+
+  test('громкость музыки и звуков меняет усиление и сохраняется', async ({ page }) => {
+    await openGame(page, 'mario', 'seed=1');
+    await page.evaluate(() => __game.kit.audioCtx());
+    await page.click('[data-screen=main] .kit-btn:has-text("Настройки")');
+    await page.locator('input[data-setting=musicVol]').fill('30');
+    await page.locator('input[data-setting=sfxVol]').fill('55');
+    expect(await page.evaluate(() => [__game.kit.musicGain.gain.value, __game.kit.sfxGain.gain.value].map((v) => +v.toFixed(2)))).toEqual([0.3, 0.55]);
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    expect(await page.evaluate(() => [__game.kit.settings.musicVol, __game.kit.settings.sfxVol])).toEqual([0.3, 0.55]);
+  });
+
   for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
     test(`пауза ${size.width}x${size.height}: надпись уровня не наезжает на окно «Пауза»`, async ({ page }) => {
       await page.setViewportSize(size);
