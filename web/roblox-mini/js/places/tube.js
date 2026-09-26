@@ -113,7 +113,7 @@
     bots: 3,
     statLabel: () => (B.lang() === 'en' ? 'Stars' : 'Звёзды'),
     stat: (g, b) => (b ? b.stat : g.state.lastStars),
-    sky: { top: '#5c9be6', horizon: '#eef6ff', sun: [0.2, 0.5, -0.6] },
+    sky: { top: '#5c9be6', horizon: '#eef6ff', sun: [0.2, 0.5, -0.6], cloudY: 230 },
 
     build(game) {
       const w = game.world, st = game.state, rnd = B.rng(game.seed ^ 0x70be);

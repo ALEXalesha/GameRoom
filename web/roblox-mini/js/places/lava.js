@@ -38,7 +38,7 @@
     bots: 4,
     statLabel: () => (B.lang() === 'en' ? 'Height' : 'Высота'),
     stat: (g, b) => (b ? Math.round(b.stat) : Math.round(g.state.roundBest)),
-    sky: { top: '#6a3f8f', horizon: '#ffb37a', sun: [-0.4, 0.35, 0.5] },
+    sky: { top: '#6a3f8f', horizon: '#ffb37a', sun: [-0.4, 0.35, 0.5], cloudY: 190 },
 
     build(game) {
       const w = game.world, st = game.state, path = game.path = [];

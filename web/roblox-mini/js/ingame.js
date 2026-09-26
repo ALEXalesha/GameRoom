@@ -622,7 +622,8 @@
       if (!g || g.menuOpen) return;
       e.preventDefault();
       if (B.gameSettings.get('view') === 'first') return;
-      g.rig.zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15);
+      const steps = B.clamp((e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY) / 100, -6, 6);   // щелчок колеса = 1 ступень
+      g.rig.zoom(Math.pow(1.15, steps));
     }, { passive: false });
     addEventListener('resize', () => {
       E.renderer.setSize(innerWidth, innerHeight);
