@@ -173,7 +173,9 @@ test('F5 перезапускает игру только после «да»', 
   await expect(shell.locator('#modal-title')).toContainText('заново');
   // Пока вопрос открыт, игра снята с окна (стоит), а под вопросом её снимок.
   expect(await app.evaluate(() => globalThis.__igroteka.win.contentView.children.length)).toBe(0);
-  await expect(shell.locator('#modal-shot')).toBeVisible();
+  // Под вопросом - снимок игры, а если Chromium кадр не отдал - сплошной фон, но не
+  // домашнее меню (оно лежит под игрой и просвечивало бы, будто открыт не тот экран).
+  expect(await shell.evaluate(() => !document.getElementById('modal-shot').hidden || document.getElementById('modal').classList.contains('cover'))).toBe(true);
   await shell.click('#modal .cancel');
   await expect(shell.locator('#modal')).toBeHidden();
   expect(await H.inGame(app, 'dino', 'window.__mark')).toBe(1);
@@ -196,4 +198,26 @@ test('тема оболочки переключается и запоминае
   await expect(shell.locator('.about')).toContainText('фан-концепты, не связаны с правообладателями');
   await expect(shell.locator('#version')).toContainText(require('../package.json').version);
   await expect(shell.locator('#about-games li')).toHaveCount(8);
+});
+
+test('снимка игры нет - под вопросом сплошной фон, а не домашнее меню', async () => {
+  const { app, shell } = ctx;
+  await shell.click('.card[data-id="dino"]');
+  await H.gameLoaded(app, 'dino');
+  await app.evaluate(() => {
+    globalThis.__igroteka.views.get('dino').webContents.capturePage = async () => { throw new Error('Current display surface not available for capture'); };
+  });
+  await H.press(app, 'dino', 'F5');
+  await expect(shell.locator('#modal')).toBeVisible();
+  await expect(shell.locator('#modal')).toHaveClass(/cover/);
+  await expect(shell.locator('#modal-shot')).toBeHidden();
+  const bg = await shell.locator('#modal').evaluate((e) => getComputedStyle(e).backgroundColor);
+  expect(bg).not.toMatch(/rgba\(.*, 0\.\d+\)$/); // непрозрачный
+  await shell.click('#modal .cancel');
+  // Вопрос с домашнего экрана (очистка данных) такого фона не получает.
+  await H.press(app, 'dino', 'T', ['control']);
+  await shell.click('#gear');
+  await shell.click('#clear-btn');
+  await expect(shell.locator('#modal')).not.toHaveClass(/cover/);
+  await shell.click('#modal .cancel');
 });

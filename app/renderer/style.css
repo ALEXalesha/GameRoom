@@ -99,8 +99,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   gap: 8px;
   height: 32px;
   min-width: 0;
-  max-width: 200px;
-  flex: 0 1 200px;
+  max-width: 220px;
+  flex: 0 1 220px;
   padding: 0 6px 0 10px;
   border: 1px solid transparent;
   border-bottom: none;
@@ -159,7 +159,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   display: flex;
   align-items: center;
   gap: 18px;
-  max-width: 1320px;
+  max-width: 1600px;
   margin: 0 auto 20px;
 }
 .hero-logo { width: 64px; height: 64px; filter: drop-shadow(0 8px 18px rgba(120, 80, 240, 0.45)); }
@@ -187,9 +187,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 #grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
   gap: 20px;
-  max-width: 1320px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
@@ -256,7 +256,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .btn.primary { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 4px 16px rgba(123, 110, 240, 0.4); }
 .btn.danger { background: rgba(255, 91, 110, 0.14); border-color: rgba(255, 91, 110, 0.45); color: var(--danger); }
 
-.note { max-width: 1320px; margin: 16px auto 0; text-align: center; color: var(--text-dim); font-size: 12px; }
+.note { max-width: 1600px; margin: 16px auto 0; text-align: center; color: var(--text-dim); font-size: 12px; }
 
 /* --- настройки --------------------------------------------------------------------- */
 
@@ -362,6 +362,9 @@ select option { background: var(--app-base); color: var(--text); }
   z-index: 30;
 }
 #modal.fullscreen { inset: 0; }
+/* Вопрос про игру, а снимка нет (окно было перекрыто, и Chromium не отдал кадр): под
+   вопросом не должно просвечивать домашнее меню, будто открыт не тот экран. */
+#modal.cover { background: var(--app-base); background-image: var(--app-bg); }
 #modal[hidden] { display: none; }
 #modal-shot {
   position: absolute;

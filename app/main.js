@@ -118,8 +118,8 @@ async function ask(opts) {
   const id = ++modalSeq;
   modal = { id, resolve: null };
   let snapshot = null;
-  const view = views.get(tabs.active);
-  if (view && tabs.active !== Tabs.HOME) {
+  const view = tabs.active !== Tabs.HOME ? views.get(tabs.active) : null;
+  if (view) {
     try {
       const img = await view.webContents.capturePage();
       if (!img.isEmpty()) snapshot = 'data:image/jpeg;base64,' + img.toJPEG(80).toString('base64');
@@ -137,7 +137,7 @@ async function ask(opts) {
     };
     layout();
     win.webContents.focus();
-    win.webContents.send('shell:modal', { id, snapshot, fullscreen, ...opts });
+    win.webContents.send('shell:modal', { id, snapshot, fullscreen, game: !!view, ...opts });
   });
 }
 

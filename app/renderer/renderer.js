@@ -146,6 +146,7 @@ function showModal(m) {
   const shot = $('#modal-shot');
   if (m.snapshot) { shot.src = m.snapshot; shot.hidden = false; } else { shot.removeAttribute('src'); shot.hidden = true; }
   box.classList.toggle('fullscreen', !!m.fullscreen);
+  box.classList.toggle('cover', !!m.game && !m.snapshot);
   $('#modal-title').textContent = m.title;
   $('#modal-text').textContent = m.text;
   const ok = box.querySelector('.ok');
