@@ -84,10 +84,14 @@
         "ru_RU"
       ],
       "language": "1049",
-      "multiLanguageInstaller": false
+      "multiLanguageInstaller": false,
+      "installerIcon": "app/assets/icon.ico",
+      "uninstallerIcon": "app/assets/icon.ico",
+      "installerHeaderIcon": "app/assets/icon.ico"
     },
     "portable": {
       "artifactName": "Igroteka-${version}-Portable.${ext}"
-    }
+    },
+    "publish": null
   }
 }
