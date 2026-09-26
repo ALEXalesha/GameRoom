@@ -136,4 +136,49 @@ test.describe('fps_1: боты', () => {
     expect(r.before).toBeGreaterThan(2.5);
     expect(r.after).toBeLessThan(0.6);
   });
+
+  test('во 2-м и 3-м раунде через 25 с боевого времени каждый живой бот идёт к цели и ушёл с базы', async ({ page }) => {
+    test.setTimeout(120000);
+    await openTactical(page);
+    await startMatch(page, { mode: 'comp', map: 'quarry', seed: 21, side: 'CT', diff: 'medium' });
+    const r = await page.evaluate(() => {
+      const m = __tactical.match, p = m.player;
+      const out = [];
+      for (const round of [2, 3]) {
+        while (!(m.round === round && m.phase !== 'freeze' && m.time - m.liveStart >= 25) && m.time < 2000) { p.dummy = true; m.step(); if (m.round > round) break; }
+        if (m.round !== round || m.phase === 'roundEnd') { out.push({ round, skipped: m.phase }); continue; }
+        for (const b of m.brains) {
+          if (!b.bot.alive) continue;
+          const zone = m.world.zoneAt(b.bot.pos.x, b.bot.pos.z);
+          const fighting = !!b.target || b.goalKind === 'cover' || b.goalKind === 'hunt' || (b.lastSeen && m.time - b.lastSeen.time < 3);
+          out.push({ round, name: b.bot.name, team: b.bot.team, goal: !!b.goal, inSpawn: !fighting && (zone === 't' || zone === 'u') });
+        }
+      }
+      return out;
+    });
+    const bots = r.filter((x) => x.name);
+    expect(bots.length).toBeGreaterThan(8);
+    for (const b of bots) { expect(b.goal, b.name + ' без цели в раунде ' + b.round).toBe(true); expect(b.inSpawn, b.name + ' стоит на базе в раунде ' + b.round).toBe(false); }
+  });
+
+  test('равные боты: защита выигрывает 35-65% раундов серии, отбивает точку и обезвреживает', async ({ page }) => {
+    test.setTimeout(240000);
+    await openTactical(page);
+    const r = await page.evaluate(() => {
+      const res = { T: 0, CT: 0, defuse: 0, bomb: 0 };
+      for (const [map, seed] of [['quarry', 1], ['port', 2], ['quarry', 3]]) {
+        __tactical.start({ mode: 'comp', map, seed, side: 'CT', diff: 'medium', allies: 5, enemies: 5, short: false });
+        const m = __tactical.match, p = m.player;
+        while (!m.over && m.round <= 12 && m.time < 3000) { p.alive = false; m.step(); }
+        for (const h of m.history) { res[h.side]++; if (h.reason === 'defuse') res.defuse++; if (h.reason === 'bomb') res.bomb++; }
+      }
+      return res;
+    });
+    const share = r.CT / (r.CT + r.T);
+    expect(r.CT + r.T).toBeGreaterThan(30);
+    expect(share).toBeGreaterThan(0.35);
+    expect(share).toBeLessThan(0.65);
+    expect(r.defuse).toBeGreaterThan(0);
+    expect(r.bomb).toBeGreaterThan(0);
+  });
 });
