@@ -563,9 +563,10 @@ test.describe('horizon_drift_offline', () => {
       expect(await fits('#qStart, #qMode, .head')).toEqual([]);
       await startQuick(page, { track: 'city', mode: 'race', opp: 5, laps: 2 });
       await page.evaluate(() => { __drift.step(3.5 * 120, { thr: 1 }); __drift.manual = false; });
-      expect(await fits('#hInfo, #hBoard, #hMap, #hSpeedo, #hNitro, #hKeys, #hPauseBtn')).toEqual([]);
+      expect(await fits('#hInfo, #hBoard, #hMap, #hSpeedo, #hNitro, #hNitro span, #hKeys, #hPauseBtn')).toEqual([]);
       const overlap = await page.evaluate(() => {
-        const ids = ['hInfo', 'hBoard', 'hMap', 'hSpeedo', 'hNitro', 'hKeys'], rs = ids.map((i) => document.getElementById(i).getBoundingClientRect()), bad = [];
+        const els = ['hInfo', 'hBoard', 'hMap', 'hSpeedo', 'hNitro', 'hKeys'].map((i) => document.getElementById(i)).concat([document.querySelector('#hNitro span')]);
+        const ids = els.map((e) => e.id || 'nitroLabel'), rs = els.map((e) => e.getBoundingClientRect()), bad = [];
         for (let a = 0; a < rs.length; a++) for (let b = a + 1; b < rs.length; b++) {
           const A = rs[a], B = rs[b];
           if (A.width && B.width && A.left < B.right && B.left < A.right && A.top < B.bottom && B.top < A.bottom) bad.push(ids[a] + '/' + ids[b]);
