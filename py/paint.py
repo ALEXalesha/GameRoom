@@ -1,667 +1,924 @@
-import tkinter as tk
-from tkinter import colorchooser, filedialog, simpledialog, ttk
-from PIL import Image, ImageDraw, ImageFont, ImageTk, ImageFilter
+"""Paint: простой графический редактор на PySide6.
+
+Инструменты: кисть, карандаш, аэрограф, каллиграфия, ластик, линия, прямоугольник,
+эллипс, треугольник, звезда, заливка, пипетка, текст. Левая кнопка мыши рисует
+основным цветом, правая - вторым. Прозрачность кисти действует на весь мазок
+целиком (штрих не темнеет на перехлёстах). Отмена/повтор до 50 шагов,
+фильтры, повороты, размер холста, сетка, открытие/сохранение PNG, JPG, BMP.
+
+Запуск: python paint.py [картинка]
+"""
+
+from __future__ import annotations
+
 import math
+import random
+import sys
+from pathlib import Path
+from typing import Callable, Optional
 
-class Paint:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Paint")
-        self.root.state("zoomed")
+import numpy as np
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QAction, QColor, QFont, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPolygonF,
+    QTransform,
+)
+from PySide6.QtWidgets import (
+    QApplication, QButtonGroup, QCheckBox, QColorDialog, QDialog, QDialogButtonBox,
+    QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMainWindow,
+    QMessageBox, QPushButton, QScrollArea, QSlider, QSpinBox, QToolButton, QVBoxLayout,
+    QWidget,
+)
 
-        # Состояние
+import qt_theme
+
+UNDO_LIMIT = 50
+DEFAULT_SIZE = QSize(1200, 800)
+IMAGE_FORMAT = QImage.Format_ARGB32
+
+PALETTE = [
+    "#000000", "#ffffff", "#808080", "#c0c0c0", "#800000", "#ff0000", "#ff6600", "#ff9900",
+    "#ffff00", "#00ff00", "#008000", "#00ffff", "#0000ff", "#000080", "#800080", "#ff00ff",
+    "#ff69b4", "#ffd700", "#a52a2a", "#deb887", "#5f9ea0", "#7fff00", "#d2691e", "#6495ed",
+    "#dc143c", "#00ced1", "#ff1493", "#1e90ff", "#adff2f", "#ff4500", "#da70d6", "#eee8aa",
+]
+
+# (код, значок, подсказка, клавиша)
+TOOLS = [
+    ("brush", "🖌", "Кисть", "B"),
+    ("pencil", "✏", "Карандаш", "P"),
+    ("airbrush", "💨", "Аэрограф", "A"),
+    ("calligraphy", "✒", "Каллиграфия", "K"),
+    ("eraser", "▭", "Ластик (рисует вторым цветом)", "E"),
+    ("line", "╱", "Линия (Shift - ровно)", "L"),
+    ("rect", "▢", "Прямоугольник (Shift - квадрат)", "R"),
+    ("ellipse", "◯", "Эллипс (Shift - круг)", "O"),
+    ("triangle", "△", "Треугольник", "T"),
+    ("star", "☆", "Звезда", "S"),
+    ("fill", "🪣", "Заливка", "F"),
+    ("eyedropper", "💧", "Пипетка", "I"),
+    ("text", "A", "Текст", "X"),
+]
+STROKE_TOOLS = {"brush", "pencil", "airbrush", "calligraphy", "eraser"}
+SHAPE_TOOLS = {"line", "rect", "ellipse", "triangle", "star"}
+
+
+# ─── ПИКСЕЛИ ─────────────────────────────────────────────────────────────────
+
+
+def pixels(img: QImage) -> np.ndarray:
+    """Пиксели QImage (ARGB32) как массив uint32 [высота, ширина] - общая память.
+    Картинка должна жить, пока жив массив (массив память не держит)."""
+    h, w = img.height(), img.width()
+    arr = np.frombuffer(img.bits(), np.uint32).reshape(h, img.bytesPerLine() // 4)
+    return arr[:, :w]
+
+
+def channels(img: QImage) -> np.ndarray:
+    """Каналы [высота, ширина, 4] в порядке B, G, R, A - общая память."""
+    h, w = img.height(), img.width()
+    arr = np.frombuffer(img.bits(), np.uint8).reshape(h, img.bytesPerLine())
+    return arr[:, : w * 4].reshape(h, w, 4)
+
+
+def same_pixels(a: QImage, b: QImage) -> bool:
+    # картинки держим в переменных: массив смотрит в их память, а не владеет ею
+    a2, b2 = a.convertToFormat(IMAGE_FORMAT), b.convertToFormat(IMAGE_FORMAT)
+    return a2.size() == b2.size() and np.array_equal(pixels(a2), pixels(b2))
+
+
+def flood_mask(arr: np.ndarray, x: int, y: int) -> np.ndarray:
+    """Область одного цвета вокруг (x, y), по 4 соседям. Построчная заливка на numpy."""
+    h, w = arr.shape
+    target = arr[y, x]
+    mask = np.zeros((h, w), bool)
+    stack = [(x, y)]
+    while stack:
+        sx, sy = stack.pop()
+        if mask[sy, sx] or arr[sy, sx] != target:
+            continue
+        row_ok = (arr[sy] == target) & ~mask[sy]
+        left = np.flatnonzero(~row_ok[:sx])
+        right = np.flatnonzero(~row_ok[sx:])
+        lo = left[-1] + 1 if left.size else 0
+        hi = sx + right[0] - 1 if right.size else w - 1
+        mask[sy, lo:hi + 1] = True
+        for ny in (sy - 1, sy + 1):
+            if 0 <= ny < h:
+                seg = (arr[ny, lo:hi + 1] == target) & ~mask[ny, lo:hi + 1]
+                if seg.any():
+                    edges = np.diff(np.concatenate(([0], seg.astype(np.int8), [0])))
+                    for start in np.flatnonzero(edges == 1):
+                        stack.append((lo + int(start), ny))
+    return mask
+
+
+def blend(color: QColor, under: int, opacity: float) -> int:
+    """Цвет color с прозрачностью opacity поверх пикселя under (ARGB32 числом)."""
+    ur, ug, ub = (under >> 16) & 255, (under >> 8) & 255, under & 255
+    a = opacity * color.alphaF()
+    r = round(color.red() * a + ur * (1 - a))
+    g = round(color.green() * a + ug * (1 - a))
+    b = round(color.blue() * a + ub * (1 - a))
+    return (0xFF << 24) | (r << 16) | (g << 8) | b
+
+
+def _shifted_sum(ch: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    pad = np.pad(ch.astype(np.float32), ((1, 1), (1, 1), (0, 0)), mode="edge")
+    h, w = ch.shape[:2]
+    out = np.zeros(ch.shape, np.float32)
+    for dy in range(3):
+        for dx in range(3):
+            k = kernel[dy, dx]
+            if k:
+                out += k * pad[dy:dy + h, dx:dx + w]
+    return out
+
+
+FILTERS = {
+    "blur": ("Размытие", np.full((3, 3), 1 / 9, np.float32), 2),
+    "sharpen": ("Резкость", np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32), 1),
+    "edges": ("Контуры", np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]], np.float32), 1),
+}
+
+
+def apply_filter(img: QImage, name: str) -> QImage:
+    out = img.convertToFormat(IMAGE_FORMAT).copy()
+    ch = channels(out)
+    rgb = ch[:, :, :3]
+    if name == "invert":
+        rgb[:] = 255 - rgb
+    elif name == "gray":
+        g = (0.114 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.299 * rgb[:, :, 2]).round().astype(np.uint8)
+        rgb[:] = g[:, :, None]
+    else:
+        _title, kernel, passes = FILTERS[name]
+        data = rgb.copy()
+        for _ in range(passes):
+            data = np.clip(_shifted_sum(data, kernel), 0, 255).round().astype(np.uint8)
+        if name == "edges":
+            data = np.abs(data)
+        rgb[:] = data
+    ch[:, :, 3] = 255
+    return out
+
+
+def star_polygon(rect: QRectF, points: int = 5) -> QPolygonF:
+    c = rect.center()
+    outer = min(rect.width(), rect.height()) / 2
+    inner = outer * 0.4
+    poly = QPolygonF()
+    for i in range(points * 2):
+        ang = math.pi * i / points - math.pi / 2
+        r = outer if i % 2 == 0 else inner
+        poly.append(QPointF(c.x() + r * math.cos(ang), c.y() + r * math.sin(ang)))
+    return poly
+
+
+# ─── ДОКУМЕНТ ────────────────────────────────────────────────────────────────
+
+
+class Document:
+    """Картинка, история отмен и файл. Ничего не знает об окне."""
+
+    def __init__(self, size: QSize = DEFAULT_SIZE, background: QColor = QColor("white")):
+        self.image = QImage(size, IMAGE_FORMAT)
+        self.image.fill(background)
+        self.undo_stack: list[QImage] = []
+        self.redo_stack: list[QImage] = []
+        self.path: Optional[Path] = None
+        self.dirty = False
+
+    def checkpoint(self):
+        """Запомнить состояние перед изменением."""
+        self.undo_stack.append(self.image.copy())
+        del self.undo_stack[:-UNDO_LIMIT]
+        self.redo_stack.clear()
+        self.dirty = True
+
+    def drop_checkpoint(self):
+        """Изменения не было (например, клик пипеткой) - убрать лишний шаг отмены."""
+        if self.undo_stack:
+            self.undo_stack.pop()
+
+    def undo(self) -> bool:
+        if not self.undo_stack:
+            return False
+        self.redo_stack.append(self.image)
+        self.image = self.undo_stack.pop()
+        self.dirty = True
+        return True
+
+    def redo(self) -> bool:
+        if not self.redo_stack:
+            return False
+        self.undo_stack.append(self.image)
+        self.image = self.redo_stack.pop()
+        self.dirty = True
+        return True
+
+    def replace(self, image: QImage):
+        """Заменить картинку целиком (фильтр, поворот, размер) с шагом отмены."""
+        self.checkpoint()
+        self.image = image.convertToFormat(IMAGE_FORMAT)
+
+    def load(self, path) -> None:
+        img = QImage(str(path))
+        if img.isNull():
+            raise OSError(f"«{Path(path).name}» не открывается как картинка (файл повреждён или формат не поддерживается).")
+        opaque = QImage(img.size(), IMAGE_FORMAT)
+        opaque.fill(QColor("white"))
+        p = QPainter(opaque)
+        p.drawImage(0, 0, img)  # прозрачные места PNG становятся белыми, как в Paint
+        p.end()
+        self.image = opaque
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+        self.path = Path(path)
+        self.dirty = False
+
+    def save(self, path) -> None:
+        path = Path(path)
+        img = self.image
+        if path.suffix.lower() in (".jpg", ".jpeg", ".bmp"):
+            img = img.convertToFormat(QImage.Format_RGB32)
+        if not img.save(str(path)):
+            raise OSError(f"Не удалось записать «{path.name}» (нет доступа к папке или неизвестное расширение).")
+        self.path = path
+        self.dirty = False
+
+
+# ─── ХОЛСТ ───────────────────────────────────────────────────────────────────
+
+
+class Canvas(QWidget):
+    """Рисование мышью по Document. Мазок копится в отдельном слое и кладётся на
+    картинку целиком с прозрачностью - так перехлёсты не темнеют."""
+
+    changed = Signal()
+    cursor_moved = Signal(object)  # QPoint или None
+    color_picked = Signal(QColor, bool)  # цвет, для второго цвета
+
+    MARGIN = 16
+
+    def __init__(self, doc: Document, parent=None):
+        super().__init__(parent)
+        self.doc = doc
         self.tool = "brush"
-        self.color = "#000000"
-        self.bg_color = "#ffffff"
-        self.brush_size = 4
-        self.canvas_w = 1200
-        self.canvas_h = 800
-        self.opacity = 255
-
-        self.history = []
-        self.redo_stack = []
-        self.start_x = self.start_y = 0
-        self.last_x = self.last_y = None
-        self.temp_item = None
-        self.text_item = None
-        self.fill_shape = tk.BooleanVar(value=False)
-
-        self._build_ui()
-        self._new_canvas()
-        self._bind_events()
-
-    def _build_ui(self):
-        self.root.configure(bg="#2b2b2b")
-
-        # Меню
-        menubar = tk.Menu(self.root)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Новый", accelerator="Ctrl+N", command=self._new_canvas)
-        file_menu.add_command(label="Открыть", accelerator="Ctrl+O", command=self._open)
-        file_menu.add_separator()
-        file_menu.add_command(label="Сохранить", accelerator="Ctrl+S", command=self._save)
-        file_menu.add_command(label="Сохранить как...", command=self._save_as)
-        file_menu.add_separator()
-        file_menu.add_command(label="Выход", command=self.root.quit)
-        menubar.add_cascade(label="Файл", menu=file_menu)
-
-        edit_menu = tk.Menu(menubar, tearoff=0)
-        edit_menu.add_command(label="Отменить", accelerator="Ctrl+Z", command=self._undo)
-        edit_menu.add_command(label="Повторить", accelerator="Ctrl+Y", command=self._redo)
-        edit_menu.add_separator()
-        edit_menu.add_command(label="Очистить холст", command=self._clear)
-        menubar.add_cascade(label="Правка", menu=edit_menu)
-
-        image_menu = tk.Menu(menubar, tearoff=0)
-        image_menu.add_command(label="Размытие", command=lambda: self._apply_filter("blur"))
-        image_menu.add_command(label="Резкость", command=lambda: self._apply_filter("sharpen"))
-        image_menu.add_command(label="Контур", command=lambda: self._apply_filter("edges"))
-        image_menu.add_separator()
-        image_menu.add_command(label="Перевернуть по горизонтали", command=lambda: self._flip("h"))
-        image_menu.add_command(label="Перевернуть по вертикали", command=lambda: self._flip("v"))
-        image_menu.add_command(label="Повернуть 90°", command=self._rotate)
-        menubar.add_cascade(label="Изображение", menu=image_menu)
-
-        self.root.config(menu=menubar)
-
-        # Горячие клавиши
-        self.root.bind("<Control-n>", lambda e: self._new_canvas())
-        self.root.bind("<Control-o>", lambda e: self._open())
-        self.root.bind("<Control-s>", lambda e: self._save())
-        self.root.bind("<Control-z>", lambda e: self._undo())
-        self.root.bind("<Control-y>", lambda e: self._redo())
-
-        # Основной layout
-        outer = tk.Frame(self.root, bg="#2b2b2b")
-        outer.pack(fill=tk.BOTH, expand=True)
-
-        # Левая панель инструментов
-        left = tk.Frame(outer, bg="#3c3c3c", width=70, relief=tk.FLAT)
-        left.pack(side=tk.LEFT, fill=tk.Y, padx=(4, 0), pady=4)
-        left.pack_propagate(False)
-        self._build_tools(left)
-
-        # Правая часть
-        right = tk.Frame(outer, bg="#2b2b2b")
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4, pady=4)
-
-        # Верхняя панель настроек
-        top = tk.Frame(right, bg="#3c3c3c", height=48)
-        top.pack(side=tk.TOP, fill=tk.X, pady=(0, 4))
-        top.pack_propagate(False)
-        self._build_top(top)
-
-        # Холст с прокруткой
-        canvas_frame = tk.Frame(right, bg="#1a1a1a")
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.hbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL)
-        self.hbar.pack(side=tk.BOTTOM, fill=tk.X)
-        self.vbar = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL)
-        self.vbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.canvas = tk.Canvas(
-            canvas_frame,
-            bg="#888888",
-            cursor="crosshair",
-            xscrollcommand=self.hbar.set,
-            yscrollcommand=self.vbar.set,
-            scrollregion=(0, 0, self.canvas_w + 40, self.canvas_h + 40)
-        )
-        self.canvas.pack(fill=tk.BOTH, expand=True)
-        self.hbar.config(command=self.canvas.xview)
-        self.vbar.config(command=self.canvas.yview)
-
-        # Строка статуса
-        self.status = tk.Label(right, text="", bg="#2b2b2b", fg="#aaaaaa",
-                               anchor=tk.W, font=("Consolas", 9))
-        self.status.pack(side=tk.BOTTOM, fill=tk.X)
-
-        # Нижняя палитра
-        bottom = tk.Frame(right, bg="#3c3c3c", height=44)
-        bottom.pack(side=tk.BOTTOM, fill=tk.X, pady=(4, 0))
-        bottom.pack_propagate(False)
-        self._build_palette(bottom)
-
-    def _build_tools(self, parent):
-        tools = [
-            ("✏️", "brush", "Кисть"),
-            ("✒️", "pencil", "Карандаш"),
-            ("🖌️", "airbrush", "Аэрограф"),
-            ("🖊️", "calligraphy", "Каллиграфия"),
-            ("⬜", "rect", "Прямоугольник"),
-            ("⭕", "ellipse", "Эллипс"),
-            ("📐", "line", "Линия"),
-            ("△", "triangle", "Треугольник"),
-            ("⭐", "star", "Звезда"),
-            ("🪣", "fill", "Заливка"),
-            ("💧", "eyedropper", "Пипетка"),
-            ("🔤", "text", "Текст"),
-            ("🩹", "eraser", "Ластик"),
-            ("🔲", "select", "Выделение"),
-        ]
-
-        self.tool_btns = {}
-        tk.Label(parent, text="Инструменты", bg="#3c3c3c", fg="#aaaaaa",
-                 font=("Arial", 7)).pack(pady=(6, 2))
-
-        for icon, name, tip in tools:
-            btn = tk.Button(
-                parent, text=icon, width=3, height=1,
-                relief=tk.FLAT, bg="#3c3c3c", fg="white",
-                activebackground="#555", font=("Arial", 14),
-                command=lambda n=name: self._set_tool(n)
-            )
-            btn.pack(padx=4, pady=1)
-            btn.bind("<Enter>", lambda e, t=tip: self.status.config(text=t))
-            btn.bind("<Leave>", lambda e: self.status.config(text=""))
-            self.tool_btns[name] = btn
-
-        tk.Checkbutton(
-            parent, text="Залить", variable=self.fill_shape,
-            bg="#3c3c3c", fg="#cccccc", selectcolor="#555",
-            activebackground="#3c3c3c", font=("Arial", 8)
-        ).pack(pady=(8, 0))
-
-        self._set_tool("brush")
-
-    def _build_top(self, parent):
-        tk.Label(parent, text="Размер:", bg="#3c3c3c", fg="#ccc",
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(10, 4))
-
-        self.size_var = tk.IntVar(value=4)
-        size_scale = tk.Scale(
-            parent, from_=1, to=80, orient=tk.HORIZONTAL,
-            variable=self.size_var, bg="#3c3c3c", fg="#ccc",
-            troughcolor="#555", highlightthickness=0, length=120,
-            command=lambda v: setattr(self, "brush_size", int(v))
-        )
-        size_scale.pack(side=tk.LEFT)
-
-        tk.Label(parent, text="Прозрачность:", bg="#3c3c3c", fg="#ccc",
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(16, 4))
-
-        self.opacity_var = tk.IntVar(value=100)
-        opacity_scale = tk.Scale(
-            parent, from_=1, to=100, orient=tk.HORIZONTAL,
-            variable=self.opacity_var, bg="#3c3c3c", fg="#ccc",
-            troughcolor="#555", highlightthickness=0, length=100,
-            command=lambda v: setattr(self, "opacity", int(int(v) * 2.55))
-        )
-        opacity_scale.pack(side=tk.LEFT)
-
-        # Текущий цвет (ПКМ - фоновый)
-        tk.Label(parent, text="   Цвет:", bg="#3c3c3c", fg="#ccc",
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(16, 4))
-
-        self.color_btn = tk.Button(
-            parent, bg=self.color, width=3, height=1,
-            relief=tk.RAISED, command=self._pick_color
-        )
-        self.color_btn.pack(side=tk.LEFT, padx=2)
-
-        tk.Label(parent, text="Фон:", bg="#3c3c3c", fg="#ccc",
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(8, 4))
-
-        self.bg_btn = tk.Button(
-            parent, bg=self.bg_color, width=3, height=1,
-            relief=tk.RAISED, command=self._pick_bg_color
-        )
-        self.bg_btn.pack(side=tk.LEFT, padx=2)
-
-        # Размер холста
-        tk.Label(parent, text="  Холст:", bg="#3c3c3c", fg="#ccc",
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(16, 4))
-
-        self.w_var = tk.IntVar(value=1200)
-        self.h_var = tk.IntVar(value=800)
-
-        tk.Entry(parent, textvariable=self.w_var, width=5,
-                 bg="#555", fg="white", insertbackground="white").pack(side=tk.LEFT)
-        tk.Label(parent, text="×", bg="#3c3c3c", fg="#ccc").pack(side=tk.LEFT, padx=2)
-        tk.Entry(parent, textvariable=self.h_var, width=5,
-                 bg="#555", fg="white", insertbackground="white").pack(side=tk.LEFT)
-
-        tk.Button(parent, text="Применить", bg="#555", fg="white",
-                  relief=tk.FLAT, font=("Arial", 9),
-                  command=self._resize_canvas).pack(side=tk.LEFT, padx=8)
-
-    def _build_palette(self, parent):
-        colors = [
-            "#000000", "#ffffff", "#808080", "#c0c0c0",
-            "#800000", "#ff0000", "#ff6600", "#ff9900",
-            "#ffff00", "#00ff00", "#008000", "#00ffff",
-            "#0000ff", "#000080", "#800080", "#ff00ff",
-            "#ff69b4", "#ffd700", "#a52a2a", "#deb887",
-            "#5f9ea0", "#7fff00", "#d2691e", "#6495ed",
-            "#dc143c", "#00ced1", "#ff1493", "#1e90ff",
-            "#adff2f", "#ff4500", "#da70d6", "#eee8aa",
-        ]
-
-        tk.Label(parent, text="Палитра:", bg="#3c3c3c", fg="#aaa",
-                 font=("Arial", 8)).pack(side=tk.LEFT, padx=6)
-
-        palette_frame = tk.Frame(parent, bg="#3c3c3c")
-        palette_frame.pack(side=tk.LEFT)
-
-        row1 = tk.Frame(palette_frame, bg="#3c3c3c")
-        row1.pack()
-        row2 = tk.Frame(palette_frame, bg="#3c3c3c")
-        row2.pack()
-
-        for i, c in enumerate(colors):
-            row = row1 if i < 16 else row2
-            btn = tk.Button(row, bg=c, width=2, height=1, relief=tk.RAISED,
-                            command=lambda col=c: self._set_color(col))
-            btn.pack(side=tk.LEFT, padx=1, pady=1)
-            btn.bind("<Button-3>", lambda e, col=c: self._set_bg_color(col))
-
-        tk.Button(parent, text="+ Цвет", bg="#444", fg="white", relief=tk.FLAT,
-                  font=("Arial", 8), command=self._pick_color).pack(side=tk.LEFT, padx=8)
-
-    def _bind_events(self):
-        self.canvas.bind("<ButtonPress-1>", self._on_press)
-        self.canvas.bind("<B1-Motion>", self._on_drag)
-        self.canvas.bind("<ButtonRelease-1>", self._on_release)
-        self.canvas.bind("<Motion>", self._on_move)
-        self.canvas.bind("<Button-3>", self._on_right_press)
-        self.canvas.bind("<B3-Motion>", self._on_right_drag)
-        self.canvas.bind("<MouseWheel>", self._on_scroll)
-
-    # ── Холст ────────────────────────────────────────────────
-    def _new_canvas(self):
-        w = getattr(self, "w_var", None)
-        h = getattr(self, "h_var", None)
-        self.canvas_w = w.get() if w else 1200
-        self.canvas_h = h.get() if h else 800
-        self.image = Image.new("RGBA", (self.canvas_w, self.canvas_h), "white")
-        self.draw = ImageDraw.Draw(self.image)
-        self.history.clear()
-        self.redo_stack.clear()
-        self.filepath = None
-        self._refresh()
-
-    def _refresh(self):
-        self.tk_image = ImageTk.PhotoImage(self.image)
-        self.canvas.delete("all")
-        self.canvas.create_image(20, 20, anchor=tk.NW, image=self.tk_image)
-        self.canvas.config(scrollregion=(0, 0, self.canvas_w + 40, self.canvas_h + 40))
-
-    def _canvas_coords(self, event):
-        x = self.canvas.canvasx(event.x) - 20
-        y = self.canvas.canvasy(event.y) - 20
-        return int(x), int(y)
-
-    def _push_history(self):
-        self.history.append(self.image.copy())
-        if len(self.history) > 50:
-            self.history.pop(0)
-        self.redo_stack.clear()
-
-    def _undo(self):
-        if self.history:
-            self.redo_stack.append(self.image.copy())
-            self.image = self.history.pop()
-            self.draw = ImageDraw.Draw(self.image)
-            self._refresh()
-
-    def _redo(self):
-        if self.redo_stack:
-            self.history.append(self.image.copy())
-            self.image = self.redo_stack.pop()
-            self.draw = ImageDraw.Draw(self.image)
-            self._refresh()
-
-    def _clear(self):
-        self._push_history()
-        self.draw.rectangle([0, 0, self.canvas_w, self.canvas_h], fill="white")
-        self._refresh()
-
-    def _resize_canvas(self):
-        new_w = self.w_var.get()
-        new_h = self.h_var.get()
-        new_img = Image.new("RGBA", (new_w, new_h), "white")
-        new_img.paste(self.image, (0, 0))
-        self._push_history()
-        self.image = new_img
-        self.draw = ImageDraw.Draw(self.image)
-        self.canvas_w = new_w
-        self.canvas_h = new_h
-        self._refresh()
-
-    # ── Инструменты ──────────────────────────────────────────
-    def _set_tool(self, name):
-        self.tool = name
-        for n, btn in self.tool_btns.items():
-            btn.config(relief=tk.SUNKEN if n == name else tk.FLAT,
-                       bg="#666" if n == name else "#3c3c3c")
-
-    def _set_color(self, color):
-        self.color = color
-        self.color_btn.config(bg=color)
-
-    def _set_bg_color(self, color):
-        self.bg_color = color
-        self.bg_btn.config(bg=color)
-
-    def _pick_color(self):
-        c = colorchooser.askcolor(color=self.color, title="Выбор цвета")[1]
-        if c:
-            self._set_color(c)
-
-    def _pick_bg_color(self):
-        c = colorchooser.askcolor(color=self.bg_color, title="Цвет фона")[1]
-        if c:
-            self._set_bg_color(c)
-
-    def _rgba(self, hex_color):
-        r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
-        return (r, g, b, self.opacity)
-
-    # ── События мыши ─────────────────────────────────────────
-    def _on_press(self, event):
-        x, y = self._canvas_coords(event)
-        self.start_x, self.start_y = x, y
-        self.last_x, self.last_y = x, y
-        self._push_history()
-
-        if self.tool == "fill":
-            self._flood_fill(x, y, self._rgba(self.color))
-            self._refresh()
-        elif self.tool == "eyedropper":
-            self._eyedropper(x, y)
-        elif self.tool == "text":
-            self._add_text(x, y)
-        elif self.tool == "select":
-            self.sel_start = (x, y)
-
-    def _on_drag(self, event):
-        x, y = self._canvas_coords(event)
-        self.status.config(text=f"x={x}, y={y}")
-
-        if self.tool == "brush":
-            self._draw_brush(self.last_x, self.last_y, x, y, self.color)
-        elif self.tool == "pencil":
-            self._draw_pencil(self.last_x, self.last_y, x, y)
-        elif self.tool == "eraser":
-            self._draw_eraser(self.last_x, self.last_y, x, y)
-        elif self.tool == "airbrush":
-            self._draw_airbrush(x, y)
-        elif self.tool == "calligraphy":
-            self._draw_calligraphy(self.last_x, self.last_y, x, y)
-        elif self.tool in ("rect", "ellipse", "line", "triangle", "star"):
-            self._preview_shape(x, y)
-
-        self.last_x, self.last_y = x, y
-        if self.tool not in ("rect", "ellipse", "line", "triangle", "star"):
-            self._refresh()
-
-    def _on_release(self, event):
-        x, y = self._canvas_coords(event)
-        if self.tool in ("rect", "ellipse", "line", "triangle", "star"):
-            self._commit_shape(x, y)
-            self._refresh()
-        self.last_x = self.last_y = None
-
-    def _on_right_press(self, event):
-        x, y = self._canvas_coords(event)
-        self.start_x, self.start_y = x, y
-        self.last_x, self.last_y = x, y
-        self._push_history()
-
-    def _on_right_drag(self, event):
-        x, y = self._canvas_coords(event)
-        if self.tool in ("brush", "pencil"):
-            self._draw_brush(self.last_x, self.last_y, x, y, self.bg_color)
-        elif self.tool == "eraser":
-            self._draw_eraser(self.last_x, self.last_y, x, y)
-        self.last_x, self.last_y = x, y
-        self._refresh()
-
-    def _on_move(self, event):
-        x, y = self._canvas_coords(event)
-        self.status.config(text=f"x={x}, y={y}")
-
-    def _on_scroll(self, event):
-        if event.delta > 0:
-            self.size_var.set(min(80, self.size_var.get() + 1))
-        else:
-            self.size_var.set(max(1, self.size_var.get() - 1))
-        self.brush_size = self.size_var.get()
-
-    # ── Рисование ────────────────────────────────────────────
-    def _draw_brush(self, x1, y1, x2, y2, color):
-        if x1 is None:
+        self.primary = QColor("black")
+        self.secondary = QColor("white")
+        self.size = 6
+        self.opacity = 1.0
+        self.fill_shapes = False
+        self.show_grid = False
+        self.ask_text: Callable[[], Optional[tuple[str, int]]] = self._ask_text
+        self._active = False
+        self._color = QColor("black")
+        self._start = QPoint()
+        self._last = QPoint()
+        self._base: Optional[QImage] = None
+        self._layer: Optional[QImage] = None
+        self._rng = random.Random(1)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CrossCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.sync_size()
+
+    def sync_size(self):
+        s = self.doc.image.size()
+        self.setFixedSize(s.width() + 2 * self.MARGIN, s.height() + 2 * self.MARGIN)
+        self.update()
+
+    def to_image(self, pos) -> QPoint:
+        return QPoint(int(pos.x()) - self.MARGIN, int(pos.y()) - self.MARGIN)
+
+    def inside(self, p: QPoint) -> bool:
+        return self.doc.image.rect().contains(p)
+
+    # отрисовка
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor("#3a3d47"))
+        p.drawImage(self.MARGIN, self.MARGIN, self.doc.image)
+        if self.show_grid:
+            p.setPen(QPen(QColor(0, 0, 0, 60), 1))
+            w, h = self.doc.image.width(), self.doc.image.height()
+            for x in range(0, w, 32):
+                p.drawLine(self.MARGIN + x, self.MARGIN, self.MARGIN + x, self.MARGIN + h)
+            for y in range(0, h, 32):
+                p.drawLine(self.MARGIN, self.MARGIN + y, self.MARGIN + w, self.MARGIN + y)
+        p.setPen(QPen(QColor("#15161a"), 1))
+        p.drawRect(self.MARGIN - 1, self.MARGIN - 1, self.doc.image.width() + 1, self.doc.image.height() + 1)
+
+    # мышь
+
+    def mousePressEvent(self, e):
+        if e.button() not in (Qt.LeftButton, Qt.RightButton) or self._active:
             return
-        r = self.brush_size // 2
-        color_rgba = self._rgba(color)
-        steps = max(abs(x2 - x1), abs(y2 - y1)) or 1
-        for i in range(steps + 1):
-            t = i / steps
-            cx = int(x1 + (x2 - x1) * t)
-            cy = int(y1 + (y2 - y1) * t)
-            self.draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color_rgba)
+        pt = self.to_image(e.position())
+        secondary = e.button() == Qt.RightButton
+        self.begin(pt, secondary, e.modifiers())
 
-    def _draw_pencil(self, x1, y1, x2, y2):
-        if x1 is None:
+    def mouseMoveEvent(self, e):
+        pt = self.to_image(e.position())
+        self.cursor_moved.emit(pt if self.inside(pt) else None)
+        if self._active:
+            self.move_to(pt, e.modifiers())
+
+    def mouseReleaseEvent(self, e):
+        if self._active:
+            self.end(self.to_image(e.position()), e.modifiers())
+
+    # действия (их же вызывают тесты)
+
+    def begin(self, pt: QPoint, secondary: bool = False, mods=Qt.NoModifier):
+        tool = self.tool
+        color = QColor(self.secondary if secondary else self.primary)
+        if tool == "eraser":
+            color = QColor(self.primary if secondary else self.secondary)
+        if tool == "eyedropper":
+            if self.inside(pt):
+                self.color_picked.emit(self.doc.image.pixelColor(pt), secondary)
             return
-        self.draw.line([x1, y1, x2, y2], fill=self._rgba(self.color), width=max(1, self.brush_size // 3))
-
-    def _draw_eraser(self, x1, y1, x2, y2):
-        if x1 is None:
+        if tool == "fill":
+            if self.inside(pt):
+                self.doc.checkpoint()
+                if not self.flood_fill(pt, color):
+                    self.doc.drop_checkpoint()
+                self._done()
             return
-        r = self.brush_size
-        steps = max(abs(x2 - x1), abs(y2 - y1)) or 1
-        for i in range(steps + 1):
-            t = i / steps
-            cx = int(x1 + (x2 - x1) * t)
-            cy = int(y1 + (y2 - y1) * t)
-            self.draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255, 255))
-
-    def _draw_airbrush(self, x, y):
-        import random
-        r = self.brush_size * 3
-        count = self.brush_size * 2
-        color_rgba = self._rgba(self.color)
-        for _ in range(count):
-            angle = random.uniform(0, 2 * math.pi)
-            dist = random.uniform(0, r)
-            px = int(x + dist * math.cos(angle))
-            py = int(y + dist * math.sin(angle))
-            alpha = int(color_rgba[3] * (1 - dist / r))
-            self.draw.point([px, py], fill=(*color_rgba[:3], alpha))
-
-    def _draw_calligraphy(self, x1, y1, x2, y2):
-        if x1 is None:
+        if tool == "text":
+            got = self.ask_text()
+            if got and got[0].strip():
+                self.doc.checkpoint()
+                self.draw_text(pt, got[0], got[1], color)
+                self._done()
             return
-        w = max(1, self.brush_size)
-        h = max(1, self.brush_size // 3)
-        dx = x2 - x1
-        dy = y2 - y1
-        length = math.hypot(dx, dy) or 1
-        nx = -dy / length
-        ny = dx / length
-        pts = [
-            (x1 + nx * w, y1 + ny * w),
-            (x1 - nx * h, y1 - ny * h),
-            (x2 - nx * h, y2 - ny * h),
-            (x2 + nx * w, y2 + ny * w),
-        ]
-        self.draw.polygon(pts, fill=self._rgba(self.color))
+        self.doc.checkpoint()
+        self._active = True
+        self._color = color
+        self._start = self._last = pt
+        self._base = self.doc.image.copy()
+        self._layer = QImage(self.doc.image.size(), QImage.Format_ARGB32_Premultiplied)
+        self._layer.fill(Qt.transparent)
+        if tool in STROKE_TOOLS:
+            self._stroke(pt, pt)
+        self._compose(pt, mods)
 
-    # ── Фигуры ───────────────────────────────────────────────
-    def _preview_shape(self, x, y):
-        self._refresh()
-        x0, y0 = self.start_x, self.start_y
-        color = self.color
-        size = self.brush_size
+    def move_to(self, pt: QPoint, mods=Qt.NoModifier):
+        if not self._active:
+            return
+        if self.tool in STROKE_TOOLS:
+            self._stroke(self._last, pt)
+        self._last = pt
+        self._compose(pt, mods)
 
+    def end(self, pt: QPoint, mods=Qt.NoModifier):
+        if not self._active:
+            return
+        self.move_to(pt, mods)
+        self._active = False
+        self._base = self._layer = None
+        self._done()
+
+    def cancel(self):
+        """Esc посреди мазка: вернуть как было."""
+        if self._active:
+            self._active = False
+            self.doc.image = self._base
+            self.doc.drop_checkpoint()
+            self._base = self._layer = None
+            self.update()
+
+    def _done(self):
+        self.update()
+        self.changed.emit()
+
+    # мазки
+
+    def _pen(self, width=None, cap=Qt.RoundCap):
+        c = QColor(self._color)
+        c.setAlpha(255)
+        return QPen(c, width or self.size, Qt.SolidLine, cap, Qt.RoundJoin)
+
+    def _stroke(self, a: QPoint, b: QPoint):
+        p = QPainter(self._layer)
+        tool = self.tool
+        if tool in ("brush", "eraser"):
+            p.setRenderHint(QPainter.Antialiasing, tool == "brush")
+            width = self.size if tool == "brush" else self.size * 2
+            p.setPen(self._pen(width))
+            p.drawLine(a, b) if a != b else p.drawPoint(a)
+        elif tool == "pencil":
+            p.setPen(self._pen(max(1, self.size // 3), Qt.SquareCap))
+            p.drawLine(a, b) if a != b else p.drawPoint(a)
+        elif tool == "airbrush":
+            c = QColor(self._color)
+            radius = self.size * 3
+            for _ in range(self.size * 4):
+                ang = self._rng.uniform(0, 2 * math.pi)
+                dist = self._rng.uniform(0, 1) ** 0.7 * radius
+                c.setAlphaF(max(0.0, 1 - dist / radius))
+                p.setPen(QPen(c, 1))
+                p.drawPoint(QPointF(b.x() + dist * math.cos(ang), b.y() + dist * math.sin(ang)))
+        elif tool == "calligraphy":
+            p.setRenderHint(QPainter.Antialiasing)
+            w, h = max(1, self.size), max(1, self.size // 3)
+            off = QPointF(w * 0.7, -w * 0.7)
+            poly = QPolygonF([QPointF(a) + off, QPointF(a) - off * (h / w),
+                              QPointF(b) - off * (h / w), QPointF(b) + off])
+            p.setPen(Qt.NoPen)
+            p.setBrush(self._pen().color())
+            p.drawPolygon(poly)
+        p.end()
+
+    def shape_rect(self, a: QPoint, b: QPoint, square: bool) -> QRectF:
+        if square:
+            side = max(abs(b.x() - a.x()), abs(b.y() - a.y()))
+            b = QPoint(a.x() + (side if b.x() >= a.x() else -side), a.y() + (side if b.y() >= a.y() else -side))
+        return QRectF(QPointF(a), QPointF(b)).normalized()
+
+    def _shape(self, p: QPainter, a: QPoint, b: QPoint, mods):
+        shift = bool(mods & Qt.ShiftModifier)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(self._pen(cap=Qt.RoundCap))
+        p.setBrush(self._pen().color() if self.fill_shapes else Qt.NoBrush)
+        if self.tool == "line":
+            if shift:  # по 45°
+                dx, dy = b.x() - a.x(), b.y() - a.y()
+                ang = round(math.atan2(dy, dx) / (math.pi / 4)) * (math.pi / 4)
+                length = math.hypot(dx, dy)
+                b = QPoint(round(a.x() + length * math.cos(ang)), round(a.y() + length * math.sin(ang)))
+            p.drawLine(a, b)
+            return
+        r = self.shape_rect(a, b, shift)
         if self.tool == "rect":
-            outline = color if not self.fill_shape.get() else None
-            fill = color if self.fill_shape.get() else None
-            self.canvas.create_rectangle(
-                x0 + 20, y0 + 20, x + 20, y + 20,
-                outline=color, fill=fill or "", width=size
-            )
+            p.drawRect(r)
         elif self.tool == "ellipse":
-            fill = color if self.fill_shape.get() else ""
-            self.canvas.create_oval(
-                x0 + 20, y0 + 20, x + 20, y + 20,
-                outline=color, fill=fill, width=size
-            )
-        elif self.tool == "line":
-            self.canvas.create_line(x0 + 20, y0 + 20, x + 20, y + 20,
-                                    fill=color, width=size)
+            p.drawEllipse(r)
         elif self.tool == "triangle":
-            cx = (x0 + x) // 2
-            pts = [cx + 20, y0 + 20, x0 + 20, y + 20, x + 20, y + 20]
-            fill = color if self.fill_shape.get() else ""
-            self.canvas.create_polygon(pts, outline=color, fill=fill, width=size)
+            p.drawPolygon(QPolygonF([QPointF(r.center().x(), r.top()), r.bottomLeft(), r.bottomRight()]))
         elif self.tool == "star":
-            pts = self._star_points(x0, y0, x, y)
-            flat = [c + 20 for p in pts for c in p]
-            fill = color if self.fill_shape.get() else ""
-            self.canvas.create_polygon(flat, outline=color, fill=fill, width=size)
+            p.drawPolygon(star_polygon(r))
 
-    def _commit_shape(self, x, y):
-        x0, y0 = self.start_x, self.start_y
-        color = self._rgba(self.color)
-        size = self.brush_size
-        fill = color if self.fill_shape.get() else None
-
-        if self.tool == "rect":
-            self.draw.rectangle([x0, y0, x, y], outline=color, fill=fill, width=size)
-        elif self.tool == "ellipse":
-            self.draw.ellipse([x0, y0, x, y], outline=color, fill=fill, width=size)
-        elif self.tool == "line":
-            self.draw.line([x0, y0, x, y], fill=color, width=size)
-        elif self.tool == "triangle":
-            cx = (x0 + x) // 2
-            self.draw.polygon([(cx, y0), (x0, y), (x, y)], outline=color, fill=fill, width=size)
-        elif self.tool == "star":
-            pts = self._star_points(x0, y0, x, y)
-            self.draw.polygon(pts, outline=color, fill=fill, width=size)
-
-    def _star_points(self, x0, y0, x1, y1):
-        cx = (x0 + x1) / 2
-        cy = (y0 + y1) / 2
-        rx = abs(x1 - x0) / 2
-        ry = abs(y1 - y0) / 2
-        outer = max(rx, ry)
-        inner = outer * 0.4
-        pts = []
-        for i in range(10):
-            angle = math.pi * i / 5 - math.pi / 2
-            r = outer if i % 2 == 0 else inner
-            pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
-        return pts
-
-    # ── Специальные инструменты ──────────────────────────────
-    def _flood_fill(self, x, y, new_color):
-        if not (0 <= x < self.canvas_w and 0 <= y < self.canvas_h):
-            return
-        px = self.image.load()
-        old_color = px[x, y]
-        if old_color == new_color:
-            return
-
-        stack = [(x, y)]
-        while stack:
-            cx, cy = stack.pop()
-            if not (0 <= cx < self.canvas_w and 0 <= cy < self.canvas_h):
-                continue
-            if px[cx, cy] != old_color:
-                continue
-            px[cx, cy] = new_color
-            stack.extend([(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)])
-
-    def _eyedropper(self, x, y):
-        if 0 <= x < self.canvas_w and 0 <= y < self.canvas_h:
-            r, g, b, a = self.image.getpixel((x, y))
-            hex_color = f"#{r:02x}{g:02x}{b:02x}"
-            self._set_color(hex_color)
-
-    def _add_text(self, x, y):
-        text = simpledialog.askstring("Текст", "Введите текст:")
-        if not text:
-            return
-        size = simpledialog.askinteger("Размер шрифта", "Размер:", initialvalue=24, minvalue=6, maxvalue=200)
-        if not size:
-            size = 24
-        try:
-            font = ImageFont.truetype("arial.ttf", size)
-        except Exception:
-            font = ImageFont.load_default()
-        self.draw.text((x, y), text, fill=self._rgba(self.color), font=font)
-        self._refresh()
-
-    # ── Фильтры ──────────────────────────────────────────────
-    def _apply_filter(self, name):
-        self._push_history()
-        rgb = self.image.convert("RGB")
-        if name == "blur":
-            rgb = rgb.filter(ImageFilter.GaussianBlur(radius=2))
-        elif name == "sharpen":
-            rgb = rgb.filter(ImageFilter.SHARPEN)
-        elif name == "edges":
-            rgb = rgb.filter(ImageFilter.FIND_EDGES)
-        self.image = rgb.convert("RGBA")
-        self.draw = ImageDraw.Draw(self.image)
-        self._refresh()
-
-    def _flip(self, direction):
-        self._push_history()
-        method = Image.FLIP_LEFT_RIGHT if direction == "h" else Image.FLIP_TOP_BOTTOM
-        self.image = self.image.transpose(method)
-        self.draw = ImageDraw.Draw(self.image)
-        self._refresh()
-
-    def _rotate(self):
-        self._push_history()
-        self.image = self.image.rotate(-90, expand=True)
-        self.draw = ImageDraw.Draw(self.image)
-        self.canvas_w, self.canvas_h = self.image.size
-        self._refresh()
-
-    # ── Файлы ────────────────────────────────────────────────
-    def _open(self):
-        path = filedialog.askopenfilename(
-            filetypes=[("Изображения", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("Все", "*.*")]
-        )
-        if not path:
-            return
-        self.image = Image.open(path).convert("RGBA")
-        self.canvas_w, self.canvas_h = self.image.size
-        self.draw = ImageDraw.Draw(self.image)
-        self.w_var.set(self.canvas_w)
-        self.h_var.set(self.canvas_h)
-        self.filepath = path
-        self.history.clear()
-        self.redo_stack.clear()
-        self._refresh()
-
-    def _save(self):
-        if hasattr(self, "filepath") and self.filepath:
-            self._save_to(self.filepath)
+    def _compose(self, pt: QPoint, mods):
+        """Картинка = снимок до мазка + слой мазка (или фигура) с прозрачностью."""
+        img = self._base.copy()
+        p = QPainter(img)
+        p.setOpacity(self.opacity * self._color.alphaF())
+        if self.tool in SHAPE_TOOLS:
+            layer = QImage(img.size(), QImage.Format_ARGB32_Premultiplied)
+            layer.fill(Qt.transparent)
+            lp = QPainter(layer)
+            self._shape(lp, self._start, pt, mods)
+            lp.end()
+            p.drawImage(0, 0, layer)
         else:
-            self._save_as()
+            p.drawImage(0, 0, self._layer)
+        p.end()
+        self.doc.image = img
+        self.update()
 
-    def _save_as(self):
-        path = filedialog.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg"), ("BMP", "*.bmp"), ("Все", "*.*")]
-        )
+    def flood_fill(self, pt: QPoint, color: QColor) -> bool:
+        arr = pixels(self.doc.image)
+        old = int(arr[pt.y(), pt.x()])
+        new = blend(color, old, self.opacity)
+        if new == old:
+            return False
+        mask = flood_mask(arr, pt.x(), pt.y())
+        arr[mask] = new
+        return True
+
+    def draw_text(self, pt: QPoint, text: str, size: int, color: QColor):
+        p = QPainter(self.doc.image)
+        p.setRenderHint(QPainter.TextAntialiasing)
+        p.setOpacity(self.opacity)
+        f = QFont("Arial")
+        f.setPixelSize(max(6, size))
+        p.setFont(f)
+        p.setPen(color)
+        rect = QRect(pt, QSize(self.doc.image.width() - pt.x(), self.doc.image.height() - pt.y()))
+        p.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
+        p.end()
+
+    def _ask_text(self):
+        text, ok = QInputDialog.getMultiLineText(self, "Текст", "Что написать:")
+        if not ok or not text.strip():
+            return None
+        size, ok = QInputDialog.getInt(self, "Текст", "Размер шрифта (пикселей):", max(16, self.size * 4), 6, 400)
+        return (text, size) if ok else None
+
+
+# ─── ОКНО ────────────────────────────────────────────────────────────────────
+
+
+class ColorButton(QToolButton):
+    def __init__(self, color: QColor, tip: str):
+        super().__init__()
+        self.setFixedSize(30, 30)
+        self.setToolTip(tip)
+        self.set_color(color)
+
+    def set_color(self, color: QColor):
+        self.color = QColor(color)
+        self.setStyleSheet(f"QToolButton {{ background:{self.color.name()}; border:2px solid #888; border-radius:4px; }}")
+
+
+class Swatch(QToolButton):
+    picked = Signal(QColor, bool)
+
+    def __init__(self, color: str):
+        super().__init__()
+        self.color = QColor(color)
+        self.setFixedSize(20, 20)
+        self.setToolTip(f"{color}: левая кнопка - основной, правая - второй цвет")
+        self.setStyleSheet(f"QToolButton {{ background:{color}; border:1px solid #555; border-radius:3px; }}")
+
+    def mousePressEvent(self, e):
+        self.picked.emit(self.color, e.button() == Qt.RightButton)
+
+
+class CanvasSizeDialog(QDialog):
+    def __init__(self, size: QSize, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Размер холста")
+        form = QFormLayout(self)
+        self.w = QSpinBox()
+        self.h = QSpinBox()
+        for sb, v in ((self.w, size.width()), (self.h, size.height())):
+            sb.setRange(1, 10000)
+            sb.setValue(v)
+            sb.setSuffix(" px")
+        form.addRow("Ширина:", self.w)
+        form.addRow("Высота:", self.h)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        form.addRow(bb)
+
+
+IMAGE_FILTER = "Изображения (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;Все файлы (*)"
+SAVE_FILTER = "PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp)"
+
+
+class PaintWindow(QMainWindow):
+    """Окно редактора. ask_unsaved/show_error подменяются в тестах."""
+
+    def __init__(self, path: Optional[str] = None,
+                 ask_unsaved: Optional[Callable[[], str]] = None,
+                 show_error: Optional[Callable[[str], None]] = None):
+        super().__init__()
+        self.ask_unsaved = ask_unsaved or self._ask_unsaved
+        self.show_error = show_error or (lambda t: QMessageBox.warning(self, "Paint", t))
+        self.doc = Document()
+        self.canvas = Canvas(self.doc)
+        self.canvas.changed.connect(self._update_title)
+        self.canvas.cursor_moved.connect(self._show_cursor)
+        self.canvas.color_picked.connect(self.set_color)
+        self._build()
+        self.set_tool("brush")
+        self.resize(1200, 820)
+        self.setMinimumSize(900, 560)
         if path:
-            self.filepath = path
-            self._save_to(path)
+            self.open_file(path)
+        self._update_title()
 
-    def _save_to(self, path):
-        save_img = self.image.convert("RGB") if path.lower().endswith((".jpg", ".jpeg", ".bmp")) else self.image
-        save_img.save(path)
-        self.status.config(text=f"Сохранено: {path}")
+    # построение
+
+    def _build(self):
+        self._build_menu()
+
+        tools = QWidget()
+        grid = QGridLayout(tools)
+        grid.setContentsMargins(4, 4, 4, 4)
+        grid.setSpacing(3)
+        self.tool_group = QButtonGroup(self)
+        self.tool_buttons: dict[str, QToolButton] = {}
+        for i, (code, icon, tip, key) in enumerate(TOOLS):
+            b = QToolButton()
+            b.setText(icon)
+            b.setToolTip(f"{tip} ({key})")
+            b.setCheckable(True)
+            b.setFixedSize(36, 36)
+            b.setStyleSheet("QToolButton { font-size:16px; padding:0px; }")
+            b.clicked.connect(lambda _c=False, t=code: self.set_tool(t))
+            self.tool_group.addButton(b)
+            self.tool_buttons[code] = b
+            grid.addWidget(b, i // 2, i % 2)
+            act = QAction(self)
+            act.setShortcut(QKeySequence(key))
+            act.triggered.connect(lambda _c=False, t=code: self.set_tool(t))
+            self.addAction(act)
+        grid.setRowStretch(len(TOOLS), 1)
+
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Размер:"))
+        self.size_slider = QSlider(Qt.Horizontal)
+        self.size_slider.setRange(1, 80)
+        self.size_slider.setFixedWidth(100)
+        self.size_spin = QSpinBox()
+        self.size_spin.setRange(1, 80)
+        self.size_slider.valueChanged.connect(self.size_spin.setValue)
+        self.size_spin.valueChanged.connect(self.size_slider.setValue)
+        self.size_spin.valueChanged.connect(lambda v: setattr(self.canvas, "size", v))
+        self.size_spin.setValue(self.canvas.size)
+        top.addWidget(self.size_slider)
+        top.addWidget(self.size_spin)
+        top.addSpacing(12)
+        top.addWidget(QLabel("Непрозрачность:"))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(1, 100)
+        self.opacity_slider.setValue(100)
+        self.opacity_slider.setFixedWidth(100)
+        self.opacity_label = QLabel("100%")
+        self.opacity_label.setMinimumWidth(40)
+        self.opacity_slider.valueChanged.connect(self._set_opacity)
+        top.addWidget(self.opacity_slider)
+        top.addWidget(self.opacity_label)
+        top.addSpacing(12)
+        self.fill_check = QCheckBox("Заливать фигуры")
+        self.fill_check.toggled.connect(lambda v: setattr(self.canvas, "fill_shapes", v))
+        top.addWidget(self.fill_check)
+        top.addStretch(1)
+
+        palette = QHBoxLayout()
+        palette.setSpacing(4)
+        self.btn_primary = ColorButton(self.canvas.primary, "Основной цвет (левая кнопка мыши)")
+        self.btn_secondary = ColorButton(self.canvas.secondary, "Второй цвет (правая кнопка мыши, ластик)")
+        self.btn_primary.clicked.connect(lambda: self._choose_color(False))
+        self.btn_secondary.clicked.connect(lambda: self._choose_color(True))
+        swap = QToolButton()
+        swap.setText("⇄")
+        swap.setToolTip("Поменять цвета местами (Ctrl+Shift+X)")
+        swap.clicked.connect(self.swap_colors)
+        palette.addWidget(self.btn_primary)
+        palette.addWidget(swap)
+        palette.addWidget(self.btn_secondary)
+        palette.addSpacing(8)
+        pal_grid = QGridLayout()
+        pal_grid.setSpacing(2)
+        for i, c in enumerate(PALETTE):
+            sw = Swatch(c)
+            sw.picked.connect(self.set_color)
+            pal_grid.addWidget(sw, i // 16, i % 16)
+        palette.addLayout(pal_grid)
+        more = QPushButton("Другой цвет…")
+        more.clicked.connect(lambda: self._choose_color(False))
+        palette.addWidget(more)
+        palette.addStretch(1)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidget(self.canvas)
+        self.scroll.setAlignment(Qt.AlignCenter)
+        self.scroll.setStyleSheet("QScrollArea { background:#2b2d33; border:none; }")
+
+        center = QWidget()
+        cv = QVBoxLayout(center)
+        cv.setContentsMargins(0, 0, 0, 0)
+        cv.addLayout(top)
+        cv.addWidget(self.scroll, 1)
+        cv.addLayout(palette)
+
+        body = QWidget()
+        bl = QHBoxLayout(body)
+        bl.setContentsMargins(6, 6, 6, 6)
+        bl.addWidget(tools)
+        bl.addWidget(center, 1)
+        self.setCentralWidget(body)
+
+        self.pos_label = QLabel()
+        self.size_label = QLabel()
+        self.statusBar().addWidget(self.pos_label)
+        self.statusBar().addPermanentWidget(self.size_label)
+
+    def _build_menu(self):
+        mb = self.menuBar()
+
+        def add(menu, text, slot, keys=None):
+            act = menu.addAction(text)
+            act.triggered.connect(slot)
+            if keys:
+                act.setShortcut(QKeySequence(keys))
+            return act
+
+        f = mb.addMenu("Файл")
+        add(f, "Новый", self.new_image, QKeySequence.New)
+        add(f, "Открыть…", self._open_dialog, QKeySequence.Open)
+        f.addSeparator()
+        add(f, "Сохранить", self.save, QKeySequence.Save)
+        add(f, "Сохранить как…", self.save_as, "Ctrl+Shift+S")
+        f.addSeparator()
+        add(f, "Выход", self.close)
+
+        e = mb.addMenu("Правка")
+        self.act_undo = add(e, "Отменить", self.undo, QKeySequence.Undo)
+        self.act_redo = add(e, "Повторить", self.redo, "Ctrl+Y")
+        e.addSeparator()
+        add(e, "Очистить холст", self.clear, "Ctrl+Shift+Del")
+        add(e, "Поменять цвета местами", self.swap_colors, "Ctrl+Shift+X")
+
+        im = mb.addMenu("Изображение")
+        for code, (title, _k, _p) in FILTERS.items():
+            add(im, title, lambda _c=False, n=code: self.filter(n))
+        add(im, "Негатив", lambda: self.filter("invert"))
+        add(im, "Оттенки серого", lambda: self.filter("gray"))
+        im.addSeparator()
+        add(im, "Отразить по горизонтали", lambda: self.transform("flip_h"))
+        add(im, "Отразить по вертикали", lambda: self.transform("flip_v"))
+        add(im, "Повернуть на 90° по часовой", lambda: self.transform("rot_cw"), "Ctrl+R")
+        add(im, "Повернуть на 90° против часовой", lambda: self.transform("rot_ccw"))
+        im.addSeparator()
+        add(im, "Размер холста…", self._resize_dialog)
+
+        v = mb.addMenu("Вид")
+        self.act_grid = add(v, "Сетка", self.toggle_grid, "Ctrl+G")
+        self.act_grid.setCheckable(True)
+
+    # состояние
+
+    def set_tool(self, code: str):
+        self.canvas.tool = code
+        self.tool_buttons[code].setChecked(True)
+        tip = next(t for c, _i, t, _k in TOOLS if c == code)
+        self.statusBar().showMessage(tip, 2000)
+
+    def set_color(self, color: QColor, secondary: bool = False):
+        if secondary:
+            self.canvas.secondary = QColor(color)
+            self.btn_secondary.set_color(color)
+        else:
+            self.canvas.primary = QColor(color)
+            self.btn_primary.set_color(color)
+
+    def swap_colors(self):
+        a, b = self.canvas.primary, self.canvas.secondary
+        self.set_color(b)
+        self.set_color(a, True)
+
+    def _set_opacity(self, v: int):
+        self.canvas.opacity = v / 100
+        self.opacity_label.setText(f"{v}%")
+
+    def _choose_color(self, secondary: bool):
+        start = self.canvas.secondary if secondary else self.canvas.primary
+        c = QColorDialog.getColor(start, self, "Цвет")
+        if c.isValid():
+            self.set_color(c, secondary)
+
+    def toggle_grid(self):
+        self.canvas.show_grid = not self.canvas.show_grid
+        self.act_grid.setChecked(self.canvas.show_grid)
+        self.canvas.update()
+
+    def _show_cursor(self, pt):
+        self.pos_label.setText(f"x={pt.x()}, y={pt.y()}" if pt is not None else "")
+
+    def _update_title(self):
+        name = self.doc.path.name if self.doc.path else "Без имени"
+        self.setWindowTitle(f"{'*' if self.doc.dirty else ''}{name} - Paint")
+        s = self.doc.image.size()
+        self.size_label.setText(f"{s.width()} × {s.height()}")
+        self.act_undo.setEnabled(bool(self.doc.undo_stack))
+        self.act_redo.setEnabled(bool(self.doc.redo_stack))
+
+    def _changed(self):
+        self.canvas.sync_size()
+        self._update_title()
+
+    # правка
+
+    def undo(self):
+        self.canvas.cancel()
+        if self.doc.undo():
+            self._changed()
+
+    def redo(self):
+        if self.doc.redo():
+            self._changed()
+
+    def clear(self):
+        img = QImage(self.doc.image.size(), IMAGE_FORMAT)
+        img.fill(self.canvas.secondary)
+        self.doc.replace(img)
+        self._changed()
+
+    def filter(self, name: str):
+        self.doc.replace(apply_filter(self.doc.image, name))
+        self._changed()
+
+    def transform(self, how: str):
+        img = self.doc.image
+        if how == "flip_h":
+            img = img.flipped(Qt.Horizontal)
+        elif how == "flip_v":
+            img = img.flipped(Qt.Vertical)
+        else:
+            img = img.transformed(QTransform().rotate(90 if how == "rot_cw" else -90))
+        self.doc.replace(img)
+        self._changed()
+
+    def resize_canvas(self, w: int, h: int):
+        if (w, h) == (self.doc.image.width(), self.doc.image.height()):
+            return
+        img = QImage(w, h, IMAGE_FORMAT)
+        img.fill(self.canvas.secondary)
+        p = QPainter(img)
+        p.drawImage(0, 0, self.doc.image)
+        p.end()
+        self.doc.replace(img)
+        self._changed()
+
+    def _resize_dialog(self):
+        dlg = CanvasSizeDialog(self.doc.image.size(), self)
+        if dlg.exec():
+            self.resize_canvas(dlg.w.value(), dlg.h.value())
+
+    # файлы
+
+    def maybe_save(self) -> bool:
+        """Есть несохранённые правки - спросить. False - пользователь передумал."""
+        if not self.doc.dirty:
+            return True
+        answer = self.ask_unsaved()
+        if answer == "save":
+            return self.save()
+        return answer == "discard"
+
+    def _ask_unsaved(self) -> str:
+        r = QMessageBox.question(self, "Paint", "Сохранить изменения в картинке?",
+                                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                                 QMessageBox.Save)
+        return {QMessageBox.Save: "save", QMessageBox.Discard: "discard"}.get(r, "cancel")
+
+    def _reset(self, doc: Document):
+        self.doc = doc
+        self.canvas.doc = doc
+        self._changed()
+
+    def new_image(self):
+        if self.maybe_save():
+            self._reset(Document(self.doc.image.size(), self.canvas.secondary))
+
+    def open_file(self, path) -> bool:
+        doc = Document()
+        try:
+            doc.load(path)
+        except OSError as e:
+            self.show_error(str(e))
+            return False
+        self._reset(doc)
+        return True
+
+    def _open_dialog(self):
+        if not self.maybe_save():
+            return
+        name, _ = QFileDialog.getOpenFileName(self, "Открыть картинку", "", IMAGE_FILTER)
+        if name:
+            self.open_file(name)
+
+    def save(self) -> bool:
+        if self.doc.path is None:
+            return self.save_as()
+        return self.save_to(self.doc.path)
+
+    def save_as(self) -> bool:
+        start = str(self.doc.path) if self.doc.path else "рисунок.png"
+        name, _ = QFileDialog.getSaveFileName(self, "Сохранить как", start, SAVE_FILTER)
+        return bool(name) and self.save_to(name)
+
+    def save_to(self, path) -> bool:
+        path = Path(path)
+        if not path.suffix:
+            path = path.with_suffix(".png")
+        try:
+            self.doc.save(path)
+        except OSError as e:
+            self.show_error(str(e))
+            return False
+        self._update_title()
+        self.statusBar().showMessage(f"Сохранено: {path}", 4000)
+        return True
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.canvas.cancel()
+        super().keyPressEvent(e)
+
+    def closeEvent(self, e):
+        if self.maybe_save():
+            e.accept()
+        else:
+            e.ignore()
+
+
+def main() -> int:
+    app = QApplication.instance() or QApplication(sys.argv)
+    qt_theme.apply(app)
+    win = PaintWindow(sys.argv[1] if len(sys.argv) > 1 else None)
+    win.show()
+    return app.exec()
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = Paint(root)
-    root.mainloop()
+    sys.exit(main())
