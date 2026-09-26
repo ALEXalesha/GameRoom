@@ -198,7 +198,8 @@
       { cam: [20, 30, 40], look: [0, 0, 0] },
       { cam: [-50, 12, 10], look: [-30, 4, 30] },
     ],
-    thumbAvatar: { x: -24, y: 0, z: 40, facing: 2.6 },
+    thumbAvatar: { x: -22, y: 0, z: 40, facing: 0.9 },
+    thumb: { cam: [-4, 9, 56], look: [-30, 4, 30] },
     completeScript(game) {
       for (let n = 0; n < 25; n++) P.placeAt(game, 10 + (n % 5), Math.floor(n / 25), 10 + Math.floor(n / 5), n % 12);
     },

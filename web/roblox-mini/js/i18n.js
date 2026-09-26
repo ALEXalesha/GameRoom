@@ -21,6 +21,9 @@
     defaults: 'Вернуть по умолчанию', currency: 'кубы', balance: 'Баланс',
     completed: 'Пройдено', legend_title: 'Легенда Блоксити!', legend_text: 'Ты прошёл все места платформы. Этот значок есть не у всех.',
     celebrate_ok: 'Ура!', place_count: 'мест', welcome: 'Добро пожаловать в Блоксити',
+    fullscreen_l: 'Полный экран', h_move: 'Бег относительно камеры', h_jump: 'Прыжок (держи - прыгает снова)', h_cam: 'Повернуть камеру',
+    h_wheel_k: 'Колесо', h_wheel: 'Ближе/дальше, до упора - от первого лица', h_shift: 'Shift-лок (если включён в настройках)',
+    h_menu: 'Меню места', h_tab: 'Таблица игроков', h_chat: 'Чат; /reset, /e dance, /e wave', h_tools: 'Инструменты в «Песочнице»',
   };
   const EN = {
     brand: 'Bloxcity', fan: 'fan concept, not affiliated with Roblox Corporation',
@@ -41,6 +44,9 @@
     defaults: 'Restore defaults', currency: 'cubes', balance: 'Balance',
     completed: 'Completed', legend_title: 'Bloxcity Legend!', legend_text: 'You completed every place on the platform.',
     celebrate_ok: 'Hooray!', place_count: 'places', welcome: 'Welcome to Bloxcity',
+    fullscreen_l: 'Fullscreen', h_move: 'Run relative to the camera', h_jump: 'Jump (hold to keep jumping)', h_cam: 'Rotate camera',
+    h_wheel_k: 'Wheel', h_wheel: 'Zoom; all the way in - first person', h_shift: 'Shift lock (if enabled in settings)',
+    h_menu: 'Place menu', h_tab: 'Player list', h_chat: 'Chat; /reset, /e dance, /e wave', h_tools: 'Sandbox tools',
   };
   const DICT = { ru: RU, en: EN };
   B.lang = () => B.settings.get('lang');

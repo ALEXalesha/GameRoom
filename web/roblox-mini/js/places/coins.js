@@ -154,7 +154,8 @@
       { cam: [60, 22, 60], look: [30, 4, 20] },
       { cam: [-70, 30, 10], look: [-30, 2, -20] },
     ],
-    thumbAvatar: { x: 0, y: 0, z: -40, facing: 2.6 },
+    thumbAvatar: { x: 0, y: 0, z: -40, facing: -2.6 },
+    thumb: { cam: [-9, 7, -57], look: [6, 5, -18] },
     completeScript(game) {
       for (const c of game.state.coins) {
         if (c.taken) continue;

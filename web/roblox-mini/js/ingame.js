@@ -10,7 +10,7 @@
 
   function nameplate(text) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.tex.nameplate(text), depthWrite: false, transparent: true }));
-    s.scale.set(6, 6 * 96 / 512, 1);
+    s.scale.set(4.4, 4.4 * 96 / 512, 1);
     s.position.set(0, 6.4, 0);
     s.userData.text = text;
     s.renderOrder = 5;
@@ -28,6 +28,8 @@
       hat: acc('hat'), hair: rnd() < 0.7 ? acc('hair') : '', faceAcc: rnd() < 0.2 ? 'acc_glasses' : '', back: rnd() < 0.3 ? acc('back') : '',
     };
   }
+
+  G.randomAvatar = (rnd) => { const a = randomAvatar(rnd); a.colors.legR = a.colors.legL; return a; };
 
   class Game {
     constructor(placeId) {

@@ -69,13 +69,7 @@
   L.thumb = (id) => L.thumbs[id] || null;
   function makeThumb(id) {
     const place = B.places[id];
-    const s = Object.assign({}, place.shots[0]);
-    const ta = place.thumbAvatar;
-    if (ta) {                      // камера смотрит на аватара, место - фоном
-      const back = new THREE.Vector3(Math.sin(ta.facing), 0, Math.cos(ta.facing));
-      s.cam = [ta.x + back.x * 13 + back.z * 5, ta.y + 6.5, ta.z + back.z * 13 - back.x * 5];
-      s.look = [ta.x - back.z * 2.5, ta.y + 3.4, ta.z + back.x * 2.5];
-    }
+    const s = Object.assign({}, place.thumb || place.shots[0]);
     s.w = 480; s.h = 270;
     L.thumbs[id] = shotsOf(id, [s])[0];
     return L.thumbs[id];
@@ -204,6 +198,29 @@
     B.emit('section', sec);
   };
 
+  // Друзья: придуманные игроки платформы, их аватары и где они сейчас
+  function friends() {
+    if (L.friendList) return L.friendList;
+    const p = B.acct.profile(), rnd = B.rng(B.hash(p.nick + p.created));
+    const names = B.data.BOT_NAMES.slice();
+    L.friendList = Array.from({ length: 7 }, () => {
+      const name = names.splice(rnd.int(names.length), 1)[0];
+      const r = rnd();
+      const place = r < 0.55 ? rnd.pick(B.data.PLACES) : null;
+      return { name, cfg: B.game.randomAvatar(rnd), status: place ? 'game' : r < 0.8 ? 'online' : 'offline', place, img: null };
+    });
+    return L.friendList;
+  }
+  function friendRow() {
+    const list = friends();
+    const en = B.lang() === 'en';
+    return `<h2 class="row-h">${en ? 'Friends' : 'Друзья'} <span class="muted">(${list.length})</span></h2><div class="friends">${list.map((f, i) => {
+      if (!f.img) { try { f.img = L.headshot(f.cfg); } catch (e) { f.img = ''; } }
+      const st = f.status === 'game' ? B.tn(f.place) : f.status === 'online' ? (en ? 'Online' : 'В сети') : (en ? 'Offline' : 'Не в сети');
+      return `<button type="button" class="friend ${f.status}" data-fi="${i}" title="${B.esc(st)}"><span class="f-img"><img src="${f.img}" alt=""><i></i></span><b>${B.esc(f.name)}</b><small>${B.esc(st)}</small></button>`;
+    }).join('')}</div>`;
+  }
+
   function drawHome() {
     const prof = B.acct.profile();
     const recent = B.data.PLACES.filter((p) => B.acct.placeStats(p.id).visits > 0).sort((a, b) => (B.acct.placeStats(b.id).last || 0) - (B.acct.placeStats(a.id).last || 0));
@@ -219,9 +236,11 @@
           <div class="muted small">${legend ? B.t('legend_text') : (B.lang() === 'en' ? 'Complete every place to become a Bloxcity Legend' : 'Пройди все места и стань Легендой Блоксити')}</div>
         </div>
       </div>
+      ${friendRow()}
       ${recent.length ? `<h2 class="row-h">${B.t('continue_row')}</h2><div class="row">${recent.map(card).join('')}</div>` : ''}
       <h2 class="row-h">${B.t('recommended')}</h2><div class="row">${B.data.PLACES.map(card).join('')}</div>`;
     bindCards($('sec-home'));
+    $('sec-home').querySelectorAll('[data-fi]').forEach((b) => b.addEventListener('click', () => { const f = friends()[b.dataset.fi]; if (f.place) L.openPlace(f.place.id); }));
   }
   function drawPlaces() {
     const q = ($('search').value || '').trim().toLowerCase();

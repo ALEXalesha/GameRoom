@@ -296,6 +296,7 @@
       { cam: [40, 30, 380], look: [60, 10, 300] },
     ],
     thumbAvatar: null,
+    thumb: { cam: [-12, 131, -26], look: [12, 112, 40] },
     // Проверка: съехать от старта до финиша с автоматическим рулём
     completeScript(game) {
       const st = game.state;

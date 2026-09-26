@@ -46,7 +46,7 @@
       // арена, скала в центре, лобби сбоку
       const arena = w.add({ top: [0, 0, 0], size: [40, 4, 40], color: '#8a8d93', tag: 'arena' });
       path.push(arena);
-      w.add({ top: [0, 132, 0], size: [5, 136, 5], color: '#4b4e55', mat: 'smooth', tag: 'pillar' });
+      w.add({ top: [0, 132, 0], size: [3, 136, 3], color: '#6d7078', mat: 'plastic', tag: 'pillar' });
       const lobby = w.add({ top: [LOBBY.x, LOBBY.y, LOBBY.z], size: [18, 4, 18], color: '#56b05a', tag: 'lobby' });
       K.decal(game, B.lang() === 'en' ? 'LOBBY' : 'ЛОББИ', LOBBY.x, 0, LOBBY.z, 7, 3.5, '#2f74d0', '#fff', Math.PI / 2);
       K.tree(game, LOBBY.x + 6, 0, 6, 0.7); K.pine(game, LOBBY.x + 6, 0, -6, 0.7);
@@ -74,7 +74,7 @@
       // лава: большой ящик, верх - state.lavaY
       st.lavaY = -3;
       st.lava = w.add({ pos: [0, -103, 0], size: [92, 200, 92], color: '#ff6a2a', mat: 'lava', kill: true, tag: 'lava', move: () => ({ x: 0, y: st.lavaY - 100, z: 0 }) });
-      game.spawn = { x: 0, y: 0, z: 14, facing: Math.PI };
+      game.spawn = { x: 0, y: 0, z: 8, facing: Math.PI };
     },
     setup(game) {
       Object.assign(game.state, { phase: 'wait', t: 0, wait: 5, roundBest: 0, round: 1, overT: 0 });
@@ -174,7 +174,8 @@
       { cam: [30, 95, 40], look: [0, 80, 0] },
       { cam: [80, 20, 30], look: [0, 18, 0] },
     ],
-    thumbAvatar: { x: 0, y: 0, z: 14, facing: -0.6 },
+    thumbAvatar: { x: 2, y: 0, z: 15, facing: 0.45 },
+    thumb: { cam: [11, 7, 33], look: [0, 15, 0] },
     thumbLavaY: 8,
     completeScript(game) {
       const st = game.state;

@@ -1,158 +1,145 @@
-// Законы «Кубик-паркура»: three.js свой, герой стоит ступнями на земле (ноги не в земле),
-// земля одна (без мерцающего двойника), сквозь стену и бок платформы не пройти, на платформу
-// можно запрыгнуть, ездящая платформа везёт, монеты собираются, все монеты - победа и рекорд
-// времени, падение - на старт, пауза, до каждой платформы можно допрыгнуть, окно.
+// Законы Блоксити (web/roblox-mini), часть 1 - лаунчер и вход в место:
+// открывается без ошибок и без сети; на главной и в «Местах» все шесть мест; «Играть» - экран
+// загрузки - место; Esc - меню и пауза; «Выйти из места» - обратно в лаунчер; скрытая вкладка -
+// пауза, звук молчит, после возврата пауза остаётся; страница влезает в 1280x800 и 1024x700.
 const { test, expect } = require('@playwright/test');
-const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
+const { openBlox, enter, fit, SIZES } = require('./_blox-helpers');
 
-test.describe('roblox-mini (Кубик-паркур)', () => {
-  test('three.js из vendor/, без сети; земля одна; ступни героя на земле, а не под ней', async ({ page }) => {
+const PLACES = ['obby', 'race', 'lava', 'coins', 'sandbox', 'tube'];
+
+test.describe('roblox-mini (Блоксити): лаунчер', () => {
+  test('без ошибок и без сети; three.js свой; на главной и в «Местах» все шесть мест', async ({ page }) => {
     const requests = [];
     page.on('request', (r) => requests.push(r.url()));
-    const errors = await openGame(page, 'roblox-mini');
+    const errors = await openBlox(page, 'seed=7');
+    expect(await page.evaluate(() => THREE.REVISION)).toBe('149');
+    await expect(page).toHaveTitle(/Блоксити/);
+    await expect(page.locator('#sec-home .card')).toHaveCount(6);
+    const ids = await page.locator('#sec-home .card').evaluateAll((els) => els.map((e) => e.dataset.place));
+    expect(ids.sort()).toEqual(PLACES.slice().sort());
+    await page.locator('.sidenav [data-sec="places"]').click();
+    await expect(page.locator('#sec-places .card')).toHaveCount(6);
+    // верхняя полоса: аватар в круге, ник, баланс; пометка о фан-концепте
+    await expect(page.locator('#me-nick')).toHaveText(/Гость_\d+/);
+    await expect(page.locator('#bal')).toHaveText('0');
+    await expect(page.locator('.fan-note')).toContainText('не связан с Roblox Corporation');
+    await page.waitForTimeout(1500);                   // картинки карточек снимаются из самих мест
     expect(requests.filter((u) => /^https?:/.test(u))).toEqual([]);
-    const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.step(0.016, 30);
-      let grounds = 0;
-      g.scene.traverse((o) => { if (o.isMesh && o.geometry.parameters && o.geometry.parameters.width === 100) grounds++; });
-      return { rev: THREE.REVISION, grounds, y: g.player.position.y, bottom: g.heroBottom(), onGround: g.state.onGround };
-    });
-    expect(r.rev).toBe('149');
-    expect(r.grounds).toBe(1);
-    expect(r.onGround).toBe(true);
-    expect(r.y).toBe(0);
-    expect(r.bottom).toBeGreaterThan(-0.01);        // раньше ноги уходили на 1.2 в землю
-    await page.waitForTimeout(300);
     expect(errors).toEqual([]);
   });
 
-  test('сквозь стену и бок платформы не пройти', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    const r = await page.evaluate(() => {
-      const g = __game; g.start();
-      g.setYaw(Math.PI);                       // вперёд = +Z, прямо в стену на z = 11.5..12.5
-      g.player.position.set(-4, 0, 8);
-      g.keys.KeyW = true; g.step(0.016, 120); g.keys.KeyW = false;
-      const wallZ = g.player.position.z;
-      g.setYaw(-Math.PI / 2);                  // вперёд = +X, в бок красной платформы (верх 1.5)
-      g.player.position.set(4, 0, 0);
-      g.keys.KeyW = true; g.step(0.016, 120); g.keys.KeyW = false;
-      return { wallZ, sideX: g.player.position.x, y: g.player.position.y };
-    });
-    expect(r.wallZ).toBeLessThanOrEqual(11.5 - 0.45 + 0.01);
-    expect(r.sideX).toBeLessThanOrEqual(6.5 - 0.45 + 0.01);
-    expect(r.y).toBe(0);
+  test('карточка - страница места - «Играть» - экран загрузки с названием - место', async ({ page }) => {
+    const errors = await openBlox(page, 'seed=7&fast=1');
+    await page.locator('#sec-home .card[data-place="race"]').click();
+    await expect(page.locator('#sec-place h1')).toHaveText('Скоростной забег');
+    await expect(page.locator('#sec-place')).toContainText('Описание');
+    await page.locator('#pl-play').click();
+    await expect(page.locator('#loading')).toBeVisible();
+    await expect(page.locator('#ld-name')).toHaveText('Скоростной забег');
+    await expect(page.locator('#ld-tip')).not.toBeEmpty();
+    await expect(page.locator('#game')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#loading')).toBeHidden();
+    expect(await page.evaluate(() => __blox.screen)).toBe('place');
+    // внутри: имя над головой, кнопка-логотип меню, таблица игроков, чат
+    await expect(page.locator('#g-menu')).toBeVisible();
+    await expect(page.locator('#g-board .board-row.me')).toContainText('Гость_');
+    await expect(page.locator('#g-chat-log')).toContainText('Добро пожаловать');
+    const np = await page.evaluate(() => __blox.nameplate());
+    expect(np.text).toMatch(/^Гость_\d+$/);
+    expect(np.visible).toBe(true);
+    expect(np.y).toBeGreaterThan(5.2);                 // над макушкой
+    expect(errors).toEqual([]);
   });
 
-  test('на платформу можно запрыгнуть и на ней стоять', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.setYaw(-Math.PI / 2);
-      g.player.position.set(5.5, 0, 0);
-      g.keys.Space = true; g.keys.KeyW = true; g.step(0.016, 12); g.keys.Space = false; g.step(0.016, 10); g.keys.KeyW = false;
-      g.step(0.016, 60);
-      return { y: g.player.position.y, ground: g.state.onGround, x: g.player.position.x };
-    });
-    expect(r.y).toBeCloseTo(1.5, 5);
-    expect(r.ground).toBe(true);
+  test('Esc - меню и пауза; «Выйти из места» - обратно в лаунчер', async ({ page }) => {
+    await openBlox(page, 'seed=7&fast=1');
+    await page.evaluate(() => __blox.enter('obby'));
+    await expect(page.locator('#game')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#g-menu-panel')).toBeVisible();
+    const t = await page.evaluate(() => __blox.game.time);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => __blox.game.time)).toBe(t);      // мир стоит
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#g-menu-panel')).toBeHidden();
+    await page.locator('#g-menu').click();                             // кнопка-логотип - то же меню
+    await expect(page.locator('#g-menu-panel')).toBeVisible();
+    await page.locator('#m-leave').click();
+    await expect(page.locator('#launcher')).toBeVisible();
+    await expect(page.locator('#game')).toBeHidden();
+    expect(await page.evaluate(() => __blox.screen)).toBe('launcher');
+    // посещение засчитано
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('mix.blox.stats')).obby.visits)).toBe(1);
   });
 
-  test('ездящая платформа везёт стоящего на ней героя', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
+  test('«Сбросить персонажа» в меню: персонаж разваливается и появляется снова', async ({ page }) => {
+    await openBlox(page);
+    await enter(page, 'coins');
+    await page.keyboard.press('Escape');
+    await page.locator('#m-reset').click();
     const r = await page.evaluate(() => {
-      const g = __game; g.start();
-      const m = g.mover.mesh.position;
-      g.step(0.016, 1);
-      g.player.position.set(m.x, m.y + 0.5, m.z);
-      g.step(0.016, 2);
-      const dx0 = g.player.position.x - m.x;
-      g.step(0.016, 60);
-      return { on: g.state.standOn === g.mover, moved: Math.abs(m.x - 26) > 0.5, dx: g.player.position.x - m.x, dx0 };
+      const g = __blox.game;
+      const dead = g.dead, pieces = g.pieces.length, snd = __blox.B.sound.played.includes('ouch');
+      __blox.step(60 * 3);
+      return { dead, pieces, snd, after: g.dead, back: g.pieces.length };
     });
-    expect(r.on).toBe(true);
-    expect(r.moved).toBe(true);
-    expect(Math.abs(r.dx - r.dx0)).toBeLessThan(0.01);
+    expect(r).toEqual({ dead: true, pieces: expect.any(Number), snd: true, after: false, back: 0 });
+    expect(r.pieces).toBeGreaterThanOrEqual(6);        // голова, туловище, 2 руки, 2 ноги (+ вещи)
   });
 
-  test('монета собирается; все монеты - победа, рекорд времени переживает перезагрузку', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    await page.evaluate(() => localStorage.removeItem('parkour_best_ms'));
-    const r = await page.evaluate(() => {
-      const g = __game; g.start(); g.step(0.016, 5);
-      const total = g.coins.length;
-      let firstGot = null;
-      for (let guard = 0; g.coins.length && guard < 50; guard++) {
-        const c = g.coins[g.coins.length - 1];
-        g.player.position.set(c.position.x, c.userData.baseY - 1, c.position.z);   // стоя на платформе под монетой
-        g.vel.set(0, 0, 0);
-        g.step(0.016, 1);
-        if (firstGot === null) firstGot = g.state.got;
-      }
-      return { total, firstGot, got: g.state.got, phase: g.state.phase, best: g.state.best, time: g.state.time };
-    });
-    expect(r.firstGot).toBe(1);
-    expect(r.got).toBe(r.total);
-    expect(r.phase).toBe('won');
-    expect(r.best).toBe(Math.round(r.time * 1000));
-    await expect(page.locator('#win')).toBeVisible();
-    await page.reload();
-    await page.waitForFunction(() => window.__game && __game.ready);
-    expect(await page.evaluate(() => __game.state.best)).toBe(r.best);
-    await expect(page.locator('#best')).not.toHaveText('-');
-  });
-
-  test('падение с края мира возвращает на старт', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    const r = await page.evaluate(() => {
-      const g = __game; g.start();
-      g.player.position.set(60, 0, 0);
-      g.step(0.016, 80);
-      return g.player.position.toArray();
-    });
-    expect(r).toEqual([0, 0, 0]);
-  });
-
-  test('пауза останавливает время и героя', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('KeyP');
-    const r = await page.evaluate(() => {
-      const g = __game; const t = g.state.time, x = g.player.position.x;
-      g.keys.KeyW = true; g.step(0.016, 60); g.keys.KeyW = false;
-      return { dt: g.state.time - t, dx: g.player.position.x - x, p: g.state.phase };
-    });
-    expect(r).toEqual({ dt: 0, dx: 0, p: 'paused' });
-    await expect(page.locator('#pause')).toBeVisible();
-  });
-
-  test('до каждой следующей платформы можно допрыгнуть (зазор и высота в пределах прыжка)', async ({ page }) => {
-    await openGame(page, 'roblox-mini');
-    const bad = await page.evaluate(() => {
-      const g = __game;
-      const ps = g.platforms.filter((p) => p !== g.ground && p.h === 1).map((p) => ({ x: p.base.x, y: p.base.y + 0.5, z: p.base.z, w: p.w, d: p.d }));
-      const jumpH = 11 * 11 / (2 * 30);                // высота прыжка ~2.0
-      const bad = [];
-      for (const a of ps) {
-        // хоть одна опора (земля или платформа ниже) должна быть досягаема
-        const cands = [{ x: a.x, y: 0, z: a.z, w: 1000, d: 1000 }, ...ps.filter((b) => b !== a)];
-        const ok = cands.some((b) => {
-          const gx = Math.max(0, Math.abs(a.x - b.x) - (a.w + b.w) / 2), gz = Math.max(0, Math.abs(a.z - b.z) - (a.d + b.d) / 2);
-          return a.y - b.y <= jumpH - 0.2 && a.y - b.y >= 0 && Math.hypot(gx, gz) <= 3.6;
-        });
-        if (!ok) bad.push(a);
-      }
-      return bad;
-    });
-    expect(bad).toEqual([]);
+  test('скрытая вкладка - пауза: меню открыто, звук молчит; после возврата пауза остаётся', async ({ page }) => {
+    await openBlox(page, 'seed=7&fast=1');
+    await page.evaluate(() => __blox.enter('race'));
+    await expect(page.locator('#game')).toBeVisible();
+    await page.evaluate(() => __blox.B.sound.resume());
+    const hide = (hidden) => page.evaluate((h) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (h ? 'hidden' : 'visible') });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+    await hide(true);
+    await expect(page.locator('#g-menu-panel')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => __blox.B.sound.state())).toBe('suspended');
+    const t = await page.evaluate(() => __blox.game.time);
+    await hide(false);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => ({ menu: __blox.game.menuOpen, paused: __blox.game.paused }))).toEqual({ menu: true, paused: true });
+    expect(await page.evaluate(() => __blox.game.time)).toBe(t);
+    await page.locator('#m-resume').click();
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => __blox.game.time)).toBeGreaterThan(t);
   });
 
   for (const size of SIZES) {
-    test(`заполняет окно ${size.width}x${size.height}`, async ({ page }) => {
+    test(`влезает в ${size.width}x${size.height}: лаунчер, страница места, место`, async ({ page }) => {
       await page.setViewportSize(size);
-      await openGame(page, 'roblox-mini');
-      const rep = await fitReport(page, 'canvas');
-      expectFits(expect, rep);
-      expect(rep.box.width).toBe(size.width);
+      await openBlox(page, 'seed=7&fast=1');
+      for (const sec of ['home', 'places', 'avatar', 'catalog', 'profile', 'settings']) {
+        await page.locator(`.sidenav [data-sec="${sec}"]`).click();
+        const r = await fit(page, '#content');
+        expect(r.scrollW, sec).toBeLessThanOrEqual(r.w);
+        expect(r.scrollH, sec).toBeLessThanOrEqual(r.h);
+        expect(r.box.right, sec).toBeLessThanOrEqual(r.w + 0.5);
+        const over = await page.evaluate(() => document.querySelector('#content').scrollWidth - document.querySelector('#content').clientWidth);
+        expect(over, sec + ': нет прокрутки вбок').toBeLessThanOrEqual(0);
+      }
+      await page.locator('.sidenav [data-sec="home"]').click();
+      await page.locator('#sec-home .card[data-place="lava"]').click();
+      await expect(page.locator('#pl-play')).toBeVisible();
+      await page.waitForTimeout(600);
+      const pb = await page.locator('#pl-play').boundingBox();
+      expect(pb.y + pb.height).toBeLessThanOrEqual(size.height);        // «Играть» видна без прокрутки
+      await page.locator('#pl-play').click();
+      await expect(page.locator('#game')).toBeVisible({ timeout: 10000 });
+      const g = await fit(page, '#gl canvas');
+      expect(g.box.right - g.box.left).toBe(size.width);
+      expect(g.box.bottom - g.box.top).toBe(size.height);
+      for (const sel of ['#g-board', '#g-chat', '#g-hud']) {
+        const b = await page.locator(sel).boundingBox();
+        expect(b.x, sel).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width, sel).toBeLessThanOrEqual(size.width);
+        expect(b.y + b.height, sel).toBeLessThanOrEqual(size.height);
+      }
     });
   }
 });

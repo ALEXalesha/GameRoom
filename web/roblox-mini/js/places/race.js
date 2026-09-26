@@ -25,7 +25,7 @@
       K.decal(game, B.lang() === 'en' ? 'START' : 'СТАРТ', 6, 0, 0, 8, 4, '#2f74d0', '#fff', Math.PI / 2);
       for (const z of [-10, 10]) w.add({ top: [START_X, 9, z], size: [1.2, 9, 1.2], color: '#f2f3f3', mat: 'smooth' });
       w.add({ pos: [START_X, 9.6, 0], size: [1, 1.4, 21], color: '#2f74d0', mat: 'neon', solid: false });
-      K.tree(game, -18, 0, -8); K.tree(game, -20, 0, 7, 0.8);
+      K.tree(game, -2, 0, -9, 0.8); K.tree(game, -6, 0, 9, 0.7);
       // A: широкие плиты с пропастями и ускоритель
       w.add({ top: [4, 0.1, 0], size: [4, 0.2, 6], color: '#3fe07a', mat: 'neon', speed: 1.4, tag: 'speed' });
       for (const [x0, x1] of [[16, 28], [33, 45], [50, 62], [67, 75]]) path.push(plat(x0, x1, 0, 0, 8, '#c9ccd1'));
@@ -126,7 +126,8 @@
       { cam: [160, 30, 34], look: [190, 8, 0] },
       { cam: [290, 20, -26], look: [310, 6, 0] },
     ],
-    thumbAvatar: { x: 2, y: 0, z: 0, facing: -1.2 },
+    thumbAvatar: { x: 6, y: 0, z: 3, facing: -0.9 },
+    thumb: { cam: [-8, 8, 17], look: [22, 3, -3] },
     // Для проверок: забег за заданное время (секунды) - старт, КТ, финиш
     scriptedRun(game, seconds) {
       game.player.teleport(START_X + 1, 0, 0);
