@@ -843,13 +843,17 @@ const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
 const TEXT_EXT = ['txt', 'md', 'log', 'csv', 'json', 'js', 'py', 'html', 'css', 'bat', 'ini'];
 const isImage = p => IMAGE_EXT.includes(extOf(p));
 const isText = p => TEXT_EXT.includes(extOf(p)) || !extOf(p);
+let dbPending = 0; // незавершённые записи: проверки ждут нуля перед перезагрузкой
 function idb(mode, fn) {
   return new Promise((res, rej) => {
     if (!db) { res(null); return; }
     const tx = db.transaction(['fs', 'trash'], mode);
+    dbPending++;
+    let done = false;
+    const fin = () => { if (!done) { done = true; dbPending--; } };
     const r = fn(tx);
-    tx.oncomplete = () => res(r && r.result);
-    tx.onerror = () => rej(tx.error);
+    tx.oncomplete = () => { fin(); res(r && r.result); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error); };
   });
 }
 function dbPut(entry) { if (db) idb('readwrite', tx => tx.objectStore('fs').put(entry)).catch(e => console.warn('FS', e)); }
@@ -1419,7 +1423,7 @@ $('power-btn').addEventListener('click', e => { e.stopPropagation(); $('power-me
 $('power-menu').addEventListener('click', e => { const b = e.target.closest('[data-power]'); if (!b) return; closePanels(); ({ lock: lockScreen, sleep: sleepScreen, restart: restartShell })[b.dataset.power](); });
 $('user-btn').addEventListener('click', () => openApp('settings', 'accounts'));
 document.addEventListener('pointerdown', e => {
-  if (!e.target.closest('.flyout') && !e.target.closest('#taskbar') && !e.target.closest('.menu.ctx') && !e.target.closest('#snap-flyout')) closePanels();
+  if (!e.target.closest('.flyout') && !e.target.closest('#taskbar') && !e.target.closest('.menu.ctx') && !e.target.closest('#snap-flyout') && !e.target.closest('#taskview')) closePanels();
 });
 $('nc-list').addEventListener('click', e => {
   const x = e.target.closest('[data-nx]'); if (x) { NOTES = NOTES.filter(n => String(n.id) !== x.dataset.nx); renderNotifs(); return; }
