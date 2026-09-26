@@ -314,3 +314,66 @@ test('метка открытой игры не ложится на картин
   await shell.click('#gear');
   await expect(shell.locator('#clear-hint')).not.toContainText('Данные «');
 });
+
+// --- клавиши, которые игра забирает себе (games.js, поле keys) ---
+
+const listenKeys = (id) => H.inGame(ctx.app, id, `window.__keys = []; addEventListener('keydown', (e) => __keys.push(e.code), true); 1`);
+
+test('F5 в игре, которая забрала его себе, доходит до страницы и вопроса не открывает', async () => {
+  const { app, shell } = ctx;
+  await open('minecraft_clone_3d_1');
+  await listenKeys('minecraft_clone_3d_1');
+  for (const k of ['F1', 'F2', 'F3', 'F5']) await H.press(app, 'minecraft_clone_3d_1', k);
+  await sleep(400);
+  expect(await H.inGame(app, 'minecraft_clone_3d_1', '__keys')).toEqual(['F1', 'F2', 'F3', 'F5']);
+  await expect(shell.locator('#modal')).toBeHidden();
+  expect(await app.evaluate(() => globalThis.__igroteka.modalOpen)).toBe(false);
+});
+
+test('F5 в обычной игре открывает вопрос и до страницы не доходит', async () => {
+  const { app, shell } = ctx;
+  await open('dino');
+  await listenKeys('dino');
+  await H.press(app, 'dino', 'F5');
+  await expect(shell.locator('#modal')).toBeVisible();
+  await shell.click('#modal .cancel');
+  expect(await H.inGame(app, 'dino', '__keys')).not.toContain('F5');
+});
+
+for (const [id, key] of [['minecraft_clone_3d_1', 'R'], ['dino', 'R'], ['minecraft_clone_3d_1', 'F5']]) {
+  test(`Ctrl+${key} открывает вопрос о перезапуске в ${id}`, async () => {
+    const { app, shell } = ctx;
+    await open(id);
+    await H.press(app, id, key, ['control']);
+    await expect(shell.locator('#modal')).toBeVisible();
+    await expect(shell.locator('#modal-title')).toContainText('заново');
+    await shell.click('#modal .cancel');
+  });
+}
+
+test('меню вкладки: «Начать заново» спрашивает и перезапускает, «Закрыть вкладку» закрывает', async () => {
+  const { app, shell } = ctx;
+  await open('minecraft_clone_3d_1');
+  await open('dino');
+  await H.inGame(app, 'minecraft_clone_3d_1', 'window.__mark = 1');
+  await shell.locator('.tab.game[data-id="minecraft_clone_3d_1"]').click({ button: 'right' });
+  await expect.poll(() => app.evaluate(() => !!globalThis.__igroteka.lastMenu)).toBe(true);
+  const labels = await app.evaluate(() => globalThis.__igroteka.lastMenu.items.map((i) => i.label));
+  expect(labels).toEqual(['Начать заново…', '', 'Закрыть вкладку']);
+  await app.evaluate(() => { const m = globalThis.__igroteka.lastMenu; m.closePopup(); m.items[0].click(); });
+  await expect(shell.locator('#modal')).toBeVisible();
+  expect((await H.tabs(app)).active).toBe('minecraft_clone_3d_1');
+  await shell.click('#modal .ok');
+  await expect.poll(() => H.inGame(app, 'minecraft_clone_3d_1', 'typeof window.__mark').catch(() => 'loading')).toBe('undefined');
+  await shell.locator('.tab.game[data-id="dino"]').click({ button: 'right' });
+  await app.evaluate(() => { const m = globalThis.__igroteka.lastMenu; m.closePopup(); m.items[2].click(); });
+  await expect.poll(() => H.tabs(app).then((t) => t.open)).toEqual(['minecraft_clone_3d_1']);
+});
+
+test('в настройках есть подсказка клавиш и про игру, которая забрала F5', async () => {
+  const { shell } = ctx;
+  await shell.click('#gear');
+  await expect(shell.locator('.keys')).toContainText('Ctrl');
+  await expect(shell.locator('#keys-own')).toContainText('Ctrl+R');
+  await expect(shell.locator('#keys-own')).toContainText('Кубический мир');
+});

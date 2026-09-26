@@ -12,13 +12,14 @@
 - Background tabs are detached from the window (paused, no animation frames) and muted.
 - Game pages have no Node and no bridges, no network and no access to files outside
   their folder; external links open in the system browser only after a question.
-- Keys: Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1..9, F11, F5.
+- Keys: Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1..9, F11, F5 / Ctrl+R / Ctrl+F5 and a
+  tab menu to restart; a game can keep F-keys for itself (Cube World: F1-F3, F5).
 - The window remembers its size, position, maximised state and open tabs.
 - Settings: reopen tabs, mute background tabs, volume and mute, dark and light theme,
   clearing one game's data, About.
 - Own icon drawn by code (`app/assets/logo.svg` -> `icon.ico` 16-256 px).
 - Windows builds: NSIS installer (per-user, Russian) and portable.
-- Tests: 35 unit laws, 33 checks of the real app; CI on Gitea and GitHub.
+- Tests: 35 unit laws, 57 checks of the real app; CI on Gitea and GitHub.
 
 **RU**
 
@@ -28,13 +29,14 @@
 - Фоновая вкладка снимается с окна (пауза, кадры не идут) и молчит.
 - У страниц игр нет Node и мостов, нет сети и доступа к файлам вне своей папки; ссылки
   наружу открываются в системном браузере только после вопроса.
-- Клавиши: Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1..9, F11, F5.
+- Клавиши: Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1..9, F11, F5 / Ctrl+R / Ctrl+F5 и
+  меню вкладки для перезапуска; игра может забрать F-клавиши себе («Кубический мир»: F1-F3, F5).
 - Окно помнит размер, место, развёрнутость и открытые вкладки.
 - Настройки: открывать вкладки прошлого раза, глушить фоновые вкладки, громкость и «без
   звука», тёмная и светлая тема, очистка данных одной игры, «О программе».
 - Свой значок, нарисованный кодом (`app/assets/logo.svg` -> `icon.ico` 16-256 px).
 - Сборки для Windows: установщик NSIS (для одного пользователя, на русском) и portable.
-- Проверки: 35 законов модулей, 33 проверки настоящего приложения; CI на Gitea и GitHub.
+- Проверки: 35 законов модулей, 57 проверок настоящего приложения; CI на Gitea и GitHub.
 
 ## 0.1.0
 

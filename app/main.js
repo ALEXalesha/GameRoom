@@ -339,6 +339,16 @@ async function restartActive() {
 function onKey(event, input) {
   if (input.type !== 'keyDown' || busy()) return;
   const ctrl = input.control || input.meta;
+  // Клавиши, которые активная игра забирает себе (games.js, поле keys): оболочка их не
+  // трогает. В «Кубическом мире» F5 - вид камеры, а не перезапуск.
+  const own = (byId.get(tabs.active) || {}).keys || [];
+  if (!ctrl && !input.alt && own.includes(input.code)) return;
+  if (ctrl && !input.alt && (input.code === 'KeyR' || input.code === 'F5')) {
+    // Ctrl+R и Ctrl+F5 - перезапуск у любой игры, и у той, что забрала F5 себе.
+    event.preventDefault();
+    if (tabs.active !== Tabs.HOME) restartActive();
+    return;
+  }
   if (ctrl && !input.alt) {
     let next;
     const digit = /^(?:Digit|Numpad)([1-9])$/.exec(input.code);
@@ -364,6 +374,18 @@ function onKey(event, input) {
   }
 }
 
+// Меню вкладки (правая кнопка): второй способ перезапустить игру, у любой игры.
+let lastMenu = null;
+function tabMenu(id) {
+  if (!byId.has(id) || !tabs.open.includes(id)) return;
+  lastMenu = Menu.buildFromTemplate([
+    { label: 'Начать заново…', accelerator: 'CmdOrCtrl+R', registerAccelerator: false, click: () => { setTabs(Tabs.activate(tabs, id)); restartActive(); } },
+    { type: 'separator' },
+    { label: 'Закрыть вкладку', accelerator: 'CmdOrCtrl+W', registerAccelerator: false, click: () => setTabs(Tabs.closeTab(tabs, id)) },
+  ]);
+  lastMenu.popup({ window: win });
+}
+
 // --- связь с оболочкой ---------------------------------------------------------------
 
 function snapshot() {
@@ -386,7 +408,7 @@ ipcMain.on('igroteka:volume-now', (e) => { e.returnValue = fromGame(e) ? setting
 
 ipcMain.handle('shell:init', (e) => (!fromShell(e) ? null : {
   product: { name: PRODUCT.name, version: PRODUCT.version },
-  games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc })),
+  games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc, keys: g.keys || [] })),
   platform: process.platform,
   ...snapshot(),
 }));
@@ -396,6 +418,7 @@ const tabsCommand = (fn) => (e, id) => { if (fromShell(e) && !busy()) fn(id); };
 ipcMain.on('tabs:open', tabsCommand((id) => { if (byId.has(id)) setTabs(Tabs.openTab(tabs, id)); }));
 ipcMain.on('tabs:activate', tabsCommand((id) => setTabs(Tabs.activate(tabs, id))));
 ipcMain.on('tabs:close', tabsCommand((id) => setTabs(Tabs.closeTab(tabs, id))));
+ipcMain.on('tabs:menu', tabsCommand((id) => tabMenu(id)));
 // Экран «игра упала» -> «Перезапустить»: счёт сбоев с нуля, страница заново.
 ipcMain.on('tabs:revive', tabsCommand((id) => {
   const view = views.get(id);
@@ -523,5 +546,6 @@ globalThis.__igroteka = {
   get fullscreen() { return fullscreen; },
   get modalOpen() { return !!modal; },
   get crashed() { return [...crashed]; },
+  get lastMenu() { return lastMenu; },
   views, errors, blocked, games, BAR_H,
 };

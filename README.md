@@ -43,9 +43,11 @@ concepts and are not affiliated with any rights holders.
 | Ctrl+Tab / Ctrl+Shift+Tab | next / previous tab |
 | Ctrl+1 … Ctrl+9 | tab by number (Ctrl+9 is the last one) |
 | F11 | game full screen without the tab bar; Esc or F11 to go back |
-| F5 | restart the game (asks first) |
+| F5, Ctrl+R, Ctrl+F5 | restart the game (asks first); also via the tab's right-click menu |
 
-The keys also work with the Russian keyboard layout.
+The keys also work with the Russian keyboard layout. Cube World keeps F1, F2, F3 and F5 for
+itself (F5 switches the camera there), so in it restart with Ctrl+R, Ctrl+F5 or the tab
+menu. The keys a game keeps are listed in `app/games.js` (the `keys` field).
 
 | Question over a game | Settings | Light theme |
 |---|---|---|
@@ -73,7 +75,7 @@ eight game folders go into the build.
 ```
 npm test                  # web/ pages in Chromium (284 checks)
 npm run test:unit         # laws of the app modules and the icon (35)
-npm run test:app          # the real app through Playwright (33, opens windows)
+npm run test:app          # the real app through Playwright (57, opens windows)
 pip install -r requirements-py.txt
 python -m pytest tests/py # py/ programs (183)
 ```

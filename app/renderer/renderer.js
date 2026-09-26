@@ -53,6 +53,7 @@ function renderTabs() {
       img(thumb(id), 'icon'), el('span', { class: 'name', text: g.name }), close);
     tab.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); api.close(id); } });
     tab.addEventListener('click', () => api.activate(id));
+    tab.addEventListener('contextmenu', (e) => { e.preventDefault(); api.menu(id); });
     return tab;
   }));
   for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.id === state.tabs.active);
@@ -145,6 +146,11 @@ function wireSettings() {
     $('#clear-hint').textContent = `Данные «${g.name}» стёрты.`;
   });
   $('#about-games').replaceChildren(...info.games.map((g) => el('li', { text: g.name })));
+  // Какие игры забирают себе F-клавиши - в подсказке клавиш.
+  const own = info.games.filter((g) => g.keys.includes('F5')).map((g) => `«${g.name}»`);
+  $('#keys-own').textContent = own.length
+    ? `В ${own.join(', ')} F5 и другие F-клавиши принадлежат игре: там начать заново - Ctrl+R или правой кнопкой по вкладке.`
+    : '';
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('#settings').hidden && $('#modal').hidden) closeSettings();
   });

@@ -372,6 +372,21 @@ select {
 }
 select option { background: var(--app-base); color: var(--text); }
 
+.keys { width: 100%; border-collapse: collapse; font-size: 13px; }
+.keys td { padding: 5px 4px; border-bottom: 1px solid var(--glass-border); vertical-align: top; }
+.keys td:first-child { white-space: nowrap; width: 40%; }
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-strong);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
 .about p { margin: 6px 2px; font-size: 13.5px; }
 .about ul { margin: 6px 0; padding-left: 20px; font-size: 13px; color: var(--text-dim); columns: 2; }
 
