@@ -20,11 +20,12 @@
   .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; gap: 8px; text-shadow: var(--shadow); }
   .screen.show { display: flex; }
   .screen h2 { font-size: 20px; font-weight: normal; margin: 0 0 10px; }
-  .hint { font-size: 13px; color: #b8b8b8; max-width: 620px; text-align: center; line-height: 1.5; }
+  .hint { font-size: 13px; color: #d0d0d0; max-width: 620px; text-align: center; line-height: 1.5; }
   .note { font-size: 13px; color: #ffdf6a; min-height: 16px; }
   .col { display: flex; flex-direction: column; gap: 8px; align-items: center; }
   .row { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
-  .row .mc-btn { width: 196px; }
+  .row .mc-btn { width: 276px; }
+  body.menu .list-screen { background: rgba(6, 6, 10, .55); }
   .gold { color: #ffd84a; }
 
   .mc-btn {
@@ -38,7 +39,7 @@
   .mc-input { width: 392px; height: 34px; padding: 0 8px; background: #000; color: #e0e0e0; border: 2px solid #a0a0a0; font: 16px var(--font); outline: none; }
   .mc-input:focus { border-color: #fff; }
   .form { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-bottom: 8px; }
-  .form label { font-size: 14px; color: #a0a0a0; }
+  .form label { font-size: 14px; color: #d8d8d8; }
   .form .hint { text-align: left; max-width: 400px; min-height: 40px; }
 
   .mc-slider { position: relative; width: 300px; height: 40px; display: block; cursor: pointer; }
@@ -147,13 +148,13 @@
   .tip small { color: #a0a0a0; }
 
   /* Достижения */
-  .ach-box { width: min(760px, 92vw); height: min(52vh, 420px); overflow: auto; background: rgba(0,0,0,.55); border: 2px solid #000; box-shadow: inset 0 0 0 2px #555; padding: 8px; }
+  .ach-box { width: min(820px, 92vw); height: min(64vh, 470px); overflow: auto; background: rgba(0,0,0,.55); border: 2px solid #000; box-shadow: inset 0 0 0 2px #555; padding: 8px; }
   .ach-tree { position: relative; }
   .ach-tree svg { position: absolute; left: 0; top: 0; }
   .ach-tree path { fill: none; stroke: #555; stroke-width: 3; }
   .ach-tree path.on { stroke: #d8d8d8; }
-  .ach { position: absolute; width: 40px; height: 40px; background: #6b6b6b; border: 2px solid #000; box-shadow: inset 2px 2px 0 #9a9a9a, inset -2px -2px 0 #3a3a3a; display: flex; align-items: center; justify-content: center; cursor: default; }
-  .ach img { width: 28px; height: 28px; image-rendering: pixelated; filter: grayscale(1) brightness(.6); }
+  .ach { position: absolute; width: 36px; height: 36px; background: #6b6b6b; border: 2px solid #000; box-shadow: inset 2px 2px 0 #9a9a9a, inset -2px -2px 0 #3a3a3a; display: flex; align-items: center; justify-content: center; cursor: default; }
+  .ach img { width: 26px; height: 26px; image-rendering: pixelated; filter: grayscale(1) brightness(.6); }
   .ach.got { background: #c89a2a; box-shadow: inset 2px 2px 0 #ffe07a, inset -2px -2px 0 #7a5a10; }
   .ach.got img { filter: none; }
   .ach.final { border-radius: 50%; }

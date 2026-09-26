@@ -52,10 +52,11 @@
       float sky = light.x * 15.0, blk = light.y * 15.0;
       float skyEff = max(0.0, sky - (1.0 - uDay) * 10.5);
       float l = max(skyEff, blk) / 15.0;
-      float b = 0.045 + 0.955 * pow(l, 1.35);
+      // кривая яркости как в оригинале (f / (4 - 3f)), чуть приподнятая: свет факела быстро гаснет с расстоянием
+      float b = 0.03 + 0.97 * mix(l / (4.0 - 3.0 * l), l, 0.35);
       float ao = mix(1.0, 0.52 + 0.48 * light.z, uSmooth);
       float warm = clamp((blk - skyEff) / 15.0, 0.0, 1.0);
-      vec3 tint = mix(vec3(1.0), vec3(1.12, 0.94, 0.72), warm);
+      vec3 tint = mix(vec3(1.0), vec3(1.25, 0.95, 0.62), warm);
       vCol = tint * b * ao * light.w;
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
       vDist = length(mv.xyz);

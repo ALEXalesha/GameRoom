@@ -141,8 +141,8 @@
     let m = handCache.get(id);
     if (!m) {
       if (!id) {
-        m = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.75), new THREE.MeshLambertMaterial({ color: 0xc89a78 }));
-        m.position.set(0.1, -0.05, 0.1); m.rotation.set(0.2, -0.25, 0.1);
+        m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.6), new THREE.MeshLambertMaterial({ color: 0xc89a78 }));
+        m.position.set(0.14, -0.08, 0.12); m.rotation.set(0.25, -0.2, 0.1);
       } else {
         m = G.itemMesh(id, 0.22);
         if (m.geometry.type === 'PlaneGeometry') { m.rotation.set(0, -1.2, 0.35); m.position.set(0, 0.1, 0); }

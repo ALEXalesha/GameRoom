@@ -296,7 +296,7 @@
         pos[a.id] = [depth, (start + row2 - 1) / 2];
       };
       (kids._ || []).forEach((r) => walk(r, 0));
-      const CW = 92, RH = 52;
+      const CW = 66, RH = 42;
       let maxX = 0, maxY = 0;
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       for (const a of D.ACH) {
@@ -304,14 +304,14 @@
         if (a.parent) {
           const [px, py] = pos[a.parent];
           const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          const x1 = px * CW + 44, y1 = py * RH + 22, x2 = x * CW + 4, y2 = y * RH + 22, mx = (x1 + x2) / 2;
+          const x1 = px * CW + 40, y1 = py * RH + 20, x2 = x * CW + 4, y2 = y * RH + 20, mx = (x1 + x2) / 2;
           p.setAttribute('d', `M${x1} ${y1} H${mx} V${y2} H${x2}`);
           p.setAttribute('class', got[a.id] ? 'on' : '');
           svg.appendChild(p);
         }
       }
-      svg.setAttribute('width', (maxX + 1) * CW + 20); svg.setAttribute('height', (maxY + 1) * RH + 10);
-      tree.style.width = ((maxX + 1) * CW + 20) + 'px'; tree.style.height = ((maxY + 1) * RH + 10) + 'px';
+      svg.setAttribute('width', maxX * CW + 48); svg.setAttribute('height', maxY * RH + 46);
+      tree.style.width = (maxX * CW + 48) + 'px'; tree.style.height = (maxY * RH + 46) + 'px';
       tree.append(svg);
       for (const a of D.ACH) {
         const [x, y] = pos[a.id];
@@ -539,7 +539,7 @@
     invPanel.addEventListener('mouseleave', hideTip);
     invPanel.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mouseup', onUp);
-    window.addEventListener('mousemove', (e) => { cursorEl.style.left = (e.clientX - 18) + 'px'; cursorEl.style.top = (e.clientY - 18) + 'px'; });
+    window.addEventListener('mousemove', (e) => { const z = UI.scale || 1; cursorEl.style.left = (e.clientX / z - 18) + 'px'; cursorEl.style.top = (e.clientY / z - 18) + 'px'; });
     // щелчок мимо окна с предметом - выбросить его
     invScreen.addEventListener('mousedown', (e) => {
       if (e.target !== invScreen || !G.inv.cursor) return;
@@ -710,6 +710,13 @@
     }
   };
 
+  // Масштаб интерфейса как «размер интерфейса» в оригинале: в большом окне всё крупнее
+  function rescale() {
+    const z = Math.max(1, Math.min(2, Math.floor(Math.min(innerWidth / 1280, innerHeight / 760) * 10) / 10));
+    UI.scale = z;
+    root.style.zoom = z;
+    cursorEl.style.zoom = z;
+  }
   UI.init = function () {
     root = document.getElementById('ui');
     tip = el('div', 'tip'); document.body.append(tip);
@@ -720,6 +727,8 @@
     makeHudIcons();
     buildHud();
     buildStart(); buildTitle(); buildWorlds(); buildCreate(); buildConfirm(); buildLoading(); buildPause(); buildSettings(); buildControls(); buildDeath(); buildAch(); buildVictory(); buildInv();
+    rescale();
+    window.addEventListener('resize', rescale);
     screen('hud', 'hud-screen');
   };
 })();
