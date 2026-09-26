@@ -5,6 +5,7 @@ const { fitReport, expectFits, SIZES } = require('./_games-helpers');
 const { openVoxel, newWorld, flatArena } = require('./_voxel-helpers');
 
 test.describe('minecraft_clone_3d_1 (Кубический мир): мир', () => {
+  test.describe.configure({ timeout: 60000 });   // программная отрисовка в параллельных прогонах медленная
   test('без сети и ошибок: three.js r149 свой, мир строят потоки из Blob, хранилище - IndexedDB', async ({ page }) => {
     const requests = [];
     page.on('request', (r) => requests.push(r.url()));
@@ -145,6 +146,7 @@ test.describe('minecraft_clone_3d_1 (Кубический мир): мир', () =
 });
 
 test.describe('minecraft_clone_3d_1: управление и блоки', () => {
+  test.describe.configure({ timeout: 60000 });   // программная отрисовка в параллельных прогонах медленная
   test('ЛКМ ломает блок под прицелом, ПКМ ставит на грань, но не в героя; дно мира не ломается', async ({ page }) => {
     await openVoxel(page);
     await newWorld(page, { seed: 8 });
@@ -273,6 +275,7 @@ test.describe('minecraft_clone_3d_1: управление и блоки', () => 
 });
 
 test.describe('minecraft_clone_3d_1: инвентарь', () => {
+  test.describe.configure({ timeout: 60000 });   // программная отрисовка в параллельных прогонах медленная
   test('стопки по 64, переполнение, инструменты по одному, Shift+щелчок переносит между панелью и рюкзаком', async ({ page }) => {
     await openVoxel(page);
     await newWorld(page, { seed: 8, mode: 'survival' });
@@ -369,6 +372,7 @@ test.describe('minecraft_clone_3d_1: инвентарь', () => {
 });
 
 test.describe('minecraft_clone_3d_1: меню, миры, сохранение', () => {
+  test.describe.configure({ timeout: 60000 });   // программная отрисовка в параллельных прогонах медленная
   test('экраны как в игре: старт, «Одиночная игра», создание мира с именем, зерном и режимом, пауза по Esc', async ({ page }) => {
     const errors = await openVoxel(page);
     await expect(page.locator('#scr-start')).toBeVisible();

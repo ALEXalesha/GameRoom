@@ -154,7 +154,7 @@
   // ---------- Настройки: применить ----------
   function applySettings() {
     const s = G.settings;
-    world.radius = s.renderDistance;
+    world.radius = G.panorama ? Math.min(5, s.renderDistance) : s.renderDistance;   // панорама меню - ближе
     const fancy = s.graphics === 'fancy';
     if (world.opts.fancy !== fancy || world.opts.smooth !== !!s.smooth) { world.opts = { fancy, smooth: !!s.smooth }; world.remeshAll(); }
     mats.uniforms.uSmooth.value = s.smooth ? 1 : 0;
@@ -191,6 +191,7 @@
     G.ticks = meta.ticks || 0;
     G.panorama = !persist;
     world.open(meta, persist);
+    applySettings();
     sky.cloudMap = sky.makeCloudMap(meta.seedNum);
     sky.setClouds(G.settings.clouds);
     if (meta.player) player.load(meta.player);
