@@ -8,6 +8,8 @@ module.exports = defineConfig({
   testMatch: '**/*.spec.js',
   fullyParallel: false, // окна на одном экране, замки, фокус - по одному
   workers: 1,
-  timeout: process.env.CI ? 120_000 : 60_000,
+  // Запуск Electron под нагрузкой (другие прогоны на той же машине) доходил до 12 с, а
+  // проверка перезапуска запускает и закрывает приложение дважды - запас нужен и дома.
+  timeout: 120_000,
   reporter: [['list']],
 });

@@ -71,7 +71,7 @@ npm run dist              # собрать установщик и portable в d
 ```
 npm test                  # страницы web/ в Chromium (284 проверки)
 npm run test:unit         # законы модулей приложения и значка (35)
-npm run test:app          # настоящее приложение через Playwright (32, открывает окна)
+npm run test:app          # настоящее приложение через Playwright (33, открывает окна)
 pip install -r requirements-py.txt
 python -m pytest tests/py # программы py/ (183)
 ```
