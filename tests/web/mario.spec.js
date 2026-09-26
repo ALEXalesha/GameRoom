@@ -6,8 +6,8 @@ const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
 const { hideTab, showTab, blurWindow, focusWindow, pauseLayout } = require('./_kit-helpers');
 
-// Поиск пути по клеткам: где можно стоять и куда можно допрыгнуть (прыжок ~3.5 клетки вверх,
-// ~4 клетки вбок, с пружины ~6.5 вверх). Промежуточные столбцы не должны закрывать дугу прыжка.
+// Поиск пути по клеткам: где можно стоять и куда можно допрыгнуть (высота и дальность прыжка
+// считаются из GRAV, JUMP_V, SPRING_V и WALK игры). Промежуточные столбцы не должны закрывать дугу прыжка.
 const REACH = `(i) => {
   const g = __game; g.loadLevel(i); const L = g.level, T = g.T, TILE = g.TILE;
   const solid = (x, y) => g.tileAt(x, y) !== T.EMPTY;
@@ -20,21 +20,22 @@ const REACH = `(i) => {
     for (let d = 0; d <= r; d++) for (let k = 0; k < n; k++) m.axis === 'x' ? stand.set(key(x0 + k + d, y0), [x0 + k + d, y0]) : stand.set(key(x0 + k, y0 - d), [x0 + k, y0 - d]);
   }
   const springs = new Set(L.springs.map((s) => key(Math.floor((s.x + 12) / TILE), Math.floor(s.y / TILE))));
+  // Прыжок по законам игры: высота v²/2g, время до приземления на высоте rise, вбок - шагом (без бега, с запасом).
+  // Путь по клеткам: 32*dx - 52 (ширина героя 22 свисает с краёв) должен уложиться в полёт.
+  const can = (dx, rise, v) => {
+    const Hp = v * v / (2 * g.GRAV), need = rise * TILE;
+    if (need > Hp - 6) return false;
+    const t = (v + Math.sqrt(v * v - 2 * g.GRAV * need)) / g.GRAV;
+    return dx === 0 || TILE * dx - 52 <= g.WALK * t;
+  };
   const clear = (x, x2, top, bottom) => { for (let c = Math.min(x, x2) + 1; c < Math.max(x, x2); c++) for (let r = Math.max(0, top); r <= bottom; r++) if (solid(c, r)) return false; return true; };
   const start = key(2, 9), seen = new Set([start]), queue = [[2, 9]];
   while (queue.length) {
     const [x, y] = queue.shift();
-    const spring = springs.has(key(x, y)), up = spring ? 6 : 3;
+    const v = springs.has(key(x, y)) ? -g.SPRING_V : -g.JUMP_V, up = Math.floor(v * v / (2 * g.GRAV) / TILE);
     for (const [k, [x2, y2]] of stand) {
-      if (seen.has(k)) continue;
-      const dx = Math.abs(x2 - x), rise = y - y2;
-      if (dx > 6) continue;
-      let ok;
-      if (rise > up) ok = false;
-      else if (rise >= 2) ok = dx <= (spring ? 4 : 3);
-      else if (rise >= 0) ok = dx <= 4;
-      else ok = dx <= 4 + Math.min(2, -rise);
-      if (!ok) continue;
+      if (seen.has(k) || Math.abs(x2 - x) > 8) continue;
+      if (!can(Math.abs(x2 - x), y - y2, v)) continue;
       if (!clear(x, x2, y - up, Math.min(y, y2))) continue;
       seen.add(k); queue.push([x2, y2]);
     }
@@ -47,7 +48,7 @@ const REACH = `(i) => {
 // Пробежать до флага, прыгая через всё: телепорт по контрольным флажкам, потом к флагу
 const FINISH = `() => {
   const g = __game, L = g.level;
-  for (const c of L.checkpoints) { g.player.x = c.x + 4; g.player.y = 9 * 32 - 30 + 30 - 30; g.step(2, false); }
+  for (const c of L.checkpoints) { g.player.x = c.x + 4; g.player.y = 9 * 32 - 30; g.step(2, false); }
   g.clearEnemies();
   g.player.x = L.flagHit - 40; g.player.y = 9 * 32 - 30; g.player.vy = 0; g.player.invuln = 999;
   g.kit.held.add('ArrowRight'); for (let i = 0; i < 60 && g.state.phase === 'play'; i++) g.step(1, false); g.kit.held.delete('ArrowRight');
@@ -60,12 +61,13 @@ const BEAT_BOSS = `() => {
   const g = __game, L = g.level;
   g.player.x = L.arena.a + 80; g.player.y = 9 * 32 - 30; g.step(2, false);
   let n = 0;
-  while (g.boss && n++ < 4000) {
+  while (g.boss && n++ < 6000) {
     const b = g.boss;
-    const ready = b.inv === 0 && (b.kind === 'beetleKing' || b.phase === 'rest');
-    if (ready) { g.player.x = b.x + b.w / 2 - 11; g.player.y = b.y - 40; g.player.vy = 3; g.player.invuln = 0; }
-    else { g.player.x = L.arena.a + 40; g.player.y = 9 * 32 - 30; g.player.vy = 0; g.player.invuln = 5; }
-    g.step(1, false);
+    const ready = b.inv === 0 && b.onGround && (b.kind === 'beetleKing' || (b.phase === 'rest' && b.phaseT > 25));
+    if (ready) {
+      g.player.x = b.x + b.w / 2 - 11; g.player.y = b.y - 40; g.player.vy = 3; g.player.invuln = 0;
+      for (let i = 0; i < 20 && g.boss && g.boss.inv === 0 && g.state.phase === 'play'; i++) g.step(1, false);
+    } else { g.player.x = L.arena.a + 40; g.player.y = 9 * 32 - 30; g.player.vy = 0; g.player.invuln = 5; g.step(1, false); }
     if (g.state.phase !== 'play') return { fail: g.state.phase, n };
   }
   return { done: g.level.bossDone, n };
