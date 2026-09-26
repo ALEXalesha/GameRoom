@@ -34,8 +34,10 @@
         };
         rq.onsuccess = () => { if (finished) return; finished = true; db = rq.result; kind = 'idb'; resolve(kind); };
         rq.onerror = fallback;
-        rq.onblocked = fallback;
-        setTimeout(fallback, 3000);
+        // «blocked» - другая вкладка держит старую версию базы: ждём, а не уходим в localStorage.
+        // Запасной путь по таймеру - только если база молчит совсем долго (иначе на медленном
+        // диске игра «теряла» бы миры, лежащие в IndexedDB)
+        setTimeout(fallback, 20000);
       } catch (e) { fallback(); }
     });
   }
