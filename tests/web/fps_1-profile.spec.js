@@ -281,4 +281,22 @@ test.describe('fps_1: статистика, звания, кампания', () 
     await page.waitForFunction(() => window.__tactical && __tactical.ready);
     expect(await page.evaluate(() => [TAC.campaign.data.stars.m8, TAC.campaign.data.stars.m3, TAC.campaign.totalStars()])).toEqual([3, 1, 10]);
   });
+
+  test('сглаживание: 20 переключений не плодят контексты WebGL', async ({ page }) => {
+    test.setTimeout(90000);
+    const warn = [];
+    page.on('console', (m) => { if (/Too many active WebGL contexts|CONTEXT_LOST/i.test(m.text())) warn.push(m.text()); });
+    await openTactical(page);
+    const r = await page.evaluate(async () => {
+      for (let i = 0; i < 20; i++) {
+        TAC.settings.video.aa = i % 2 ? 'on' : 'off';
+        __tactical.app.applySettings();
+        await new Promise((res) => requestAnimationFrame(res));
+      }
+      const gl = __tactical.app.renderer.getContext();
+      return { canvases: document.querySelectorAll('canvas#view').length, lost: gl.isContextLost(), aa: gl.getContextAttributes().antialias };
+    });
+    expect(warn).toEqual([]);
+    expect(r).toEqual({ canvases: 1, lost: false, aa: true });                       // 20-е переключение - «вкл»
+  });
 });
