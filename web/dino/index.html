@@ -6,47 +6,36 @@
 <title>Дино-бег (фан-версия, не связана с правообладателем)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    background: #f7f7f7;
-    color: #535353;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-family: Consolas, 'Courier New', monospace;
-    user-select: none;
-    overflow: hidden;
-    padding: 16px;
-  }
-  h1 { font-size: 20px; letter-spacing: 2px; }
-  canvas { display: block; background: #f7f7f7; border: 1px solid #ccc; touch-action: manipulation; }
-  #info { font-size: 14px; text-align: center; line-height: 1.6; }
-  .note { font-size: 12px; color: #999; }
+  html, body { height: 100%; overflow: hidden; background: #1b2238; }
+  #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
+  #game { display: block; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.45); touch-action: none; }
 </style>
 </head>
 <body>
-<h1>ДИНО-БЕГ</h1>
-<canvas id="game" width="800" height="200" aria-label="Игровое поле"></canvas>
-<div id="info">
-  Пробел / ↑ / клик - прыжок (держи дольше - выше) · ↓ - пригнуться · P / Esc - пауза · M - звук<br>
-  <span class="note">Фан-версия, не связана с правообладателем. Спрайты нарисованы в коде.</span>
-</div>
-
+<div id="app"><canvas id="game" aria-label="Игровое поле"></canvas></div>
+<script src="kit.js"></script>
 <script>
 'use strict';
-// ---------- Настройки поля (логические единицы, холст масштабируется под окно) ----------
-const W = 800, H = 200;
-const GROUND_Y = 130;          // верх динозаврика, когда он стоит на земле
-const FLOOR = GROUND_Y + 47;    // линия земли
-const STEP_MS = 1000 / 60;      // фиксированный шаг физики: скорость одинакова при 60 и 144 Гц
+// ================= Настройки мира =================
+const W = 800, H = 300;
+const FLOOR = 250;                  // линия земли
+const DINO_H = 47, DINO_W = 44;
+const GROUND_Y = FLOOR - DINO_H;    // верх стоящего динозаврика
+const STEP_MS = 1000 / 60;
 const GRAVITY = 0.6, JUMP_V = -12, JUMP_CUT = -5, FAST_FALL = 1.2;
-const START_SPEED = 6, MAX_SPEED = 13;
-const RESTART_DELAY = 25;       // шагов после проигрыша, когда рестарт не срабатывает (зажатый пробел)
-const HI_KEY = 'dino_hi';
+const BIRD_Y = { high: FLOOR - 87, mid: FLOOR - 57, low: FLOOR - 30 };
+const INVULN_STEPS = 90;
 
-// ---------- Случайность: ?seed=N делает игру повторяемой (для проверок) ----------
+// Путешествие: четыре этапа с разной местностью, временем суток и скоростью
+const LEGS = [
+  { name: 'Пустыня', from: 0, to: 1000, pal: 'desert', v0: 6, v1: 8, kinds: ['cactus'], birds: 0.15 },
+  { name: 'Каньон на закате', from: 1000, to: 2500, pal: 'canyon', v0: 7.5, v1: 9.5, kinds: ['cactus', 'rock'], birds: 0.25 },
+  { name: 'Ночная степь', from: 2500, to: 5000, pal: 'night', v0: 9, v1: 11, kinds: ['cactus', 'rock'], birds: 0.33 },
+  { name: 'Снежный перевал', from: 5000, to: 10000, pal: 'snow', v0: 10, v1: 13, kinds: ['pine', 'rock', 'ice'], birds: 0.3 },
+];
+const JOURNEY_END = LEGS[LEGS.length - 1].to;
+const ENDLESS_CYCLE = ['desert', 'canyon', 'night', 'snow'];
+
 const params = new URLSearchParams(location.search);
 function mulberry32(a) {
   return function () {
@@ -56,344 +45,704 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+let rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
 const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
 
-// ---------- Хранилище (в file:// и в Electron работает; если запрещено - просто без рекорда) ----------
-function loadHi() { try { return parseInt(localStorage.getItem(HI_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
-function saveHi(v) { try { localStorage.setItem(HI_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
-
-// ---------- Звук: синтез WebAudio, без файлов ----------
-let actx = null, muted = false;
-function beep(freq, dur, type = 'square', vol = 0.06, slideTo) {
-  if (muted) return;
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
-  } catch (e) { /* звук недоступен */ }
-}
-const SFX = {
-  jump: () => beep(520, 0.12, 'square', 0.05, 900),
-  point: () => { beep(880, 0.07); setTimeout(() => beep(1320, 0.1), 70); },
-  die: () => beep(220, 0.35, 'sawtooth', 0.07, 60),
+// ================= Палитры местностей =================
+const PAL = {
+  desert: { skyTop: '#6fc0ee', skyBot: '#fbe8b8', far: '#e8c088', mid: '#d59a5a', ground: '#ebc88a', groundDark: '#c9a063', detail: '#a97c45', plant: '#3f9a4d', plantDark: '#2b7038', stars: 0, sun: 1, moon: 0, snow: 0, shape: 'dunes' },
+  canyon: { skyTop: '#394a8f', skyBot: '#f79d5c', far: '#8f4a3c', mid: '#b5613f', ground: '#cf8250', groundDark: '#a25a35', detail: '#7b3f25', plant: '#4c8a45', plantDark: '#35663a', stars: 0.25, sun: 0.7, moon: 0, snow: 0, shape: 'mesas' },
+  night: { skyTop: '#070d26', skyBot: '#27355f', far: '#1a2547', mid: '#223058', ground: '#3b4769', groundDark: '#2b3553', detail: '#5c6a93', plant: '#2f6b55', plantDark: '#1f4c3d', stars: 1, sun: 0, moon: 1, snow: 0, shape: 'hills' },
+  snow: { skyTop: '#8ec3ea', skyBot: '#eef6fb', far: '#c9d9e8', mid: '#9db4c8', ground: '#f5f9fc', groundDark: '#d4e1eb', detail: '#aabdcc', plant: '#2f6e53', plantDark: '#1e4d39', stars: 0, sun: 0.5, moon: 0, snow: 1, shape: 'peaks' },
 };
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mixColor(a, b, t) { const x = hexRgb(a), y = hexRgb(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',')})`; }
+function mixPal(a, b, t) {
+  const o = {};
+  for (const k in a) o[k] = typeof a[k] === 'number' ? a[k] + (b[k] - a[k]) * t : (k === 'shape' ? a[k] : mixColor(a[k], b[k], t));
+  o.shapeB = b.shape; o.shapeT = t;
+  return o;
+}
 
-// ---------- Состояние ----------
+// ================= Состояние =================
 const state = {
-  phase: 'ready',   // ready | running | paused | over
-  score: 0,         // дистанция в очках (дробная, показывается целой)
-  hiScore: loadHi(),
-  speed: START_SPEED,
+  mode: 'journey',        // journey | endless | demo
+  phase: 'run',           // run | dying | won
+  dist: 0,                // метры
+  speed: 6,
+  leg: 0,
+  legStart: 0,            // отметка, с которой начат текущий заход (контрольная точка)
+  lives: 2, maxLives: 2,
+  invuln: 0,
   frame: 0,
-  overTimer: 0,
-  nextGap: 0,       // расстояние до следующего препятствия
-  flash: 0,         // мигание счёта на каждой сотне
+  nextGap: 300,
+  banner: null,           // { text, t }
+  dyingT: 0,
+  shake: 0,
+  flashT: 0,
+  stats: { jumps: 0, birds: 0, hits: 0, steps: 0 },
 };
-const dino = { x: 50, y: GROUND_Y, vy: 0, jumping: false, ducking: false };
+const dino = { x: 70, y: GROUND_Y, vy: 0, jumping: false, ducking: false, runPhase: 0, jumpHeld: false };
 const obstacles = [];
-const clouds = [];
-const groundDots = [];
-const keys = {};
+const particles = [];
+let autopilot = false;
 
-function initScenery() {
-  groundDots.length = 0; clouds.length = 0;
-  for (let i = 0; i < 60; i++) groundDots.push({ x: rnd() * W, y: FLOOR + 4 + rnd() * 8, len: 1 + rnd() * 4 });
-  for (let i = 0; i < 3; i++) clouds.push({ x: rnd() * W, y: 30 + rnd() * 50 });
+// ================= Прогресс и рекорды =================
+let kit;
+const progress = { leg: 0, done: false };     // до какого этапа дошёл (контрольная точка)
+const records = { endless: 0, journeyTime: {}, totalDist: 0, totalJumps: 0, totalBirds: 0, runs: 0 };
+function loadProgress() {
+  Object.assign(progress, { leg: 0, done: false }, kit.load('progress', {}));
+  Object.assign(records, { endless: 0, journeyTime: {}, totalDist: 0, totalJumps: 0, totalBirds: 0, runs: 0 }, kit.load('records', {}));
+}
+function saveProgress() { kit.save('progress', progress); kit.save('records', records); }
+
+// ================= Звуки =================
+const SFX = {
+  jump: () => kit.tone(520, 0.12, { vol: 0.08, slide: 900 }),
+  land: () => kit.noise(0.05, { vol: 0.05, freq: 600 }),
+  point: () => { kit.tone(880, 0.07, { vol: 0.07 }); kit.tone(1320, 0.1, { vol: 0.07, delay: 0.07 }); },
+  hit: () => { kit.noise(0.25, { vol: 0.25, freq: 900 }); kit.tone(220, 0.35, { type: 'sawtooth', vol: 0.1, slide: 60 }); },
+  leg: () => [523, 659, 784, 1047].forEach((f, i) => kit.tone(f, 0.14, { type: 'triangle', vol: 0.1, delay: i * 0.1 })),
+};
+
+// ================= Правила сложности =================
+function diffSpeed() { return kit.diff({ easy: 0.85, normal: 1, hard: 1.12 }); }
+function diffGap() { return kit.diff({ easy: 1.3, normal: 1, hard: 0.9 }); }
+function diffLives() { return kit.diff({ easy: 3, normal: 2, hard: 1 }); }
+
+function legAt(d) { let i = 0; while (i < LEGS.length - 1 && d >= LEGS[i].to) i++; return i; }
+function targetSpeed() {
+  if (state.mode === 'endless' || state.mode === 'demo') return Math.min(13, 6 + state.dist / 400) * diffSpeed();
+  const L = LEGS[state.leg];
+  const t = Math.min(1, Math.max(0, (state.dist - L.from) / (L.to - L.from)));
+  return (L.v0 + (L.v1 - L.v0) * t) * diffSpeed();
+}
+function currentPalette() {
+  if (state.mode === 'journey') {
+    const L = LEGS[state.leg], next = LEGS[state.leg + 1];
+    const t = next ? Math.max(0, Math.min(1, (state.dist - (L.to - 120)) / 120)) : 0;
+    return t > 0 ? mixPal(PAL[L.pal], PAL[next.pal], t) : mixPal(PAL[L.pal], PAL[L.pal], 0);
+  }
+  const span = 800, k = state.dist / span;
+  const i = Math.floor(k) % ENDLESS_CYCLE.length, j = (i + 1) % ENDLESS_CYCLE.length;
+  const t = Math.max(0, (k % 1 - 0.85) / 0.15);
+  return mixPal(PAL[ENDLESS_CYCLE[i]], PAL[ENDLESS_CYCLE[j]], t);
+}
+function currentKinds() {
+  if (state.mode === 'journey') return LEGS[state.leg];
+  const i = Math.floor(state.dist / 800) % ENDLESS_CYCLE.length;
+  return LEGS[i];
 }
 
-function reset() {
-  state.phase = 'running';
-  state.score = 0;
-  state.speed = START_SPEED;
-  state.frame = 0;
-  state.overTimer = 0;
-  state.flash = 0;
-  state.nextGap = 300;
-  obstacles.length = 0;
-  dino.y = GROUND_Y; dino.vy = 0; dino.jumping = false; dino.ducking = false;
-}
-
-// Препятствия. Размеры кактусов подобраны так, чтобы любой перепрыгивался.
-const CACTI_SMALL = [{ w: 17, h: 35 }, { w: 34, h: 35 }, { w: 51, h: 35 }];
-const CACTI_BIG = [{ w: 25, h: 50 }, { w: 50, h: 50 }];
-// Птицы: высоко (безопасно, можно не реагировать), средне (пригнуться или прыгнуть), низко (прыгать).
-const BIRD_Y = { high: 88, mid: 120, low: 146 };
-
-function makeCactus(v) { return { type: 'cactus', x: W, y: FLOOR - v.h, w: v.w, h: v.h }; }
-function makeBird(level) { return { type: 'bird', level, x: W, y: BIRD_Y[level], w: 46, h: 28 }; }
+// ================= Препятствия =================
+const SIZES = {
+  cactus: [{ w: 18, h: 36 }, { w: 34, h: 36 }, { w: 26, h: 50 }, { w: 50, h: 50 }],
+  rock: [{ w: 30, h: 24 }, { w: 44, h: 30 }],
+  pine: [{ w: 24, h: 44 }, { w: 30, h: 52 }],
+  ice: [{ w: 22, h: 34 }, { w: 40, h: 30 }],
+};
+function makeObstacle(kind, v) { return { type: kind, x: W + 10, y: FLOOR - v.h, w: v.w, h: v.h, seed: Math.floor(rnd() * 1000) }; }
+function makeBird(level) { return { type: 'bird', level, x: W + 10, y: BIRD_Y[level], w: 46, h: 28, seed: Math.floor(rnd() * 1000) }; }
 
 function spawnObstacle() {
-  const r = rnd();
+  const L = currentKinds();
   let o;
-  if (state.score > 300 && r < 0.3) o = makeBird(pick(['high', 'mid', 'low']));
-  else if (state.score > 150 && r < 0.55) o = makeCactus(pick(CACTI_BIG));
-  else o = makeCactus(pick(CACTI_SMALL));
+  if (state.dist > 150 && rnd() < L.birds) o = makeBird(pick(['high', 'mid', 'low']));
+  else { const kind = pick(L.kinds); o = makeObstacle(kind, pick(SIZES[kind])); }
   obstacles.push(o);
-  // Промежуток растёт со скоростью: за время прыжка (~40 шагов) нужно успеть приземлиться.
-  const minGap = 40 * state.speed + o.w;
+  // Промежуток: за время прыжка (~40 шагов) надо успеть приземлиться и снова оттолкнуться
+  const minGap = (44 * state.speed + o.w) * diffGap();
   state.nextGap = minGap + rnd() * 260;
 }
 
-// Хитбоксы: у стоящего два прямоугольника (голова и тело), чтобы касание пустого места не убивало.
+// Хитбоксы: стоя - голова и тело, пригнувшись - один низкий
 function dinoBoxes() {
-  if (dino.ducking && !dino.jumping) {
-    return [{ x: dino.x, y: dino.y + 22, w: 70, h: 25 }];
-  }
-  return [
-    { x: dino.x + 15, y: dino.y, w: 29, h: 20 },   // голова
-    { x: dino.x, y: dino.y + 12, w: 32, h: 35 },   // тело и ноги
-  ];
+  if (dino.ducking && !dino.jumping) return [{ x: dino.x, y: FLOOR - 25, w: 66, h: 25 }];
+  return [{ x: dino.x + 16, y: dino.y, w: 28, h: 20 }, { x: dino.x, y: dino.y + 14, w: 32, h: 33 }];
 }
-function hit(a, b) {
-  const pad = 3;
-  return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x && a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
-}
-function collides() {
-  const boxes = dinoBoxes();
-  return obstacles.some((o) => boxes.some((b) => hit(b, o)));
+function hit(a, b) { const p = 3; return a.x + p < b.x + b.w && a.x + a.w - p > b.x && a.y + p < b.y + b.h && a.y + a.h - p > b.y; }
+function collidingObstacle() { const bs = dinoBoxes(); return obstacles.find((o) => bs.some((b) => hit(b, o))); }
+
+// ================= Частицы =================
+function burst(x, y, color, n, spread = 3, up = 2) {
+  if (!kit.settings.effects) return;
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (rnd() - 0.5) * spread * 2, vy: -rnd() * up * 2, life: 30 + rnd() * 20, max: 50, color, r: 1.5 + rnd() * 2.5 });
 }
 
-function jumpPressed() { return keys.Space || keys.ArrowUp || keys.pointer; }
+// ================= Запуск режимов =================
+function resetRun(mode, fromDist) {
+  autopilot = mode === 'demo';          // автопилот - только для заставки в меню, в забеге правит игрок
+  state.mode = mode;
+  state.phase = 'run';
+  state.dist = fromDist || 0;
+  state.leg = legAt(state.dist);
+  state.legStart = state.dist;
+  state.maxLives = mode === 'endless' ? 1 : diffLives();
+  state.lives = state.maxLives;
+  state.invuln = 0; state.frame = 0; state.nextGap = 300; state.banner = null; state.shake = 0; state.flashT = 0;
+  state.stats = { jumps: 0, birds: 0, hits: 0, steps: 0 };
+  state.speed = targetSpeed();
+  obstacles.length = 0; particles.length = 0;
+  Object.assign(dino, { y: GROUND_Y, vy: 0, jumping: false, ducking: false, jumpHeld: false });
+  if (mode === 'journey') state.banner = { text: `Этап ${state.leg + 1}: ${LEGS[state.leg].name}`, t: 150 };
+}
+function startJourney(leg) {
+  resetRun('journey', LEGS[leg || 0].from);
+  records.runs++; saveProgress();
+  kit.play();
+}
+function startEndless() {
+  resetRun('endless', 0);
+  records.runs++; saveProgress();
+  kit.play();
+}
+function startDemo() { resetRun('demo', 0); state.lives = 99; }
 
-// Один шаг мира (1/60 секунды).
+// ================= Шаг мира (1/60 с) =================
 function update() {
-  if (state.phase === 'over') { if (state.overTimer > 0) state.overTimer--; return; }
-  if (state.phase !== 'running') return;
-
   state.frame++;
-  const before = Math.floor(state.score / 100);
-  state.score += state.speed / 60;
-  if (Math.floor(state.score / 100) > before) { state.flash = 40; SFX.point(); }
-  if (state.flash > 0) state.flash--;
-  if (state.frame % 100 === 0 && state.speed < MAX_SPEED) state.speed = Math.min(MAX_SPEED, state.speed + 0.2);
-
-  if (jumpPressed() && !dino.jumping && !keys.ArrowDown) {
-    dino.vy = JUMP_V; dino.jumping = true; SFX.jump();
-  }
-  dino.ducking = !!keys.ArrowDown;
-  if (dino.jumping) {
-    if (!jumpPressed() && dino.vy < JUMP_CUT) dino.vy = JUMP_CUT;   // отпустил рано - прыжок ниже
-    if (keys.ArrowDown) dino.vy += FAST_FALL;
-    dino.vy += GRAVITY;
-    dino.y += dino.vy;
-    if (dino.y >= GROUND_Y) { dino.y = GROUND_Y; dino.vy = 0; dino.jumping = false; }
-  }
-
-  for (const o of obstacles) o.x -= o.type === 'bird' ? state.speed + 0.8 : state.speed;
-  while (obstacles.length && obstacles[0].x + obstacles[0].w < -10) obstacles.shift();
-  state.nextGap -= state.speed;
-  if (state.nextGap <= 0) spawnObstacle();
-
-  for (const c of clouds) {
-    c.x -= state.speed * 0.2;
-    if (c.x < -40) { c.x = W + rnd() * 100; c.y = 30 + rnd() * 50; }
-  }
-  for (const d of groundDots) {
-    d.x -= state.speed;
-    if (d.x < 0) { d.x = W + rnd() * 50; d.y = FLOOR + 4 + rnd() * 8; d.len = 1 + rnd() * 4; }
-  }
-
-  if (collides()) gameOver();
-}
-
-function gameOver() {
-  state.phase = 'over';
-  state.overTimer = RESTART_DELAY;
-  const s = Math.floor(state.score);
-  if (s > state.hiScore) { state.hiScore = s; saveHi(s); }
-  SFX.die();
-}
-
-function togglePause() {
-  if (state.phase === 'running') state.phase = 'paused';
-  else if (state.phase === 'paused') state.phase = 'running';
-}
-
-// ---------- Рисование ----------
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const INK = '#535353', BG = '#f7f7f7';
-
-function fitCanvas() {
-  // Холст по ширине окна (с полями), но не выше, чем позволяет высота окна.
-  const maxW = Math.min(window.innerWidth - 32, 1100, (window.innerHeight - 140) * (W / H));
-  const cssW = Math.max(300, Math.floor(maxW));
-  const cssH = Math.round(cssW * H / W);
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
-  render();
-}
-
-function drawDino() {
-  ctx.fillStyle = INK;
-  const x = dino.x, y = dino.y;
-  const run = Math.floor(state.frame / 6) % 2 === 0;
-  if (dino.ducking && !dino.jumping) {
-    const dy = y + 22;
-    ctx.fillRect(x, dy + 4, 56, 18);
-    ctx.fillRect(x + 48, dy, 22, 14);
-    ctx.fillStyle = BG; ctx.fillRect(x + 60, dy + 3, 3, 3); ctx.fillStyle = INK;
-    ctx.fillRect(x + 10, dy + 22, 6, run ? 3 : 1);
-    ctx.fillRect(x + 30, dy + 22, 6, run ? 1 : 3);
+  if (state.flashT > 0) state.flashT--;
+  if (state.shake > 0) state.shake *= 0.85;
+  updateParticles();
+  if (state.phase === 'dying') {
+    dino.vy += GRAVITY; dino.y = Math.min(GROUND_Y + 10, dino.y + dino.vy);
+    if (--state.dyingT <= 0) showGameOver();
     return;
   }
-  ctx.fillRect(x, y + 12, 22, 28);            // тело
-  ctx.fillRect(x + 15, y, 29, 18);            // голова
-  ctx.fillRect(x + 34, y + 18, 8, 3);         // рот
-  ctx.fillRect(x + 22, y + 22, 8, 4);         // лапка
-  ctx.fillRect(x - 6, y + 16, 6, 12);         // хвост
-  ctx.fillStyle = BG; ctx.fillRect(x + 22, y + 4, 4, 4); ctx.fillStyle = INK;  // глаз
+  if (state.phase !== 'run') { if (state.phase === 'won') { dino.runPhase += 0.1; if (state.frame % 6 === 0) confetti(); } return; }
+  state.stats.steps++;
+
+  // ввод: игрок или автопилот (для заставки меню)
+  let jumpDown, duckDown;
+  if (autopilot) { const a = pilot(); jumpDown = a.jump; duckDown = a.duck; }
+  else { jumpDown = kit.isDown('jump') || pointerHeld; duckDown = kit.isDown('duck'); }
+
+  const before = Math.floor(state.dist / 100);
+  state.speed += (targetSpeed() - state.speed) * 0.02;
+  state.dist += state.speed / 10;
+  if (Math.floor(state.dist / 100) > before && state.mode !== 'demo' && Math.floor(state.dist / 100) % 5 === 0) SFX.point();
+
+  if (jumpDown && !dino.jumping && !duckDown) {
+    dino.vy = JUMP_V; dino.jumping = true; state.stats.jumps++;
+    if (state.mode !== 'demo') { SFX.jump(); burst(dino.x + 20, FLOOR, pal.groundDark, 5, 1.5, 0.6); }
+  }
+  dino.ducking = !!duckDown;
   if (dino.jumping) {
-    ctx.fillRect(x + 4, y + 40, 6, 7); ctx.fillRect(x + 14, y + 40, 6, 7);
-  } else if (run) {
-    ctx.fillRect(x + 4, y + 40, 6, 7); ctx.fillRect(x + 14, y + 40, 6, 3);
+    if (!jumpDown && dino.vy < JUMP_CUT) dino.vy = JUMP_CUT;      // отпустил рано - прыжок ниже
+    if (duckDown) dino.vy += FAST_FALL;
+    dino.vy += GRAVITY;
+    dino.y += dino.vy;
+    if (dino.y >= GROUND_Y) {
+      dino.y = GROUND_Y; dino.vy = 0; dino.jumping = false;
+      if (state.mode !== 'demo') { SFX.land(); burst(dino.x + 20, FLOOR, pal.groundDark, 6, 2, 0.8); }
+    }
+  }
+  dino.runPhase += state.speed * 0.045;
+  if (!dino.jumping && state.frame % 8 === 0 && kit.settings.effects) particles.push({ x: dino.x + 4, y: FLOOR - 2, vx: -state.speed * 0.3, vy: -0.3, life: 18, max: 18, color: pal.groundDark, r: 2 });
+
+  for (const o of obstacles) {
+    o.x -= o.type === 'bird' ? state.speed + 0.8 : state.speed;
+    if (o.type === 'bird' && !o.passed && o.x + o.w < dino.x) { o.passed = true; state.stats.birds++; }
+  }
+  while (obstacles.length && obstacles[0].x + obstacles[0].w < -20) obstacles.shift();
+  state.nextGap -= state.speed;
+  const nearEnd = state.mode === 'journey' && state.leg === LEGS.length - 1 && state.dist > JOURNEY_END - 60;
+  if (state.nextGap <= 0 && !nearEnd) spawnObstacle();
+
+  if (state.invuln > 0) state.invuln--;
+  else {
+    const o = collidingObstacle();
+    if (o) onHit(o);
+  }
+  if (state.banner && --state.banner.t <= 0) state.banner = null;
+
+  if (state.mode === 'journey') checkLeg();
+  if (state.mode === 'endless') checkEndlessAchievements();
+  if (state.dist - state.legStart >= 500 && state.mode !== 'demo') kit.unlock('first500');   // пробежать самому, а не начать с дальнего этапа
+}
+
+function onHit(o) {
+  state.stats.hits++;
+  state.lives--;
+  if (kit.settings.shake) state.shake = 10;
+  state.flashT = 8;
+  burst(o.x + o.w / 2, o.y + o.h / 2, '#ffffff', 14, 4, 3);
+  SFX.hit();
+  if (state.lives > 0) {                       // сердце потеряно, бег продолжается
+    state.invuln = INVULN_STEPS;
+    obstacles.splice(obstacles.indexOf(o), 1);
+    return;
+  }
+  if (state.mode === 'demo') { state.lives = 99; return; }
+  state.phase = 'dying';
+  state.dyingT = 70;
+  dino.vy = -7; dino.jumping = true;
+  finishRunRecords();
+}
+
+function checkLeg() {
+  const L = LEGS[state.leg];
+  if (state.dist < L.to) return;
+  if (state.leg === LEGS.length - 1) { winJourney(); return; }
+  if (state.stats.hits === 0 && state.legStart <= L.from) kit.unlock('flawless');
+  state.leg++;
+  if (progress.leg < state.leg) { progress.leg = state.leg; saveProgress(); }
+  kit.unlock(['leg1', 'leg2', 'leg3'][state.leg - 1]);
+  state.banner = { text: `Этап пройден! Дальше: ${LEGS[state.leg].name}`, t: 180 };
+  state.legStart = LEGS[state.leg].from;
+  SFX.leg();
+}
+
+function finishRunRecords() {
+  records.totalDist += Math.floor(state.dist - state.legStart);
+  records.totalJumps += state.stats.jumps;
+  records.totalBirds += state.stats.birds;
+  if (state.mode === 'endless' && state.dist > records.endless) records.endless = Math.floor(state.dist);
+  saveProgress();
+  if (records.totalJumps >= 500) kit.unlock('jumps500');
+  if (records.totalBirds >= 50) kit.unlock('birds50');
+}
+function checkEndlessAchievements() {
+  if (state.dist >= 3000) kit.unlock('endless3000');
+}
+
+function winJourney() {
+  state.phase = 'won';
+  state.dist = JOURNEY_END;
+  obstacles.length = 0;
+  progress.done = true; progress.leg = LEGS.length - 1;
+  const secs = Math.round(state.stats.steps / 60);
+  const d = kit.settings.difficulty;
+  if (!records.journeyTime[d] || secs < records.journeyTime[d]) records.journeyTime[d] = secs;
+  finishRunRecords();
+  kit.unlock('leg4');
+  if (d === 'hard') kit.unlock('hardJourney');
+  SFX.leg();
+  setTimeout(showVictory, 1600);
+}
+
+function pilot() {
+  // Простая «рука» для заставки меню: прыгает через низкое, пригибается под средней птицей
+  const o = obstacles.find((q) => q.x + q.w > dino.x - 2);
+  if (!o) return { jump: dino.jumping && dino.vy < 0, duck: false };
+  const dx = o.x - (dino.x + DINO_W);
+  if (o.type === 'bird' && o.level === 'high') return { jump: false, duck: false };
+  if (o.type === 'bird' && o.level === 'mid') return { jump: false, duck: dx < state.speed * 9 };
+  const jump = dx < state.speed * 7 || (dino.jumping && dino.vy < 0);
+  return { jump, duck: false };
+}
+
+// ================= Экраны =================
+function fmtTime(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function statsHtml() {
+  const s = state.stats;
+  return `<table>
+    <tr><td>Пробежано</td><td><b>${Math.floor(state.dist)} м</b></td></tr>
+    <tr><td>Время</td><td>${fmtTime(Math.round(s.steps / 60))}</td></tr>
+    <tr><td>Прыжков</td><td>${s.jumps}</td></tr>
+    <tr><td>Птиц пропущено</td><td>${s.birds}</td></tr>
+    <tr><td>Столкновений</td><td>${s.hits}</td></tr>
+  </table>`;
+}
+function showGameOver() {
+  state.phase = 'over';
+  kit.mode = 'menu';
+  if (state.mode === 'endless') {
+    const rec = Math.floor(state.dist) >= records.endless;
+    kit.show({ id: 'over', title: rec ? 'Новый рекорд!' : 'Забег окончен', html: statsHtml() + `<p>Рекорд: <b>${records.endless} м</b></p>`, row: true,
+      buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
   } else {
-    ctx.fillRect(x + 4, y + 40, 6, 3); ctx.fillRect(x + 14, y + 40, 6, 7);
-  }
-  if (state.phase === 'over') { ctx.fillStyle = BG; ctx.fillRect(x + 21, y + 3, 6, 6); ctx.fillStyle = INK; ctx.fillRect(x + 23, y + 5, 2, 2); }
-}
-
-function drawCactus(o) {
-  ctx.fillStyle = INK;
-  const n = Math.max(1, Math.round(o.w / 17));
-  const sw = o.w / n;
-  for (let i = 0; i < n; i++) {
-    const cx = o.x + i * sw;
-    const top = o.y + (i % 2) * 4;
-    ctx.fillRect(cx + sw * 0.3, top, sw * 0.4, o.y + o.h - top);
-    ctx.fillRect(cx, top + o.h * 0.3, sw * 0.2, o.h * 0.25);
-    ctx.fillRect(cx + sw * 0.8, top + o.h * 0.2, sw * 0.2, o.h * 0.25);
-    ctx.fillRect(cx, top + o.h * 0.5, sw, 3);
+    const L = LEGS[state.leg];
+    kit.show({ id: 'over', title: 'Сердца кончились', html: statsHtml() + `<p>Контрольная точка: начало этапа «${L.name}» (${L.from} м).</p>`, row: true,
+      buttons: [{ label: `С отметки ${L.from} м`, primary: true, id: 'again', onClick: () => startJourney(state.leg) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
   }
 }
-
-function drawBird(o) {
-  ctx.fillStyle = INK;
-  const up = Math.floor(state.frame / 10) % 2 === 0;
-  ctx.fillRect(o.x + 8, o.y + 12, 30, 7);       // тело
-  ctx.fillRect(o.x, o.y + 10, 10, 6);           // клюв и голова
-  ctx.fillRect(o.x + 36, o.y + 13, 10, 4);      // хвост
-  if (up) ctx.fillRect(o.x + 16, o.y, 12, 12); else ctx.fillRect(o.x + 16, o.y + 19, 12, 9);
-  ctx.fillStyle = BG; ctx.fillRect(o.x + 4, o.y + 11, 2, 2);
+function showVictory() {
+  kit.mode = 'menu';
+  const d = kit.settings.difficulty;
+  kit.show({ id: 'victory', title: 'Путешествие завершено!', wide: true,
+    html: `<p>Динозаврик пробежал пустыню, каньон, ночную степь и снежный перевал - все 10 000 метров.</p>${statsHtml()}
+      <p>Лучшее время (${({ easy: 'лёгкая', normal: 'обычная', hard: 'трудная' })[d]} сложность): <b>${fmtTime(records.journeyTime[d])}</b></p>
+      <p style="color:var(--kit-dim)">Игра и рисунки - в коде страницы, музыка и звуки синтезированы. Спасибо, что добежали!</p>`,
+    row: true, buttons: [{ label: 'Бесконечный бег', primary: true, onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+}
+function showLegSelect() {
+  const node = document.createElement('div');
+  node.innerHTML = '<p>Этап открывается, когда до него добежали. Начать можно с любого открытого.</p>';
+  const grid = document.createElement('div');
+  grid.className = 'kit-grid';
+  LEGS.forEach((L, i) => {
+    const open = i <= progress.leg;
+    const b = kit.btn(`${open ? '' : '🔒 '}${i + 1}. ${L.name}<small>${L.from}–${L.to} м</small>`, () => { if (open) startJourney(i); });
+    b.disabled = !open;
+    b.dataset.leg = i;
+    grid.appendChild(b);
+  });
+  node.appendChild(grid);
+  kit.show({ id: 'legs', title: 'Выбор этапа', node, wide: true, buttons: [{ label: 'Назад', onClick: () => kit.pop() }] });
 }
 
-function drawCloud(c) {
-  ctx.fillStyle = '#d0d0d0';
-  ctx.fillRect(c.x + 8, c.y, 20, 4);
-  ctx.fillRect(c.x + 3, c.y + 4, 32, 4);
-  ctx.fillRect(c.x, c.y + 8, 40, 4);
+// ================= Рисование =================
+const canvas = document.getElementById('game');
+let ctx = canvas.getContext('2d');          // let: логотип меню рисует того же динозаврика в свой холст
+let scale = 1, pal = mixPal(PAL.desert, PAL.desert, 0);
+
+function fitCanvas() {
+  const s = Math.min((innerWidth - 24) / W, (innerHeight - 24) / H);
+  scale = Math.max(0.4, s);
+  const cssW = Math.floor(W * scale), cssH = Math.floor(H * scale);
+  const dpr = devicePixelRatio || 1;
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
 }
 
-function drawGround() {
-  ctx.fillStyle = INK;
-  ctx.fillRect(0, FLOOR, W, 1);
-  for (const d of groundDots) ctx.fillRect(d.x, d.y, d.len, 1);
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+
+function layerHeight(shape, x) {
+  switch (shape) {
+    case 'dunes': return 30 + Math.sin(x * 0.006) * 18 + Math.sin(x * 0.017 + 1) * 8;
+    case 'mesas': { const v = Math.sin(x * 0.004) + Math.sin(x * 0.011 + 2) * 0.5; return v > 0.35 ? 58 : v > -0.2 ? 36 : 22; }
+    case 'hills': return 28 + Math.sin(x * 0.005) * 14 + Math.sin(x * 0.013) * 7;
+    default: return 30 + Math.abs(Math.sin(x * 0.009)) * 55 + Math.sin(x * 0.03) * 4;
+  }
+}
+function drawLayer(color, par, base, amp, shapeA, shapeB, t) {
+  const off = state.dist * 10 * par;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, FLOOR);
+  for (let x = 0; x <= W; x += 8) {
+    const hA = layerHeight(shapeA, x + off), hB = shapeB ? layerHeight(shapeB, x + off) : hA;
+    ctx.lineTo(x, base - (hA + (hB - hA) * (t || 0)) * amp);
+  }
+  ctx.lineTo(W, FLOOR);
+  ctx.fill();
 }
 
-function centerText(text, y, size) {
-  ctx.font = `bold ${size}px Consolas, "Courier New", monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText(text, W / 2, y);
+const STARS = Array.from({ length: 70 }, (_, i) => ({ x: (i * 97.3) % W, y: (i * 53.7) % 150, r: (i % 3) * 0.5 + 0.6 }));
+function drawSky(p) {
+  const g = ctx.createLinearGradient(0, 0, 0, FLOOR);
+  g.addColorStop(0, p.skyTop); g.addColorStop(1, p.skyBot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, FLOOR);
+  if (p.stars > 0.02) {
+    for (const s of STARS) {
+      ctx.globalAlpha = p.stars * (0.5 + 0.5 * Math.sin(state.frame * 0.05 + s.x));
+      ctx.fillStyle = '#fff'; ctx.fillRect(s.x - (state.dist * 0.2) % W < 0 ? s.x + W - (state.dist * 0.2) % W : s.x - (state.dist * 0.2) % W, s.y, s.r, s.r);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (p.sun > 0.02) {
+    ctx.globalAlpha = p.sun;
+    const sy = 70 + (1 - p.sun) * 70;
+    const sg = ctx.createRadialGradient(640, sy, 5, 640, sy, 60);
+    sg.addColorStop(0, 'rgba(255,245,200,1)'); sg.addColorStop(0.35, 'rgba(255,220,120,0.9)'); sg.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(640, sy, 60, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (p.moon > 0.02) {
+    ctx.globalAlpha = p.moon;
+    ctx.fillStyle = '#f4f1dc'; ctx.beginPath(); ctx.arc(620, 60, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = p.skyTop; ctx.beginPath(); ctx.arc(630, 54, 17, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+function drawGround(p) {
+  ctx.fillStyle = p.ground; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  ctx.fillStyle = p.groundDark; ctx.fillRect(0, FLOOR, W, 3);
+  const off = (state.dist * 10) % 40;
+  ctx.fillStyle = p.detail;
+  for (let x = -off; x < W; x += 40) {
+    ctx.fillRect(x + 6, FLOOR + 10, 6, 2); ctx.fillRect(x + 24, FLOOR + 22, 4, 2); ctx.fillRect(x + 14, FLOOR + 36, 8, 2);
+  }
+  if (p.snow > 0.02 && kit.settings.effects) {
+    ctx.globalAlpha = p.snow; ctx.fillStyle = '#fff';
+    for (let i = 0; i < 50; i++) {
+      const x = (i * 83 - state.frame * (1 + (i % 3) * 0.5) - state.dist * 3) % W, y = (i * 47 + state.frame * (1 + (i % 4) * 0.4)) % FLOOR;
+      ctx.fillRect(x < 0 ? x + W : x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------- Спрайты: чистый векторный стиль, все в одном наборе цветов ----------
+const DINO = { body: '#4f9d45', dark: '#3a7a33', belly: '#b9e08c', eye: '#ffffff', pupil: '#1b1b2f', mouth: '#2a5424' };
+function drawDinoAt(x, y, o) {
+  const { ducking, jumping, runPhase, hurt, blink } = o;
+  if (blink && Math.floor(state.frame / 4) % 2 === 0) return;
+  ctx.save();
+  ctx.translate(x, y);
+  const legA = jumping ? 0.5 : Math.sin(runPhase) * 0.7, legB = jumping ? 0.2 : -Math.sin(runPhase) * 0.7;
+  const leg = (lx, ly, a, c) => { ctx.save(); ctx.translate(lx, ly); ctx.rotate(a); ctx.fillStyle = c; rr(-4, 0, 8, 13, 3); rr(-2, 10, 9, 4, 2); ctx.restore(); };
+  if (ducking && !jumping) {
+    leg(14, FLOOR - y - 13, legB, DINO.dark); leg(30, FLOOR - y - 13, legA, DINO.dark);
+    ctx.fillStyle = DINO.body;
+    ctx.beginPath(); ctx.moveTo(-6, FLOOR - y - 20); ctx.lineTo(12, FLOOR - y - 24); ctx.lineTo(12, FLOOR - y - 14); ctx.fill();
+    rr(8, FLOOR - y - 26, 44, 16, 8);
+    rr(40, FLOOR - y - 28, 26, 15, 6);
+    ctx.fillStyle = DINO.belly; rr(14, FLOOR - y - 16, 30, 5, 3);
+    ctx.fillStyle = DINO.eye; ctx.beginPath(); ctx.arc(58, FLOOR - y - 23, 3, 0, 7); ctx.fill();
+    ctx.fillStyle = DINO.pupil; ctx.beginPath(); ctx.arc(59, FLOOR - y - 23, 1.5, 0, 7); ctx.fill();
+  } else {
+    leg(12, 32, legB, DINO.dark); leg(24, 32, legA, DINO.body);
+    ctx.fillStyle = DINO.body;
+    ctx.beginPath(); ctx.moveTo(-8, 30); ctx.quadraticCurveTo(0, 20, 8, 20); ctx.lineTo(10, 34); ctx.fill();   // хвост
+    ctx.beginPath(); ctx.ellipse(18, 29, 15, 12, 0, 0, 7); ctx.fill();                                     // тело
+    rr(18, 0, 26, 20, 7);                                                                                 // голова
+    rr(20, 12, 10, 14, 4);                                                                                // шея
+    ctx.fillStyle = DINO.belly; ctx.beginPath(); ctx.ellipse(20, 33, 9, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = DINO.dark; rr(28, 24, 8, 4, 2);                                                       // лапка
+    ctx.fillStyle = DINO.mouth; ctx.fillRect(32, 15, 11, 2);
+    if (hurt) {
+      ctx.strokeStyle = DINO.pupil; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(27, 4); ctx.lineTo(33, 10); ctx.moveTo(33, 4); ctx.lineTo(27, 10); ctx.stroke();
+    } else {
+      ctx.fillStyle = DINO.eye; ctx.beginPath(); ctx.arc(31, 7, 4, 0, 7); ctx.fill();
+      ctx.fillStyle = DINO.pupil; ctx.beginPath(); ctx.arc(32.5, 7, 2, 0, 7); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawObstacle(o, p) {
+  const bx = o.x, by = o.y;
+  switch (o.type) {
+    case 'cactus': {
+      const n = Math.max(1, Math.round(o.w / 18)), sw = o.w / n;
+      for (let i = 0; i < n; i++) {
+        const cx = bx + i * sw, top = by + (i % 2) * 5, cw = sw * 0.46;
+        ctx.fillStyle = p.plant; rr(cx + (sw - cw) / 2, top, cw, o.y + o.h - top, cw / 2);
+        rr(cx, top + o.h * 0.35, sw * 0.24, o.h * 0.25, 3); rr(cx + sw * 0.76, top + o.h * 0.22, sw * 0.24, o.h * 0.25, 3);
+        rr(cx, top + o.h * 0.52, sw * 0.5, 4, 2); rr(cx + sw * 0.5, top + o.h * 0.4, sw * 0.5, 4, 2);
+        ctx.fillStyle = p.plantDark; ctx.fillRect(cx + sw / 2 - 1, top + 5, 2, o.h - 10);
+      }
+      break;
+    }
+    case 'rock':
+      ctx.fillStyle = p.groundDark;
+      ctx.beginPath(); ctx.moveTo(bx, by + o.h); ctx.lineTo(bx + 4, by + o.h * 0.35); ctx.lineTo(bx + o.w * 0.4, by); ctx.lineTo(bx + o.w * 0.8, by + o.h * 0.2); ctx.lineTo(bx + o.w, by + o.h); ctx.fill();
+      ctx.fillStyle = p.detail; ctx.beginPath(); ctx.moveTo(bx + o.w * 0.4, by); ctx.lineTo(bx + o.w * 0.55, by + o.h); ctx.lineTo(bx + o.w * 0.3, by + o.h); ctx.fill();
+      break;
+    case 'pine':
+      ctx.fillStyle = '#6b4a2e'; ctx.fillRect(bx + o.w / 2 - 3, by + o.h - 10, 6, 10);
+      ctx.fillStyle = p.plant;
+      for (let k = 0; k < 3; k++) { const ty = by + k * o.h * 0.25, tw = o.w * (0.55 + k * 0.22); ctx.beginPath(); ctx.moveTo(bx + o.w / 2, ty); ctx.lineTo(bx + o.w / 2 + tw / 2, ty + o.h * 0.42); ctx.lineTo(bx + o.w / 2 - tw / 2, ty + o.h * 0.42); ctx.fill(); }
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(bx + o.w / 2, by); ctx.lineTo(bx + o.w / 2 + 5, by + 8); ctx.lineTo(bx + o.w / 2 - 5, by + 8); ctx.fill();
+      break;
+    case 'ice':
+      ctx.fillStyle = '#9fd6f2';
+      ctx.beginPath(); ctx.moveTo(bx, by + o.h); ctx.lineTo(bx + o.w * 0.25, by + o.h * 0.2); ctx.lineTo(bx + o.w * 0.45, by + o.h * 0.6); ctx.lineTo(bx + o.w * 0.7, by); ctx.lineTo(bx + o.w, by + o.h); ctx.fill();
+      ctx.fillStyle = '#e4f6ff'; ctx.beginPath(); ctx.moveTo(bx + o.w * 0.7, by); ctx.lineTo(bx + o.w * 0.78, by + o.h); ctx.lineTo(bx + o.w * 0.62, by + o.h); ctx.fill();
+      break;
+    case 'bird': {
+      const up = Math.floor((state.frame + o.seed) / 9) % 2 === 0;
+      ctx.fillStyle = '#7b4a8c';
+      ctx.beginPath(); ctx.ellipse(bx + 24, by + 16, 15, 6, 0, 0, 7); ctx.fill();          // тело
+      ctx.beginPath(); ctx.ellipse(bx + 8, by + 13, 7, 5, 0, 0, 7); ctx.fill();            // голова
+      ctx.fillStyle = '#f2b23a'; ctx.beginPath(); ctx.moveTo(bx + 2, by + 12); ctx.lineTo(bx - 7, by + 15); ctx.lineTo(bx + 2, by + 16); ctx.fill();
+      ctx.fillStyle = '#5b3470';
+      ctx.beginPath(); ctx.moveTo(bx + 16, by + 14); ctx.lineTo(bx + 32, by + 14); ctx.lineTo(bx + 26, up ? by - 4 : by + 30); ctx.fill();   // крыло
+      ctx.beginPath(); ctx.moveTo(bx + 38, by + 14); ctx.lineTo(bx + 48, by + 10); ctx.lineTo(bx + 46, by + 20); ctx.fill();           // хвост
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx + 7, by + 11, 1.8, 0, 7); ctx.fill();
+      break;
+    }
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const q = particles[i];
+    q.x += q.vx; q.y += q.vy; q.vy += 0.15; q.life--;
+    if (q.life <= 0) particles.splice(i, 1);
+  }
+}
+function confetti() {
+  if (!kit.settings.effects) return;
+  const cols = ['#ff5a8a', '#ffd34d', '#42a5f5', '#66bb6a', '#ab47bc'];
+  for (let i = 0; i < 6; i++) particles.push({ x: rnd() * W, y: -5, vx: (rnd() - 0.5) * 2, vy: rnd() * 2, life: 120, max: 120, color: pick(cols), r: 2 + rnd() * 2 });
+}
+
+// ---------- Значки и HUD ----------
+function heart(x, y, full) {
+  ctx.fillStyle = full ? '#ff4d6d' : 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.moveTo(x, y + 4); ctx.bezierCurveTo(x, y, x - 7, y, x - 7, y + 4); ctx.bezierCurveTo(x - 7, y + 8, x, y + 11, x, y + 13);
+  ctx.bezierCurveTo(x, y + 11, x + 7, y + 8, x + 7, y + 4); ctx.bezierCurveTo(x + 7, y, x, y, x, y + 4); ctx.fill();
+}
+function flag(x, y, c) { ctx.fillStyle = '#333'; ctx.fillRect(x, y, 2, 14); ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x + 2, y); ctx.lineTo(x + 12, y + 4); ctx.lineTo(x + 2, y + 8); ctx.fill(); }
+function hudText(t, x, y, size, align = 'left', color = '#fff') {
+  ctx.font = `bold ${size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = align;
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.strokeText(t, x, y);
+  ctx.fillStyle = color; ctx.fillText(t, x, y);
   ctx.textAlign = 'left';
 }
-
 function drawHud() {
-  ctx.fillStyle = INK;
-  ctx.font = 'bold 16px Consolas, "Courier New", monospace';
-  ctx.textAlign = 'right';
-  const s = String(Math.floor(state.score)).padStart(5, '0');
-  if (!(state.flash > 0 && Math.floor(state.flash / 5) % 2 === 0)) ctx.fillText(s, W - 10, 25);
-  if (state.hiScore > 0) {
-    ctx.fillStyle = '#8a8a8a';
-    ctx.fillText('РЕКОРД ' + String(state.hiScore).padStart(5, '0'), W - 80, 25);
+  if (state.mode === 'demo') return;
+  flag(14, 12, '#ffcc33');
+  hudText(Math.floor(state.dist) + ' м', 32, 25, 18);
+  for (let i = 0; i < state.maxLives; i++) heart(24 + i * 20, 36, i < state.lives);
+  if (state.mode === 'journey') {
+    const x0 = 200, x1 = 600, y = 18;
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(x0, y - 4, x1 - x0, 8, 4);
+    ctx.fillStyle = '#ffcc33'; rr(x0, y - 4, (x1 - x0) * Math.min(1, state.dist / JOURNEY_END), 8, 4);
+    for (const L of LEGS) { const x = x0 + (x1 - x0) * L.to / JOURNEY_END; ctx.fillStyle = state.dist >= L.to ? '#ffcc33' : '#fff'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill(); }
+    hudText(`Этап ${state.leg + 1}/${LEGS.length}: ${LEGS[state.leg].name}`, 400, 44, 13, 'center');
+  } else {
+    hudText('Рекорд ' + Math.max(records.endless, Math.floor(state.dist)) + ' м', W - 14, 25, 15, 'right');
   }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = INK;
-  if (muted) { ctx.font = '12px Consolas, monospace'; ctx.fillText('звук выкл (M)', 10, 20); }
-  if (state.phase === 'ready') {
-    centerText('ДИНО-БЕГ', 70, 26);
-    centerText('Пробел или клик - старт', 98, 15);
-  } else if (state.phase === 'paused') {
-    centerText('ПАУЗА', 70, 26);
-    centerText('P или Esc - продолжить', 98, 15);
-  } else if (state.phase === 'over') {
-    centerText('И Г Р А   О К О Н Ч Е Н А', 70, 24);
-    centerText(state.overTimer > 0 ? '...' : 'Пробел или клик - ещё раз', 98, 15);
+  if (state.banner) {
+    ctx.globalAlpha = Math.min(1, state.banner.t / 30);
+    hudText(state.banner.text, W / 2, 110, 24, 'center', '#ffe27a');
+    ctx.globalAlpha = 1;
   }
 }
 
 function render() {
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, W, H);
-  for (const c of clouds) drawCloud(c);
-  drawGround();
-  for (const o of obstacles) (o.type === 'cactus' ? drawCactus : drawBird)(o);
-  drawDino();
+  pal = currentPalette();
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  if (state.shake > 0.5) ctx.translate((rnd() - 0.5) * state.shake, (rnd() - 0.5) * state.shake);
+  drawSky(pal);
+  drawLayer(pal.far, 0.08, FLOOR - 40, 1.4, pal.shape, pal.shapeB, pal.shapeT);
+  drawLayer(pal.mid, 0.25, FLOOR - 5, 1, pal.shape, pal.shapeB, pal.shapeT);
+  drawGround(pal);
+  for (const o of obstacles) drawObstacle(o, pal);
+  if (state.mode === 'journey' && state.leg === LEGS.length - 1) {
+    const fx = dino.x + DINO_W + (JOURNEY_END - state.dist) * 10;           // финишная арка
+    if (fx < W + 20) { ctx.fillStyle = '#c0392b'; ctx.fillRect(fx, FLOOR - 90, 6, 90); ctx.fillRect(fx + 70, FLOOR - 90, 6, 90); ctx.fillStyle = '#ffcc33'; rr(fx - 6, FLOOR - 100, 88, 18, 4); ctx.fillStyle = '#6b3a1a'; ctx.font = 'bold 12px "Segoe UI"'; ctx.textAlign = 'center'; ctx.fillText('ФИНИШ', fx + 38, FLOOR - 87); ctx.textAlign = 'left'; }
+  }
+  drawDinoAt(dino.x, dino.y, { ducking: dino.ducking, jumping: dino.jumping, runPhase: dino.runPhase, hurt: state.phase === 'dying' || state.phase === 'over', blink: state.invuln > 0 });
+  for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / q.max); ctx.fillStyle = q.color; ctx.fillRect(q.x, q.y, q.r, q.r); }
+  ctx.globalAlpha = 1;
+  if (state.flashT > 0 && kit.settings.effects) { ctx.fillStyle = `rgba(255,255,255,${state.flashT / 16})`; ctx.fillRect(0, 0, W, H); }
   drawHud();
 }
 
-// ---------- Ввод ----------
-function onAction() {
-  if (state.phase === 'ready') { reset(); return true; }
-  if (state.phase === 'over') { if (state.overTimer === 0) { reset(); return true; } return false; }
-  return false;
-}
-document.addEventListener('keydown', (e) => {
-  if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
-  if (e.code === 'KeyM') { muted = !muted; return; }
-  if ((e.code === 'Space' || e.code === 'ArrowUp') && !e.repeat && onAction()) return;
-  keys[e.code] = true;
-});
-document.addEventListener('keyup', (e) => { keys[e.code] = false; });
-canvas.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  if (state.phase === 'paused') { togglePause(); return; }
-  if (onAction()) return;
-  keys.pointer = true;
-});
-window.addEventListener('pointerup', () => { keys.pointer = false; });
-// Окно потеряло фокус - пауза и отпускание всех клавиш (иначе динозаврик «залипает» в прыжке).
-window.addEventListener('blur', () => {
-  for (const k in keys) keys[k] = false;
-  if (state.phase === 'running') state.phase = 'paused';
-});
-document.addEventListener('visibilitychange', () => { if (document.hidden && state.phase === 'running') state.phase = 'paused'; });
-window.addEventListener('resize', fitCanvas);
+// ================= Ввод мышью и касанием: нажал - прыжок, держишь - выше =================
+let pointerHeld = false;
+canvas.addEventListener('pointerdown', (e) => { if (kit.mode === 'play' && e.button === 0) { pointerHeld = true; e.preventDefault(); } });
+addEventListener('pointerup', () => { pointerHeld = false; });
+addEventListener('blur', () => { pointerHeld = false; });
 
-// ---------- Цикл: физика фиксированными шагами, рисование по кадрам ----------
+// ================= Каркас: меню, пауза, настройки =================
+const MUSIC = {
+  menu: { bpm: 104, voices: [
+    { type: 'triangle', vol: 0.09, notes: 'E4 - G4 - A4 - G4 - E4 - D4 - C4 - D4 - E4 - G4 - A4 - C5 - B4 - G4 - A4 - - -' },
+    { type: 'square', vol: 0.04, notes: 'A2 . . . A2 . . . F2 . . . F2 . . . C3 . . . C3 . . . G2 . . . G2 . . .' } ], drums: 'k...h...s...h...' },
+  game: { bpm: 138, voices: [
+    { type: 'square', vol: 0.05, notes: 'A4 . C5 . E5 . C5 . A4 . G4 . A4 - - . D5 . F5 . A5 . F5 . D5 . C5 . D5 - - . E5 . D5 . C5 . B4 . A4 . G4 . A4 . B4 . C5 . B4 . A4 . G4 . E4 - - .' },
+    { type: 'triangle', vol: 0.12, notes: 'A2 . A3 . A2 . A3 . A2 . A3 . A2 . A3 . D3 . D4 . D3 . D4 . D3 . D4 . D3 . D4 . C3 . C4 . C3 . C4 . G2 . G3 . G2 . G3 . A2 . A3 . A2 . A3 . E2 . E3 . E2 . E3 .' } ],
+    drums: 'k.h.s.h.k.k.s.h.' },
+  night: { bpm: 128, voices: [
+    { type: 'triangle', vol: 0.09, notes: 'E5 - - . B4 - - . C5 - - . G4 - - . A4 - - . E4 - - . F4 - - . G4 - - .' },
+    { type: 'square', vol: 0.035, notes: 'E2 . E3 . E2 . E3 . C2 . C3 . C2 . C3 . A1 . A2 . A1 . A2 . B1 . B2 . B1 . B2 .' } ],
+    drums: 'k...h.h.s...h.h.' },
+};
+
+kit = GameKit.create({
+  id: 'dino',
+  root: document.getElementById('app'),
+  theme: { accent: '#ffcc33', accent2: '#4f9d45', panel: 'rgba(24,30,54,0.95)', shade: 'rgba(10,14,30,.25)' },
+  actions: {
+    jump: { label: 'Прыжок', keys: ['Space', 'ArrowUp'], pad: ['b0', 'b12', 'a1-'] },
+    duck: { label: 'Пригнуться', keys: ['ArrowDown', 'KeyS'], pad: ['b1', 'b13', 'a1+'] },
+    pause: { label: 'Пауза', keys: ['KeyP'], pad: [] },
+  },
+  music: MUSIC,
+  difficultyNote: 'Лёгкая: 3 сердца, медленнее, шире промежутки. Обычная: 2 сердца. Трудная: 1 сердце и быстрее.',
+  achievements: [
+    { id: 'first500', name: 'Первые шаги', desc: 'Пробежать 500 метров' },
+    { id: 'leg1', name: 'Пустыня позади', desc: 'Пройти этап «Пустыня»' },
+    { id: 'leg2', name: 'Сквозь каньон', desc: 'Пройти этап «Каньон на закате»' },
+    { id: 'leg3', name: 'Ночной бегун', desc: 'Пройти этап «Ночная степь»' },
+    { id: 'leg4', name: 'Путешествие завершено', desc: 'Добежать до финиша на 10 000 метрах' },
+    { id: 'flawless', name: 'Без единой царапины', desc: 'Пройти этап, ни разу не столкнувшись' },
+    { id: 'hardJourney', name: 'Кремень', desc: 'Пройти путешествие на трудной сложности' },
+    { id: 'endless3000', name: 'Марафонец', desc: 'Пробежать 3000 метров в бесконечном беге' },
+    { id: 'jumps500', name: 'Прыгун', desc: 'Сделать 500 прыжков за все забеги' },
+    { id: 'birds50', name: 'Птицелов наоборот', desc: 'Пропустить над или под собой 50 птиц' },
+  ],
+  howto: `<p><b>Путешествие</b> - четыре этапа до финиша на 10 000 м: пустыня, каньон на закате, ночная степь и снежный перевал. С каждым этапом быстрее. Начало этапа - контрольная точка: если сердца кончились, бег продолжается с неё.</p>
+    <p><b>Бесконечный бег</b> - одна жизнь, день сменяет ночь, скорость растёт. Цель - рекорд.</p>
+    <p><b>Прыжок</b> - Пробел, ↑, клик или касание; держите дольше - прыгнете выше. <b>Пригнуться</b> - ↓ или S; в прыжке ↓ ускоряет падение.</p>
+    <p>Высокие птицы пролетают сами, под средними надо пригнуться, через низкие - прыгать. Клавиши меняются в настройках, геймпад тоже работает.</p>`,
+  credits: `<p><b>Дино-бег</b> - фан-версия, не связана с правообладателем игры с динозавриком в браузере.</p>
+    <p>Код, рисунки и музыка сделаны прямо в странице: спрайты рисуются кодом, звуки и мелодии синтезируются WebAudio. Ни одного файла из интернета.</p><p>Часть «Игротеки».</p>`,
+  drawLogo(g, w, h, t) {
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, '#ffe27a'); grd.addColorStop(1, '#ff9d3d');
+    g.font = 'bold 64px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 8; g.strokeStyle = '#2b3a1f'; g.strokeText('ДИНО-БЕГ', w / 2 + 40, h / 2 + 4);
+    g.fillStyle = grd; g.fillText('ДИНО-БЕГ', w / 2 + 40, h / 2 + 4);
+    drawLogoDino(g, 40, 50 - Math.abs(Math.sin(t * 5)) * 16, t);
+  },
+  game: {
+    menuItems() {
+      const items = [];
+      if (progress.leg > 0 && !progress.done) items.push({ label: `Продолжить путешествие · этап ${progress.leg + 1}`, primary: true, id: 'continue', onClick: () => startJourney(progress.leg) });
+      items.push({ label: progress.leg > 0 ? 'Путешествие с начала' : 'Путешествие', primary: !(progress.leg > 0 && !progress.done), id: 'journey', onClick: () => startJourney(0) });
+      items.push({ label: 'Бесконечный бег', id: 'endless', onClick: startEndless });
+      items.push({ label: 'Выбор этапа', id: 'legs', onClick: showLegSelect });
+      return items;
+    },
+    musicFor() { return state.mode === 'journey' && LEGS[state.leg].pal === 'night' ? 'night' : 'game'; },
+    onRestart() { if (state.mode === 'endless') startEndless(); else startJourney(state.leg); },
+    onQuit() { startDemo(); },
+    onResetProgress() { loadProgress(); },
+    recordsHtml() {
+      const jt = records.journeyTime;
+      return `<table>
+        <tr><td>Бесконечный бег, рекорд</td><td><b>${records.endless} м</b></td></tr>
+        <tr><td>Путешествие, лучшее время</td><td>${['easy', 'normal', 'hard'].map((d) => ({ easy: 'лёгк.', normal: 'обыч.', hard: 'трудн.' })[d] + ' ' + (jt[d] ? fmtTime(jt[d]) : '—')).join(' · ')}</td></tr>
+        <tr><td>Дальше всего в путешествии</td><td>${progress.done ? 'финиш' : 'этап ' + (progress.leg + 1)}</td></tr>
+        <tr><td>Всего пробежано</td><td>${records.totalDist} м</td></tr>
+        <tr><td>Прыжков / птиц пропущено</td><td>${records.totalJumps} / ${records.totalBirds}</td></tr>
+        <tr><td>Забегов</td><td>${records.runs}</td></tr></table>`;
+    },
+  },
+});
+
+// Динозаврик для логотипа - тот же рисунок, что в игре
+function drawLogoDino(g, x, y, t) {
+  const keep = ctx;
+  ctx = g;
+  drawDinoAt(x, y, { ducking: false, jumping: false, runPhase: t * 12, hurt: false, blink: false });
+  ctx = keep;
+}
+
+// ================= Цикл =================
 let last = performance.now(), acc = 0;
 function loop(now) {
   acc += Math.min(now - last, 250);
   last = now;
-  while (acc >= STEP_MS) { update(); acc -= STEP_MS; }
+  while (acc >= STEP_MS) {
+    if (kit.mode === 'play' && state.mode !== 'demo') update();
+    else if (kit.mode === 'menu' && state.mode === 'demo') update();
+    kit.endStep();
+    acc -= STEP_MS;
+  }
   render();
+  kit.countFrame();
   requestAnimationFrame(loop);
 }
-
-initScenery();
+addEventListener('resize', fitCanvas);
+loadProgress();
 fitCanvas();
+startDemo();
+kit.showMain();
 requestAnimationFrame(loop);
 
-// ---------- Крючок для проверок: не влияет на обычную игру ----------
+// ================= Крючок для проверок =================
 window.__game = {
   ready: true,
-  W, H, FLOOR,
-  state, dino, obstacles, keys,
-  step(n = 1) { for (let i = 0; i < n; i++) update(); render(); },
-  start: reset,
-  togglePause,
-  collides,
-  makeCactus, makeBird,
+  W, H, FLOOR, GROUND_Y, LEGS, JOURNEY_END, BIRD_Y,
+  state, dino, obstacles, progress, records,
+  get kit() { return kit; },
+  step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
+  startJourney, startEndless, startDemo,
+  collidingObstacle, makeObstacle, makeBird, SIZES,
+  setAutopilot(v) { autopilot = v; },
+  get autopilot() { return autopilot; },
   clearObstacles() { obstacles.length = 0; state.nextGap = 1e9; },
+  reseed(n) { rnd = mulberry32(n); },
 };
 </script>
 </body>
