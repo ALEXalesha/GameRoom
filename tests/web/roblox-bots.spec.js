@@ -192,10 +192,11 @@ test.describe('roblox-mini (Блоксити): боты', () => {
       };
       const counts = [];
       for (let s = 0; s < 240; s++) {
-        // игрок бродит по плите и встаёт посреди строек ботов (только в свободное место)
+        // игрок встаёт прямо в следующую клетку чужой стройки (если там свободно)
         if (s % 4 === 0) {
-          const bd = Array.from(st.builds.values()).find((x) => !x.done);
-          const x = bd ? bd.i0 + bd.i1 + 1 : Math.sin(s) * 40, z = bd ? bd.k0 + bd.k1 + 1 : Math.cos(s) * 40;
+          const bd = Array.from(st.builds.values()).find((x) => !x.done && x.cells[x.next] && x.cells[x.next].j <= 1);
+          const c = bd && bd.cells[bd.next];
+          const x = c ? 2 * c.i + 1 : Math.sin(s) * 40, z = c ? 2 * c.k + 1 : Math.cos(s) * 40;
           if (g.world.boxFree(x - 1, 0.05, z - 1, x + 1, 5.1, z + 1)) g.player.teleport(x, 0.01, z);
         }
         __blox.run(30);
