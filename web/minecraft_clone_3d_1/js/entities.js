@@ -204,6 +204,9 @@
     TEX.blazeFace = pixTex(8, 8, face(['#f0c020', '#e0a010', '#f8d850'], [[1, 3, '#3a1a00'], [2, 3, '#3a1a00'], [5, 3, '#3a1a00'], [6, 3, '#3a1a00'], [1, 4, '#ffffff'], [6, 4, '#ffffff']], (g) => { g.fillStyle = '#6a3a08'; g.fillRect(2, 6, 4, 1); }));
     TEX.blazeRod = pixTex(2, 8, (g, w, h) => noiseFill(g, w, h, ['#f8c820', '#e89a10', '#fff080'], 25));
     TEX.fireball = pixTex(8, 8, (g, w, h) => { const r = C.mulberry32(26); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const d = Math.hypot(x - 3.5, y - 3.5); g.fillStyle = d < 1.5 ? '#fff4a0' : d < 2.8 ? (r() < 0.5 ? '#ffb020' : '#ff8010') : '#c83a08'; g.fillRect(x, y, 1, 1); } });
+    TEX.vSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#b08a6a', '#a8805e', '#b89272'], 28));
+    TEX.vFace = pixTex(8, 8, face(['#b08a6a', '#a8805e'], [[1, 3, '#fff'], [2, 3, '#2a6a2a'], [5, 3, '#2a6a2a'], [6, 3, '#fff']], (g) => { g.fillStyle = '#4a3020'; g.fillRect(1, 2, 6, 1); g.fillStyle = '#6a4a3a'; g.fillRect(3, 6, 2, 1); }));
+    for (const [k, c] of Object.entries({ farmer: ['#8a6a3a', '#7a5a2e', '#9a7a48'], librarian: ['#e8e8e0', '#d8d8d0', '#f0f0e8'], smith: ['#3a3a3a', '#2e2e2e', '#484848'], cleric: ['#8a3a9a', '#7a2e8a', '#9a4aaa'] })) TEX['robe_' + k] = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, c, 29));
     TEX.slime = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#6ab84a', '#5aa83a', '#78c858'], 27));
     TEX.slimeFace = pixTex(8, 8, face(['#6ab84a', '#5aa83a'], [[1, 2, '#1a3a10'], [2, 2, '#1a3a10'], [5, 2, '#1a3a10'], [6, 2, '#1a3a10'], [4, 5, '#1a3a10']]));
     TEX.spiderFace = pixTex(8, 8, face(['#3a2e2a', '#2e2420'], [[1, 2, '#e02020'], [2, 3, '#e02020'], [5, 3, '#e02020'], [6, 2, '#e02020'], [3, 2, '#b01010'], [4, 2, '#b01010']]));
@@ -266,6 +269,14 @@
       const wt = box(0.12, 0.12, 0.06, T.wattle); wt.position.set(0, -0.1, 0.12); head.add(wt);
       for (const x of [-0.09, 0.09]) { const l = limb(0.06, 0.28, 0.06, T.chickenLeg, x, 0.28, 0); body.add(l); legs.push(l); }
       for (const x of [-0.22, 0.22]) { const wg = limb(0.06, 0.25, 0.37, T.chicken, x, 0.6, 0); body.add(wg); extra.wings = (extra.wings || []).concat(wg); }
+    } else if (type === 'villager') {
+      const robe = T['robe_' + (color && T['robe_' + color] ? color : 'farmer')];
+      const torso = box(0.5, 1.1, 0.35, robe); torso.position.set(0, 0.95, 0); body.add(torso);
+      head = box(0.5, 0.6, 0.5, T.vSkin, T.vFace); head.position.set(0, 1.8, 0); body.add(head);
+      const nose = box(0.125, 0.25, 0.125, T.vSkin); nose.position.set(0, -0.1, 0.3); head.add(nose);
+      const armsX = box(0.7, 0.25, 0.25, T.vSkin); armsX.position.set(0, 1.2, 0.28); body.add(armsX);
+      for (const x of [-0.125, 0.125]) { const l = limb(0.25, 0.4, 0.25, robe, x, 0.4, 0); body.add(l); legs.push(l); }
+      if (color === 'farmer') { const hat = box(0.8, 0.08, 0.8, T.loin); hat.position.set(0, 0.34, 0); head.add(hat); }
     } else if (type === 'slime') {
       const inner = box(0.6, 0.6, 0.6, T.slime, T.slimeFace); inner.position.set(0, 0.5, 0); body.add(inner);
       const outer = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ map: T.slime, transparent: true, opacity: 0.55, depthWrite: false }));
@@ -434,6 +445,13 @@
     } else {
       m.wander -= dt;
       if (m.wander <= 0) { m.wander = 2 + rnd() * 5; m.walking = rnd() < 0.6 || m.panic > 0; m.dirYaw = rnd() * Math.PI * 2; }
+      if (m.home && m.panic <= 0) {
+        // житель: ночью - к дому, днём - не дальше 16 блоков от него
+        const hx = m.home.x - m.x, hz = m.home.z - m.z, hd = Math.hypot(hx, hz);
+        const night = G.isNight ? G.isNight() : (G.dayLight || 0) < 0.35;
+        if (night ? hd > 1.2 : hd > 16) { m.dirYaw = Math.atan2(hx, hz); m.walking = true; }
+        else if (night) m.walking = false;
+      }
       targetYaw = m.dirYaw;
       speed = m.walking ? m.def.speed * (m.panic > 0 ? 2 : 0.6) : 0;
       if (m.panic > 0) { m.panic -= dt; if ((m.panicT = (m.panicT || 0) - dt) <= 0) { m.panicT = 1; m.dirYaw = rnd() * Math.PI * 2; } }
@@ -666,7 +684,7 @@
   function trySpawn() {
     if (G.dim === 'nether') return trySpawnNether();
     const p = G.player, w = G.world;
-    const near = (hostile) => mobs.filter((m) => !!m.def.hostile === hostile && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) < 96).length;
+    const near = (hostile) => mobs.filter((m) => !m.home && !!m.def.hostile === hostile && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) < 96).length;
     const night = (G.dayLight || 0) < 0.35;
     const hostile = night ? rnd() < 0.8 : false;
     if (hostile && near(true) >= 8) return;
@@ -745,7 +763,10 @@
     if (!hit) return false;
     const t = G.target();
     if (t && t.dist < hit.dist) return false;
-    const m = hit.mob, it = D.info(held.id);
+    const m = hit.mob;
+    if (m.type === 'villager' && m.trades) { G.openContainer('trade', m); VX.audio.play('villager'); return true; }
+    if (!held) return false;
+    const it = D.info(held.id);
     if (m.type === 'sheep' && it.key === 'shears' && !m.sheared) {
       m.sheared = true; m.regrow = 40 + rnd() * 40;
       const n = 1 + ((rnd() * 3) | 0);
@@ -778,7 +799,7 @@
       const m = mobs[i];
       if (!G.world.isLoaded(m.x, m.z)) continue;               // кусок ещё не загружен - ждём
       updateMob(m, dt);
-      if (m.deadT > 0.6 || m.y < -64 || Math.hypot(m.x - p.pos.x, m.z - p.pos.z) > 128) removeMob(i);
+      if (m.deadT > 0.6 || m.y < -64 || (!m.home && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) > 128)) removeMob(i);
     }
     spawnT -= dt;
     if (spawnT <= 0 && G.autoSpawn !== false) { spawnT = 1; trySpawn(); }
@@ -981,13 +1002,14 @@
       if (m.c) e.color = m.c;
       if (m.sh) { e.sheared = true; e.regrow = 60; }
       if (m.sz === 1) { e.size = 1; e.w = e.h = 0.5; }
+      if (m.hm) { e.home = m.hm; e.trades = m.tr; e.village = m.vl; }
     }
   }
   function save(meta) {
     const r = (v) => Math.round(v * 100) / 100;
     meta.entities = {
       items: items.slice(-200).map((it) => ({ s: VX.inv.clone(it.stack), x: r(it.x), y: r(it.y), z: r(it.z), age: Math.round(it.age) })),
-      mobs: mobs.filter((m) => m.deadT === 0).map((m) => ({ t: m.type, x: r(m.x), y: r(m.y), z: r(m.z), hp: m.hp, yaw: r(m.yaw), c: m.color !== 'white' ? m.color : undefined, sh: m.sheared || undefined, sz: m.size === 1 ? 1 : undefined })),
+      mobs: mobs.filter((m) => m.deadT === 0).map((m) => ({ t: m.type, x: r(m.x), y: r(m.y), z: r(m.z), hp: m.hp, yaw: r(m.yaw), c: m.color !== 'white' ? m.color : undefined, sh: m.sheared || undefined, sz: m.size === 1 ? 1 : undefined, hm: m.home, tr: m.trades, vl: m.village })),
     };
   }
 

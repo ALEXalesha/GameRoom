@@ -29,7 +29,7 @@ function VoxelCore() {
     'netherrack', 'soul_sand', 'nether_bricks', 'quartz_ore', 'portal', 'nether_wart_0', 'nether_wart_1', 'nether_wart_2', 'spawner',
     'dust_0', 'dust_1', 'dust_2', 'dust_3', 'redstone_torch_on', 'redstone_torch_off', 'repeater', 'lamp_off', 'lamp_on',
     'piston_top', 'piston_top_sticky', 'piston_side', 'piston_bottom', 'piston_inner', 'redstone_ore', 'redstone_block',
-    'sugar_cane', 'emerald_ore',
+    'sugar_cane', 'emerald_ore', 'lapis_ore', 'path_top', 'path_side',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -292,6 +292,9 @@ function VoxelCore() {
   // ---- тростник и изумрудная руда
   const SUGAR_CANE = 1307, EMERALD_ORE = 1308, ITEM_EMERALD = 423;
   def(SUGAR_CANE, 'sugar_cane', 'Сахарный тростник', { render: 'cross', tex: 'sugar_cane', solid: false, hardness: 0, sound: 'grass', group: 'nature', cane: true });
+  const LAPIS_ORE = 1309, PATH = 1310, ITEM_LAPIS = 425;
+  def(LAPIS_ORE, 'lapis_ore', 'Лазуритовая руда', { tex: 'lapis_ore', hardness: 3, tool: 'pickaxe', level: 1, drop: ITEM_LAPIS, dropCount: 6, group: 'nature' });
+  def(PATH, 'path', 'Тропинка', { render: 'box', shape: [[0, 0, 0, 16, 15, 16]], tex: { top: 'path_top', bottom: 'dirt', side: 'path_side' }, hardness: 0.6, tool: 'shovel', sound: 'gravel', drop: 2, group: 'nature' });
   def(EMERALD_ORE, 'emerald_ore', 'Изумрудная руда', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: ITEM_EMERALD, group: 'nature' });
 
   // плиты и ступени по номеру материала (8 - незер-кирпич, у него свой диапазон id)
@@ -586,9 +589,163 @@ function VoxelCore() {
     return { h, biome, m };
   }
 
+  // ---------- Деревни ----------
+  // Сетка 384x384 блока, в клетке не больше одной деревни (на равнине или в пустыне): колодец в центре,
+  // крест дорог, дома у дорог (фермер, библиотекарь, кузнец, священник, простые), поля пшеницы, фонари.
+  const VIL_CELL = 384, VIL_R = 30;
+  const VIL_KINDS = ['farmer', 'librarian', 'smith', 'cleric', 'house', 'farm', 'house', 'farm', 'house'];
+  function villageAt(w, cellX, cellZ) {
+    w.villages = w.villages || new Map();
+    const key = cellX + ',' + cellZ;
+    if (w.villages.has(key)) return w.villages.get(key);
+    let v = null;
+    const seed = w.seed;
+    if (!w.legacy && hash3(cellX, 313, cellZ, seed ^ 0x51ed) < 0.6) {
+      const x = cellX * VIL_CELL + 80 + Math.floor(hash3(cellX, 1, cellZ, seed ^ 0x51ed) * 224);
+      const z = cellZ * VIL_CELL + 80 + Math.floor(hash3(cellX, 2, cellZ, seed ^ 0x51ed) * 224);
+      const col = column(w, x, z);
+      let flat = col.h > SEA + 1 && (col.biome === PLAINS || col.biome === DESERT);
+      if (flat) for (const [dx, dz] of [[20, 0], [-20, 0], [0, 20], [0, -20]]) { const c2 = column(w, x + dx, z + dz); if (Math.abs(c2.h - col.h) > 5 || c2.h <= SEA) flat = false; }
+      if (flat) {
+        v = { id: 'v' + cellX + '_' + cellZ, x, z, h: col.h, desert: col.biome === DESERT, houses: [] };
+        // места у дорог: сторона дороги (0 +X, 1 -X, 2 +Z, 3 -Z), расстояние 10 или 20, по какую сторону
+        const slots = [];
+        for (let road = 0; road < 4; road++) for (const dist of [10, 20]) for (const side of [-1, 1]) slots.push([road, dist, side]);
+        const order = slots.map((s, i) => [hash3(i, 5, cellX * 7 + cellZ, seed), s]).sort((a, b) => a[0] - b[0]).map((q) => q[1]);
+        const n = 6 + Math.floor(hash3(cellX, 4, cellZ, seed) * 3);
+        for (let i = 0; i < n; i++) {
+          const [road, dist, side] = order[i], kind = VIL_KINDS[i];
+          const along = [[1, 0], [-1, 0], [0, 1], [0, -1]][road], across = [along[1], along[0]];
+          const off = kind === 'farm' ? 8 : 7;
+          const hx = x + along[0] * dist + across[0] * side * off, hz = z + along[1] * dist + across[1] * side * off;
+          // дверь смотрит на дорогу
+          const doorDir = road < 2 ? (side > 0 ? 0 : 2) : (side > 0 ? 3 : 1);    // 0 -Z, 1 +X, 2 +Z, 3 -X
+          const big = kind === 'librarian' || kind === 'smith';
+          const wx = kind === 'farm' ? 7 : road < 2 ? (big ? 7 : 5) : 5, wz = kind === 'farm' ? 9 : road < 2 ? 5 : (big ? 7 : 5);
+          v.houses.push({ kind, x: hx, z: hz, w: kind === 'farm' && road >= 2 ? 9 : wx, d: kind === 'farm' && road >= 2 ? 7 : wz, door: doorDir, y: column(w, hx, hz).h + 1 });
+        }
+      }
+    }
+    w.villages.set(key, v);
+    return v;
+  }
+  function villageNear(seed, x, z, gen) {
+    const w = worldOf(seed, gen);
+    const cx = Math.floor(x / VIL_CELL), cz = Math.floor(z / VIL_CELL);
+    let best = null, bd = Infinity;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const v = villageAt(w, cx + dx, cz + dz);
+      if (!v) continue;
+      const d = Math.hypot(v.x - x, v.z - z);
+      if (d < bd) { bd = d; best = v; }
+    }
+    return best;
+  }
+  const inVillage = (w, x, z) => { const v = villageAt(w, Math.floor(x / VIL_CELL), Math.floor(z / VIL_CELL)); return v && Math.abs(x - v.x) < VIL_R + 6 && Math.abs(z - v.z) < VIL_R + 6; };
+  function buildVillages(w, data, X0, Z0, colAt) {
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const v = villageAt(w, Math.floor(X0 / VIL_CELL) + dx, Math.floor(Z0 / VIL_CELL) + dz);
+      if (!v || Math.abs(v.x - (X0 + 8)) > VIL_R + 20 || Math.abs(v.z - (Z0 + 8)) > VIL_R + 20) continue;
+      buildVillage(w, v, data, X0, Z0, colAt);
+    }
+  }
+  function buildVillage(w, v, data, X0, Z0, colAt) {
+    const inC = (x, z) => x >= X0 && x < X0 + CS && z >= Z0 && z < Z0 + CS;
+    const put = (x, y, z, id) => { if (inC(x, z) && y > 0 && y < CH) data[cidx(x - X0, y, z - Z0)] = id; };
+    const at = (x, y, z) => (inC(x, z) && y >= 0 && y < CH ? data[cidx(x - X0, y, z - Z0)] : -1);
+    const wall = v.desert ? B.sandstone : B.oak_planks, corner = v.desert ? B.sandstone : B.oak_log, base = v.desert ? B.sandstone : B.cobblestone;
+    // дороги: тропинки по рельефу
+    for (let k = -VIL_R; k <= VIL_R; k++) for (let s = -1; s <= 1; s++) {
+      for (const [x, z] of [[v.x + k, v.z + s], [v.x + s, v.z + k]]) {
+        if (!inC(x, z)) continue;
+        const h = colAt(x - X0, z - Z0).h;
+        if (at(x, h, z) === B.water) { put(x, h, z, B.oak_planks); continue; }        // мостик через воду
+        put(x, h, z, v.desert ? B.sandstone : PATH);
+        for (let y = h + 1; y < h + 4; y++) { const c = at(x, y, z); if (c > 0 && (BLOCKS[c].render === 'cross' || BLOCKS[c].render === 'leaves' || c === B.snow)) put(x, y, z, 0); }
+      }
+    }
+    // колодец
+    const wy = v.h;
+    for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) {
+      const X = v.x + x, Z = v.z + z, edge = x === -2 || x === 1 || z === -2 || z === 1;
+      for (let y = wy - 3; y <= wy; y++) put(X, y, Z, edge ? B.cobblestone : B.water);
+      put(X, wy + 1, Z, edge ? B.cobblestone : 0);
+      for (let y = wy + 2; y <= wy + 3; y++) put(X, y, Z, (x === -2 || x === 1) && (z === -2 || z === 1) ? FENCE : 0);
+      put(X, wy + 4, Z, SLAB + 3 * 3);
+    }
+    // фонари на перекрёстке дорог
+    for (const [lx, lz] of [[v.x + 4, v.z + 4], [v.x - 5, v.z - 5]]) {
+      if (!inC(lx, lz)) continue;
+      const h = colAt(lx - X0, lz - Z0).h;
+      put(lx, h + 1, lz, FENCE); put(lx, h + 2, lz, FENCE); put(lx, h + 3, lz, B.wool_black); put(lx, h + 3, lz + 1, WALL_TORCH + 0);
+    }
+    for (const hs of v.houses) {
+      const x0 = hs.x - (hs.w >> 1), z0 = hs.z - (hs.d >> 1), x1 = x0 + hs.w - 1, z1 = z0 + hs.d - 1, y0 = hs.y;
+      if (x1 < X0 - 1 || x0 > X0 + CS || z1 < Z0 - 1 || z0 > Z0 + CS) continue;
+      if (hs.kind === 'farm') {
+        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+          const edge = x === x0 || x === x1 || z === z0 || z === z1;
+          const mid = hs.w > hs.d ? z === (z0 + z1) >> 1 : x === (x0 + x1) >> 1;
+          for (let y = y0 - 3; y < y0 - 1; y++) if (at(x, y, z) === 0 || at(x, y, z) === B.water) put(x, y, z, B.dirt);
+          put(x, y0 - 1, z, edge ? B.oak_log : mid ? B.water : B.farmland);
+          for (let y = y0; y < y0 + 4; y++) put(x, y, z, 0);
+          if (!edge && !mid) put(x, y0, z, 64 + 3 + Math.floor(hash3(x, y0, z, w.seed) * 5));
+        }
+        continue;
+      }
+      // фундамент, пол, стены с окнами, потолок и двускатная крыша
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+        for (let y = y0 - 1; y > y0 - 6; y--) { const c = at(x, y, z); if (y === y0 - 1 || c === 0 || c === B.water || (c > 0 && BLOCKS[c].render === 'cross')) put(x, y, z, base); else break; }
+        const edgeX = x === x0 || x === x1, edgeZ = z === z0 || z === z1;
+        for (let y = y0; y < y0 + 4; y++) {
+          let id = 0;
+          if (edgeX && edgeZ) id = corner;
+          else if (edgeX || edgeZ) id = y === y0 + 1 && ((edgeX ? z : x) - (edgeX ? z0 : x0)) % 2 === 0 ? PANE : wall;
+          if (y === y0 + 3) id = edgeX || edgeZ ? corner : wall;
+          put(x, y, z, id);
+        }
+        for (let y = y0 + 4; y < y0 + 9; y++) put(x, y, z, 0);
+      }
+      // крыша: ступени вдоль длинной стороны
+      const alongX = hs.w >= hs.d;
+      const span = alongX ? hs.d : hs.w, W2 = span + 2, rows = W2 >> 1;
+      const lo = (alongX ? z0 : x0) - 1, hi2 = (alongX ? z1 : x1) + 1;
+      const cell = (t, s) => (alongX ? [t, s] : [s, t]);
+      for (let k = 0; k <= rows; k++) {
+        const y = y0 + 4 + k;
+        for (let t = (alongX ? x0 : z0) - 1; t <= (alongX ? x1 : z1) + 1; t++) {
+          if (v.desert) { if (k === 0) for (let s = lo + 1; s < hi2; s++) { const c = cell(t, s); put(c[0], y0 + 4, c[1], SLAB + 7 * 3); } continue; }
+          if (k === rows) { if (W2 % 2) { const c = cell(t, lo + k); put(c[0], y, c[1], wall); } continue; }     // конёк
+          const a = cell(t, lo + k), b2 = cell(t, hi2 - k);
+          put(a[0], y, a[1], STAIRS + (alongX ? 2 : 3) * 2);     // скаты: ступенька к коньку
+          put(b2[0], y, b2[1], STAIRS + (alongX ? 0 : 1) * 2);
+        }
+        if (v.desert) break;
+        // фронтоны: стена под скатами на торцах
+        for (let s = lo + k + 1; s < hi2 - k; s++) for (const t of alongX ? [x0, x1] : [z0, z1]) { const c = cell(t, s); put(c[0], y, c[1], wall); }
+      }
+      if (v.desert) for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) put(x, y0 + 4, z, 0);
+      // дверь в середине стены к дороге и крыльцо
+      const cx = (x0 + x1) >> 1, cz = (z0 + z1) >> 1;
+      const door = [[cx, z0], [x1, cz], [cx, z1], [x0, cz]][hs.door];
+      const edge = [0, 1, 2, 3][hs.door];
+      put(door[0], y0, door[1], DOOR_WOOD + edge * 4); put(door[0], y0 + 1, door[1], DOOR_WOOD + edge * 4 + 1);
+      const out = FDIR[hs.door === 0 ? 0 : hs.door === 1 ? 1 : hs.door === 2 ? 2 : 3];
+      put(door[0] + out[0], y0 - 1, door[1] + out[2], base); put(door[0] + out[0], y0, door[1] + out[2], 0); put(door[0] + out[0], y0 + 1, door[1] + out[2], 0);
+      // внутри - по профессии
+      const inside = [[x0 + 1, z0 + 1], [x1 - 1, z0 + 1], [x0 + 1, z1 - 1], [x1 - 1, z1 - 1]].filter(([ix, iz]) => Math.abs(ix - door[0]) + Math.abs(iz - door[1]) > 1);
+      const furn = { farmer: [B.crafting_table], librarian: [B.bookshelf, B.bookshelf, B.crafting_table], smith: [B.furnace, B.chest, B.crafting_table], cleric: [B.glowstone, B.crafting_table], house: [B.crafting_table] }[hs.kind] || [];
+      furn.forEach((id, k) => { if (inside[k]) put(inside[k][0], y0, inside[k][1], id); });
+      put(cx, y0 + 2, cz, 0);
+      const tw = [[cx, z0 + 1, 2], [cx, z1 - 1, 0]][hs.door === 0 ? 1 : 0];       // факел на стене напротив двери
+      put(tw[0], y0 + 2, tw[1], WALL_TORCH + tw[2]);
+    }
+  }
+
   // Какое дерево растёт в колонке (0 - нет). Нужна и соседним кускам: крона переходит границу.
   function treeAt(w, x, z, col) {
     if (col.legacy) return 0;
+    if (inVillage(w, x, z)) return 0;
     const r = hash3(x, 7, z, w.seed ^ 0x5bd1e995);
     const b = col.biome, h = col.h;
     if (h <= SEA) return 0;
@@ -803,7 +960,7 @@ function VoxelCore() {
       }
     }
     // руда: жилы, начатые в этом куске
-    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [REDSTONE_ORE, 6, 7, 5, 16], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100], [B.glowstone, 2, 6, 5, 26]];
+    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [REDSTONE_ORE, 6, 7, 5, 16], [LAPIS_ORE, 2, 6, 5, 30], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100], [B.glowstone, 2, 6, 5, 26]];
     const orng = mulberry32((seed ^ Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663)) | 0);
     for (const [id, count, size, ymin, ymaxO] of ores) {
       for (let v = 0; v < count; v++) {
@@ -904,6 +1061,7 @@ function VoxelCore() {
         if (dx >= 0 && dx < CS && dz >= 0 && dz < CS) data[cidx(dx, h, dz)] = B.dirt;
       }
     }
+    if (!w.legacy) buildVillages(w, data, X0, Z0, colAt);
     return data;
   }
 
@@ -1302,7 +1460,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, SUGAR_CANE, EMERALD_ORE, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

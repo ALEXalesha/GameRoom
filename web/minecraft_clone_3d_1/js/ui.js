@@ -463,7 +463,23 @@
         for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(magIcon()); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
         invPanel.append(tabs);
       }
-      if (v.kind === 'chest') {
+      if (v.kind === 'trade') {
+        const m = v.mob, P = VX.villages.PROF[m.color];
+        invPanel.append(el('div', 'ptitle', 'Житель: ' + (P ? P.name.toLowerCase() : '')));
+        const list = el('div', 'trades');
+        const ic = (id, n) => { const d = el('div', 'slot'); fillSlot(d, { id, count: n }); d.addEventListener('mouseenter', (e) => showTip(e, esc(D.info(id).name))); d.addEventListener('mouseleave', hideTip); return d; };
+        m.trades.forEach((tr, i) => {
+          const row = el('div', 'tr-row' + (tr.uses >= tr.max ? ' out' : ''));
+          for (const [id, n] of tr.cost) row.append(ic(id, n));
+          row.append(el('div', 'arrow'), ic(tr.out[0], tr.out[1]));
+          const ok = tr.uses < tr.max && VX.villages.canAfford(tr);
+          const b = button(tr.uses >= tr.max ? 'Нет' : 'Обменять', () => { VX.villages.trade(m, i); renderInv(); });
+          b.classList.add('tbtn'); if (!ok) b.classList.add('off');
+          row.append(b, el('span', 'left', (tr.max - tr.uses) + '/' + tr.max));
+          list.append(row);
+        });
+        invPanel.append(list, el('div', 'ptitle', 'Инвентарь'), mainGrid());
+      } else if (v.kind === 'chest') {
         const n = v.size;
         invPanel.append(el('div', 'ptitle', n > 27 ? 'Большой сундук' : 'Сундук'));
         const ids = []; for (let k = 0; k < n; k++) ids.push(500 + k);

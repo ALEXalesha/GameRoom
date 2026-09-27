@@ -509,6 +509,9 @@
     sugar_cane(t) {
       plant(t, () => { for (const x of [3, 8, 12]) for (let y = 0; y < 16; y++) { t.px(x, y, y % 5 === 0 ? '#6a9a3a' : '#9ad060'); t.px(x + 1, y, y % 5 === 0 ? '#5a8a2a' : '#7ab848'); } for (const [x, y] of [[5, 4], [6, 3], [10, 9], [11, 8], [1, 12], [2, 11]]) t.px(x, y, '#8ac050'); });
     },
+    lapis_ore(t, r) { ore(t, r, ['#2a50c8', '#1a3aa0', '#4a70e8'], '#0a2070'); },
+    path_top(t, r) { t.noise(['#9a7a48', '#8a6a3a', '#a8885a', '#94743f'], r, [4, 3, 2, 3]); for (let k = 0; k < 10; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#b8986a'); },
+    path_side(t, r) { DRAW.dirt(t, r); for (let x = 0; x < 16; x++) { t.px(x, 0, '#9a7a48'); t.px(x, 1, '#8a6a3a'); if (r() < 0.5) t.px(x, 2, '#94743f'); } },
     emerald_ore(t, r) { ore(t, r, ['#3ae070', '#17a84a', '#8affb0'], '#0a6a2a'); },
     water_flow(t, r) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
@@ -723,7 +726,7 @@
     },
     bed(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '...wwwwrrrrrrr..', '..#wwwwrrrrrrr#.', '..#############.', '..#p#.......#p#.', '..###.......###.'], { w: '#f0f0f0', r: '#b02828', '#': '#5a3a14', p: '#a8834f' }); },
     egg(t, r, mob) {
-      const c = { slime: ['#6ab84a', '#3a7a2a'], zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
+      const c = { villager: ['#6a4a3a', '#b08a6a'], slime: ['#6ab84a', '#3a7a2a'], zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
       for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.6, (y - 8.8) / 6.2); if (d < 1) t.px(x, y, d > 0.85 ? shadeHex(c[0], 0.65) : c[0]); }
       for (const [x, y] of [[6, 5], [9, 8], [5, 10], [8, 12], [10, 5]]) { t.px(x, y, c[1]); t.px(x + 1, y, c[1]); }
     },
@@ -758,6 +761,11 @@
       ITEM_DRAW.tpl(t, ['', '..############..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..############..'], { p: '#e8dcb0', '#': '#9a8a5a' });
       if (+filled) for (let k = 0; k < 30; k++) t.px(3 + ((r() * 10) | 0), 2 + ((r() * 10) | 0), ['#6a9a3a', '#3a6ab0', '#b8a868'][(r() * 3) | 0]);
     },
+    ender_pearl(t) {
+      for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 5) t.px(x, y, d > 4.2 ? '#0a3a3a' : d < 2 ? '#2a8a7a' : (x + y) % 3 ? '#135a52' : '#1a6a60'); }
+      t.px(6, 5, '#8ae8d8'); t.px(5, 6, '#6ad0c0');
+    },
+    lapis(t, r) { ITEM_DRAW.tpl(t, ['', '', '', '....##.##......', '...#bb#bb#.....', '..#bBbbbBb#....', '..#bbbbbbbb#...', '...#bBbbbb#....', '....#bbbbB#....', '.....#bb##.....', '......##.......'], { b: '#2a50c8', B: '#8aa8ff', '#': '#0a2070' }, 1, 1); },
     emerald(t) { ITEM_DRAW.tpl(t, ['', '', '......###......', '.....#ggg#.....', '....#gwggg#....', '...#gwgggGg#...', '...#ggggggg#...', '...#gggggGg#...', '....#gggGg#....', '.....#gGg#.....', '......###......'], { g: '#3ae070', w: '#c8ffd8', G: '#17a84a', '#': '#0a6a2a' }, 1, 1); },
     slimeball(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....####......', '....#gggg#.....', '...#gGggggg#...', '...#gggggGg#...', '...#ggGgggg#...', '....#gggggg#...', '.....######....'], { g: '#6ab84a', G: '#b8f09a', '#': '#3a7a2a' }); },
     flint_and_steel(t) {

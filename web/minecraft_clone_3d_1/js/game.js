@@ -288,6 +288,7 @@
     if (VX.redstone) VX.redstone.reset();
     if (VX.items) VX.items.reset();
     if (VX.xp) VX.xp.clear();
+    if (VX.villages) VX.villages.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -469,6 +470,9 @@
       if (!G.furnaces[k]) G.furnaces[k] = VX.inv.newFurnace();
       view = new VX.inv.FurnaceView(inv, G.furnaces[k]);
       view.pos = pos;
+    } else if (kind === 'trade') {
+      view = new VX.inv.PlayerView(inv, 2);
+      view.mob = pos;
     } else if (kind === 'chest') {
       view = new VX.inv.ChestView(inv, G.chestGroup(pos.x, pos.y, pos.z));
       view.pos = pos;
@@ -740,7 +744,7 @@
   G.useTarget = function () {
     const held = inv.held();
     const hi = held ? D.info(held.id) : null;
-    if (VX.entities && held && VX.entities.interact(held)) return 'mob';
+    if (VX.entities && VX.entities.interact(held)) return 'mob';
     if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
     if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
     if (hi && hi.key === 'shield') return 'shield';
@@ -797,7 +801,8 @@
     }
     if (hi.egg) {
       const p = t.place;
-      if (VX.entities) VX.entities.spawnMob(hi.egg, p.x + 0.5, p.y, p.z + 0.5);
+      const sm = VX.entities && VX.entities.spawnMob(hi.egg, p.x + 0.5, p.y, p.z + 0.5);
+      if (sm && hi.egg === 'villager' && VX.villages) { const ks = Object.keys(VX.villages.PROF); sm.color = ks[(Math.random() * ks.length) | 0]; sm.trades = VX.villages.makeTrades(sm.color); }
       if (G.mode === 'survival') inv.takeHeld(1);
       return 'egg';
     }
@@ -1173,6 +1178,7 @@
     if (VX.redstone) VX.redstone.tick(dt);
     if (VX.items) VX.items.tick(dt);
     if (VX.xp) VX.xp.update(dt);
+    if (VX.villages) VX.villages.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);

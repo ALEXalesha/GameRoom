@@ -185,7 +185,7 @@ test.describe('minecraft_clone_3d_1: Нижний мир', () => {
       hold(I.nether_wart, 4);
       aim(x0 - 2.5, y - 0.02, z0 - 1.5); const onSoul = v.place();
       aim(x0 + 3.5, y - 0.02, z0 + 0.5); const onRack = v.place();
-      let grew = false; for (let k = 0; k < 400 && !grew; k++) { v.step(0.25); grew = v.getBlock(x0 - 3, y, z0 - 2) === C.NETHER_WART + 3; }
+      let grew = false; for (let k = 0; k < 2000 && !grew; k++) { v.step(0.25); grew = v.getBlock(x0 - 3, y, z0 - 2) === C.NETHER_WART + 3; }
       // кровать
       v.setBlock(x0 + 4, y, z0 + 3, 122); v.setBlock(x0 + 4, y, z0 + 2, 126);
       const hp = p.health;

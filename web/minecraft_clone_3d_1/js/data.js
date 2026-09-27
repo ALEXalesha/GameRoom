@@ -117,6 +117,9 @@
   item(421, 'empty_map', 'Пустая карта', { draw: 'map:0' });
   item(422, 'filled_map', 'Карта', { stack: 1, draw: 'map:1', group: 'tools' });
   item(423, 'emerald', 'Изумруд');
+  item(424, 'ender_pearl', 'Жемчуг Края', { stack: 16 });
+  item(425, 'lapis', 'Лазурит');
+  item(426, 'egg_villager', 'Яйцо призыва: житель', { draw: 'egg:villager', egg: 'villager', creativeOnly: true });
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
   [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
   // цвет шерсти по красителю
@@ -347,7 +350,7 @@
     { key: 'search', name: 'Поиск', icon: null },
     { key: 'inv', name: 'Инвентарь', icon: B.crafting_table },
   ];
-  const MATERIAL_KEYS = ['sugar', 'paper', 'book', 'compass', 'clock', 'empty_map', 'emerald', 'stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
+  const MATERIAL_KEYS = ['ender_pearl', 'lapis', 'sugar', 'paper', 'book', 'compass', 'clock', 'empty_map', 'emerald', 'stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
   const groupOf = (it) => (it.group || (it.tool || it.armor || MATERIAL_KEYS.includes(it.key) ? 'tools' : 'food'));
   // во «Строительство» - ещё и то, из чего строят чаще всего (как во вкладке оригинала)
   const BUILD_EXTRA = ['stone', 'oak_log', 'birch_log', 'spruce_log', 'wool_white', 'wool_red', 'glowstone', 'clay', 'snow', 'sand', 'gravel', 'pumpkin'];
@@ -374,6 +377,7 @@
     zombie_pigman: { name: 'Зомби-свиночеловек', hp: 20, speed: 2.3, w: 0.6, h: 1.95, drops: [['rotten_flesh', 0, 1], ['gold_nugget', 0, 1]], neutral: true, dmg: 8, fireImmune: true, sound: 'pigman' },
     ghast: { name: 'Гаст', hp: 10, speed: 2.2, w: 4, h: 4, drops: [['ghast_tear', 0, 1], ['gunpowder', 0, 2]], hostile: true, dmg: 0, flying: true, fireImmune: true, sound: 'ghast' },
     blaze: { name: 'Ифрит', hp: 20, speed: 2.3, w: 0.6, h: 1.8, drops: [['blaze_rod', 0, 1]], hostile: true, dmg: 6, hover: true, fireImmune: true, playerDrops: true, sound: 'blaze' },
+    villager: { name: 'Житель', hp: 20, speed: 1.3, w: 0.6, h: 1.95, drops: [], sound: 'villager', villager: true },
     slime: { name: 'Слизень', hp: 4, speed: 1.6, w: 1.0, h: 1.0, drops: [['slimeball', 0, 2]], hostile: true, dmg: 2, jumper: true, sound: 'slime' },
     creeper: { name: 'Крипер', hp: 20, speed: 2.4, w: 0.6, h: 1.7, drops: [['gunpowder', 0, 2]], hostile: true, dmg: 0, explodes: true, fuse: 1.5, power: 3, sound: 'creeper' },
     spider: { name: 'Паук', hp: 16, speed: 2.8, w: 1.4, h: 0.9, drops: [['string', 0, 2]], hostile: true, dmg: 2, climber: true, sound: 'spider' },
@@ -418,6 +422,8 @@
     { id: 'blaze_rod', tab: 'nether', parent: 'fortress', name: 'В огонь', desc: 'Добыть огненный стержень', on: 'pickup', items: ['blaze_rod'], icon: I.blaze_rod },
     { id: 'return_sender', tab: 'nether', parent: 'nether', name: 'Возврат отправителю', desc: 'Сразить гаста его же огненным шаром', on: 'kill', mob: 'ghast', cause: 'fireball', icon: I.ghast_tear },
     { id: 'wart', tab: 'nether', parent: 'fortress', name: 'Адский урожай', desc: 'Собрать адский нарост', on: 'pickup', items: ['nether_wart'], icon: I.nether_wart },
+    { id: 'emerald', parent: 'root', name: 'Изумруды!', desc: 'Добыть изумруд', on: 'pickup', items: ['emerald'], icon: I.emerald },
+    { id: 'trade', parent: 'emerald', name: 'Выгодная сделка', desc: 'Поторговать с жителем деревни', on: 'trade', icon: I.emerald },
     { id: 'map', parent: 'root', name: 'Картограф', desc: 'Нарисовать карту местности', on: 'map', icon: I.filled_map },
     { id: 'redstone', parent: 'iron_pick', name: 'Красная пыль', desc: 'Добыть красную пыль из руды', on: 'pickup', items: [C.WIRE], icon: C.WIRE },
     { id: 'piston', parent: 'redstone', name: 'Толкай!', desc: 'Сделать поршень', on: 'craft', items: [C.PISTON, C.PISTON + 1], icon: C.PISTON },

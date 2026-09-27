@@ -121,6 +121,13 @@
   .chestgrid { margin-bottom: 4px; }
   #debug { position: absolute; left: 4px; top: 4px; font-size: 16px; line-height: 1.35; background: rgba(0,0,0,.35); padding: 3px 6px; display: none; text-shadow: 2px 2px 0 #222; }
   #fpsMini { position: absolute; right: 6px; top: 4px; font-size: 16px; display: none; }
+  .trades { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+  .tr-row { display: flex; align-items: center; gap: 6px; }
+  .tr-row .arrow { width: 28px; height: 20px; }
+  .tr-row.out { opacity: .5; }
+  .tr-row .tbtn { width: 150px; height: 32px; }
+  .tr-row .tbtn.off { background-image: var(--btn-off); color: #a0a0a0; }
+  .tr-row .left { color: #404040; font-size: 16px; }
   #mapView { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); width: 256px; height: 256px; image-rendering: pixelated; border: 6px solid #c8b484; box-shadow: 0 0 0 2px #6a5a3a; display: none; }
   #clickHint { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); font-size: 16px; color: #e8e8e8; display: none; text-shadow: 2px 2px 0 #222; white-space: nowrap; }
   #toasts { position: absolute; right: 6px; top: 6px; display: flex; flex-direction: column; gap: 6px; }
@@ -214,6 +221,7 @@
 <script src="js/redstone.js"></script>
 <script src="js/items.js"></script>
 <script src="js/xp.js"></script>
+<script src="js/villages.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/ui.js"></script>
