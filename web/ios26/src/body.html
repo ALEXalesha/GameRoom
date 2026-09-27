@@ -1,0 +1,828 @@
+<body>
+<div class="stage" id="stage">
+<div class="device" id="device">
+  <div class="side-btn" id="power-btn" title="Кнопка блокировки"></div>
+  <div class="screen" id="screen">
+    <div class="dynamic-island"></div>
+    <div id="torch-glow"></div>
+    <div id="dim-layer"></div>
+
+    <!-- ===== ЭКРАН БЛОКИРОВКИ ===== -->
+    <div class="page active" id="lock-page">
+      <div class="wallpaper" id="lock-wall"></div>
+      <div class="status-bar" data-sb></div>
+      <div class="lock-clock">
+        <div class="lock-date" id="lock-date"></div>
+        <div class="lock-time" id="lock-time"></div>
+      </div>
+      <div class="lock-widgets">
+        <div class="widget">
+          <div class="widget-title">Погода</div>
+          <div class="widget-value" id="w-temp">+18°</div>
+          <div class="widget-sub">Лиссабон · облачно</div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">Календарь</div>
+          <div class="widget-value" id="w-events"></div>
+          <div class="widget-sub" id="w-next"></div>
+        </div>
+      </div>
+      <div class="lock-bottom">
+        <div class="lock-circle" data-lock="torch" role="button" aria-label="Фонарик" title="Фонарик">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2h8v4l-2 3v13h-4V9L8 6z"/></svg>
+        </div>
+        <div class="lock-circle" data-lock="camera" role="button" aria-label="Камера" title="Камера">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4zm3 5a4 4 0 110 8 4 4 0 010-8z"/></svg>
+        </div>
+      </div>
+      <div class="swipe-hint">Нажмите или смахните вверх, чтобы открыть</div>
+      <div class="home-indicator"></div>
+    </div>
+
+    <!-- ===== ДОМАШНИЙ ЭКРАН ===== -->
+    <div class="page" id="home-page">
+      <div class="home-wallpaper" id="home-wall"></div>
+      <div class="status-bar" data-sb></div>
+      <div class="home-grid" id="home-grid"></div>
+      <div class="dock" id="dock"></div>
+      <div class="home-indicator"></div>
+      <div class="control-center" id="control-center">
+        <div class="cc-hint"></div>
+        <div class="cc-grid">
+          <div class="cc-tile large">
+            <div class="cc-conn">
+              <div class="cc-conn-item" data-cc="airplane" title="Авиарежим" role="button" aria-label="Авиарежим"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>
+              <div class="cc-conn-item green" data-cc="cellular" title="Сотовые данные" role="button" aria-label="Сотовые данные"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h2v-4H2zm4 0h2v-7H6zm4 0h2v-10h-2zm4 0h2v-13h-2zm4 0h2V6h-2z"/></svg></div>
+              <div class="cc-conn-item" data-cc="wifi" title="Wi-Fi" role="button" aria-label="Wi-Fi"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-4c-1.5 0-2.9.5-4 1.4l1.4 1.4c.7-.5 1.6-.8 2.6-.8s1.9.3 2.6.8l1.4-1.4c-1.1-.9-2.5-1.4-4-1.4zm0-4c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/></svg></div>
+              <div class="cc-conn-item" data-cc="bt" title="Bluetooth" role="button" aria-label="Bluetooth"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3-5-5zm2 4.4l1.6 1.6L14 9.6V6.4zm0 9.2L15.6 17 14 18.6v-3z"/></svg></div>
+            </div>
+          </div>
+          <div class="cc-slider tall" data-slider="brightness" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Яркость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">☀️</div><div></div></div>
+          <div class="cc-slider tall" data-slider="volume" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Громкость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">🔊</div><div></div></div>
+          <button class="cc-tile" data-cc="rotation" title="Блокировка поворота"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Поворот</span></button>
+          <button class="cc-tile" data-open="clock" title="Часы"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg><span class="cc-label">Часы</span></button>
+          <button class="cc-tile" data-cc="dnd" title="Не беспокоить"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><span class="cc-label">Не беспок.</span></button>
+          <button class="cc-tile" data-cc="dark" title="Тёмная тема"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 010 16z"/></svg><span class="cc-label">Тёмная</span></button>
+          <button class="cc-tile" data-open="camera" title="Камера"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4zm3 5a4 4 0 110 8 4 4 0 010-8z"/></svg><span class="cc-label">Камера</span></button>
+          <button class="cc-tile" data-cc="torch" title="Фонарик"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2h8v4l-2 3v13h-4V9L8 6z"/></svg><span class="cc-label">Фонарик</span></button>
+          <button class="cc-tile" data-open="calc" title="Калькулятор"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6h8v3H8zM8 12h2v2H8zm4 0h2v2h-2zm-4 4h2v2H8zm4 0h2v2h-2z"/></svg><span class="cc-label">Кальк.</span></button>
+          <button class="cc-tile" data-action="lock" title="Заблокировать"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Блок.</span></button>
+        </div>
+        <div class="cc-note">Смахните вверх или нажмите Esc, чтобы закрыть</div>
+      </div>
+    </div>
+
+    <div id="apps"></div>
+  </div>
+</div>
+</div>
+<button class="reset-btn" id="lock-btn">Заблокировать</button>
+
+<script>
+'use strict';
+// ================================================================
+// Телефон «Стекло»: фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.
+// Всё работает без сети; состояние хранится в localStorage под префиксом «ios26.».
+// ================================================================
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad2 = n => String(n).padStart(2, '0');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ios26.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ios26.' + k, JSON.stringify(v)); } catch (e) { /* нет хранилища */ } },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('ios26.')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* нет доступа */ } },
+};
+const listeners = {};
+const on = (ev, fn) => (listeners[ev] = listeners[ev] || new Set()).add(fn);
+const emit = ev => (listeners[ev] || []).forEach(fn => fn());
+const DAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const dayKey = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+
+// ===== Настройки =====
+const WALLS = {
+  aurora: { name: 'Сияние', lock: 'radial-gradient(ellipse at 30% 20%, #ff7eb3 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, #7873f5 0%, transparent 50%), radial-gradient(ellipse at 40% 90%, #4ac1ff 0%, transparent 50%), linear-gradient(135deg, #1a0033 0%, #0d0d2b 100%)',
+    home: 'radial-gradient(ellipse at 50% 0%, #ffa07a 0%, transparent 40%), radial-gradient(ellipse at 0% 50%, #ff6b9d 0%, transparent 40%), radial-gradient(ellipse at 100% 80%, #5e72eb 0%, transparent 50%), linear-gradient(180deg, #2d1b69 0%, #11052c 100%)' },
+  ocean: { name: 'Океан', lock: 'radial-gradient(ellipse at 50% 30%, #67e8f9 0%, transparent 50%), linear-gradient(180deg, #0c4a6e 0%, #082f49 100%)', home: 'radial-gradient(ellipse at 20% 80%, #22d3ee 0%, transparent 50%), linear-gradient(180deg, #075985 0%, #0c1a33 100%)' },
+  sunset: { name: 'Закат', lock: 'radial-gradient(ellipse at 50% 90%, #fde68a 0%, transparent 50%), linear-gradient(180deg, #312e81 0%, #be185d 70%, #fb923c 100%)', home: 'linear-gradient(180deg, #4c1d95 0%, #be185d 60%, #f97316 100%)' },
+  forest: { name: 'Лес', lock: 'radial-gradient(ellipse at 70% 30%, #86efac 0%, transparent 45%), linear-gradient(160deg, #064e3b 0%, #14532d 60%, #1a2e05 100%)', home: 'radial-gradient(ellipse at 30% 20%, #4ade80 0%, transparent 45%), linear-gradient(180deg, #14532d 0%, #052e16 100%)' },
+};
+const DEF = { airplane: false, cellular: true, wifi: true, bt: true, dnd: false, dark: false, torch: false, rotation: false, brightness: 100, volume: 60, wallpaper: 'aurora', glass: true };
+const S = Object.assign({}, DEF, store.get('settings', {}));
+function applySettings() {
+  const w = WALLS[S.wallpaper] || WALLS.aurora;
+  $('lock-wall').style.background = w.lock;
+  $('home-wall').style.background = w.home;
+  document.body.classList.toggle('dark', S.dark);
+  document.body.classList.toggle('no-glass', !S.glass);
+  $('torch-glow').style.display = S.torch ? 'block' : 'none';
+  $('dim-layer').style.opacity = String((100 - S.brightness) / 100 * 0.7);
+  document.querySelectorAll('[data-cc]').forEach(t => { const on = !!S[t.dataset.cc]; t.classList.toggle(t.classList.contains('cc-conn-item') ? 'on' : 'active', on); if (t.classList.contains('cc-conn-item')) t.classList.toggle('off', !on); });
+  document.querySelectorAll('[data-lock="torch"]').forEach(b => b.classList.toggle('on', S.torch));
+  document.querySelectorAll('[data-slider]').forEach(sl => { sl.querySelector('.cc-slider-fill').style.height = S[sl.dataset.slider] + '%'; sl.setAttribute('aria-valuenow', S[sl.dataset.slider]); });
+  renderStatusBars();
+  emit('settings');
+}
+function setS(k, v) {
+  S[k] = v;
+  if (k === 'airplane' && v) { S.wifi = false; S.bt = false; S.cellular = false; }
+  if (['wifi', 'bt', 'cellular'].includes(k) && v) S.airplane = false;
+  store.set('settings', S);
+  applySettings();
+}
+
+// ===== Строка состояния =====
+function statusHTML() {
+  const d = new Date();
+  const net = S.airplane ? '<svg width="16" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>'
+    : (S.cellular ? '<svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><path d="M1 3.5h2v4H1zm4-1h2v5H5zm4-1h2v6H9zm4-1h2v7h-2z"/></svg>' : '') +
+      (S.wifi ? '<svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor"><path d="M2 5.5C4 3 7 2 8 2s4 1 6 3.5"/><path d="M4 7.5c1.5-1.5 2.5-2 4-2s2.5.5 4 2"/><circle cx="8" cy="9" r="1" fill="currentColor"/></svg>' : '');
+  return '<span class="time">' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '</span><span class="right" title="Пункт управления">' + (S.dnd ? '🌙' : '') + net +
+    '<svg width="27" height="11" viewBox="0 0 27 11" fill="none"><rect x="0.5" y="0.5" width="22" height="10" rx="2.5" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="7" rx="1.5" fill="currentColor"/><path d="M24 4v3" stroke="currentColor" opacity="0.5"/></svg></span>';
+}
+function renderStatusBars() { const h = statusHTML(); document.querySelectorAll('[data-sb]').forEach(sb => { if (sb.innerHTML !== h) sb.innerHTML = h; }); }
+document.addEventListener('click', e => { if (e.target.closest('.status-bar .right') && $('home-page').classList.contains('active') && !document.querySelector('.app-screen.active')) openCC(); });
+
+// ===== Значки =====
+const ICONS = {
+  phone: ['icon-phone', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg>'],
+  messages: ['icon-messages', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.5 1.4 4.6 3.6 6L4 20l3.5-1.2c1.3.5 2.9.7 4.5.7 5.5 0 10-3.6 10-8s-4.5-8.5-10-8.5z"/></svg>'],
+  mail: ['icon-mail', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'],
+  browser: ['icon-browser', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18"/></svg>'],
+  camera: ['icon-camera', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4z"/><circle cx="12" cy="13" r="4" fill="#fff" opacity="0.3"/></svg>'],
+  photos: ['icon-photos', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><rect x="3" y="5" width="18" height="14" rx="2" opacity="0.9"/><circle cx="8.5" cy="10" r="2" fill="#ec4899"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fbbf24"/></svg>'],
+  music: ['icon-music', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M9 17V7l10-2v10c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2V8l-6 1.2v8.6c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2z"/></svg>'],
+  weather: ['icon-weather', '<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="11" r="4" fill="#fde047"/><path d="M14 14c2 0 4 1.5 4 4s-2 3-4 3H8c-2 0-3.5-1-3.5-3s2-4 4.5-4h5z"/></svg>'],
+  clock: ['icon-clock', '<svg width="44" height="44" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#fff"/><line x1="50" y1="50" x2="50" y2="20" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="50" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="50" y2="78" stroke="#ff9500" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="50" r="3" fill="#000"/></svg>'],
+  calc: ['icon-calc', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="8" y="5" width="8" height="3" rx="0.5"/><circle cx="9" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="15" cy="12" r="1" fill="#fb923c"/><circle cx="9" cy="16" r="1"/><circle cx="12" cy="16" r="1"/><circle cx="15" cy="16" r="1" fill="#fb923c"/></svg>'],
+  notes: ['icon-notes', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1f2937" stroke-width="1.5"><path d="M5 4h14v16H5z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/></svg>'],
+  calendar: ['icon-calendar', () => { const d = new Date(); return '<div style="font-size:9px;font-weight:700;color:#ef4444;margin-bottom:-4px;">' + MONTHS[d.getMonth()].slice(0, 3).toUpperCase() + '</div><div style="font-size:30px;font-weight:300;color:#1f2937;">' + d.getDate() + '</div>'; }],
+  settings: ['icon-settings', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5"><circle cx="12" cy="12" r="3" fill="#374151"/><path d="M12 2l1.5 3 3.3-.5-.5 3.3L19 9l-1.7 2.5L19 14l-2.7 1.2.5 3.3-3.3-.5L12 21l-1.5-3-3.3.5.5-3.3L5 14l1.7-2.5L5 9l2.7-1.2-.5-3.3 3.3.5z" fill="#9ca3af"/></svg>'],
+};
+const iconHTML = id => { const [cls, svg] = ICONS[id]; return '<div class="icon ' + cls + '">' + (typeof svg === 'function' ? svg() : svg) + '</div>'; };
+
+// ===== Программы =====
+const APPS = {
+  phone: { name: 'Телефон', cls: 'phone-app', light: true, init: initPhone },
+  messages: { name: 'Сообщения', cls: 'messages-app', init: initMessages },
+  mail: { name: 'Почта', cls: 'mail-app', light: true, init: initMail },
+  browser: { name: 'Браузер', cls: 'browser-app', init: initBrowser },
+  camera: { name: 'Камера', cls: 'camera-app', init: initCamera },
+  photos: { name: 'Фото', cls: 'photos-app', light: true, init: initPhotos },
+  music: { name: 'Музыка', cls: 'music-app', init: initMusic },
+  weather: { name: 'Погода', cls: 'weather-app', init: initWeather },
+  clock: { name: 'Часы', cls: 'clock-app', init: initClock },
+  calc: { name: 'Калькулятор', cls: 'calc', init: initCalc },
+  notes: { name: 'Заметки', cls: 'notes-app', light: true, init: initNotes },
+  calendar: { name: 'Календарь', cls: 'calendar-app', init: initCalendar },
+  settings: { name: 'Настройки', cls: 'settings-app', light: true, init: initSettings },
+};
+const HOME = ['weather', 'clock', 'phone', 'messages', 'mail', 'browser', 'camera', 'photos', 'music', 'calc', 'notes', 'calendar'];
+const DOCK = ['phone', 'browser', 'messages', 'settings'];
+const screens = {};
+function buildHome() {
+  $('home-grid').innerHTML = '<div class="home-widget weather-widget" data-app="weather" role="button" aria-label="Погода"><div class="home-widget-title">Лиссабон</div><div class="temp" id="hw-temp">+18°</div><div class="city">Облачно</div><div class="desc">Макс +21° · Мин +14°</div></div>' +
+    HOME.map(id => '<div class="app-icon" data-app="' + id + '" tabindex="0" role="button" aria-label="' + APPS[id].name + '">' + iconHTML(id) + '<div class="app-label">' + APPS[id].name + '</div></div>').join('');
+  $('dock').innerHTML = DOCK.map(id => '<div class="app-icon" data-app="' + id + '" tabindex="0" role="button" aria-label="' + APPS[id].name + '">' + iconHTML(id) + '</div>').join('');
+}
+function buildScreens() {
+  Object.entries(APPS).forEach(([id, a]) => {
+    const el = document.createElement('div');
+    el.className = 'app-screen ' + a.cls;
+    el.id = 'app-' + id;
+    if (a.light) el.dataset.light = '1';
+    $('apps').appendChild(el);
+    screens[id] = { el, inited: false, onShow: null, onHide: null, onKey: null };
+  });
+}
+// каждый экран: строка состояния, содержимое программы, полоска «домой»
+function shell(id, inner, darkBar) {
+  screens[id].el.innerHTML = '<div class="status-bar' + (darkBar ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
+  renderStatusBars();
+}
+
+// ===== Навигация =====
+let current = null;   // открытая программа
+function showLock() { closeCC(); hideApp(); $('home-page').classList.remove('active'); $('lock-page').classList.add('active'); updateWidgets(); }
+function showHome() { closeCC(); hideApp(); $('lock-page').classList.remove('active'); $('home-page').classList.add('active'); }
+function hideApp() { if (current && screens[current].onHide) screens[current].onHide(); document.querySelectorAll('.app-screen.active').forEach(s => s.classList.remove('active')); current = null; }
+function openApp(id, arg) {
+  const sc = screens[id]; if (!sc) return;
+  closeCC();
+  hideApp();
+  $('lock-page').classList.remove('active');
+  $('home-page').classList.add('active');
+  if (!sc.inited) { APPS[id].init(sc); sc.inited = true; }
+  sc.el.classList.add('active');
+  current = id;
+  if (sc.onShow) sc.onShow(arg);
+}
+let homeTap = null;
+$('screen').addEventListener('click', e => {
+  // полоска «Домой»: одно нажатие - домой, двойное - переключатель программ (первое нажатие ждёт второго)
+  // в игре полоска захватывает указатель (жест над рамкой), поэтому щелчок приходит самой полосе .game-bar
+  if (e.target.closest('.home-indicator, .game-bar') && !$('lock-page').classList.contains('active')) {
+    if (homeTap) { clearTimeout(homeTap); homeTap = null; openSwitcher(); } else homeTap = setTimeout(() => { homeTap = null; showHome(); }, 260);
+    return;
+  }
+  const a = e.target.closest('[data-app]');
+  if (a && !a.closest('.app-screen')) { openApp(a.dataset.app); return; }
+  const o = e.target.closest('[data-open]'); if (o) { openApp(o.dataset.open); return; }
+  const t = e.target.closest('[data-cc]'); if (t) { setS(t.dataset.cc, !S[t.dataset.cc]); return; }
+  if (e.target.closest('[data-action="lock"]')) { showLock(); return; }
+  const l = e.target.closest('[data-lock]');
+  if (l) { e.stopPropagation(); if (l.dataset.lock === 'torch') setS('torch', !S.torch); else openApp('camera'); }
+});
+$('screen').addEventListener('keydown', e => { const a = e.target.closest('.app-icon[data-app]'); if (a && e.key === 'Enter') openApp(a.dataset.app); });
+$('power-btn').addEventListener('click', () => { if ($('lock-page').classList.contains('active')) showHome(); else showLock(); });
+$('lock-btn').addEventListener('click', () => showLock());   // по имени: работает и обёртка из kit.js
+
+// Разблокировка: нажатие или смахивание вверх по экрану блокировки
+let lockPress = null;
+$('lock-page').addEventListener('pointerdown', e => { if (!e.target.closest('.lock-circle')) lockPress = e.clientY; });
+$('lock-page').addEventListener('pointerup', e => {
+  if (lockPress === null || e.target.closest('.lock-circle')) { lockPress = null; return; }
+  const dy = lockPress - e.clientY; lockPress = null;
+  if (Math.abs(dy) < 30 || dy > 60) showHome();
+});
+
+// Жесты: смахнуть вверх - домой, смахнуть вниз от верхнего края - пункт управления
+let g = null;
+$('device').addEventListener('pointerdown', e => {
+  const r = $('device').getBoundingClientRect(), k = r.height / $('device').offsetHeight;
+  g = { x: e.clientX, y: e.clientY, localY: (e.clientY - r.top) / k, localX: (e.clientX - r.left) / k, t: e.target };
+});
+$('device').addEventListener('pointerup', e => {
+  if (!g) return;
+  const k = $('device').getBoundingClientRect().height / $('device').offsetHeight;
+  const dy = (g.y - e.clientY) / k, dx = (e.clientX - g.x) / k, start = g; g = null;
+  if (Math.abs(dx) > Math.abs(dy) || Math.abs(dy) < 70) return;
+  if (start.t.closest('input, textarea, button, .cc-slider, .calc-btn, [data-scroll], .scr-body, .msg-list, .settings-list, .read-view, .note-edit')) return;
+  if ($('lock-page').classList.contains('active')) return;
+  const ccOpen = $('control-center').classList.contains('open');
+  // сверху слева - центр уведомлений, сверху справа - пункт управления (и в программах тоже)
+  if (dy < 0 && start.localY < 70 && !ccOpen && !$('nc').classList.contains('open')) { if (start.localX < $('device').offsetWidth * 0.45) openNC(); else openCC(); }
+  else if (dy > 0 && $('nc').classList.contains('open')) closeNC();
+  else if (dy > 0 && ccOpen) closeCC();
+  else if (dy > 0 && current && start.localY > $('device').offsetHeight - 120) showHome();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if ($('control-center').classList.contains('open')) closeCC();
+    else if (current && screens[current].onKey && screens[current].onKey(e)) return;
+    else if (current) showHome();
+    return;
+  }
+  if ($('lock-page').classList.contains('active') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showHome(); return; }
+  if (current && screens[current].onKey && !(e.target.closest && e.target.closest('input, textarea'))) screens[current].onKey(e);
+});
+
+// ===== Пункт управления =====
+function openCC() { $('control-center').classList.add('open'); }
+function closeCC() { $('control-center').classList.remove('open'); }
+$('control-center').addEventListener('click', e => { if (e.target.id === 'control-center') closeCC(); });
+document.querySelectorAll('[data-slider]').forEach(sl => {
+  sl.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    sl.setPointerCapture(e.pointerId);
+    const set = ev => { const r = sl.getBoundingClientRect(); setS(sl.dataset.slider, Math.round(Math.max(sl.dataset.slider === 'brightness' ? 30 : 0, Math.min(100, (r.bottom - ev.clientY) / r.height * 100)))); };
+    set(e);
+    const up = () => { sl.removeEventListener('pointermove', set); sl.removeEventListener('pointerup', up); };
+    sl.addEventListener('pointermove', set); sl.addEventListener('pointerup', up);
+  });
+});
+
+// ===== Часы на экране блокировки и виджеты =====
+function tick() {
+  const d = new Date();
+  const t = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  if ($('lock-time').textContent !== t) { $('lock-time').textContent = t; renderStatusBars(); }
+  $('lock-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()];
+}
+setInterval(tick, 1000);
+// демо-температура по часу суток: одна и та же в виджетах и в «Погоде»
+const tempAt = h => Math.round(17 + 3 * Math.sin((h - 9) / 24 * Math.PI * 2));
+function updateWidgets() {
+  const t = '+' + tempAt(new Date().getHours()) + '°';
+  $('w-temp').textContent = t;
+  const hw = $('hw-temp'); if (hw) hw.textContent = t;
+  const today = (loadEvents()[dayKey(new Date())] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+  const n = today.length;
+  $('w-events').textContent = n ? n + ' ' + (n === 1 ? 'событие' : n < 5 ? 'события' : 'событий') : 'Нет событий';
+  const now = pad2(new Date().getHours()) + ':' + pad2(new Date().getMinutes());
+  const next = today.find(e => e.time >= now);
+  $('w-next').textContent = next ? 'Следующее в ' + next.time : n ? 'На сегодня всё' : 'Сегодня свободно';
+}
+
+// ===== Калькулятор =====
+function initCalc(sc) {
+  const keys = [['AC', 'gray', 'C'], ['±', 'gray'], ['%', 'gray'], ['÷', 'orange', '/'], ['7'], ['8'], ['9'], ['×', 'orange', '*'], ['4'], ['5'], ['6'], ['−', 'orange', '-'], ['1'], ['2'], ['3'], ['+', 'orange', '+'], ['0', 'zero'], [',', '', '.'], ['=', 'orange', '=']];
+  shell('calc', '<div class="calc-display" id="calc-display">0</div><div class="calc-buttons">' + keys.map(k => '<button class="calc-btn ' + (k[1] || '') + '" data-calc="' + (k[2] || k[0]) + '">' + k[0] + '</button>').join('') + '</div>');
+  const disp = sc.el.querySelector('#calc-display');
+  let cur = '0', prev = null, op = null, fresh = false, err = false;
+  const num = x => String(parseFloat(x.toPrecision(10)));
+  const fmt = s => { if (err) return 'Ошибка'; const n = parseFloat(s); if (Math.abs(n) >= 1e9 || (n !== 0 && Math.abs(n) < 1e-7)) return n.toExponential(4).replace('.', ','); const [a, b] = s.split('.'); return a.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (b !== undefined ? ',' + b : ''); };
+  function show() { disp.textContent = fmt(cur); disp.style.fontSize = Math.min(80, Math.floor(340 / Math.max(4, disp.textContent.length * 0.62))) + 'px'; }
+  function compute() { const a = parseFloat(prev), b = parseFloat(cur); const r = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : b === 0 ? NaN : a / b; if (!isFinite(r)) { err = true; return '0'; } return num(r); }
+  function press(k) {
+    if (err && k !== 'C') { err = false; cur = '0'; prev = null; op = null; }
+    if (/^\d$/.test(k)) { if (fresh || cur === '0') { cur = k; fresh = false; } else if (cur.replace(/[-.]/g, '').length < 9) cur += k; }
+    else if (k === '.') { if (fresh) { cur = '0.'; fresh = false; } else if (!cur.includes('.')) cur += '.'; }
+    else if (k === 'C') { cur = '0'; prev = null; op = null; fresh = false; err = false; }
+    else if (k === '±') { if (cur !== '0') cur = cur.startsWith('-') ? cur.slice(1) : '-' + cur; }
+    else if (k === '%') cur = num(parseFloat(cur) / 100);
+    else if (k === 'back') { if (!fresh) cur = cur.length > 1 && !/^-\d$/.test(cur) ? cur.slice(0, -1) : '0'; }
+    else if ('+-*/'.includes(k)) { if (op && !fresh) cur = compute(); prev = cur; op = k; fresh = true; }
+    else if (k === '=') { if (op) { cur = compute(); op = null; prev = null; fresh = true; } }
+    show();
+  }
+  sc.el.addEventListener('click', e => { const b = e.target.closest('[data-calc]'); if (b) press(b.dataset.calc); });
+  sc.onKey = e => {
+    const map = { Enter: '=', '=': '=', Backspace: 'back', Delete: 'C', ',': '.', '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%' };
+    const k = /^\d$/.test(e.key) ? e.key : map[e.key];
+    if (k) { e.preventDefault(); press(k); return true; }
+  };
+  show();
+}
+
+// ===== Телефон =====
+function initPhone(sc) {
+  const keys = [['1', ''], ['2', 'АБВГ'], ['3', 'ДЕЖЗ'], ['4', 'ИЙКЛ'], ['5', 'МНОП'], ['6', 'РСТУ'], ['7', 'ФХЦЧ'], ['8', 'ШЩЪЫ'], ['9', 'ЬЭЮЯ'], ['*', ''], ['0', '+'], ['#', '']];
+  shell('phone', '<div class="app-header"><div class="app-title">Клавиши</div></div><div class="dial-num" id="dial-num"></div><div class="dial-pad">' +
+    keys.map(k => '<button class="dial-key" data-key="' + k[0] + '">' + k[0] + '<small>' + k[1] + '</small></button>').join('') + '</div>' +
+    '<div class="dial-actions"><span style="width:50px"></span><button class="dial-call" data-call title="Позвонить"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></button><button class="dial-del" data-del title="Стереть">⌫</button></div>', true);
+  let number = '', timer = null;
+  const numEl = sc.el.querySelector('#dial-num');
+  const show = () => { numEl.textContent = number; sc.el.querySelector('[data-del]').style.visibility = number ? 'visible' : 'hidden'; };
+  function endCall() { clearInterval(timer); const c = sc.el.querySelector('.call-screen'); if (c) c.remove(); }
+  function call() {
+    if (!number) return;
+    const start = Date.now();
+    const cs = document.createElement('div');
+    cs.className = 'call-screen';
+    cs.innerHTML = '<div class="cs-name"></div><div class="cs-time">вызов…</div><button class="cs-end" data-end title="Завершить"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fff" transform="rotate(135)"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></button>';
+    cs.querySelector('.cs-name').textContent = number;
+    sc.el.appendChild(cs);
+    timer = setInterval(() => { const s = Math.floor((Date.now() - start) / 1000); cs.querySelector('.cs-time').textContent = s < 2 ? 'вызов…' : pad2(Math.floor((s - 2) / 60)) + ':' + pad2((s - 2) % 60) + ' (демо-звонок)'; }, 500);
+  }
+  sc.el.addEventListener('click', e => {
+    const k = e.target.closest('[data-key]'); if (k && number.length < 16) { number += k.dataset.key; show(); return; }
+    if (e.target.closest('[data-del]')) { number = number.slice(0, -1); show(); return; }
+    if (e.target.closest('[data-call]')) { call(); return; }
+    if (e.target.closest('[data-end]')) endCall();
+  });
+  sc.onKey = e => {
+    if (e.key === 'Escape' && sc.el.querySelector('.call-screen')) { endCall(); return true; }
+    if (/^[\d*#]$/.test(e.key) && number.length < 16) { number += e.key; show(); return true; }
+    if (e.key === 'Backspace') { number = number.slice(0, -1); show(); return true; }
+    if (e.key === 'Enter') { call(); return true; }
+  };
+  sc.onHide = endCall;
+  show();
+}
+
+// ===== Сообщения =====
+function initMessages(sc) {
+  const def = { ann: { name: 'Аня', color: '#ec4899', msgs: [{ me: false, t: 'Привет! Как проект?' }, { me: true, t: 'Почти доделал 🙂' }] },
+    club: { name: 'Кружок робототехники', color: '#22c55e', msgs: [{ me: false, t: 'Занятие в четверг в 16:00' }] } };
+  let chats = store.get('chats', def), open = null;
+  const save = () => store.set('chats', chats);
+  function render() {
+    if (!open) {
+      shell('messages', '<div class="app-header"><div class="app-title" style="color:#fff">Сообщения</div></div><div class="scr-body" style="padding:0">' +
+        Object.entries(chats).map(([id, c]) => '<div class="chat-row" data-chat="' + id + '"><div class="chat-av" style="background:' + c.color + '">' + esc(c.name[0]) + '</div><div class="lr-main"><div class="lr-title">' + esc(c.name) + '</div><div class="lr-sub">' + esc((c.msgs[c.msgs.length - 1] || { t: '' }).t) + '</div></div></div>').join('') + '</div>');
+      return;
+    }
+    const c = chats[open];
+    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn" data-back>‹ Назад</button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
+      c.msgs.map(m => '<div class="msg-bubble ' + (m.me ? 'me' : 'them') + '">' + esc(m.t) + '</div>').join('') + '</div>' +
+      '<form class="msg-input-bar"><input class="msg-input" id="msg-input" placeholder="Сообщение" autocomplete="off"><button class="msg-send" title="Отправить"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8z" transform="rotate(-90 12 12)"/></svg></button></form>');
+    const list = sc.el.querySelector('#msg-list'); list.scrollTop = list.scrollHeight;
+  }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-chat]'); if (r) { open = r.dataset.chat; render(); sc.el.querySelector('#msg-input').focus(); return; }
+    if (e.target.closest('[data-back]')) { open = null; render(); }
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = sc.el.querySelector('#msg-input'), text = inp.value.trim(); if (!text) return;
+    const chat = open;
+    chats[chat].msgs.push({ me: true, t: text }); save(); render(); sc.el.querySelector('#msg-input').focus();
+    setTimeout(() => {
+      chats[chat].msgs.push({ me: false, t: ['Хорошо', 'Понятно 👍', 'Окей', 'Договорились', 'Спасибо!'][Math.floor(Math.random() * 5)] }); save();
+      if (current === 'messages' && open === chat) { const had = sc.el.querySelector('#msg-input').value; render(); const i = sc.el.querySelector('#msg-input'); i.value = had; i.focus(); }
+    }, 900);
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open) { open = null; render(); return true; } };
+  render();
+}
+
+// ===== Почта (письма встроенные, без сети) =====
+function initMail(sc) {
+  const LETTERS = [
+    { id: 1, from: 'Телефон «Стекло»', subj: 'Добро пожаловать', body: ['Это фан-концепт интерфейса телефона в одной странице HTML.', 'Смахните вверх или нажмите на полоску внизу, чтобы вернуться домой. Смахните вниз от верхнего края или нажмите на значки справа вверху - откроется пункт управления.'] },
+    { id: 2, from: 'Советы', subj: 'Что сохраняется', body: ['Заметки, события календаря, будильники, переписка, снимки камеры и настройки остаются после перезагрузки.', 'Сбросить всё можно в Настройках → Об устройстве.'] },
+    { id: 3, from: 'О проекте', subj: 'Фан-концепт', body: ['Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.', 'Значки и обои нарисованы заново, шрифты системные, сеть не нужна.'] },
+  ];
+  let read = new Set(store.get('mailRead', [])), open = null;
+  function render() {
+    if (!open) {
+      shell('mail', '<div class="app-header"><div class="app-title">Входящие</div></div><div class="scr-body"><div class="settings-group">' +
+        LETTERS.map(l => '<div class="list-row" data-letter="' + l.id + '">' + (read.has(l.id) ? '<span style="width:10px"></span>' : '<span class="unread"></span>') + '<div class="lr-main"><div class="lr-title">' + esc(l.from) + '</div><div class="lr-sub">' + esc(l.subj) + '</div></div><div class="chevron">›</div></div>').join('') + '</div></div>', true);
+      return;
+    }
+    const l = LETTERS.find(x => x.id === open);
+    shell('mail', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Входящие</button></div><div class="read-view"><h2>' + esc(l.subj) + '</h2><div class="meta">' + esc(l.from) + '</div>' + l.body.map(p => '<p>' + esc(p) + '</p>').join('') + '</div>', true);
+  }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-letter]'); if (r) { open = +r.dataset.letter; read.add(open); store.set('mailRead', [...read]); render(); return; }
+    if (e.target.closest('[data-back]')) { open = null; render(); }
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open) { open = null; render(); return true; } };
+  render();
+}
+
+// ===== Браузер (только встроенные страницы) =====
+function initBrowser(sc) {
+  const PAGES = {
+    'about:start': () => '<div class="safari-h1">Стартовая страница</div><div class="safari-meta">Браузер работает без интернета</div><div class="b-tiles">' +
+      [['about:help', '📖', 'Справка'], ['about:about', 'ℹ️', 'О телефоне'], ['about:time', '🕒', 'Время'], ['app:notes', '📝', 'Заметки']].map(t => '<div class="b-tile" data-go="' + t[0] + '"><b>' + t[1] + '</b>' + t[2] + '</div>').join('') + '</div>',
+    'about:help': () => '<div class="safari-h1">Справка</div><p>Введите адрес вверху. Встроенные страницы: about:start, about:help, about:about, about:time.</p><p>Внешние сайты не открываются: сеть не используется.</p>',
+    'about:about': () => '<div class="safari-h1">О телефоне</div><p>Телефон «Стекло» - фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</p>',
+    'about:time': () => '<div class="safari-h1">Время</div><p style="font-size:40px;font-weight:200">' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + '</p><p>' + new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '</p>',
+  };
+  const hist = [], fwd = [];
+  let cur = 'about:start';
+  shell('browser', '<div class="safari-toolbar"><form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form></div><div class="safari-content" id="b-content"></div>' +
+    '<div class="safari-bottom-bar"><button class="safari-action" data-b="back" title="Назад"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
+    '<button class="safari-action" data-b="fwd" title="Вперёд"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
+    '<button class="safari-action" data-b="reload" title="Обновить"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.7M20 4v5h-5"/></svg></button>' +
+    '<button class="safari-action" data-b="home" title="Стартовая"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></button></div>');
+  const content = sc.el.querySelector('#b-content'), input = sc.el.querySelector('input');
+  function render() {
+    content.innerHTML = PAGES[cur] ? PAGES[cur]() : '<div class="safari-h1">Нет подключения</div><p>Страница <b>' + esc(cur) + '</b> не открыта: телефон работает без сети.</p><p><a href="#" data-go="about:start">На стартовую</a></p>';
+    input.value = cur === 'about:start' ? '' : cur;
+    sc.el.querySelector('[data-b=back]').disabled = !hist.length;
+    sc.el.querySelector('[data-b=fwd]').disabled = !fwd.length;
+  }
+  function nav(u) {
+    u = u.trim(); if (!u) return;
+    if (u.startsWith('app:')) { openApp(u.slice(4)); return; }
+    if (!/^[a-z]+:/i.test(u)) u = /^[\w-]+(\.[\w-]+)+/.test(u) ? 'https://' + u : 'about:help';
+    if (u !== cur) { hist.push(cur); fwd.length = 0; cur = u; }
+    render();
+  }
+  sc.el.querySelector('form').addEventListener('submit', e => { e.preventDefault(); nav(input.value); input.blur(); });
+  sc.el.addEventListener('click', e => {
+    const g2 = e.target.closest('[data-go]'); if (g2) { e.preventDefault(); nav(g2.dataset.go); return; }
+    const b = e.target.closest('[data-b]'); if (!b || b.disabled) return;
+    if (b.dataset.b === 'back') { fwd.push(cur); cur = hist.pop(); } else if (b.dataset.b === 'fwd') { hist.push(cur); cur = fwd.pop(); } else if (b.dataset.b === 'home') { nav('about:start'); return; }
+    render();
+  });
+  render();
+}
+
+// ===== Камера и Фото: снимки - градиенты, хранятся в памяти браузера =====
+const PHOTO_GRADS = ['linear-gradient(135deg,#ff7e5f,#feb47b)', 'linear-gradient(135deg,#4a90e2,#2e5fa0)', 'linear-gradient(135deg,#b86fc9,#5e3a87)', 'linear-gradient(135deg,#ffcc00,#ff9500)', 'linear-gradient(135deg,#34c759,#1f8f3a)', 'linear-gradient(135deg,#5ac8fa,#007aff)', 'linear-gradient(160deg,#2e1a5e,#5b2a8c)', 'linear-gradient(180deg,#7dd3fc,#0e7490)'];
+const loadShots = () => store.get('photos', null) || PHOTO_GRADS.slice(0, 6).map((g, i) => ({ id: 'p' + i, grad: g, date: Date.now() - (6 - i) * 86400000 }));
+// снимки камеры + картинки из «Файлов» (папка «Изображения»)
+const loadPhotos = () => (typeof FS === 'undefined' ? [] : [...FS.values()].filter(e => e.type === 'file' && e.path.startsWith('Изображения/') && isImage(e.path) && fileUrl(e)).map(e => ({ id: 'fs:' + e.path, fs: e.path, grad: 'url(' + fileUrl(e) + ') center/cover no-repeat', date: e.mtime }))).concat(loadShots());
+function savePhotos(p) { store.set('photos', p.filter(x => !x.fs)); emit('photos'); }
+function initCamera(sc) {
+  const MODES = ['ВИДЕО', 'ФОТО', 'ПОРТРЕТ', 'ПАНОРАМА'];
+  let mode = 'ФОТО', flash = 0, delay = 0, hdr = true, front = false, rec = null;
+  shell('camera', '<div class="camera-top-bar"><button class="camera-top-btn" data-t="flash"></button><button class="camera-top-btn" data-t="timer"></button><button class="camera-top-btn" data-t="hdr">HDR</button></div>' +
+    '<div class="camera-viewfinder"><div class="camera-grid-line camera-grid-h1"></div><div class="camera-grid-line camera-grid-h2"></div><div class="camera-grid-line camera-grid-v1"></div><div class="camera-grid-line camera-grid-v2"></div></div>' +
+    '<div class="camera-modes">' + MODES.map(m => '<div class="camera-mode" data-mode="' + m + '">' + m + '</div>').join('') + '</div>' +
+    '<div class="camera-shutter-area"><div class="camera-thumb" title="Открыть Фото" data-thumb></div><div class="camera-shutter" id="camera-shutter" role="button" aria-label="Снимок"></div><div class="camera-flip" title="Сменить камеру" data-flip><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M16 3l3 3-3 3M2 9V7a4 4 0 014-4h13M8 21l-3-3 3-3M22 15v2a4 4 0 01-4 4H5"/></svg></div></div>' +
+    '<div class="camera-flash-overlay" id="camera-flash"></div>');
+  const vf = sc.el.querySelector('.camera-viewfinder');
+  function render() {
+    sc.el.querySelector('[data-t=flash]').textContent = '⚡ ' + ['Авто', 'Вкл', 'Выкл'][flash];
+    sc.el.querySelector('[data-t=timer]').textContent = '⏱ ' + (delay ? delay + ' с' : 'Выкл');
+    sc.el.querySelector('[data-t=hdr]').classList.toggle('off', !hdr);
+    sc.el.querySelectorAll('[data-mode]').forEach(m => m.classList.toggle('active', m.dataset.mode === mode));
+    vf.classList.toggle('front', front);
+    const ph = loadPhotos(); const last = ph[ph.length - 1];
+    sc.el.querySelector('[data-thumb]').style.background = last ? last.grad : '#333';
+  }
+  function snap() {
+    const f = sc.el.querySelector('#camera-flash'); f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+    const ph = loadPhotos(); ph.push({ id: 'p' + Date.now(), grad: PHOTO_GRADS[Math.floor(Math.random() * PHOTO_GRADS.length)], date: Date.now(), mode }); savePhotos(ph); render();
+  }
+  function shutter() {
+    if (mode === 'ВИДЕО') {
+      if (rec) { clearInterval(rec.t); sc.el.querySelector('.rec-dot').remove(); rec = null; snap(); return; }
+      const d = document.createElement('div'); d.className = 'rec-dot'; d.textContent = '● 00:00'; sc.el.appendChild(d);
+      const st = Date.now(); rec = { t: setInterval(() => { const s = Math.floor((Date.now() - st) / 1000); d.textContent = '● ' + pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }, 500) };
+      return;
+    }
+    if (!delay) { snap(); return; }
+    let n = delay; const c = document.createElement('div'); c.className = 'camera-countdown'; c.textContent = n; sc.el.appendChild(c);
+    const t = setInterval(() => { n--; if (n <= 0) { clearInterval(t); c.remove(); snap(); } else c.textContent = n; }, 1000);
+  }
+  sc.el.addEventListener('click', e => {
+    const t = e.target.closest('[data-t]');
+    if (t) { if (t.dataset.t === 'flash') flash = (flash + 1) % 3; else if (t.dataset.t === 'timer') delay = delay === 0 ? 3 : delay === 3 ? 10 : 0; else hdr = !hdr; render(); return; }
+    const m = e.target.closest('[data-mode]'); if (m && !rec) { mode = m.dataset.mode; render(); return; }
+    if (e.target.closest('#camera-shutter')) { shutter(); return; }
+    if (e.target.closest('[data-flip]')) { front = !front; render(); return; }
+    if (e.target.closest('[data-thumb]')) openApp('photos', 'last');
+  });
+  sc.onHide = () => { if (rec) { clearInterval(rec.t); rec = null; const d = sc.el.querySelector('.rec-dot'); if (d) d.remove(); } };
+  sc.onKey = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); shutter(); return true; } };
+  sc.onShow = render;
+  render();
+}
+function initPhotos(sc) {
+  let view = -1;
+  function render() {
+    const ph = loadPhotos();
+    if (view >= ph.length) view = ph.length - 1;
+    shell('photos', '<div class="app-header"><div class="app-title">Фото</div></div><div class="scr-body" style="padding:0">' + (ph.length ? '<div class="ph-grid">' + ph.map((p, i) => '<div class="ph-tile" data-ph="' + i + '" style="background:' + p.grad + '"></div>').join('') + '</div>' : '<div class="empty-note">Снимков нет. Откройте Камеру.</div>') + '</div>' +
+      (view >= 0 ? '<div class="ph-view"><div class="pv-cap">' + new Date(ph[view].date).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '</div><div class="pv-img" style="background:' + ph[view].grad + '"></div><div class="pv-bar"><button data-pv="prev">‹</button><button data-pv="close">Все фото</button><button class="del" data-pv="del">Удалить</button><button data-pv="next">›</button></div></div>' : ''), true);
+  }
+  sc.el.addEventListener('click', e => {
+    const t = e.target.closest('[data-ph]'); if (t) { view = +t.dataset.ph; render(); return; }
+    const b = e.target.closest('[data-pv]'); if (!b) return;
+    const ph = loadPhotos();
+    if (b.dataset.pv === 'close') view = -1;
+    else if (b.dataset.pv === 'del') { const it = ph[view]; if (it.fs) { trashPath(it.fs); ph.splice(view, 1); } else { ph.splice(view, 1); savePhotos(ph); } if (!ph.length) view = -1; }
+    else view = (view + (b.dataset.pv === 'next' ? 1 : -1) + ph.length) % ph.length;
+    render();
+  });
+  sc.onShow = arg => { view = arg === 'last' ? loadPhotos().length - 1 : -1; render(); };
+  sc.onKey = e => {
+    if (view < 0) return;
+    if (e.key === 'Escape') { view = -1; render(); return true; }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = loadPhotos().length; view = (view + (e.key === 'ArrowRight' ? 1 : -1) + n) % n; render(); return true; }
+  };
+  on('photos', () => { if (current === 'photos') render(); });
+  on('fs', () => { if (current === 'photos') render(); });
+  render();
+}
+
+// ===== Музыка: мелодии собираются на месте (WebAudio) =====
+function initMusic(sc) {
+  const TRACKS = [{ title: 'Стеклянные сны', artist: 'Синтезатор', art: 'linear-gradient(135deg, #a855f7, #3b82f6)' }, { title: 'Полуночное преломление', artist: 'Неоновые волны', art: 'linear-gradient(135deg, #0ea5e9, #5e0a8a)' }, { title: 'Северная дорога', artist: 'Полярные огни', art: 'linear-gradient(135deg, #34c759, #0ea5e9)' }];
+  const LEN = 20;
+  let idx = 0, playing = false, ctx = null, gain = null, nodes = [], startAt = 0, offset = 0, t = null;
+  shell('music', '<div class="music-art" id="music-art"></div><div class="music-info"><div class="music-title" id="music-title"></div><div class="music-artist" id="music-artist"></div></div>' +
+    '<div class="music-progress"><div class="music-bar"><div class="music-bar-fill" id="music-bar-fill" style="width:0"></div></div><div class="music-times"><span id="music-cur">0:00</span><span id="music-tot">-0:' + LEN + '</span></div></div>' +
+    '<div class="music-controls"><button class="music-btn" data-m="prev" title="Предыдущий"><svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6v12h2V6H6zm3 6l9 6V6l-9 6z"/></svg></button>' +
+    '<button class="music-btn play" data-m="play" title="Играть"><svg viewBox="0 0 24 24" fill="currentColor"><path id="music-play-icon" d="M8 5v14l11-7L8 5z"/></svg></button>' +
+    '<button class="music-btn" data-m="next" title="Следующий"><svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6v12h2V6h-2zm-7-1v14l9-7-9-7z"/></svg></button></div>' +
+    '<div class="music-volume"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5z"/></svg><div class="music-vol-bar" data-vol role="slider" aria-label="Громкость"><div class="music-vol-fill"></div></div><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5zm11.5 3a4 4 0 00-2.5-3.7v7.4a4 4 0 002.5-3.7z"/></svg></div>' +
+    '<div class="music-list">Мелодии собираются прямо в телефоне, без файлов и без сети</div>');
+  const now = () => ctx ? ctx.currentTime : performance.now() / 1000;
+  function stopNodes() { nodes.forEach(n => { try { n.stop(); } catch (e) { /* уже */ } }); nodes = []; }
+  function schedule(from) {
+    const scale = [0, 3, 5, 7, 10, 12, 15], root = 196 * Math.pow(2, idx * 2 / 12), beat = 0.32;
+    let seed = idx * 7919 + 17; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const t0 = ctx.currentTime - from;
+    for (let x = 0; x < LEN; x += beat) {
+      const n = scale[Math.floor(rnd() * scale.length)];
+      if (x < from) continue;
+      const o = ctx.createOscillator(), g2 = ctx.createGain();
+      o.frequency.value = root * Math.pow(2, n / 12); o.type = 'triangle';
+      g2.gain.setValueAtTime(0, t0 + x); g2.gain.linearRampToValueAtTime(0.22, t0 + x + 0.02); g2.gain.exponentialRampToValueAtTime(0.001, t0 + x + beat * 0.9);
+      o.connect(g2); g2.connect(gain); o.start(t0 + x); o.stop(t0 + x + beat); nodes.push(o);
+    }
+  }
+  function render() {
+    const tr = TRACKS[idx];
+    sc.el.querySelector('#music-art').style.background = tr.art;
+    sc.el.querySelector('#music-title').textContent = tr.title;
+    sc.el.querySelector('#music-artist').textContent = tr.artist;
+    sc.el.querySelector('#music-play-icon').setAttribute('d', playing ? 'M6 4h4v16H6V4zm8 0h4v16h-4V4z' : 'M8 5v14l11-7L8 5z');
+    sc.el.querySelector('.music-vol-fill').style.width = S.volume + '%';
+  }
+  function progress() {
+    const x = playing ? Math.min(LEN, now() - startAt) : offset;
+    sc.el.querySelector('#music-bar-fill').style.width = (x / LEN * 100) + '%';
+    sc.el.querySelector('#music-cur').textContent = '0:' + pad2(Math.floor(x));
+    sc.el.querySelector('#music-tot').textContent = '-0:' + pad2(Math.ceil(LEN - x));
+    if (playing && x >= LEN) { offset = 0; idx = (idx + 1) % TRACKS.length; play(); }
+  }
+  function play() {
+    try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; }
+    stopNodes(); playing = true;
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); if (!gain) { gain = ctx.createGain(); gain.connect(ctx.destination); } gain.gain.value = S.volume / 100; schedule(offset); }
+    startAt = now() - offset; clearInterval(t); t = setInterval(progress, 250); render();
+  }
+  function pause() { if (!playing) return; offset = Math.min(LEN, now() - startAt); playing = false; stopNodes(); clearInterval(t); render(); progress(); }
+  sc.onKill = () => { pause(); offset = 0; };   // закрыли смахиванием в переключателе - музыка молчит
+  sc.el.addEventListener('click', e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'play') { playing ? pause() : play(); return; }
+    const was = playing; pause(); offset = 0; idx = (idx + (m.dataset.m === 'next' ? 1 : -1) + TRACKS.length) % TRACKS.length; render(); progress(); if (was) play();
+  });
+  sc.el.querySelector('[data-vol]').addEventListener('pointerdown', e => { const r = e.currentTarget.getBoundingClientRect(); setS('volume', Math.round(Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)))); });
+  on('settings', () => { if (gain) gain.gain.value = S.volume / 100; if (sc.inited) render(); });
+  let pausedByTab = false;
+  on('visibility', () => { if (document.hidden && playing) { pause(); pausedByTab = true; } else if (!document.hidden && pausedByTab) { pausedByTab = false; play(); } });
+  sc.state = () => ({ playing, idx });
+  render(); progress();
+}
+
+// ===== Погода: демо-данные, без сети =====
+function initWeather(sc) {
+  const d = new Date();
+  const hours = Array.from({ length: 5 }, (_, i) => { const h = (d.getHours() + i) % 24; return { h: i ? pad2(h) : 'Сейчас', t: tempAt(h), ic: h < 6 || h >= 21 ? '🌙' : ['☁️', '⛅', '☀️'][i % 3] }; });
+
+  const days = Array.from({ length: 6 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return { n: i === 0 ? 'Сегодня' : i === 1 ? 'Завтра' : DAYS[x.getDay()].slice(0, 2), ic: ['☁️', '🌧️', '⛅', '☀️', '☀️', '⛅'][i], lo: 12 + i % 3, hi: 18 + (i * 2) % 6 }; });
+  shell('weather', '<div class="weather-current"><div class="weather-city">Лиссабон</div><div class="weather-temp">' + hours[0].t + '°</div><div class="weather-cond">Облачно</div><div class="weather-hl">Макс: ' + days[0].hi + '° · Мин: ' + days[0].lo + '°</div></div>' +
+    '<div class="weather-hourly"><div class="weather-hourly-title">ПРОГНОЗ НА БЛИЖАЙШЕЕ ВРЕМЯ</div><div class="hourly-row">' + hours.map(x => '<div class="hour-item"><span>' + x.h + '</span><span class="hour-icon">' + x.ic + '</span><span class="hour-temp">' + x.t + '°</span></div>').join('') + '</div></div>' +
+    '<div class="weather-forecast">' + days.map(x => '<div class="forecast-row"><span>' + x.n + '</span><span>' + x.ic + '</span><div class="forecast-bar"></div><span class="forecast-low">' + x.lo + '°</span><span>' + x.hi + '°</span></div>').join('') + '</div>' +
+    '<div style="text-align:center;font-size:12px;opacity:0.7;margin-top:10px">Демо-данные: интернет не используется</div>');
+}
+
+// ===== Часы =====
+function initClock(sc) {
+  const ZONES = [['Москва', 'Europe/Moscow'], ['Лондон', 'Europe/London'], ['Нью-Йорк', 'America/New_York'], ['Токио', 'Asia/Tokyo']];
+  let tab = 'world', alarms = store.get('alarms', [{ t: '07:00', label: 'Будильник', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
+  let sw = { run: false, start: 0, acc: 0, laps: [] }, swTimer = null, worldTimer = null;
+  const swFmt = ms => { const cs = Math.floor(ms / 10); return pad2(Math.floor(cs / 6000)) + ':' + pad2(Math.floor(cs / 100) % 60) + ',' + pad2(cs % 100); };
+  const swNow = () => sw.acc + (sw.run ? Date.now() - sw.start : 0);
+  const offsetText = tz => { const now = new Date(); const local = now.getTimezoneOffset(); const there = new Date(now.toLocaleString('en-US', { timeZone: tz })); const here = new Date(now.toLocaleString('en-US')); const diff = Math.round((there - here) / 3600000); return diff === 0 ? 'Сегодня, ±0 ч' : 'Сегодня, ' + (diff > 0 ? '+' : '') + diff + ' ч'; };
+  function body() {
+    if (tab === 'world') return '<div style="font-size:32px;font-weight:700;margin-bottom:14px">Мировые часы</div><div class="alarm-list">' + ZONES.map(([n, tz]) => '<div class="alarm-item"><div><div class="alarm-label" style="font-size:13px;margin-bottom:2px">' + offsetText(tz) + '</div><div style="font-size:18px">' + n + '</div></div><div class="alarm-time">' + new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) + '</div></div>').join('') + '</div>';
+    if (tab === 'alarms') return '<div style="font-size:32px;font-weight:700;margin-bottom:6px">Будильник</div><form class="clock-add"><input type="time" name="t" value="08:00" aria-label="Время"><input name="label" placeholder="Подпись" maxlength="20" aria-label="Подпись"><button>Добавить</button></form><div class="alarm-list">' +
+      (alarms.length ? alarms.map((a, i) => '<div class="alarm-item"><div><div class="alarm-time" style="opacity:' + (a.on ? 1 : 0.45) + '">' + a.t + '</div><div class="alarm-label">' + esc(a.label) + '</div></div><div class="alarm-right"><button class="alarm-del" data-del="' + i + '" title="Удалить">×</button><div class="toggle' + (a.on ? '' : ' off') + '" data-al="' + i + '" role="switch" aria-checked="' + a.on + '"></div></div></div>').join('') : '<div class="empty-note">Будильников нет</div>') + '</div>';
+    return '<div class="clock-bigtime" id="sw-display">' + swFmt(swNow()) + '</div><div class="stopwatch-controls"><button class="sw-btn stop" data-sw="lap">' + (sw.run ? 'Круг' : 'Сброс') + '</button><button class="sw-btn ' + (sw.run ? 'stop' : 'start') + '" data-sw="toggle">' + (sw.run ? 'Стоп' : 'Старт') + '</button></div><div class="laps">' +
+      sw.laps.map((l, i) => '<div><span>Круг ' + (sw.laps.length - i) + '</span><span>' + swFmt(l) + '</span></div>').join('') + '</div>';
+  }
+  function render() {
+    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs">' + [['world', 'Мировые'], ['alarms', 'Будильник'], ['stopwatch', 'Секундомер']].map(([k, n]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '">' + n + '</button>').join('') + '</div>');
+  }
+  const saveAl = () => store.set('alarms', alarms);
+  sc.el.addEventListener('click', e => {
+    const tb = e.target.closest('[data-tab]'); if (tb) { tab = tb.dataset.tab; render(); return; }
+    const al = e.target.closest('[data-al]'); if (al) { alarms[+al.dataset.al].on = !alarms[+al.dataset.al].on; saveAl(); render(); return; }
+    const dl = e.target.closest('[data-del]'); if (dl) { alarms.splice(+dl.dataset.del, 1); saveAl(); render(); return; }
+    const s = e.target.closest('[data-sw]'); if (!s) return;
+    if (s.dataset.sw === 'toggle') { if (sw.run) { sw.acc += Date.now() - sw.start; sw.run = false; clearInterval(swTimer); } else { sw.start = Date.now(); sw.run = true; swTimer = setInterval(() => { const d = sc.el.querySelector('#sw-display'); if (d) d.textContent = swFmt(swNow()); }, 40); } }
+    else if (sw.run) sw.laps.unshift(swNow());
+    else { sw.acc = 0; sw.laps = []; }
+    render();
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target, t = f.t.value; if (!t) return;
+    alarms.push({ t, label: f.label.value.trim() || 'Будильник', on: true }); alarms.sort((a, b) => a.t.localeCompare(b.t)); saveAl(); render();
+  });
+  sc.onShow = () => { render(); clearInterval(worldTimer); worldTimer = setInterval(() => { if (tab === 'world' && current === 'clock') render(); }, 15000); };
+  sc.onHide = () => clearInterval(worldTimer);
+  sc.onKill = () => { if (sw.run) { sw.acc += Date.now() - sw.start; sw.run = false; clearInterval(swTimer); } };   // закрытые «Часы» не считают секундомер
+  sc.state = () => ({ tab, sw: swNow() });
+  render();
+}
+
+// ===== Заметки =====
+function initNotes(sc) {
+  let notes = store.get('notes', [{ id: 1, text: 'Идеи проектов\nИгра на Qt, свой калькулятор, оболочка с вкладками', t: Date.now() }, { id: 2, text: 'Покупки\nХлеб, молоко, кофе', t: Date.now() - 86400000 }]);
+  let open = null;
+  const save = () => store.set('notes', notes);
+  const title = n => (n.text.split('\n')[0] || 'Новая заметка').slice(0, 40);
+  function render() {
+    if (open === null) {
+      notes.sort((a, b) => b.t - a.t);
+      shell('notes', '<div class="app-header"><div class="app-title">Заметки</div></div><div class="scr-body">' + (notes.length ? '<div class="settings-group">' + notes.map(n => '<div class="list-row" data-note="' + n.id + '"><div class="lr-main"><div class="lr-title">' + esc(title(n)) + '</div><div class="lr-sub">' +
+        new Date(n.t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) + ' · ' + esc(n.text.split('\n').slice(1).join(' ').slice(0, 40)) + '</div></div><div class="chevron">›</div></div>').join('') + '</div>' : '<div class="empty-note">Заметок нет</div>') +
+        '</div><button class="fab" data-new title="Новая заметка">＋</button>', true);
+      return;
+    }
+    const n = notes.find(x => x.id === open);
+    shell('notes', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Заметки</button><button class="nav-btn" data-delnote style="color:#ff3b30">Удалить</button></div><div class="note-edit"><textarea aria-label="Текст заметки" placeholder="Первая строка - заголовок"></textarea></div>', true);
+    const ta = sc.el.querySelector('textarea');
+    ta.value = n.text;
+    ta.addEventListener('input', () => { n.text = ta.value; n.t = Date.now(); save(); });
+    ta.focus();
+  }
+  function back() { const n = notes.find(x => x.id === open); if (n && !n.text.trim()) notes = notes.filter(x => x !== n); save(); open = null; render(); }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-note]'); if (r) { open = +r.dataset.note; render(); return; }
+    if (e.target.closest('[data-new]')) { const n = { id: Date.now(), text: '', t: Date.now() }; notes.unshift(n); open = n.id; render(); return; }
+    if (e.target.closest('[data-back]')) { back(); return; }
+    if (e.target.closest('[data-delnote]')) { notes = notes.filter(x => x.id !== open); save(); open = null; render(); }
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open !== null) { back(); return true; } };
+  sc.onHide = () => { if (open !== null) back(); };
+  render();
+}
+
+// ===== Календарь =====
+function loadEvents() {
+  const ev = store.get('events', null);
+  if (ev) return ev;
+  const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return dayKey(x); };
+  return { [d(0)]: [{ title: 'Прогулка', time: '18:00' }], [d(2)]: [{ title: 'Встреча с друзьями', time: '15:00' }] };
+}
+function initCalendar(sc) {
+  let month = new Date(); month.setDate(1);
+  let sel = dayKey(new Date());
+  let events = loadEvents();
+  const save = () => { store.set('events', events); updateWidgets(); };
+  function render() {
+    const first = new Date(month), shift = (first.getDay() + 6) % 7, start = new Date(first); start.setDate(1 - shift);
+    const cells = [];
+    for (let i = 0; i < 42; i++) { const x = new Date(start); x.setDate(start.getDate() + i); if (i >= 35 && x.getMonth() !== month.getMonth()) break; cells.push(x); }
+    const today = dayKey(new Date()), list = (events[sel] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+    const selDate = new Date(sel + 'T12:00');
+    shell('calendar', '<div class="cal-month"><div class="cal-header"><button data-m="-1" title="Предыдущий месяц">‹</button><span>' + MONTHS[month.getMonth()] + ' ' + month.getFullYear() + '</span><button data-m="1" title="Следующий месяц">›</button></div>' +
+      '<div class="cal-weekdays"><div>ПН</div><div>ВТ</div><div>СР</div><div>ЧТ</div><div>ПТ</div><div>СБ</div><div>ВС</div></div><div class="cal-grid">' +
+      cells.map(x => { const k = dayKey(x); return '<div class="cal-day' + (x.getMonth() !== month.getMonth() ? ' outside' : '') + (k === today ? ' today' : '') + (k === sel ? ' sel' : '') + ((events[k] || []).length ? ' has-event' : '') + '" data-day="' + k + '">' + x.getDate() + '</div>'; }).join('') + '</div></div>' +
+      '<div class="cal-events"><div style="font-size:14px;font-weight:600;color:#8e8e93;text-transform:uppercase">' + selDate.getDate() + ' ' + MONTHS_GEN[selDate.getMonth()] + ' · ' + DAYS[selDate.getDay()] + '</div>' +
+      '<form class="cal-add"><input name="title" placeholder="Новое событие" maxlength="40" aria-label="Название события"><input type="time" name="time" value="12:00" aria-label="Время"><button title="Добавить">+</button></form>' +
+      (list.length ? list.map(ev => '<div class="cal-event"><div class="cal-event-bar"></div><div class="cal-event-time">' + ev.time + '</div><div class="cal-event-title">' + esc(ev.title) + '</div><button class="ev-del" data-evdel="' + events[sel].indexOf(ev) + '" title="Удалить">×</button></div>').join('') : '<div style="color:#8e8e93;padding:8px 0">Событий нет</div>') + '</div>');
+  }
+  sc.el.addEventListener('click', e => {
+    const m = e.target.closest('[data-m]'); if (m) { month.setMonth(month.getMonth() + +m.dataset.m); render(); return; }
+    const d = e.target.closest('[data-day]'); if (d) { sel = d.dataset.day; const x = new Date(sel + 'T12:00'); if (x.getMonth() !== month.getMonth()) { month = new Date(x); month.setDate(1); } render(); return; }
+    const del = e.target.closest('[data-evdel]'); if (del) { events[sel].splice(+del.dataset.evdel, 1); if (!events[sel].length) delete events[sel]; save(); render(); }
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const title = e.target.title.value.trim(); if (!title) { e.target.title.focus(); return; }
+    (events[sel] = events[sel] || []).push({ title, time: e.target.time.value || '12:00' }); save(); render();
+  });
+  sc.onShow = () => { month = new Date(); month.setDate(1); sel = dayKey(new Date()); render(); };
+  render();
+}
+
+// ===== Настройки =====
+function initSettings(sc) {
+  let page = 'main', q = '';
+  const tog = k => '<div class="toggle' + (S[k] ? '' : ' off') + '" data-set="' + k + '" role="switch" aria-checked="' + !!S[k] + '"></div>';
+  const G = p => '<svg viewBox="0 0 24 24" fill="#fff">' + p + '</svg>';
+  const ROWS = [
+    { k: 'airplane', name: 'Авиарежим', color: '#ff9500', toggle: true, g: G('<path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>') },
+    { k: 'wifi', name: 'Wi-Fi', color: '#007aff', toggle: true, g: G('<path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-8c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/>') },
+    { k: 'bt', name: 'Bluetooth', color: '#007aff', toggle: true, g: G('<path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3z"/>') },
+    { k: 'cellular', name: 'Сотовые данные', color: '#34c759', toggle: true, g: G('<path d="M2 22h3v-5H2zm5 0h3v-9H7zm5 0h3V9h-3zm5 0h3V4h-3z"/>') },
+    { k: 'dnd', name: 'Не беспокоить', color: '#5856d6', toggle: true, g: G('<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>') },
+    { p: 'display', name: 'Экран и яркость', color: '#007aff', g: G('<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="#fff" stroke-width="2"/>') },
+    { p: 'wall', name: 'Обои', color: '#a855f7', g: G('<path d="M4 5h16v14H4z" fill="none" stroke="#fff" stroke-width="2"/><path d="M5 18l5-6 4 4 2-2 3 4z"/>') },
+    { p: 'sound', name: 'Звуки', color: '#ff3b30', g: G('<path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16 8a5 5 0 010 8" fill="none" stroke="#fff" stroke-width="1.8"/>') },
+    { p: 'about', name: 'Об устройстве', color: '#8e8e93', g: G('<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M11 10h2v7h-2zM11 7h2v2h-2z"/>') },
+  ];
+  const PAGES = {
+    display: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Тёмное оформление</div>' + tog('dark') + '</div><div class="settings-row"><div class="settings-label">Меньше стекла</div><div class="toggle' + (S.glass ? ' off' : '') + '" data-set="glass-inv" role="switch" aria-checked="' + !S.glass + '"></div></div></div>' +
+      '<div class="settings-group"><div class="settings-row"><span>☀️</span><input type="range" min="30" max="100" value="' + S.brightness + '" data-range="brightness" aria-label="Яркость"></div></div>',
+    wall: () => '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall-opt' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>',
+    sound: () => '<div class="settings-group"><div class="settings-row"><span>🔈</span><input type="range" min="0" max="100" value="' + S.volume + '" data-range="volume" aria-label="Громкость"><span>🔊</span></div></div><div class="about-note">Громкость действует на «Музыку».</div>',
+    about: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Название</div><div class="settings-value">Телефон «Стекло»</div></div><div class="settings-row"><div class="settings-label">Версия</div><div class="settings-value">2.0</div></div></div>' +
+      '<div class="about-note"><b>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</b> Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><button class="sheet-btn" data-reset>Сбросить всё</button>',
+  };
+  function render() {
+    if (page === 'main') {
+      const rows = ROWS.filter(r => !q || r.name.toLowerCase().includes(q));
+      shell('settings', '<div class="app-header"><div class="app-title">Настройки</div></div><div class="settings-list"><label class="settings-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Поиск" aria-label="Поиск настроек"></label><div class="settings-group">' +
+        (rows.length ? rows.map(r => '<div class="settings-row"' + (r.p ? ' data-page="' + r.p + '"' : '') + '><div class="settings-icon" style="background:' + r.color + '">' + r.g + '</div><div class="settings-label">' + r.name + '</div>' + (r.toggle ? tog(r.k) : '<div class="chevron">›</div>') + '</div>').join('') : '<div class="settings-row"><div class="settings-label" style="color:#8e8e93">Ничего не найдено</div></div>') + '</div></div>', true);
+      const inp = sc.el.querySelector('.settings-search input'); inp.value = q;
+      inp.addEventListener('input', () => { q = inp.value.trim().toLowerCase(); const pos = inp.selectionStart; render(); const i2 = sc.el.querySelector('.settings-search input'); i2.focus(); i2.setSelectionRange(pos, pos); });
+      return;
+    }
+    shell('settings', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Настройки</button><div class="nb-title">' + ROWS.find(r => r.p === page).name + '</div></div><div class="scr-body">' + PAGES[page]() + '</div>', true);
+  }
+  let own = false;
+  sc.el.addEventListener('click', e => {
+    const p = e.target.closest('[data-page]'); if (p) { page = p.dataset.page; render(); return; }
+    if (e.target.closest('[data-back]')) { page = 'main'; render(); return; }
+    const t = e.target.closest('[data-set]'); if (t) { if (t.dataset.set === 'glass-inv') setS('glass', !S.glass); else setS(t.dataset.set, !S[t.dataset.set]); return; }
+    const w = e.target.closest('[data-wall]'); if (w) { setS('wallpaper', w.dataset.wall); return; }
+    if (e.target.closest('[data-reset]')) {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('ios26'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
+  });
+  sc.el.addEventListener('input', e => { const r = e.target.closest('[data-range]'); if (r) { own = true; setS(r.dataset.range, +r.value); own = false; } });
+  on('settings', () => { if (sc.inited && !own && current === 'settings' && !sc.el.querySelector('.settings-search input:focus')) render(); });
+  sc.onKey = e => { if (e.key === 'Escape' && page !== 'main') { page = 'main'; render(); return true; } };
+  sc.onShow = () => { page = 'main'; q = ''; render(); };
+  render();
+}
+
+// ===== Масштаб: телефон целиком помещается в окно любой высоты =====
+function fit() {
+  const d = $('device');
+  if (innerWidth <= 420) { d.style.transform = ''; return; }
+  const k = Math.min(1, (innerHeight - 40) / (852 + 28), (innerWidth - 40) / (393 + 28));
+  d.style.transform = 'scale(' + k + ')';
+}
+addEventListener('resize', fit);
+
+// ===== Запуск =====
+buildHome();
+buildScreens();
+applySettings();
+tick();
+updateWidgets();
+fit();
+</script>
+</body>
+</html>

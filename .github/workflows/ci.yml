@@ -1,0 +1,66 @@
+# Проверки на каждый пуш.
+#
+# Раннер windows: приложение «Игротека» собирается и живёт только под Windows, а
+# программы из py/ проверяются в Qt без экрана со шрифтами из папки Windows.
+# Три набора:
+#   - страницы web/ в Chromium по файловому адресу (npm test);
+#   - приложение: законы чистых модулей (npm run test:unit) и настоящий Electron
+#     (npm run test:app - открывает окна, на раннере GitHub экран есть);
+#   - программы py/ (pytest, Qt offscreen).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Проверки
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Chromium для Playwright
+        run: npx playwright install chromium
+
+      - name: Страницы web/
+        run: npm test
+
+      - name: Приложение, законы модулей и значка
+        run: npm run test:unit
+
+      - name: Приложение, настоящий Electron
+        run: npm run test:app
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Зависимости Python
+        run: pip install -r requirements-py.txt
+
+      - name: Программы py/
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests/py -q
+
+      - name: Отчёт, если упало
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

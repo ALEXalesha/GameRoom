@@ -1,0 +1,97 @@
+<!-- Общие градиенты для значков: svg не скрыт через display:none, иначе градиенты пропадают -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <linearGradient id="gFolderBack" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8a317"/><stop offset="1" stop-color="#d88a0b"/></linearGradient>
+  <linearGradient id="gFolderFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd35c"/><stop offset="1" stop-color="#f6b21b"/></linearGradient>
+  <linearGradient id="gBlue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4fb3ff"/><stop offset="1" stop-color="#1467d6"/></linearGradient>
+  <linearGradient id="gBlue2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3aa0ff"/><stop offset="1" stop-color="#0b4fb5"/></linearGradient>
+  <linearGradient id="gGrey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8d949c"/><stop offset="1" stop-color="#5a6068"/></linearGradient>
+  <linearGradient id="gGreyL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset="1" stop-color="#c9ced4"/></linearGradient>
+  <linearGradient id="gOrange" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9f43"/><stop offset="1" stop-color="#e8513a"/></linearGradient>
+  <linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+  <linearGradient id="gPink" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb3d1"/><stop offset="1" stop-color="#e2558f"/></linearGradient>
+  <linearGradient id="gTeal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d8c8"/><stop offset="1" stop-color="#0b7fa8"/></linearGradient>
+  <linearGradient id="gMark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fd0ff"/><stop offset="0.55" stop-color="#2f8cf0"/><stop offset="1" stop-color="#7b5cff"/></linearGradient>
+  <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ec8ff"/><stop offset="1" stop-color="#2d7de0"/></linearGradient>
+  <radialGradient id="gSun" cx="0.4" cy="0.4" r="0.7"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#ffb300"/></radialGradient>
+</defs></svg>
+
+<div id="wallpaper"></div>
+<div id="desktop"><div id="desktop-icons" role="list" aria-label="Рабочий стол"></div></div>
+<div id="snap-preview"></div>
+<div id="windows"></div>
+
+<div id="taskbar">
+  <div id="tb-center">
+    <button class="tb-btn" id="btn-start" data-tip="Пуск" aria-label="Пуск" data-ic="start"></button>
+    <button class="tb-btn" id="btn-search" data-tip="Поиск" aria-label="Поиск" data-ic="search"></button>
+    <button class="tb-btn" id="btn-tv" data-tip="Представление задач" aria-label="Представление задач" data-ic="taskview"></button>
+    <div id="tb-apps" style="display:flex;gap:4px"></div>
+  </div>
+  <div id="tb-right">
+    <button class="tray" id="btn-tray" aria-label="Быстрые настройки"><span class="wifi-ic" data-si="wifi"></span><span id="tray-vol" data-si="vol"></span><span data-si="battery"></span></button>
+    <button class="tray" id="btn-clock" aria-label="Центр уведомлений и календарь"><div id="tb-clock"><div id="tb-time">00:00</div><div id="tb-date">01.01.2026</div></div><span id="tb-bell"><span data-si="bell"></span><span class="badge" hidden>0</span></span></button>
+    <button id="show-desktop" data-tip="Свернуть все окна" aria-label="Свернуть все окна"></button>
+  </div>
+</div>
+
+<div class="flyout" id="start" role="dialog" aria-label="Пуск">
+  <div class="start-top">
+    <label class="search-pill"><span data-ic="search"></span><input id="start-q" placeholder="Поиск приложений, параметров и файлов" aria-label="Поиск" autocomplete="off"></label>
+    <div id="start-body" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+  </div>
+  <div class="start-foot">
+    <button class="user-btn" id="user-btn"><div class="avatar">П</div><span>Пользователь</span></button>
+    <button class="power-btn" id="power-btn" aria-label="Выключение" data-tip="Выключение" data-si="power"></button>
+    <div class="menu" id="power-menu" style="right:40px;bottom:60px" role="menu">
+      <button class="mi" data-power="lock"><span class="mi-ic" data-si="lock"></span><span>Заблокировать</span></button>
+      <button class="mi" data-power="sleep"><span class="mi-ic" data-si="sleep"></span><span>Спящий режим</span></button>
+      <button class="mi" data-power="restart"><span class="mi-ic" data-si="restart"></span><span>Перезагрузка</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="flyout" id="search" role="dialog" aria-label="Поиск">
+  <label class="search-pill"><span data-ic="search"></span><input id="search-q" placeholder="Введите здесь текст для поиска" aria-label="Поиск" autocomplete="off"></label>
+  <div id="search-body" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+</div>
+
+<div class="flyout" id="quick" role="dialog" aria-label="Быстрые настройки">
+  <div class="qs-grid" id="qs-grid"></div>
+  <div class="qs-slider"><span data-si="sun"></span><input type="range" id="qs-bright" min="30" max="100" aria-label="Яркость"><output id="qs-bright-o"></output></div>
+  <div class="qs-slider"><span data-si="vol"></span><input type="range" id="qs-vol" min="0" max="100" aria-label="Громкость"><output id="qs-vol-o"></output></div>
+  <div class="qs-foot"><span style="display:flex;align-items:center;gap:8px"><span data-si="battery"></span> 84% (условно)</span><button class="tbtn" id="qs-settings" aria-label="Все параметры" data-tip="Все параметры" data-si="gear"></button></div>
+</div>
+
+<div class="flyout" id="notif-center" role="dialog" aria-label="Центр уведомлений">
+  <div class="nc-panel">
+    <div class="nc-head"><span>Уведомления</span><span><button id="nc-focus">Фокусировка: выкл</button><button id="nc-clear">Очистить все</button></span></div>
+    <div class="nc-list scroll" id="nc-list"></div>
+  </div>
+  <div class="nc-panel">
+    <div class="cal-head" id="cal-today"></div>
+    <div class="cal-body">
+      <div class="cal-nav"><b id="cal-title"></b><div><button id="cal-prev" aria-label="Предыдущий месяц" data-si="chevUp"></button><button id="cal-next" aria-label="Следующий месяц" data-si="chevDown"></button></div></div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="flyout" id="snap-flyout" aria-label="Макеты прикрепления">
+  <div class="layout"><div class="zone" data-zone="left" title="Левая половина"></div><div class="zone" data-zone="right" title="Правая половина"></div></div>
+  <div class="layout"><div class="zone" data-zone="l66" style="flex:2" title="Две трети слева"></div><div class="zone" data-zone="r34" title="Треть справа"></div></div>
+  <div class="layout"><div class="zone" data-zone="c1" title="Левая треть"></div><div class="zone" data-zone="c2" title="Средняя треть"></div><div class="zone" data-zone="c3" title="Правая треть"></div></div>
+  <div class="layout"><div class="col" style="flex:1"><div class="zone" data-zone="tl" title="Слева сверху"></div><div class="zone" data-zone="bl" title="Слева снизу"></div></div><div class="col" style="flex:1"><div class="zone" data-zone="tr" title="Справа сверху"></div><div class="zone" data-zone="br" title="Справа снизу"></div></div></div>
+</div>
+
+<div id="taskview" aria-label="Представление задач"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<div id="lock" role="dialog" aria-label="Экран блокировки">
+  <div class="lk-time" id="lk-time"></div>
+  <div class="lk-date" id="lk-date"></div>
+  <div class="lk-hint" id="lk-hint">Нажмите любую клавишу или щёлкните, чтобы войти</div>
+  <div class="lk-icons" id="lk-icons"><span data-si="wifi"></span><span data-si="battery"></span></div>
+</div>
+<div id="dim"></div>
+<div id="night"></div>
+<div id="boot"><span data-ic="start"></span><div class="spinner"></div><div class="boot-note">Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung</div></div>

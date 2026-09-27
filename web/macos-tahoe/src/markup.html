@@ -1,0 +1,44 @@
+<div id="wallpaper"></div>
+<div id="desktop"><div id="desktop-icons" aria-label="Рабочий стол"></div></div>
+<div id="tile-preview"></div>
+<div id="windows"></div>
+
+<div id="menubar">
+  <div class="mb-side" id="mb-left">
+    <button class="mb-item" id="mb-mark" aria-label="Меню системы" data-si="mark"></button>
+    <button class="mb-item" id="mb-app">Файлы</button>
+    <div id="mb-menus"></div>
+  </div>
+  <div class="mb-side" id="mb-right">
+    <button class="mb-item" id="mb-bat" aria-label="Аккумулятор"><span data-si="battery" style="display:flex;width:24px"></span></button>
+    <button class="mb-item" id="mb-wifi" aria-label="Wi-Fi"></button>
+    <button class="mb-item" id="mb-search" aria-label="Поиск" data-si="search"></button>
+    <button class="mb-item" id="mb-cc" aria-label="Пункт управления" data-si="cc"></button>
+    <button class="mb-item" id="mb-clock" aria-label="Центр уведомлений"></button>
+  </div>
+</div>
+
+<div id="dock-wrap"><div id="dock" class="glass" aria-label="Dock"></div></div>
+
+<div class="panel glass glass-strong" id="cc" role="dialog" aria-label="Пункт управления"></div>
+<div class="panel" id="nc" role="dialog" aria-label="Центр уведомлений">
+  <div class="nc-head" id="nc-head"><span></span><button id="nc-clear" class="glass">Очистить все</button></div>
+  <div id="nc-list"></div>
+  <div class="widgets" id="nc-widgets"></div>
+</div>
+<div id="spotlight" class="glass glass-strong" role="dialog" aria-label="Поиск">
+  <div class="sp-bar"><span data-si="search" style="display:flex"></span><input id="sp-q" placeholder="Поиск" aria-label="Поиск" autocomplete="off"></div>
+  <div id="sp-res"></div>
+</div>
+<div id="launchpad" role="dialog" aria-label="Launchpad"><input id="lp-q" placeholder="Поиск" aria-label="Поиск программ" autocomplete="off"><div id="lp-grid"></div></div>
+<div id="mission" role="dialog" aria-label="Все окна"><div class="mc-top"><div><div class="mc-space" id="mc-space"></div><span>Рабочий стол 1</span></div></div><div id="mc-grid"></div></div>
+<div id="toasts" aria-live="polite"></div>
+
+<div id="lock" role="dialog" aria-label="Экран блокировки">
+  <div class="lk-date" id="lk-date"></div>
+  <div class="lk-time" id="lk-time"></div>
+  <div class="lk-user"><div class="avatar">П</div><b>Пользователь</b><span class="lk-hint glass" id="lk-hint">Нажмите любую клавишу или щёлкните, чтобы войти</span></div>
+</div>
+<div id="dim"></div>
+<div id="night"></div>
+<div id="boot"><span data-si="mark" style="display:flex"></span><div class="bar"><i></i></div><div class="boot-note">Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung</div></div>

@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Телефон «Волна» (фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+html, body {
+  width: 100%; height: 100vh; overflow: hidden;
+  background: #1a1a1a;
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  display: flex; align-items: center; justify-content: center;
+}
+.desktop-bg {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at top, #2a2a35 0%, #0f0f15 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.phone {
+  width: 380px; height: 820px;
+  background: #000;
+  border-radius: 48px;
+  border: 3px solid #1f1f24;
+  box-shadow: 0 0 0 8px #0a0a0c, 0 30px 80px rgba(0,0,0,0.7), 0 0 100px rgba(80,100,200,0.15);
+  position: relative;
+  overflow: hidden;
+}
+.phone::before {
+  content: ''; position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  width: 12px; height: 12px; background: #050505; border-radius: 50%; z-index: 1000;
+  box-shadow: inset 0 0 4px rgba(60, 100, 200, 0.4), 0 0 0 1px #1a1a1a;
+}
+.phone::after {
+  display: none;
+}
+.side-btn-power { position: absolute; right: -3px; top: 200px; width: 4px; height: 80px; background: #1f1f24; border-radius: 0 2px 2px 0; }
+.side-btn-vol-up { position: absolute; left: -3px; top: 180px; width: 4px; height: 50px; background: #1f1f24; border-radius: 2px 0 0 2px; }
+.side-btn-vol-down { position: absolute; left: -3px; top: 240px; width: 4px; height: 50px; background: #1f1f24; border-radius: 2px 0 0 2px; }
+
+.screen {
+  position: absolute; inset: 0;
+  border-radius: 45px;
+  overflow: hidden;
+}
+
+/* статус-бар */
+.statusbar {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 44px; padding: 14px 30px 0;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; font-weight: 600; color: #fff;
+  z-index: 100;
+  pointer-events: none;
+}
+.statusbar.dark-text { color: #000; }
+.statusbar .left { padding-left: 8px; }
+.statusbar .right { display: flex; gap: 6px; align-items: center; padding-right: 8px; }
+.statusbar svg { width: 16px; height: 16px; }
+
+/* экраны - управление */
+.layer { position: absolute; inset: 0; transition: opacity 0.35s, transform 0.35s; }
+.layer.hidden { opacity: 0; pointer-events: none; transform: scale(0.95); }
+
+/* === LOCK SCREEN === */
+.lockscreen {
+  background: linear-gradient(160deg, #1a2a4a 0%, #2d1a4a 40%, #4a1a3a 100%);
+}
+.lockscreen-wallpaper {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(120, 80, 200, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(80, 140, 220, 0.35) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(200, 80, 140, 0.2) 0%, transparent 60%),
+    linear-gradient(160deg, #0a1530 0%, #1a0f3a 50%, #2a0f2a 100%);
+}
+.lock-clock {
+  position: absolute; top: 90px; left: 0; right: 0;
+  text-align: center; color: #fff;
+  font-weight: 200; font-size: 96px;
+  letter-spacing: -4px; line-height: 1;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+}
+.lock-date {
+  position: absolute; top: 220px; left: 0; right: 0;
+  text-align: center; color: #fff; font-size: 15px; opacity: 0.95;
+  font-weight: 500;
+}
+.lock-now-bar {
+  position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(20px);
+  border-radius: 30px; padding: 10px 18px;
+  display: flex; align-items: center; gap: 10px;
+  color: #fff; font-size: 13px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.lock-now-bar .dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.lock-shortcuts {
+  position: absolute; bottom: 50px; left: 0; right: 0;
+  display: flex; justify-content: space-between; padding: 0 35px;
+}
+.lock-shortcut {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(20px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform 0.15s;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.lock-shortcut:active { transform: scale(0.9); }
+.lock-shortcut svg { width: 24px; height: 24px; fill: #fff; }
+.lock-hint {
+  position: absolute; bottom: 15px; left: 0; right: 0; text-align: center;
+  color: rgba(255,255,255,0.6); font-size: 12px;
+}
+.lock-unlock-area {
+  position: absolute; inset: 0; cursor: pointer;
+}
+
+/* === HOME SCREEN === */
+.homescreen {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(100, 80, 180, 0.35) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(60, 120, 200, 0.3) 0%, transparent 55%),
+    linear-gradient(170deg, #1a1a2e 0%, #16213e 50%, #0f1828 100%);
+  display: flex; flex-direction: column;
+  padding-top: 90px;
+}
+.home-page-container {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.home-page-container::-webkit-scrollbar { display: none; }
+.home-page {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  padding: 8px 18px;
+  display: flex; flex-direction: column;
+}
+.widget-group {
+  display: flex; gap: 10px; margin-bottom: 12px;
+}
+.widget {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px);
+  border-radius: 22px;
+  padding: 14px;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.widget-clock { flex: 1; }
+.widget-clock .time { font-size: 32px; font-weight: 300; letter-spacing: -1px; }
+.widget-clock .city { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+.widget-weather { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.widget-weather .temp { font-size: 28px; font-weight: 300; }
+.widget-weather .desc { font-size: 11px; opacity: 0.8; }
+.widget-large {
+  background: rgba(255,255,255,0.08); backdrop-filter: blur(20px);
+  border-radius: 22px; padding: 14px; color: #fff;
+  margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.06);
+}
+.widget-calendar .month { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+.widget-calendar .day { font-size: 36px; font-weight: 300; line-height: 1; margin: 4px 0 8px; }
+.widget-calendar .event { font-size: 12px; opacity: 0.85; padding: 4px 0; border-top: 1px solid rgba(255,255,255,0.1); }
+
+.app-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px;
+  margin-top: auto;
+}
+.app-icon {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; transition: transform 0.15s;
+}
+.app-icon:active { transform: scale(0.9); }
+.app-icon-img {
+  width: 56px; height: 56px;
+  border-radius: 17px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  position: relative;
+}
+.app-icon-img svg { width: 32px; height: 32px; }
+.app-icon-label {
+  font-size: 11px; color: #fff; text-align: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  font-weight: 500;
+}
+
+.dock {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  padding: 14px 18px 12px;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(30px);
+  margin: 0 12px 8px;
+  border-radius: 26px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.nav-bar {
+  height: 28px;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-pill { width: 110px; height: 4px; background: rgba(255,255,255,0.7); border-radius: 2px; cursor: pointer; }
+
+.page-indicator {
+  display: flex; justify-content: center; gap: 6px; padding: 6px 0;
+}
+.page-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: background 0.2s; }
+.page-dot.active { background: #fff; }
+
+/* === NOTIFICATION SHADE === */
+.shade {
+  position: absolute; inset: 0;
+  background: rgba(15, 20, 35, 0.85);
+  backdrop-filter: blur(40px);
+  transform: translateY(-100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 200;
+  display: flex; flex-direction: column;
+  padding-top: 50px;
+}
+.shade.open { transform: translateY(0); }
+.shade-tabs {
+  display: flex; gap: 8px; padding: 10px 18px 4px;
+}
+.shade-tab {
+  padding: 6px 14px; border-radius: 16px; font-size: 12px; color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.05); cursor: pointer;
+}
+.shade-tab.active { background: rgba(255,255,255,0.15); color: #fff; }
+.shade-info {
+  display: flex; justify-content: space-between; padding: 6px 22px 12px;
+  font-size: 11px; color: rgba(255,255,255,0.6);
+}
+.qs-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 10px 18px;
+}
+.qs-tile {
+  background: rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.2s;
+}
+.qs-tile.on { background: rgba(140, 180, 255, 0.85); color: #001530; }
+.qs-tile.on .qs-name { color: #001530; }
+.qs-tile-icon { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; }
+.qs-tile.on .qs-tile-icon { background: rgba(0,30,80,0.15); }
+.qs-tile-icon svg { width: 16px; height: 16px; fill: #fff; }
+.qs-tile.on .qs-tile-icon svg { fill: #001530; }
+.qs-name { font-size: 11px; font-weight: 600; color: #fff; }
+.qs-state { font-size: 10px; opacity: 0.7; }
+
+.brightness-slider {
+  margin: 14px 18px;
+  height: 44px; background: rgba(255,255,255,0.06);
+  border-radius: 22px; padding: 0 18px;
+  display: flex; align-items: center; gap: 12px;
+}
+.brightness-slider svg { width: 18px; height: 18px; fill: #fff; opacity: 0.7; }
+.bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; position: relative; cursor: pointer; }
+.bar-fill { height: 100%; background: #fff; border-radius: 3px; width: 65%; }
+
+.notif-section {
+  flex: 1; overflow-y: auto;
+  padding: 8px 14px 14px;
+}
+.notif-section::-webkit-scrollbar { display: none; }
+.notif-card {
+  background: rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex; gap: 10px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.notif-icon { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.notif-icon svg { width: 18px; height: 18px; fill: #fff; }
+.notif-body { flex: 1; color: #fff; font-size: 12px; }
+.notif-app { font-size: 10px; opacity: 0.6; margin-bottom: 2px; }
+.notif-title { font-weight: 600; margin-bottom: 2px; }
+.notif-text { opacity: 0.85; line-height: 1.3; }
+
+/* === APP CONTAINER === */
+.app-container {
+  position: absolute; inset: 0;
+  background: #0f0f15;
+  z-index: 50;
+  transform: scale(0.85); opacity: 0; pointer-events: none;
+  transition: transform 0.3s, opacity 0.25s;
+  border-radius: 45px;
+  overflow: hidden;
+}
+.app-container.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.app-screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+.app-screen.active { display: flex; }
+.app-header {
+  padding: 56px 20px 14px;
+  display: flex; align-items: center; gap: 14px;
+  color: #fff;
+}
+.app-back {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.app-back:active { background: rgba(255,255,255,0.1); }
+.app-back svg { width: 22px; height: 22px; fill: #fff; }
+.app-title { font-size: 22px; font-weight: 600; }
+.app-content { flex: 1; overflow-y: auto; }
+.app-content::-webkit-scrollbar { display: none; }
+
+/* === APP DRAWER === */
+.app-drawer {
+  position: absolute; inset: 0;
+  background: rgba(15, 20, 35, 0.95);
+  backdrop-filter: blur(40px);
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 150;
+  display: flex; flex-direction: column;
+  padding-top: 50px;
+}
+.app-drawer.open { transform: translateY(0); }
+.drawer-search {
+  margin: 0 18px 14px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.drawer-search input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: #fff; font-size: 14px;
+}
+.drawer-search svg { width: 18px; height: 18px; fill: rgba(255,255,255,0.6); }
+.drawer-grid {
+  flex: 1;
+  padding: 8px 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px 8px;
+  overflow-y: auto;
+  align-content: start;
+}
+.drawer-grid::-webkit-scrollbar { display: none; }
+
+/* === Now Bar Pill on Home === */
+.now-bar-pill {
+  position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+  background: #000; border-radius: 30px;
+  padding: 4px 14px 4px 8px; height: 30px;
+  display: flex; align-items: center; gap: 8px;
+  z-index: 10;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.now-bar-pill .icon { width: 22px; height: 22px; border-radius: 50%; background: #1ed760; display: flex; align-items: center; justify-content: center; }
+.now-bar-pill .icon svg { width: 12px; height: 12px; fill: #000; }
+.now-bar-pill .text { color: #fff; font-size: 11px; font-weight: 500; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-bar-pill .bars { display: flex; gap: 2px; align-items: end; height: 14px; }
+.now-bar-pill .bars span { width: 2px; background: #1ed760; border-radius: 1px; animation: bars 0.8s infinite; }
+.now-bar-pill .bars span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.now-bar-pill .bars span:nth-child(2) { height: 10px; animation-delay: 0.2s; }
+.now-bar-pill .bars span:nth-child(3) { height: 8px; animation-delay: 0.4s; }
+@keyframes bars { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.4); } }
+
+/* recents */
+.recents {
+  position: absolute; inset: 0;
+  background: rgba(10, 15, 30, 0.95);
+  backdrop-filter: blur(30px);
+  z-index: 180;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 50px;
+}
+.recents.open { display: flex; }
+.recents-empty { color: rgba(255,255,255,0.6); font-size: 14px; margin-top: 20px; }
+.recents-close-all {
+  margin-top: 30px;
+  padding: 10px 20px; background: rgba(255,255,255,0.1); color: #fff;
+  border-radius: 20px; font-size: 13px; cursor: pointer; border: none;
+}
+.recent-card {
+  width: 240px; height: 420px;
+  background: linear-gradient(160deg, #2a2a4a, #1a1a2e);
+  border-radius: 24px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  cursor: pointer;
+}
+.recent-card-header {
+  padding: 14px;
+  color: #fff; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.3);
+}
+
+.bottom-sheet-overlay {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 300; display: none;
+}
+.bottom-sheet-overlay.open { display: block; }
+
+
+/* ===== ДОБАВЛЕНО: масштаб, общие элементы программ, новые экраны ===== */
+html, body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.desktop-bg { overflow: hidden; }
+.phone { flex-shrink: 0; transform-origin: center center; }
+@media (max-width: 430px) {
+  .phone { width: 100vw; height: 100vh; border-radius: 0; border: none; box-shadow: none; transform: none !important; }
+  .screen, .app-container { border-radius: 0; }
+  .side-btn-power, .side-btn-vol-up, .side-btn-vol-down { display: none; }
+}
+.side-btn-power { cursor: pointer; right: -6px; width: 6px; }
+.side-btn-power:hover { background: #3a3a44; }
+input, textarea { user-select: text; font-family: inherit; }
+button { font-family: inherit; }
+#dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 5000; }
+#torch { position: absolute; inset: 0; pointer-events: none; z-index: 4999; display: none; background: radial-gradient(ellipse at 50% 0%, rgba(255,250,220,0.3), transparent 45%); }
+.nav-pill { position: relative; }
+.nav-pill::before { content: ''; position: absolute; inset: -12px -20px; }
+.lock-now-bar { cursor: pointer; }
+.lock-now-bar.idle .dot { background: #94a3b8; animation: none; }
+.now-bar-pill .icon { background: #a78bfa; }
+.now-bar-pill .bars span { background: #a78bfa; }
+.now-bar-pill.idle .bars { display: none; }
+.statusbar { cursor: pointer; }
+.app-icon:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 17px; }
+
+/* Общие детали программ */
+.o-list-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #fff; cursor: pointer; }
+.o-list-row:hover { background: rgba(255,255,255,0.03); }
+.o-main { flex: 1; min-width: 0; }
+.o-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o-sub { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o-av { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; flex-shrink: 0; }
+.o-round { width: 36px; height: 36px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.o-tabs { display: flex; padding: 0 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.o-tab { flex: 1; text-align: center; padding: 12px 4px; color: rgba(255,255,255,0.5); font-size: 13px; border: none; background: none; border-bottom: 2px solid transparent; cursor: pointer; }
+.o-tab.on { color: #fff; border-bottom-color: #60a5fa; }
+.o-empty { color: rgba(255,255,255,0.5); text-align: center; padding: 40px 20px; font-size: 13px; }
+.o-card { background: rgba(255,255,255,0.07); border-radius: 18px; padding: 14px; margin: 0 16px 10px; color: #fff; }
+.o-input { background: rgba(255,255,255,0.08); border: none; border-radius: 14px; padding: 10px 14px; color: #fff; outline: none; font-size: 14px; min-width: 0; }
+.o-btn { background: #60a5fa; color: #001530; border: none; border-radius: 20px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.o-btn.ghost { background: rgba(255,255,255,0.1); color: #fff; }
+.o-btn.red { background: #f87171; color: #200; }
+.o-form { display: flex; gap: 8px; padding: 0 16px 12px; }
+.o-toggle { width: 46px; height: 26px; border-radius: 13px; background: rgba(255,255,255,0.18); position: relative; border: none; cursor: pointer; flex-shrink: 0; }
+.o-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+.o-toggle.on { background: #60a5fa; }
+.o-toggle.on::after { left: 23px; }
+.o-fab { position: absolute; right: 22px; bottom: 44px; width: 56px; height: 56px; border-radius: 50%; border: none; background: #facc15; color: #000; font-size: 28px; box-shadow: 0 6px 20px rgba(250,204,21,0.4); cursor: pointer; z-index: 5; }
+.o-range { width: 100%; accent-color: #60a5fa; }
+.app-screen { overflow: hidden; }
+.app-back { border: none; background: none; }
+
+/* Звонок */
+.call-screen { position: absolute; inset: 0; z-index: 20; background: linear-gradient(180deg, #1e3a8a, #0f172a); display: flex; flex-direction: column; align-items: center; padding-top: 140px; color: #fff; }
+.call-screen .cs-name { font-size: 28px; font-weight: 300; }
+.call-screen .cs-time { margin-top: 8px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.call-screen .cs-end { margin-top: auto; margin-bottom: 90px; width: 68px; height: 68px; border-radius: 50%; border: none; background: #ef4444; cursor: pointer; }
+.dial-key { aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,0.06); border: none; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+.dial-key b { font-size: 28px; font-weight: 300; }
+.dial-key small { font-size: 9px; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+
+/* Сообщения */
+.bubbles { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; color: #fff; font-size: 14px; word-wrap: break-word; }
+.bubble.me { align-self: flex-end; background: #3b82f6; }
+.bubble.them { align-self: flex-start; background: rgba(255,255,255,0.1); }
+.compose { padding: 10px 14px; display: flex; gap: 8px; border-top: 1px solid rgba(255,255,255,0.05); }
+.compose input { flex: 1; }
+
+/* Камера и галерея */
+.cam-top { position: absolute; top: 50px; left: 0; right: 0; display: flex; justify-content: space-around; padding: 12px; z-index: 10; }
+.cam-top button { color: #fff; padding: 6px 14px; background: rgba(0,0,0,0.4); border-radius: 20px; font-size: 12px; border: none; cursor: pointer; }
+.cam-view { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, #2a3a5a 0%, #1a2a3a 50%, #0a1a2a 100%); }
+.cam-view.front { background: radial-gradient(circle at 50% 45%, rgba(255,210,170,0.4), transparent 35%), linear-gradient(180deg, #2a2a2a, #111); }
+.cam-modes { display: flex; justify-content: center; gap: 16px; margin-bottom: 14px; color: rgba(255,255,255,0.6); font-size: 12px; }
+.cam-modes span { cursor: pointer; }
+.cam-modes span.on { color: #fbbf24; font-weight: 600; }
+.cam-shutter { width: 70px; height: 70px; border-radius: 50%; border: 4px solid #fff; padding: 4px; cursor: pointer; background: none; }
+.cam-shutter i { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; }
+.cam-shutter.rec i { background: #ef4444; border-radius: 8px; transform: scale(0.6); }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 30; }
+.cam-flash.go { animation: camflash 0.3s ease-out; }
+@keyframes camflash { 20% { opacity: 0.9; } 100% { opacity: 0; } }
+.gal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 0 2px; }
+.gal-tile { aspect-ratio: 1; cursor: pointer; position: relative; }
+.gal-tile .fav { position: absolute; right: 4px; bottom: 2px; color: #fff; font-size: 13px; text-shadow: 0 1px 2px #000; }
+.gal-actions { display: flex; justify-content: space-around; padding: 18px; }
+.gal-actions button { background: none; border: none; color: #fff; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.gal-actions button span { font-size: 18px; }
+
+/* Часы */
+.big-time { font-size: 60px; color: #fff; font-weight: 200; text-align: center; margin: 36px 0 24px; font-variant-numeric: tabular-nums; }
+.row-btns { display: flex; justify-content: center; gap: 12px; }
+.presets { display: flex; justify-content: center; gap: 8px; margin-bottom: 18px; }
+.laps { padding: 16px 24px; color: #fff; font-variant-numeric: tabular-nums; }
+.laps div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+/* Календарь */
+.cal-grid7 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; border-radius: 50%; cursor: pointer; position: relative; }
+.cal-cell.other { color: rgba(255,255,255,0.3); }
+.cal-cell.sel { background: rgba(255,255,255,0.15); }
+.cal-cell.today { background: #fb7185; color: #000; }
+.cal-cell.ev::after { content: ''; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: #60a5fa; }
+.ev-card { border-left: 3px solid #60a5fa; border-radius: 12px; padding: 10px 14px; margin: 0 20px 8px; background: rgba(96,165,250,0.15); display: flex; align-items: center; color: #fff; }
+.ev-card button { margin-left: auto; background: none; border: none; color: rgba(255,255,255,0.6); font-size: 18px; cursor: pointer; }
+
+/* Заметки */
+.note-card { background: rgba(250,204,21,0.1); border-left: 3px solid #facc15; border-radius: 12px; padding: 14px; margin: 0 18px 10px; cursor: pointer; color: #fff; }
+.note-area { flex: 1; margin: 0 16px 16px; background: rgba(255,255,255,0.05); border: none; border-radius: 14px; padding: 14px; color: #fff; font-size: 15px; line-height: 1.5; outline: none; resize: none; }
+
+/* Музыка */
+.mu-btn { background: none; border: none; color: #fff; font-size: 30px; cursor: pointer; }
+.mu-btn.small { font-size: 20px; color: rgba(255,255,255,0.5); }
+.mu-btn.small.on { color: #a78bfa; }
+.mu-play { width: 64px; height: 64px; border-radius: 50%; background: #fff; border: none; color: #000; font-size: 24px; cursor: pointer; }
+
+/* Настройки */
+.set-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #fff; cursor: pointer; }
+.set-ic { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.walls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 18px 18px; }
+.wall { height: 150px; border-radius: 18px; border: 3px solid transparent; cursor: pointer; position: relative; }
+.wall.on { border-color: #60a5fa; }
+.wall span { position: absolute; left: 10px; bottom: 8px; color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px #000; }
+.about-note { color: rgba(255,255,255,0.65); font-size: 13px; line-height: 1.5; padding: 4px 20px 16px; }
+
+/* Интернет */
+.b-page { padding: 14px 20px; color: #fff; font-size: 14px; line-height: 1.55; }
+.b-page h2 { font-size: 22px; margin-bottom: 10px; }
+.b-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+.b-tile { text-align: center; cursor: pointer; font-size: 11px; }
+.b-tile b { display: flex; aspect-ratio: 1; border-radius: 16px; background: rgba(129,140,248,0.25); align-items: center; justify-content: center; font-size: 22px; margin-bottom: 6px; }
+.b-bar { display: flex; gap: 8px; align-items: center; padding: 0 18px 10px; }
+.b-bar form { flex: 1; display: flex; }
+.b-bar input { flex: 1; }
+.b-bar button { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; width: 30px; }
+.b-bar button:disabled { opacity: 0.3; cursor: default; }
+.statusbar { pointer-events: auto; }
+.lockscreen .statusbar { pointer-events: none; }
+.phone::before { pointer-events: none; }
+.call-screen { z-index: 400; }
+/* закрытые шторка и список приложений, пока уезжают, не перехватывают нажатия */
+.app-drawer:not(.open), .shade:not(.open) { pointer-events: none; }
+.app-container { z-index: 160; }
+.app-container .statusbar { z-index: 30; }
+/* ===== Второй этап: «Мои файлы», уведомления, недавние приложения ===== */
+body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
+.o-hbtn { width: 36px; height: 36px; border-radius: 18px; background: rgba(255,255,255,0.08); color: #fff; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.o-chip { padding: 6px 10px; border-radius: 14px; background: rgba(255,255,255,0.1); color: #8ab4f8; font-size: 12px; flex-shrink: 0; }
+.o-chip.danger, .o-sheet .danger { color: #ff6b6b; }
+.f-th { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.f-th svg { width: 36px; height: 36px; }
+.f-th img { max-width: 42px; max-height: 42px; border-radius: 8px; object-fit: cover; }
+.f-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.f-bar i { display: block; height: 100%; background: linear-gradient(90deg, #60a5fa, #a78bfa); border-radius: 4px; }
+.f-crumbs { font-size: 12px; opacity: 0.6; padding: 0 20px 8px; color: #fff; }
+.f-search { display: block; width: calc(100% - 32px); margin: 0 16px 10px; }
+.o-list-row .o-main { flex: 1; min-width: 0; }
+.fv-img { height: 100%; min-height: 420px; background-size: contain; background-position: center; background-repeat: no-repeat; margin: 10px; }
+.fv-text { display: block; width: calc(100% - 32px); height: 520px; margin: 0 16px; border: none; border-radius: 20px; padding: 16px; background: rgba(255,255,255,0.07); color: #fff; font: 15px/1.5 system-ui, sans-serif; outline: none; resize: none; }
+
+/* диалоги: скруглённая карточка внизу экрана, крупные кнопки */
+.o-dlg-back { position: absolute; inset: 0; z-index: 900; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; padding: 0 12px 30px; }
+.o-dlg { width: 100%; border-radius: 28px; background: #26262c; color: #fff; padding: 22px 20px 10px; animation: dlgUp 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+@keyframes dlgUp { from { transform: translateY(40px); opacity: 0; } }
+.o-dlg b { display: block; text-align: center; font-size: 17px; margin-bottom: 16px; }
+.o-dlg input { width: 100%; height: 44px; border-radius: 22px; border: 2px solid #3e7bfa; background: transparent; color: #fff; padding: 0 16px; font-size: 15px; outline: none; }
+.o-dlg-btns { display: flex; margin-top: 8px; }
+.o-dlg-btns button { flex: 1; height: 48px; color: #8ab4f8; font-size: 15px; font-weight: 600; }
+.o-sheet { width: 100%; border-radius: 28px; background: #26262c; padding: 8px 0; overflow: hidden; animation: dlgUp 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+.os-title { text-align: center; font-size: 13px; color: rgba(255,255,255,0.55); padding: 10px 20px 6px; }
+.o-sheet button { display: block; width: 100%; height: 52px; text-align: left; padding: 0 26px; color: #fff; font-size: 16px; }
+.o-sheet button:active { background: rgba(255,255,255,0.06); }
+
+/* всплывающее уведомление */
+.heads-up { position: absolute; top: 44px; left: 10px; right: 10px; z-index: 800; display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 26px; background: rgba(38,38,46,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.4); cursor: pointer; animation: huIn 0.4s cubic-bezier(0.34,1.3,0.64,1); }
+.heads-up.out { animation: huOut 0.3s ease-in forwards; }
+@keyframes huIn { from { transform: translateY(-130%); } }
+@keyframes huOut { to { transform: translateY(-130%); opacity: 0; } }
+.heads-up .notif-body { min-width: 0; }
+.lock-notifs { position: absolute; left: 16px; right: 16px; top: 420px; display: flex; flex-direction: column; gap: 8px; z-index: 4; pointer-events: none; }
+.lock-notifs .ln-card { pointer-events: auto; }
+.ln-card { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 22px; background: rgba(20,20,30,0.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); color: #fff; cursor: pointer; }
+.ln-card .notif-icon { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.ln-card .notif-icon svg { width: 18px; height: 18px; }
+.ln-card b { display: block; font-size: 13px; }
+.ln-card span { display: block; font-size: 12px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+.ln-more { text-align: center; color: #fff; font-size: 12px; opacity: 0.7; }
+
+/* недавние приложения */
+#recents { position: absolute; inset: 0; z-index: 450; display: none; flex-direction: column; background: rgba(10,10,16,0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+#recents.open { display: flex; animation: rcIn 0.25s ease-out; }
+@keyframes rcIn { from { opacity: 0; transform: scale(1.04); } }
+.rc-row { flex: 1; display: flex; gap: 16px; align-items: center; overflow-x: auto; padding: 0 calc(50% - 115px); scroll-snap-type: x mandatory; scrollbar-width: none; }
+.rc-row::-webkit-scrollbar { display: none; }
+.rc-card { flex: 0 0 230px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 10px; transition: transform 0.2s, opacity 0.2s; touch-action: none; }
+.rc-card.gone { transform: translateY(-120%) !important; opacity: 0 !important; }
+.rc-head { display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-size: 14px; font-weight: 600; }
+.rc-head .notif-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.rc-head .notif-icon svg { width: 16px; height: 16px; }
+.rc-shot { position: relative; height: 480px; border-radius: 30px; overflow: hidden; background: #0f0f15; box-shadow: 0 16px 40px rgba(0,0,0,0.5); pointer-events: none; }
+.rc-clone { position: absolute; left: 0; top: 0; width: 380px; height: 820px; transform: scale(0.605); transform-origin: 0 0; }
+.rc-clone .app-screen { position: absolute; inset: 0; }
+.rc-empty { display: none; color: #fff; text-align: center; opacity: 0.8; margin-bottom: 40vh; }
+#recents.empty .rc-empty { display: block; }
+.rc-close-all { align-self: center; margin: 0 0 46px; padding: 10px 26px; border-radius: 22px; background: rgba(255,255,255,0.14); color: #fff; font-size: 14px; font-weight: 600; }
+#recents.empty .rc-close-all { display: none; }
+
+/* ===== Замечания ревьюера: акцент, светлая тема, значки «Моих файлов», игры ===== */
+:root { --accent: #1f6fe5; }
+.o-btn { background: var(--accent); color: #fff; }
+.o-toggle.on { background: var(--accent); }
+.o-tab.on { border-bottom-color: var(--accent); }
+.qs-tile.on { background: var(--accent); color: #fff; }
+.qs-tile.on .qs-name, .qs-tile.on .qs-state { color: #fff; }
+.qs-tile.on .qs-tile-icon { background: rgba(255,255,255,0.2); }
+.qs-tile.on .qs-tile-icon svg { fill: #fff; }
+.qs-state { font-size: 11px; opacity: 1; color: rgba(255,255,255,0.78); }
+.bar-fill { background: var(--accent); }
+.o-dlg input { border-color: var(--accent); }
+.acc-row { display: flex; gap: 14px; }
+.acc { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
+.acc.on { box-shadow: 0 0 0 3px #fff inset, 0 0 0 2px var(--accent); }
+.f-cat { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.f-cat svg { width: 24px; height: 24px; }
+.o-hbtn svg { width: 20px; height: 20px; }
+
+/* светлая тема: программы с обычным фоном, шторка, все приложения, диалоги */
+body.light #app-container:has(.app-screen.std) { background: #f3f4f7; }
+body.light .app-screen.std { background: #f3f4f7 !important; color: #15161a; }
+body.light #app-container:has(.app-screen.std) > .statusbar { color: #15161a; }
+body.light .app-screen.std .app-header, body.light .app-screen.std .o-list-row, body.light .app-screen.std .set-row, body.light .app-screen.std .f-crumbs, body.light .app-screen.std .b-page { color: #15161a; }
+body.light .app-screen.std .app-back svg path { fill: #15161a; }
+body.light .app-screen.std .app-back:active { background: rgba(0,0,0,0.06); }
+body.light .app-screen.std .o-card { background: #fff; color: #15161a; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+body.light .app-screen.std .o-sub, body.light .app-screen.std .o-empty { color: rgba(0,0,0,0.58); }
+body.light .app-screen.std .o-list-row, body.light .app-screen.std .set-row { border-bottom-color: rgba(0,0,0,0.07); }
+body.light .app-screen.std .o-input, body.light .app-screen.std .fv-text { background: #e6e8ed; color: #15161a; }
+body.light .app-screen.std .o-tabs { border-bottom-color: rgba(0,0,0,0.08); }
+body.light .app-screen.std .o-tab { color: rgba(0,0,0,0.55); }
+body.light .app-screen.std .o-tab.on { color: #15161a; }
+body.light .app-screen.std .o-btn.ghost, body.light .app-screen.std .o-hbtn, body.light .app-screen.std .o-chip, body.light .app-screen.std .set-ic { background: rgba(0,0,0,0.07); color: #15161a; }
+body.light .app-screen.std .o-hbtn svg path { fill: #3a3d45; }
+body.light .app-screen.std .o-toggle { background: rgba(0,0,0,0.2); }
+body.light .app-screen.std .o-toggle.on { background: var(--accent); }
+body.light .app-screen.std .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .app-screen.std [style*="color:#fff"] { color: #15161a !important; }
+body.light .app-screen.std [style*="color:rgba(255,255,255"] { color: rgba(0,0,0,0.58) !important; }
+body.light .shade { background: rgba(240,241,245,0.94); }
+body.light .shade-tab { color: rgba(0,0,0,0.6); background: rgba(0,0,0,0.05); }
+body.light .shade-tab.active { color: #15161a; background: rgba(0,0,0,0.1); }
+body.light .shade-info { color: rgba(0,0,0,0.6); }
+body.light .qs-tile { background: #fff; border-color: rgba(0,0,0,0.05); }
+body.light .qs-tile:not(.on) .qs-name { color: #15161a; }
+body.light .qs-tile:not(.on) .qs-state { color: rgba(0,0,0,0.62); }
+body.light .qs-tile:not(.on) .qs-tile-icon { background: rgba(0,0,0,0.06); }
+body.light .qs-tile:not(.on) .qs-tile-icon svg { fill: #3a3d45; }
+body.light .brightness-slider { background: #fff; }
+body.light .brightness-slider svg { fill: #3a3d45; }
+body.light .bar-track { background: rgba(0,0,0,0.1); }
+body.light .notif-card { background: #fff; }
+body.light .notif-body { color: #15161a; }
+body.light .shade .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .app-drawer { background: rgba(240,241,245,0.96); }
+body.light .app-drawer .app-icon-label { color: #15161a; text-shadow: none; }
+body.light .drawer-search { background: #fff; color: #15161a; }
+body.light .drawer-search input { color: #15161a; }
+body.light .drawer-search svg { fill: #3a3d45; }
+body.light .app-drawer .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .o-dlg, body.light .o-sheet { background: #fff; color: #15161a; }
+body.light .o-dlg input { color: #15161a; }
+body.light .o-sheet button { color: #15161a; }
+body.light .os-title { color: rgba(0,0,0,0.55); }
+body.light .heads-up { background: rgba(255,255,255,0.95); }
+body.light .heads-up .notif-body { color: #15161a; }
+
+/* игры: слой поверх программ, полоска «Домой» снизу; папка «Игры» */
+#game-layer { position: absolute; inset: 0; z-index: 170; display: none; background: #000; }
+#game-layer.open { display: block; }
+.game-app { position: absolute; inset: 0; display: none; }
+.game-app.on { display: block; }
+.game-frame { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 30px); border: 0; background: #000; }
+.game-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; display: flex; align-items: center; justify-content: center; background: #000; cursor: pointer; touch-action: none; }
+.game-bar .nav-pill { background: rgba(255,255,255,0.6); }
+.game-host { background: #000; align-items: center; justify-content: center; gap: 14px; }
+.gh-name { color: #fff; font-size: 16px; font-weight: 600; }
+.o-folder { background: rgba(255,255,255,0.22) !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px; box-sizing: border-box; }
+.o-folder i { display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+.o-folder i svg { width: 14px; height: 14px; }
+#games-folder { position: absolute; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+#games-folder.open { display: flex; }
+.gf-box { width: 330px; border-radius: 30px; background: rgba(46,46,58,0.78); padding: 18px 10px 20px; }
+.gf-title { color: #fff; font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 16px; }
+.gf-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 4px; }
+.gf-grid .app-icon-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 76px; }
+</style>
+</head>
+<body>
+<div class="desktop-bg">
+<div class="phone" id="phone">
+<div class="side-btn-power" id="power-btn" title="Кнопка питания: блокировка"></div>
+<div class="side-btn-vol-up"></div>
+<div class="side-btn-vol-down"></div>
+<div class="screen" id="screen">
+<div id="torch"></div>
+<div id="dim"></div>
+
+<!-- ЭКРАН БЛОКИРОВКИ -->
+<div class="layer lockscreen" id="lockscreen">
+  <div class="lockscreen-wallpaper" id="lock-wall"></div>
+  <div class="lock-unlock-area" id="unlock-area"></div>
+  <div class="statusbar"><div class="left" data-time></div><div class="right" data-status></div></div>
+  <div class="lock-clock" id="lock-clock"></div>
+  <div class="lock-date" id="lock-date"></div>
+  <div class="lock-now-bar idle" id="lock-now" data-a="music"><div class="dot"></div><span id="lock-now-text">Музыка на паузе</span></div>
+  <div class="lock-shortcuts">
+    <div class="lock-shortcut" data-lockapp="camera" role="button" aria-label="Камера"><svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M9 2L7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9zm3 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" clip-rule="evenodd"/></svg></div>
+    <div class="lock-shortcut" data-lockapp="phone" role="button" aria-label="Телефон"><svg viewBox="0 0 24 24"><path d="M20 15.5l-2.5-.3c-.6-.1-1.2.1-1.6.5l-1.8 1.8a15.1 15.1 0 0 1-6.6-6.6l1.8-1.8c.4-.4.6-1 .5-1.6L9.5 4c-.1-1-1-1.7-2-1.5C5.4 2.7 3 5.4 3 8.5 3 16 8 21 15.5 21c3.1 0 5.8-2.4 6-4.5.2-1-.5-1.9-1.5-2z"/></svg></div>
+  </div>
+  <div class="lock-hint">Нажмите или смахните вверх, чтобы разблокировать</div>
+</div>
+
+<!-- ДОМАШНИЙ ЭКРАН -->
+<div class="layer homescreen hidden" id="homescreen">
+  <div class="statusbar"><div class="left" data-time></div><div class="right" data-status></div></div>
+  <div class="now-bar-pill idle" id="now-pill" data-open="music" role="button" aria-label="Музыка">
+    <div class="icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+    <div class="text" id="now-pill-text">Музыка</div>
+    <div class="bars"><span></span><span></span><span></span></div>
+  </div>
+  <div class="home-page-container" id="home-pages"></div>
+  <div class="page-indicator" id="page-indicator"></div>
+  <div class="dock" id="dock"></div>
+  <div class="nav-bar"><div class="nav-pill" id="home-pill" title="Все приложения" role="button" aria-label="Все приложения"></div></div>
+</div>
+
+<!-- ШТОРКА -->
+<div class="shade" id="shade">
+  <div class="shade-tabs">
+    <div class="shade-tab active" data-shade="notif" role="button">Уведомления</div>
+    <div class="shade-tab" data-shade="qs" role="button">Быстрые настройки</div>
+  </div>
+  <div class="shade-info"><span id="shade-date"></span><span style="cursor:pointer" id="clear-notifs" role="button">Очистить</span></div>
+  <div id="qs-panel" style="display:none">
+    <div class="qs-grid" id="qs-grid"></div>
+    <div class="brightness-slider">
+      <svg viewBox="0 0 24 24"><path d="M12 7c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5z"/></svg>
+      <div class="bar-track" id="bright-track" role="slider" aria-label="Яркость"><div class="bar-fill" id="bright-fill"></div></div>
+    </div>
+  </div>
+  <div class="notif-section" id="notif-section"></div>
+  <div class="nav-bar"><div class="nav-pill" id="shade-pill" title="Закрыть шторку"></div></div>
+</div>
+
+<!-- ВСЕ ПРИЛОЖЕНИЯ -->
+<div class="app-drawer" id="app-drawer">
+  <div class="statusbar"><div class="left" data-time></div><div class="right" data-status></div></div>
+  <div class="drawer-search">
+    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+    <input type="text" placeholder="Найти приложение" id="drawer-input" aria-label="Поиск приложений">
+  </div>
+  <div class="drawer-grid" id="drawer-grid"></div>
+  <div class="nav-bar"><div class="nav-pill" id="drawer-pill" title="Закрыть"></div></div>
+</div>
+
+<!-- ОТКРЫТОЕ ПРИЛОЖЕНИЕ -->
+<div class="app-container" id="app-container"></div>
+</div>
+</div>
+</div>
+
+<script src="../_os-shared/games.js"></script>
+<script>
+'use strict';
+// ================================================================
+// Телефон «Волна»: фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.
+// Работает без сети; состояние хранится в localStorage под префиксом «oneui7.».
+// ================================================================
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad2 = n => String(n).padStart(2, '0');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('oneui7.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('oneui7.' + k, JSON.stringify(v)); } catch (e) { /* нет хранилища */ } },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('oneui7.')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* нет доступа */ } },
+};
+const DAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const dayKey = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const hhmm = d => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+const tempAt = h => Math.round(17 + 3 * Math.sin((h - 9) / 24 * Math.PI * 2));
+
+// ===== Настройки =====
+const WALLS = {
+  night: { name: 'Ночь', lock: 'radial-gradient(circle at 20% 30%, rgba(120,80,200,0.4) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(80,140,220,0.35) 0%, transparent 50%), linear-gradient(160deg, #0a1530 0%, #1a0f3a 50%, #2a0f2a 100%)', home: 'radial-gradient(circle at 30% 20%, rgba(100,80,180,0.35) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(60,120,200,0.3) 0%, transparent 55%), linear-gradient(170deg, #1a1a2e 0%, #16213e 50%, #0f1828 100%)' },
+  sea: { name: 'Море', lock: 'radial-gradient(circle at 50% 30%, rgba(34,211,238,0.45), transparent 50%), linear-gradient(180deg, #0c4a6e, #082f49)', home: 'radial-gradient(circle at 20% 80%, rgba(34,211,238,0.35), transparent 50%), linear-gradient(180deg, #075985, #0c1a33)' },
+  berry: { name: 'Ягоды', lock: 'radial-gradient(circle at 70% 20%, rgba(244,114,182,0.5), transparent 50%), linear-gradient(160deg, #4a044e, #1e1b4b)', home: 'radial-gradient(circle at 30% 70%, rgba(244,114,182,0.35), transparent 50%), linear-gradient(170deg, #3b0764, #111827)' },
+  mint: { name: 'Мята', lock: 'radial-gradient(circle at 30% 30%, rgba(74,222,128,0.4), transparent 50%), linear-gradient(160deg, #064e3b, #022c22)', home: 'radial-gradient(circle at 70% 30%, rgba(74,222,128,0.3), transparent 50%), linear-gradient(170deg, #14532d, #052e16)' },
+};
+const DEF = { wifi: true, mobile: true, bt: false, dnd: false, torch: false, rotate: true, airplane: false, brightness: 100, volume: 60, wall: 'night', light: false, accent: 'blue' };
+// цвета акцента: насыщенные, белый текст на них читается (контраст не ниже 4.5)
+const ACCENTS = { blue: { name: 'Синий', c: '#1f6fe5' }, green: { name: 'Зелёный', c: '#137a4b' }, violet: { name: 'Фиолетовый', c: '#7443d6' }, coral: { name: 'Коралловый', c: '#c0392b' } };
+const S = Object.assign({}, DEF, store.get('settings', {}));
+function applySettings() {
+  const w = WALLS[S.wall] || WALLS.night;
+  $('lock-wall').style.background = w.lock;
+  $('homescreen').style.background = w.home;
+  $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7);
+  $('torch').style.display = S.torch ? 'block' : 'none';
+  $('bright-fill').style.width = S.brightness + '%';
+  document.body.classList.toggle('light', !!S.light);
+  document.documentElement.style.setProperty('--accent', (ACCENTS[S.accent] || ACCENTS.blue).c);
+  renderQS(); renderStatus();
+  if (state.app === 'settings' || state.app === 'music') renderApp();
+}
+function setS(k, v) {
+  S[k] = v;
+  if (k === 'airplane' && v) { S.wifi = false; S.bt = false; S.mobile = false; }
+  if (['wifi', 'bt', 'mobile'].includes(k) && v) S.airplane = false;
+  store.set('settings', S); applySettings();
+}
+
+// ===== Значки и список приложений =====
+const ICONS = {
+  phone: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M20 15.5l-2.5-.3c-.6-.1-1.2.1-1.6.5l-1.8 1.8a15.1 15.1 0 0 1-6.6-6.6l1.8-1.8c.4-.4.6-1 .5-1.6L9.5 4c-.1-1-1-1.7-2-1.5C5.4 2.7 3 5.4 3 8.5 3 16 8 21 15.5 21c3.1 0 5.8-2.4 6-4.5.2-1-.5-1.9-1.5-2z"/></svg>',
+  messages: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM7 9h10v2H7V9zm6 5H7v-2h6v2zm4-6H7V6h10v2z"/></svg>',
+  contacts: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path fill="#fff" fill-rule="evenodd" d="M9 2L7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9zm3 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" clip-rule="evenodd"/></svg>',
+  gallery: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.9 13.98l2.1 2.53 3.1-3.99L18 17.5H6l2.9-3.52z"/></svg>',
+  calculator: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8 19H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V9h2v2zm5 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm5 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4H6V5h12v2z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#fff" stroke-width="2"/><path fill="#fff" d="M12.5 7H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>',
+  settings: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M19.4 13c.04-.3.06-.6.06-1s-.02-.7-.06-1l2.1-1.6c.2-.15.25-.4.12-.62l-2-3.46a.5.5 0 0 0-.6-.22l-2.5 1c-.5-.4-1-.7-1.6-.95l-.4-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42L9.1 5.07c-.6.25-1.15.6-1.65.95l-2.5-1a.5.5 0 0 0-.6.22l-2 3.46c-.13.22-.07.47.12.62L4.55 11c-.04.3-.06.6-.06 1s.02.7.06 1l-2.1 1.6c-.2.15-.25.4-.12.62l2 3.46c.13.22.4.3.6.22l2.5-1c.5.4 1.05.7 1.65.95l.4 2.65c.06.24.27.42.5.42h4c.23 0 .43-.18.5-.42l.4-2.65c.6-.25 1.15-.6 1.65-.95l2.5 1c.22.08.47 0 .6-.22l2-3.46c.13-.22.07-.47-.12-.62L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>',
+  weather: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M19.35 10.04A7.49 7.49 0 0 0 12 4 7.5 7.5 0 0 0 5 8.5 6 6 0 0 0 6 20.5h13a5 5 0 0 0 .35-10.46z"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V8h14v11z"/></svg>',
+  notes: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>',
+  music: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 3v10.55c-.6-.34-1.3-.55-2-.55a4 4 0 1 0 4 4V7h4V3h-6z"/></svg>',
+  browser: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18" fill="none" stroke="#fff" stroke-width="1.6"/></svg>',
+  files: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>',
+};
+const APP_LIST = [
+  { id: 'phone', name: 'Телефон', bg: 'linear-gradient(135deg, #34d399, #10b981)' },
+  { id: 'messages', name: 'Сообщения', bg: 'linear-gradient(135deg, #60a5fa, #3b82f6)' },
+  { id: 'contacts', name: 'Контакты', bg: 'linear-gradient(135deg, #fbbf24, #f59e0b)' },
+  { id: 'camera', name: 'Камера', bg: 'linear-gradient(135deg, #6b7280, #374151)' },
+  { id: 'gallery', name: 'Галерея', bg: 'linear-gradient(135deg, #f472b6, #ec4899)' },
+  { id: 'calculator', name: 'Калькулятор', bg: 'linear-gradient(135deg, #fb923c, #ea580c)' },
+  { id: 'clock', name: 'Часы', bg: 'linear-gradient(135deg, #1e293b, #0f172a)' },
+  { id: 'settings', name: 'Настройки', bg: 'linear-gradient(135deg, #94a3b8, #475569)' },
+  { id: 'weather', name: 'Погода', bg: 'linear-gradient(135deg, #38bdf8, #0284c7)' },
+  { id: 'calendar', name: 'Календарь', bg: 'linear-gradient(135deg, #fb7185, #e11d48)' },
+  { id: 'notes', name: 'Заметки', bg: 'linear-gradient(135deg, #facc15, #ca8a04)' },
+  { id: 'music', name: 'Музыка', bg: 'linear-gradient(135deg, #c084fc, #9333ea)' },
+  { id: 'browser', name: 'Интернет', bg: 'linear-gradient(135deg, #818cf8, #4f46e5)' },
+  { id: 'files', name: 'Мои файлы', bg: 'linear-gradient(135deg, #67e8f9, #06b6d4)' },
+  { id: 'mail', name: 'Почта', bg: 'linear-gradient(135deg, #f87171, #dc2626)' },
+];
+// док (телефон, сообщения, интернет, камера) не повторяется на страницах экрана «Домой»
+const PAGE1 = ['contacts', 'gallery', 'calculator', 'clock', 'settings', 'weather', 'calendar', 'notes'];
+const PAGE2 = ['music', 'files', 'mail'];
+const DOCK = ['phone', 'messages', 'browser', 'camera'];
+const appName = id => APP_LIST.find(a => a.id === id).name;
+function iconHTML(id, label = true) {
+  const a = APP_LIST.find(x => x.id === id);
+  return '<div class="app-icon" data-open="' + id + '" tabindex="0" role="button" aria-label="' + a.name + '"><div class="app-icon-img" style="background:' + a.bg + '">' + ICONS[id] + '</div>' + (label ? '<div class="app-icon-label">' + a.name + '</div>' : '') + '</div>';
+}
+
+// ===== Состояние оболочки =====
+const state = { unlocked: false, app: null, shade: false, drawer: false };
+
+// ===== Строка состояния и время =====
+function renderStatus() {
+  const html = (S.airplane ? '<span>✈</span>' : (S.mobile ? '<span style="font-size:11px">5G</span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20V2L2 22z"/></svg>' : '') +
+    (S.wifi ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.07 2.93 1 9zm8 8l3 3 3-3a4.24 4.24 0 0 0-6 0zm-4-4l2 2a7.07 7.07 0 0 1 10 0l2-2C16.07 9.07 7.93 9.07 5 13z"/></svg>' : '')) +
+    (S.dnd ? '<span>⊖</span>' : '') + '<span style="display:inline-flex;align-items:center;font-size:11px"><svg viewBox="0 0 24 24" width="20" height="12"><rect x="1" y="6" width="20" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="8" width="14" height="8" rx="1" fill="currentColor"/></svg>72</span>';
+  document.querySelectorAll('[data-status]').forEach(el => { if (el.innerHTML !== html) el.innerHTML = html; });
+}
+function tick() {
+  const d = new Date(), t = hhmm(d);
+  if ($('lock-clock').textContent !== t) {
+    $('lock-clock').textContent = t;
+    document.querySelectorAll('[data-time]').forEach(el => el.textContent = t);
+    const wt = $('widget-time'); if (wt) wt.textContent = t;
+  }
+  $('lock-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()];
+  $('shade-date').textContent = DAYS[d.getDay()].slice(0, 2) + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()].slice(0, 3);
+}
+setInterval(tick, 1000);
+
+// ===== Домашний экран =====
+function renderHome() {
+  const today = (loadEvents()[dayKey(new Date())] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+  const d = new Date();
+  $('home-pages').innerHTML = '<div class="home-page"><div class="widget-group"><div class="widget widget-clock" data-open="clock" role="button"><div class="time" id="widget-time">' + hhmm(d) + '</div><div class="city">Местное время</div></div>' +
+    '<div class="widget widget-weather" data-open="weather" role="button"><div class="temp">' + tempAt(d.getHours()) + '°</div><div class="desc">Лиссабон · облачно</div></div></div>' +
+    '<div class="widget-large widget-calendar" data-open="calendar" role="button"><div class="month">' + MONTHS[d.getMonth()] + '</div><div class="day">' + d.getDate() + '</div>' +
+    (today.length ? today.slice(0, 2).map(e => '<div class="event">' + e.time + ' - ' + esc(e.title) + '</div>').join('') : '<div class="event">Событий нет</div>') + '</div>' +
+    '<div class="app-grid">' + PAGE1.map(id => iconHTML(id)).join('') + '</div></div>' +
+    '<div class="home-page"><div class="app-grid" style="margin-top:20px">' + PAGE2.map(id => iconHTML(id)).join('') + '</div></div>';
+  $('page-indicator').innerHTML = '<div class="page-dot active" data-page="0" role="button" aria-label="Страница 1"></div><div class="page-dot" data-page="1" role="button" aria-label="Страница 2"></div>';
+  $('dock').innerHTML = DOCK.map(id => iconHTML(id, false)).join('');
+}
+$('home-pages').addEventListener('scroll', () => {
+  const idx = Math.round($('home-pages').scrollLeft / $('home-pages').clientWidth);
+  [...$('page-indicator').children].forEach((d, i) => d.classList.toggle('active', i === idx));
+});
+$('page-indicator').addEventListener('click', e => { const d = e.target.closest('[data-page]'); if (d) $('home-pages').scrollTo({ left: d.dataset.page * $('home-pages').clientWidth, behavior: 'smooth' }); });
+
+// ===== Блокировка =====
+function unlock(app) {
+  state.unlocked = true;
+  $('lockscreen').classList.add('hidden');
+  $('homescreen').classList.remove('hidden');
+  renderHome();
+  if (app) openApp(app);
+}
+function lock() {
+  closeApp(); closeShade(); closeDrawer();
+  state.unlocked = false;
+  $('lockscreen').classList.remove('hidden');
+  $('homescreen').classList.add('hidden');
+}
+$('unlock-area').addEventListener('click', () => unlock());
+document.querySelectorAll('[data-lockapp]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); unlock(b.dataset.lockapp); }));
+$('lock-now').addEventListener('click', e => { e.stopPropagation(); unlock('music'); });
+$('power-btn').addEventListener('click', () => state.unlocked ? lock() : unlock());
+
+// ===== Шторка и быстрые настройки =====
+const QS = [
+  { k: 'wifi', name: 'Wi-Fi', on: 'Подключено', icon: '<svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.07 2.93 1 9zm8 8l3 3 3-3a4.24 4.24 0 0 0-6 0zm-4-4l2 2a7.07 7.07 0 0 1 10 0l2-2C16.07 9.07 7.93 9.07 5 13z"/></svg>' },
+  { k: 'mobile', name: 'Моб. данные', on: '5G', icon: '<svg viewBox="0 0 24 24"><path d="M2 22h20V2z"/></svg>' },
+  { k: 'bt', name: 'Bluetooth', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/></svg>' },
+  { k: 'airplane', name: 'Авиарежим', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>' },
+  { k: 'dnd', name: 'Не беспокоить', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm5 11H7v-2h10v2z"/></svg>' },
+  { k: 'torch', name: 'Фонарик', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l3-8H7z"/></svg>' },
+];
+function renderQS() {
+  $('qs-grid').innerHTML = QS.map(q => '<div class="qs-tile' + (S[q.k] ? ' on' : '') + '" data-qs="' + q.k + '" role="switch" aria-checked="' + !!S[q.k] + '"><div class="qs-tile-icon">' + q.icon + '</div><div><div class="qs-name">' + q.name + '</div><div class="qs-state">' + (S[q.k] ? q.on : 'Откл.') + '</div></div></div>').join('');
+}
+$('qs-grid').addEventListener('click', e => { const t = e.target.closest('[data-qs]'); if (t) setS(t.dataset.qs, !S[t.dataset.qs]); });
+$('bright-track').addEventListener('pointerdown', e => {
+  const tr = $('bright-track'); tr.setPointerCapture(e.pointerId);
+  const set = ev => { const r = tr.getBoundingClientRect(); setS('brightness', Math.round(Math.max(30, Math.min(100, (ev.clientX - r.left) / r.width * 100)))); };
+  set(e);
+  const up = () => { tr.removeEventListener('pointermove', set); tr.removeEventListener('pointerup', up); };
+  tr.addEventListener('pointermove', set); tr.addEventListener('pointerup', up);
+});
+let notifs = store.get('notifs', [
+  { app: 'messages', title: 'Аня', text: 'Увидимся в 7 у входа в парк' },
+  { app: 'calendar', title: 'Скоро событие', text: 'Посмотрите события на сегодня' },
+  { app: 'weather', title: 'Погода', text: 'Облачно, без осадков' },
+]);
+function renderNotifs() {
+  $('notif-section').innerHTML = notifs.length ? notifs.map((n, i) => '<div class="notif-card" data-notif="' + i + '" role="button" style="cursor:pointer"><div class="notif-icon" style="background:' + APP_LIST.find(a => a.id === n.app).bg + '">' + ICONS[n.app] + '</div><div class="notif-body"><div class="notif-app">' + appName(n.app) + '</div><div class="notif-title">' + esc(n.title) + '</div><div class="notif-text">' + esc(n.text) + '</div></div></div>').join('')
+    : '<div class="o-empty">Нет уведомлений</div>';
+}
+$('notif-section').addEventListener('click', e => { const c = e.target.closest('[data-notif]'); if (!c) return; const n = notifs.splice(+c.dataset.notif, 1)[0]; store.set('notifs', notifs); renderNotifs(); openApp(n.app); });
+$('clear-notifs').addEventListener('click', () => { notifs = []; store.set('notifs', notifs); renderNotifs(); });
+document.querySelectorAll('[data-shade]').forEach(t => t.addEventListener('click', () => switchShade(t.dataset.shade)));
+function switchShade(tab) {
+  document.querySelectorAll('[data-shade]').forEach(t => t.classList.toggle('active', t.dataset.shade === tab));
+  $('notif-section').style.display = tab === 'notif' ? 'block' : 'none';
+  $('qs-panel').style.display = tab === 'qs' ? 'block' : 'none';
+  $('clear-notifs').style.visibility = tab === 'notif' ? 'visible' : 'hidden';
+}
+function openShade(tab = 'notif') { if (!state.unlocked) return; state.shade = true; switchShade(tab); $('shade').classList.add('open'); }
+function closeShade() { state.shade = false; $('shade').classList.remove('open'); }
+$('shade-pill').addEventListener('click', closeShade);
+document.addEventListener('click', e => { if (e.target.closest('.statusbar') && state.unlocked && !e.target.closest('#lockscreen')) { e.stopPropagation(); state.shade ? closeShade() : openShade(); } }, true);
+
+
+// ===== Все приложения =====
+function openDrawer() { state.drawer = true; $('drawer-input').value = ''; renderDrawer(); $('app-drawer').classList.add('open'); }
+function closeDrawer() { state.drawer = false; $('app-drawer').classList.remove('open'); }
+function renderDrawer() {
+  const q = $('drawer-input').value.trim().toLowerCase();
+  const list = APP_LIST.filter(a => a.name.toLowerCase().includes(q));
+  $('drawer-grid').innerHTML = list.length ? list.map(a => iconHTML(a.id)).join('') : '<div class="o-empty" style="grid-column:1/-1">Ничего не найдено</div>';
+}
+$('drawer-input').addEventListener('input', renderDrawer);
+$('drawer-input').addEventListener('keydown', e => { if (e.key === 'Enter') { const a = $('drawer-grid').querySelector('[data-open]'); if (a) openApp(a.dataset.open); } });
+$('drawer-pill').addEventListener('click', closeDrawer);
+$('home-pill').addEventListener('click', openDrawer);
+
+// ===== Открытие приложений =====
+const views = {};   // состояние каждого приложения между открытиями
+function openApp(id, arg) {
+  if (!state.unlocked) unlock();
+  closeShade(); closeDrawer();
+  if (state.app && APPS[state.app].leave) APPS[state.app].leave();
+  state.app = id;
+  if (APPS[id].enter) APPS[id].enter(arg);
+  renderApp();
+  $('app-container').classList.add('open');
+}
+function closeApp() {
+  if (!state.app) return;
+  if (APPS[state.app].leave) APPS[state.app].leave();
+  state.app = null;
+  $('app-container').classList.remove('open');
+  renderHome();
+  setTimeout(() => { if (!state.app) $('app-container').innerHTML = ''; }, 300);
+}
+function renderApp() {
+  if (!state.app) return;
+  const c = $('app-container');
+  const focused = document.activeElement && c.contains(document.activeElement) && document.activeElement.name;
+  // у открытого приложения своя строка состояния: время и значки видны и поверх него
+  c.innerHTML = '<div class="statusbar"><div class="left" data-time>' + hhmm(new Date()) + '</div><div class="right" data-status></div></div>' + APPS[state.app].view();
+  renderStatus();
+  if (APPS[state.app].after) APPS[state.app].after(c);
+  if (focused) { const f = c.querySelector('[name="' + focused + '"]'); if (f) f.focus(); }
+}
+const BACK = '<button class="app-back" data-a="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path fill="#fff" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>';
+function shell(title, content, extra = '', bg = '#0f0f15') {
+  // std - обычный фон программы: в светлой теме он светлый (у «Погоды» и «Музыки» свой)
+  return '<div class="app-screen active' + (bg === '#0f0f15' ? ' std' : '') + '" style="background:' + bg + '"><div class="app-header">' + BACK + '<div class="app-title">' + title + '</div><div style="margin-left:auto;display:flex;gap:8px">' + extra + '</div></div>' +
+    '<div class="app-content">' + content + '</div><div class="nav-bar"><div class="nav-pill" data-a="home" title="Домой"></div></div></div>';
+}
+$('app-container').addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !state.app) return;
+  const a = t.dataset.a;
+  if (a === 'home') { closeApp(); return; }
+  if (a === 'back') { if (!(APPS[state.app].back && APPS[state.app].back())) closeApp(); return; }
+  APPS[state.app].act(a, t, e);
+});
+$('app-container').addEventListener('submit', e => { e.preventDefault(); if (state.app && APPS[state.app].submit) APPS[state.app].submit(e.target); });
+$('app-container').addEventListener('input', e => { if (state.app && APPS[state.app].input) APPS[state.app].input(e.target); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o && !e.target.closest('#app-container')) openApp(o.dataset.open); });
+$('screen').addEventListener('keydown', e => { const o = e.target.closest('[data-open]'); if (o && e.key === 'Enter') openApp(o.dataset.open); });
+
+// ===== Жесты мышью и пальцем =====
+let g = null;
+$('phone').addEventListener('pointerdown', e => { const r = $('phone').getBoundingClientRect(), k = r.height / $('phone').offsetHeight; g = { x: e.clientX, y: e.clientY, ly: (e.clientY - r.top) / k, t: e.target }; });
+$('phone').addEventListener('pointerup', e => {
+  if (!g) return;
+  const k = $('phone').getBoundingClientRect().height / $('phone').offsetHeight, H = $('phone').offsetHeight;
+  const dy = (e.clientY - g.y) / k, dx = Math.abs(e.clientX - g.x) / k, s = g; g = null;
+  if (dx > Math.abs(dy) || Math.abs(dy) < 60 || s.t.closest('input, textarea, .bar-track, .app-content, .drawer-grid, .notif-section')) return;
+  if (!state.unlocked) { if (dy < -80) unlock(); return; }
+  if (dy > 0 && s.ly < 80 && !state.shade) openShade();
+  else if (dy < 0 && state.shade) closeShade();
+  else if (dy < 0 && state.app && s.ly > H - 90) closeApp();
+  else if (dy < 0 && !state.app && !state.drawer && s.ly > H - 90) openDrawer();
+  else if (dy > 0 && state.drawer) closeDrawer();
+});
+document.addEventListener('keydown', e => {
+  if (!state.unlocked) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); unlock(); } return; }
+  if (e.key === 'Escape') {
+    if (state.shade) closeShade();
+    else if (state.drawer) closeDrawer();
+    else if (state.app) { if (!(APPS[state.app].back && APPS[state.app].back())) closeApp(); }
+    return;
+  }
+  if (state.app && APPS[state.app].key && !(e.target.closest && e.target.closest('input, textarea'))) APPS[state.app].key(e);
+});
+
+// ===== Данные, общие для нескольких приложений =====
+const CONTACTS = [['Аня Петрова', '#fb7185'], ['Борис Иванов', '#60a5fa'], ['Вика Смирнова', '#4ade80'], ['Дима Козлов', '#fbbf24'], ['Егор Никитин', '#c084fc'], ['Женя Орлова', '#f472b6']]
+  .map(([name, color], i) => ({ name, color, phone: '+7 900 000-00-0' + (i + 1) }));   // номера условные, ненастоящие
+const PHOTO_GRADS = ['linear-gradient(135deg,#f472b6,#c084fc)', 'linear-gradient(135deg,#60a5fa,#34d399)', 'linear-gradient(135deg,#fbbf24,#ef4444)', 'linear-gradient(135deg,#818cf8,#06b6d4)', 'linear-gradient(135deg,#fb923c,#facc15)', 'linear-gradient(135deg,#4ade80,#14b8a6)', 'linear-gradient(135deg,#ec4899,#8b5cf6)', 'linear-gradient(135deg,#06b6d4,#3b82f6)'];
+const loadShots = () => store.get('photos', null) || PHOTO_GRADS.map((g2, i) => ({ id: 'p' + i, grad: g2, date: Date.now() - (8 - i) * 86400000, fav: false }));
+// снимки камеры + картинки из «Моих файлов» (папка «Изображения»)
+const loadPhotos = () => (typeof FS === 'undefined' ? [] : [...FS.values()].filter(e => e.type === 'file' && e.path.startsWith('Изображения/') && isImage(e.path) && fileUrl(e)).map(e => ({ id: 'fs:' + e.path, fs: e.path, grad: 'url(' + fileUrl(e) + ') center/cover no-repeat', date: e.mtime, fav: false }))).concat(loadShots());
+let savePhotos = p => store.set('photos', p.filter(x => !x.fs));
+const loadNotes = () => store.get('notes', [{ id: 1, text: 'Список покупок\nМолоко\nХлеб\nКофе', t: Date.now() }, { id: 2, text: 'Идеи\nСвой калькулятор\nИгра на Qt', t: Date.now() - 86400000 }]);
+function loadEvents() {
+  const ev = store.get('events', null); if (ev) return ev;
+  const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return dayKey(x); };
+  return { [d(0)]: [{ title: 'Тренировка', time: '19:00' }], [d(3)]: [{ title: 'Встреча', time: '15:30' }] };
+}
+let callLog = store.get('calls', [{ name: 'Аня Петрова', t: Date.now() - 3600000, type: 'in' }, { name: 'Борис Иванов', t: Date.now() - 86400000, type: 'out' }]);
+const fmtWhen = t => { const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? hhmm(d) : d.getDate() + ' ' + MONTHS_GEN[d.getMonth()].slice(0, 3) + ', ' + hhmm(d); };
+
+// ===== Звонки (общие для Телефона и Контактов) =====
+let call = null;
+function startCall(name) {
+  endCall();
+  callLog.unshift({ name, t: Date.now(), type: 'out' }); callLog = callLog.slice(0, 20); store.set('calls', callLog);
+  const start = Date.now();
+  const el = document.createElement('div');
+  el.className = 'call-screen';
+  el.innerHTML = '<div class="cs-name"></div><div class="cs-time">Вызов…</div><button class="cs-end" data-endcall title="Завершить"><svg viewBox="0 0 24 24" width="28" height="28" style="transform:rotate(135deg)"><path fill="#fff" d="M20 15.5l-2.5-.3c-.6-.1-1.2.1-1.6.5l-1.8 1.8a15.1 15.1 0 0 1-6.6-6.6l1.8-1.8c.4-.4.6-1 .5-1.6L9.5 4c-.1-1-1-1.7-2-1.5C5.4 2.7 3 5.4 3 8.5 3 16 8 21 15.5 21c3.1 0 5.8-2.4 6-4.5.2-1-.5-1.9-1.5-2z"/></svg></button>';
+  el.querySelector('.cs-name').textContent = name;
+  el.querySelector('[data-endcall]').addEventListener('click', endCall);
+  $('screen').appendChild(el);
+  call = { el, timer: setInterval(() => { const s = Math.floor((Date.now() - start) / 1000); el.querySelector('.cs-time').textContent = s < 2 ? 'Вызов…' : pad2(Math.floor((s - 2) / 60)) + ':' + pad2((s - 2) % 60) + ' · демо-звонок'; }, 500) };
+}
+function endCall() { if (!call) return; clearInterval(call.timer); call.el.remove(); call = null; if (state.app === 'phone') renderApp(); }
+
+// ===== Приложения =====
+const APPS = {};
+
+APPS.phone = {
+  enter() { views.phone = views.phone || { tab: 'log', num: '' }; },
+  view() {
+    const v = views.phone;
+    const tabs = '<div class="o-tabs">' + [['log', 'Журнал'], ['dial', 'Клавиатура'], ['cont', 'Контакты']].map(([k, n]) => '<button class="o-tab' + (v.tab === k ? ' on' : '') + '" data-a="tab" data-tab="' + k + '">' + n + '</button>').join('') + '</div>';
+    let body = '';
+    if (v.tab === 'log') body = callLog.length ? callLog.map(c => '<div class="o-list-row"><div style="color:' + (c.type === 'in' ? '#4ade80' : '#60a5fa') + ';width:20px">' + (c.type === 'in' ? '↙' : '↗') + '</div><div class="o-main"><div class="o-title">' + esc(c.name) + '</div><div class="o-sub">' + fmtWhen(c.t) + '</div></div><button class="o-round" style="background:rgba(74,222,128,0.15)" data-a="call" data-name="' + esc(c.name) + '" title="Позвонить">' + ICONS.phone.replace('#fff', '#4ade80') + '</button></div>').join('') : '<div class="o-empty">Журнал пуст</div>';
+    else if (v.tab === 'dial') body = '<div id="dial-display" style="text-align:center;font-size:32px;color:#fff;padding:16px;min-height:70px;letter-spacing:2px;overflow:hidden;white-space:nowrap">' + esc(v.num) + '</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:0 34px">' +
+      [['1', ''], ['2', 'АБВГ'], ['3', 'ДЕЖЗ'], ['4', 'ИЙКЛ'], ['5', 'МНОП'], ['6', 'РСТУ'], ['7', 'ФХЦЧ'], ['8', 'ШЩЪЫ'], ['9', 'ЬЭЮЯ'], ['*', ''], ['0', '+'], ['#', '']].map(([n, l]) => '<button class="dial-key" data-a="key" data-k="' + n + '"><b>' + n + '</b><small>' + l + '</small></button>').join('') +
+      '</div><div style="display:flex;justify-content:center;align-items:center;gap:40px;padding:18px"><span style="width:36px"></span><button class="o-round" style="width:60px;height:60px;background:#4ade80" data-a="dialcall" title="Позвонить">' + ICONS.phone.replace('#fff', '#000') + '</button><button class="o-round" style="background:none;color:#fff;font-size:22px" data-a="del" title="Стереть">⌫</button></div>';
+    else body = CONTACTS.map(c => '<div class="o-list-row"><div class="o-av" style="background:' + c.color + '">' + c.name[0] + '</div><div class="o-main"><div class="o-title">' + c.name + '</div><div class="o-sub">' + c.phone + '</div></div><button class="o-round" style="background:rgba(74,222,128,0.15)" data-a="call" data-name="' + c.name + '" title="Позвонить">' + ICONS.phone.replace('#fff', '#4ade80') + '</button></div>').join('');
+    return shell('Телефон', tabs + body);
+  },
+  act(a, t) {
+    const v = views.phone;
+    if (a === 'tab') v.tab = t.dataset.tab;
+    else if (a === 'key' && v.num.length < 16) v.num += t.dataset.k;
+    else if (a === 'del') v.num = v.num.slice(0, -1);
+    else if (a === 'dialcall') { if (v.num) { startCall(v.num); v.num = ''; } }
+    else if (a === 'call') startCall(t.dataset.name);
+    renderApp();
+  },
+  key(e) { const v = views.phone; if (v.tab !== 'dial') return; if (/^[\d*#]$/.test(e.key) && v.num.length < 16) v.num += e.key; else if (e.key === 'Backspace') v.num = v.num.slice(0, -1); else if (e.key === 'Enter' && v.num) { startCall(v.num); v.num = ''; } else return; renderApp(); },
+  leave: endCall,
+};
+
+APPS.messages = {
+  enter() { views.messages = { open: null }; },
+  data() { return store.get('convs', { ann: { name: 'Аня', color: '#fb7185', unread: 1, msgs: [{ me: false, t: 'Привет!' }, { me: false, t: 'Увидимся в 7 у входа в парк' }] }, bor: { name: 'Борис', color: '#60a5fa', unread: 0, msgs: [{ me: true, t: 'Спасибо за помощь!' }, { me: false, t: 'Обращайся 🙂' }] } }); },
+  view() {
+    const c = this.data(), v = views.messages;
+    if (!v.open) return shell('Сообщения', Object.entries(c).map(([id, x]) => '<div class="o-list-row" data-a="open" data-id="' + id + '"><div class="o-av" style="background:' + x.color + '">' + esc(x.name[0]) + '</div><div class="o-main"><div class="o-title" style="font-weight:' + (x.unread ? 600 : 400) + '">' + esc(x.name) + '</div><div class="o-sub">' + esc((x.msgs[x.msgs.length - 1] || { t: '' }).t) + '</div></div>' + (x.unread ? '<div style="background:#60a5fa;color:#fff;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center">' + x.unread + '</div>' : '') + '</div>').join(''));
+    const x = c[v.open];
+    return shell(esc(x.name), '<div class="bubbles" id="bubbles">' + x.msgs.map(m => '<div class="bubble ' + (m.me ? 'me' : 'them') + '">' + esc(m.t) + '</div>').join('') + '</div>').replace('<div class="nav-bar">', '<form class="compose"><input class="o-input" name="msg" placeholder="Сообщение" autocomplete="off"><button class="o-round" style="width:40px;height:40px;background:#3b82f6" title="Отправить"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="#fff" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></form><div class="nav-bar">');
+  },
+  after(c) { const b = c.querySelector('.app-content'); if (b) b.scrollTop = b.scrollHeight; },
+  act(a, t) { if (a === 'open') { const c = this.data(); views.messages.open = t.dataset.id; c[t.dataset.id].unread = 0; store.set('convs', c); renderApp(); const i = $('app-container').querySelector('[name=msg]'); if (i) i.focus(); } },
+  back() { if (views.messages.open) { views.messages.open = null; renderApp(); return true; } },
+  submit(f) {
+    const text = f.msg.value.trim(); if (!text) return;
+    const c = this.data(), id = views.messages.open;
+    c[id].msgs.push({ me: true, t: text }); store.set('convs', c); renderApp();
+    setTimeout(() => { const c2 = this.data(); c2[id].msgs.push({ me: false, t: ['Хорошо', 'Понятно 👍', 'Договорились', 'Спасибо!'][Math.floor(Math.random() * 4)] }); if (!(state.app === 'messages' && views.messages.open === id)) c2[id].unread = (c2[id].unread || 0) + 1; store.set('convs', c2); if (state.app === 'messages' && views.messages.open === id) { const had = $('app-container').querySelector('[name=msg]').value; renderApp(); $('app-container').querySelector('[name=msg]').value = had; } }, 900);
+  },
+};
+
+APPS.contacts = {
+  enter() { views.contacts = { open: null }; },
+  view() {
+    const v = views.contacts;
+    if (v.open !== null) {
+      const c = CONTACTS[v.open];
+      return shell('Контакт', '<div style="text-align:center;padding:20px;color:#fff"><div class="o-av" style="width:90px;height:90px;font-size:36px;margin:0 auto 12px;background:' + c.color + '">' + c.name[0] + '</div><div style="font-size:22px">' + c.name + '</div><div style="opacity:0.6;margin-top:4px">' + c.phone + '</div>' +
+        '<div style="display:flex;justify-content:center;gap:12px;margin-top:22px"><button class="o-btn" data-a="call">Позвонить</button><button class="o-btn ghost" data-a="write">Написать</button></div></div>');
+    }
+    return shell('Контакты', CONTACTS.map((c, i) => '<div class="o-list-row" data-a="open" data-i="' + i + '"><div class="o-av" style="background:' + c.color + '">' + c.name[0] + '</div><div class="o-main"><div class="o-title">' + c.name + '</div><div class="o-sub">' + c.phone + '</div></div></div>').join(''));
+  },
+  act(a, t) {
+    const v = views.contacts;
+    if (a === 'open') { v.open = +t.dataset.i; renderApp(); }
+    else if (a === 'call') startCall(CONTACTS[v.open].name);
+    else if (a === 'write') {
+      const c = APPS.messages.data(), name = CONTACTS[v.open].name.split(' ')[0];
+      let id = Object.keys(c).find(k => c[k].name === name);
+      if (!id) { id = 'c' + v.open; c[id] = { name, color: CONTACTS[v.open].color, unread: 0, msgs: [] }; store.set('convs', c); }
+      openApp('messages'); views.messages.open = id; renderApp();
+    }
+  },
+  back() { if (views.contacts.open !== null) { views.contacts.open = null; renderApp(); return true; } },
+};
+
+APPS.camera = {
+  enter() { views.camera = views.camera || { mode: 'Фото', flash: 0, timer: 0, front: false, rec: null, count: 0 }; },
+  view() {
+    const v = views.camera, ph = loadPhotos(), last = ph[ph.length - 1];
+    return '<div class="app-screen active" style="background:#000"><div class="cam-top"><button data-a="flash">⚡ ' + ['Авто', 'Вкл', 'Выкл'][v.flash] + '</button><button data-a="timer">⏱ ' + (v.timer ? v.timer + ' с' : 'Выкл') + '</button><button data-a="back">✕ Закрыть</button></div>' +
+      '<div class="cam-view' + (v.front ? ' front' : '') + '"><div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px);background-size:30px 30px"></div>' +
+      '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;border:2px solid rgba(255,255,0,0.6);border-radius:8px"></div>' +
+      (v.rec ? '<div id="rec" style="position:absolute;top:110px;background:#ef4444;color:#fff;padding:3px 10px;border-radius:10px;font-size:12px">● 00:00</div>' : '') + (v.count ? '<div style="font-size:90px;color:#fff;font-weight:200">' + v.count + '</div>' : '') + '</div>' +
+      '<div style="background:#000;padding:14px 20px"><div class="cam-modes">' + ['Видео', 'Фото', 'Портрет'].map(m => '<span data-a="mode" data-m="' + m + '" class="' + (v.mode === m ? 'on' : '') + '">' + m + '</span>').join('') + '</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between"><div data-a="gallery" title="Галерея" style="width:44px;height:44px;border-radius:12px;cursor:pointer;background:' + (last ? last.grad : '#333') + '"></div>' +
+      '<button class="cam-shutter' + (v.rec ? ' rec' : '') + '" data-a="shoot" aria-label="Снимок"><i></i></button><button class="o-round" style="width:44px;height:44px;background:rgba(255,255,255,0.1);color:#fff;font-size:18px" data-a="flip" title="Сменить камеру">⟲</button></div></div>' +
+      '<div class="cam-flash" id="cam-flash"></div><div class="nav-bar" style="background:#000"><div class="nav-pill" data-a="home"></div></div></div>';
+  },
+  snap() {
+    const ph = loadPhotos(); ph.push({ id: 'p' + Date.now(), grad: PHOTO_GRADS[Math.floor(Math.random() * PHOTO_GRADS.length)], date: Date.now(), fav: false }); savePhotos(ph);
+    renderApp(); const f = $('cam-flash'); if (f) f.classList.add('go');
+    notify('gallery', 'Снимок сохранён', 'Фото добавлено в «Галерею»');
+  },
+  act(a, t) {
+    const v = views.camera;
+    if (a === 'flash') v.flash = (v.flash + 1) % 3;
+    else if (a === 'timer') v.timer = v.timer === 0 ? 3 : v.timer === 3 ? 10 : 0;
+    else if (a === 'mode' && !v.rec) v.mode = t.dataset.m;
+    else if (a === 'flip') v.front = !v.front;
+    else if (a === 'gallery') { openApp('gallery', 'last'); return; }
+    else if (a === 'shoot') {
+      if (v.mode === 'Видео') {
+        if (v.rec) { clearInterval(v.rec); v.rec = null; this.snap(); return; }
+        const st = Date.now(); v.rec = setInterval(() => { const r = $('rec'); const s = Math.floor((Date.now() - st) / 1000); if (r) r.textContent = '● ' + pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }, 500);
+      } else if (v.timer) {
+        v.count = v.timer; const iv = setInterval(() => { v.count--; if (v.count <= 0) { clearInterval(iv); v.count = 0; if (state.app === 'camera') this.snap(); } else if (state.app === 'camera') renderApp(); }, 1000);
+      } else { this.snap(); return; }
+    }
+    renderApp();
+  },
+  key(e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.act('shoot'); } },
+  leave() { const v = views.camera; if (v && v.rec) { clearInterval(v.rec); v.rec = null; } },
+};
+
+APPS.gallery = {
+  enter(arg) { views.gallery = { view: arg === 'last' ? loadPhotos().length - 1 : -1, favs: false }; },
+  view() {
+    const v = views.gallery, all = loadPhotos(), list = v.favs ? all.filter(p => p.fav) : all;
+    if (v.view >= 0 && all[v.view]) {
+      const p = all[v.view];
+      return '<div class="app-screen active" style="background:#000"><div class="app-header">' + BACK + '<div style="color:#fff;font-size:14px">' + new Date(p.date).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '</div></div>' +
+        '<div class="app-content" style="display:flex;align-items:center;justify-content:center;padding:20px"><div style="width:100%;aspect-ratio:3/4;border-radius:12px;background:' + p.grad + '"></div></div>' +
+        '<div class="gal-actions"><button data-a="prev"><span>‹</span>Назад</button><button data-a="fav"><span>' + (p.fav ? '♥' : '♡') + '</span>' + (p.fav ? 'В избранном' : 'В избранное') + '</button><button data-a="del"><span>🗑</span>Удалить</button><button data-a="next"><span>›</span>Далее</button></div>' +
+        '<div class="nav-bar"><div class="nav-pill" data-a="home"></div></div></div>';
+    }
+    return shell('Галерея', '<div class="o-tabs" style="margin-bottom:8px"><button class="o-tab' + (!v.favs ? ' on' : '') + '" data-a="all">Все (' + all.length + ')</button><button class="o-tab' + (v.favs ? ' on' : '') + '" data-a="favs">Избранное (' + all.filter(p => p.fav).length + ')</button></div>' +
+      (list.length ? '<div class="gal-grid">' + list.map(p => '<div class="gal-tile" data-a="view" data-i="' + all.indexOf(p) + '" style="background:' + p.grad + '">' + (p.fav ? '<span class="fav">♥</span>' : '') + '</div>').join('') + '</div>' : '<div class="o-empty">' + (v.favs ? 'В избранном пусто' : 'Фото нет. Откройте Камеру') + '</div>'));
+  },
+  act(a, t) {
+    const v = views.gallery, all = loadPhotos();
+    if (a === 'view') v.view = +t.dataset.i;
+    else if (a === 'all' || a === 'favs') v.favs = a === 'favs';
+    else if (a === 'fav') { if (all[v.view].fs) return; all[v.view].fav = !all[v.view].fav; savePhotos(all); }
+    else if (a === 'del') { const it = all[v.view]; all.splice(v.view, 1); if (it.fs) trashPath(it.fs); else savePhotos(all); if (v.view >= all.length) v.view = all.length - 1; if (!all.length) v.view = -1; }
+    else if (a === 'prev' || a === 'next') v.view = (v.view + (a === 'next' ? 1 : -1) + all.length) % all.length;
+    renderApp();
+  },
+  back() { if (views.gallery.view >= 0) { views.gallery.view = -1; renderApp(); return true; } },
+  key(e) { if (views.gallery.view >= 0 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) this.act(e.key === 'ArrowRight' ? 'next' : 'prev'); },
+};
+
+APPS.calculator = {
+  enter() { views.calc = views.calc || { cur: '0', prev: null, op: null, fresh: false, err: false, hist: '' }; },
+  view() {
+    const v = views.calc;
+    const btns = [['C', 1], ['±', 1], ['%', 1], ['÷', 1], ['7'], ['8'], ['9'], ['×', 1], ['4'], ['5'], ['6'], ['−', 1], ['1'], ['2'], ['3'], ['+', 1], ['0', 0, 1], [','], ['=', 1]];
+    const fmt = s => { if (v.err) return 'Ошибка'; const n = parseFloat(s); if (Math.abs(n) >= 1e9 || (n !== 0 && Math.abs(n) < 1e-7)) return n.toExponential(4).replace('.', ','); const [x, y] = s.split('.'); return x.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (y !== undefined ? ',' + y : ''); };
+    const shown = fmt(v.cur);
+    return shell('Калькулятор', '<div style="display:flex;flex-direction:column;height:100%"><div style="flex:1;padding:20px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end">' +
+      '<div style="color:rgba(255,255,255,0.5);font-size:18px;min-height:22px">' + esc(v.hist) + '</div><div id="calc-display" style="color:#fff;font-size:' + Math.min(56, Math.floor(330 / Math.max(5, shown.length * 0.6))) + 'px;font-weight:200;white-space:nowrap">' + shown + '</div></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 18px 18px">' + btns.map(([t2, op, wide]) => '<button data-a="k" data-k="' + t2 + '" style="' + (wide ? 'grid-column:span 2;' : '') + 'aspect-ratio:' + (wide ? '2.2/1' : '1') + ';border-radius:999px;border:none;background:' + (op ? '#fbbf24' : 'rgba(255,255,255,0.08)') + ';color:' + (op ? '#000' : '#fff') + ';font-size:26px;cursor:pointer">' + t2 + '</button>').join('') + '</div></div>');
+  },
+  press(k) {
+    const v = views.calc, num = x => String(parseFloat(x.toPrecision(10)));
+    const compute = () => { const a = parseFloat(v.prev), b = parseFloat(v.cur); const r = v.op === '+' ? a + b : v.op === '−' ? a - b : v.op === '×' ? a * b : b === 0 ? NaN : a / b; if (!isFinite(r)) { v.err = true; return '0'; } return num(r); };
+    if (v.err && k !== 'C') { v.err = false; v.cur = '0'; v.prev = null; v.op = null; v.hist = ''; }
+    if (/^\d$/.test(k)) { if (v.fresh || v.cur === '0') { v.cur = k; v.fresh = false; } else if (v.cur.replace(/[-.]/g, '').length < 9) v.cur += k; }
+    else if (k === ',') { if (v.fresh) { v.cur = '0.'; v.fresh = false; } else if (!v.cur.includes('.')) v.cur += '.'; }
+    else if (k === 'C') { Object.assign(v, { cur: '0', prev: null, op: null, fresh: false, err: false, hist: '' }); }
+    else if (k === '±') { if (v.cur !== '0') v.cur = v.cur.startsWith('-') ? v.cur.slice(1) : '-' + v.cur; }
+    else if (k === '%') v.cur = num(parseFloat(v.cur) / 100);
+    else if (k === 'back') { if (!v.fresh) v.cur = v.cur.length > 1 && !/^-\d$/.test(v.cur) ? v.cur.slice(0, -1) : '0'; }
+    else if ('+−×÷'.includes(k)) { if (v.op && !v.fresh) v.cur = compute(); v.prev = v.cur; v.op = k; v.fresh = true; v.hist = v.prev.replace('.', ',') + ' ' + k; }
+    else if (k === '=') { if (v.op) { v.hist = v.prev.replace('.', ',') + ' ' + v.op + ' ' + v.cur.replace('.', ',') + ' ='; v.cur = compute(); v.op = null; v.prev = null; v.fresh = true; } }
+    renderApp();
+  },
+  act(a, t) { if (a === 'k') this.press(t.dataset.k); },
+  key(e) { const m = { Enter: '=', '=': '=', Backspace: 'back', Delete: 'C', '.': ',', ',': ',', '+': '+', '-': '−', '*': '×', '/': '÷', '%': '%' }; const k = /^\d$/.test(e.key) ? e.key : m[e.key]; if (k) { e.preventDefault(); this.press(k); } },
+};
+
+APPS.clock = {
+  ZONES: [['Москва', 'Europe/Moscow'], ['Лондон', 'Europe/London'], ['Нью-Йорк', 'America/New_York'], ['Токио', 'Asia/Tokyo']],
+  enter() { views.clock = views.clock || { tab: 'world', timerLeft: 0, timerRun: null, timerEnd: 0, sw: 0, swStart: 0, swRun: false, laps: [] }; clearInterval(this.tick); this.tick = setInterval(() => { if (state.app === 'clock') this.live(); }, 250); },
+  leave() { clearInterval(this.tick); },
+  // раз в 250 мс меняются только цифры: кнопки не пересоздаются, нажатия не теряются
+  live() {
+    const c = $('app-container'), v = views.clock;
+    c.querySelectorAll('[data-tz]').forEach(el => { const t = this.zoneTime(el.dataset.tz); if (el.textContent !== t) el.textContent = t; });
+    const tm = c.querySelector('#tm'); if (tm) tm.textContent = this.fmtTimer(v);
+    const sw = c.querySelector('#sw'); if (sw) sw.textContent = this.fmtSw(v.sw + (v.swRun ? Date.now() - v.swStart : 0));
+  },
+  zoneTime: tz => new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+  fmtTimer(v) { const left = v.timerRun ? Math.max(0, v.timerEnd - Date.now()) : v.timerLeft, s = Math.ceil(left / 1000); return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60); },
+  fmtSw: x => pad2(Math.floor(x / 60000)) + ':' + pad2(Math.floor(x / 1000) % 60) + ',' + pad2(Math.floor(x / 10) % 100),
+  // таймер считает и при закрытых «Часах»: по окончании - уведомление
+  timerDone() { const v = views.clock; v.timerRun = null; v.timerLeft = 0; v.done = true; notify('clock', 'Таймер', 'Время вышло!'); if (state.app === 'clock') renderApp(); },
+  view() {
+    const v = views.clock, alarms = store.get('alarms', [{ t: '07:00', label: 'Будни', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
+    const tabs = '<div class="o-tabs">' + [['world', 'Мир'], ['alarm', 'Будильник'], ['timer', 'Таймер'], ['stop', 'Секундомер']].map(([k, n]) => '<button class="o-tab' + (v.tab === k ? ' on' : '') + '" data-a="tab" data-tab="' + k + '">' + n + '</button>').join('') + '</div>';
+    let body;
+    if (v.tab === 'world') body = this.ZONES.map(([n, tz]) => '<div class="o-list-row" style="cursor:default"><div class="o-main"><div class="o-sub">' + new Date().toLocaleDateString('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }) + '</div><div class="o-title">' + n + '</div></div><div data-tz="' + tz + '" style="color:#fff;font-size:38px;font-weight:200">' + this.zoneTime(tz) + '</div></div>').join('');
+    else if (v.tab === 'alarm') body = '<form class="o-form" style="margin-top:12px"><input class="o-input" type="time" name="t" value="08:00" style="flex:0 0 110px"><input class="o-input" name="label" placeholder="Подпись" maxlength="20" style="flex:1"><button class="o-btn">+</button></form>' +
+      (alarms.length ? alarms.map((a, i) => '<div class="o-card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:32px;font-weight:200;opacity:' + (a.on ? 1 : 0.5) + '">' + a.t + '</div><div style="font-size:12px;opacity:0.6">' + esc(a.label) + '</div></div><button class="o-round" style="background:none;color:#f87171;font-size:20px" data-a="adel" data-i="' + i + '" title="Удалить">×</button><button class="o-toggle' + (a.on ? ' on' : '') + '" data-a="atog" data-i="' + i + '" aria-label="Включить будильник"></button></div>').join('') : '<div class="o-empty">Будильников нет</div>');
+    else if (v.tab === 'timer') {
+      body = '<div class="big-time" id="tm">' + this.fmtTimer(v) + '</div>' + (v.done ? '<div style="text-align:center;color:#fbbf24;margin-bottom:12px">Время вышло!</div>' : '') +
+        '<div class="presets">' + [1, 5, 10].map(m => '<button class="o-btn ghost" data-a="preset" data-m="' + m + '">' + m + ' мин</button>').join('') + '</div><div class="row-btns"><button class="o-btn" data-a="tstart">' + (v.timerRun ? 'Пауза' : 'Старт') + '</button><button class="o-btn ghost" data-a="treset">Сброс</button></div>';
+    } else {
+      const ms = v.sw + (v.swRun ? Date.now() - v.swStart : 0), f = this.fmtSw;
+      body = '<div class="big-time" id="sw">' + f(ms) + '</div><div class="row-btns"><button class="o-btn" data-a="swgo">' + (v.swRun ? 'Стоп' : 'Старт') + '</button><button class="o-btn ghost" data-a="swlap">' + (v.swRun ? 'Круг' : 'Сброс') + '</button></div><div class="laps">' + v.laps.map((l, i) => '<div><span>Круг ' + (v.laps.length - i) + '</span><span>' + f(l) + '</span></div>').join('') + '</div>';
+    }
+    return shell('Часы', tabs + body);
+  },
+  act(a, t) {
+    const v = views.clock, alarms = store.get('alarms', [{ t: '07:00', label: 'Будни', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
+    if (a === 'tab') v.tab = t.dataset.tab;
+    else if (a === 'atog') { alarms[+t.dataset.i].on = !alarms[+t.dataset.i].on; store.set('alarms', alarms); }
+    else if (a === 'adel') { alarms.splice(+t.dataset.i, 1); store.set('alarms', alarms); }
+    else if (a === 'preset') { if (!v.timerRun) { v.timerLeft = +t.dataset.m * 60000; v.done = false; } }
+    else if (a === 'tstart') { if (v.timerRun) { v.timerLeft = Math.max(0, v.timerEnd - Date.now()); clearTimeout(v.timerRun); v.timerRun = null; } else if (v.timerLeft > 0) { v.timerEnd = Date.now() + v.timerLeft; v.timerRun = setTimeout(() => APPS.clock.timerDone(), v.timerLeft); v.done = false; } }
+    else if (a === 'treset') { clearTimeout(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = false; }
+    else if (a === 'swgo') { if (v.swRun) { v.sw += Date.now() - v.swStart; v.swRun = false; } else { v.swStart = Date.now(); v.swRun = true; } }
+    else if (a === 'swlap') { if (v.swRun) v.laps.unshift(v.sw + Date.now() - v.swStart); else { v.sw = 0; v.laps = []; } }
+    renderApp();
+  },
+  submit(f) {
+    const alarms = store.get('alarms', [{ t: '07:00', label: 'Будни', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
+    if (!f.t.value) return;
+    alarms.push({ t: f.t.value, label: f.label.value.trim() || 'Будильник', on: true }); alarms.sort((a, b) => a.t.localeCompare(b.t)); store.set('alarms', alarms); renderApp();
+  },
+};
+
+APPS.settings = {
+  ROWS: [
+    { p: 'conn', icon: '📶', name: 'Подключения', sub: () => (S.airplane ? 'Авиарежим' : [S.wifi && 'Wi-Fi', S.bt && 'Bluetooth', S.mobile && 'данные'].filter(Boolean).join(', ') || 'Всё выключено') },
+    { p: 'sound', icon: '🔊', name: 'Звук', sub: () => 'Громкость ' + S.volume + '%' },
+    { p: 'display', icon: '🌗', name: 'Дисплей', sub: () => 'Яркость ' + S.brightness + '% · ' + (S.light ? 'светлая' : 'тёмная') + ' тема' },
+    { p: 'wall', icon: '🖼', name: 'Обои', sub: () => WALLS[S.wall].name },
+    { p: 'battery', icon: '🔋', name: 'Батарея', sub: () => '72% · демо' },
+    { p: 'about', icon: 'ⓘ', name: 'О телефоне', sub: () => 'Телефон «Волна» 2.0' },
+  ],
+  enter(arg) { views.settings = { page: arg || null, q: '' }; },
+  view() {
+    const v = views.settings, tog = (k, n) => '<div class="set-row" style="cursor:default"><div class="o-main"><div class="o-title">' + n + '</div></div><button class="o-toggle' + (S[k] ? ' on' : '') + '" data-a="tog" data-k="' + k + '" role="switch" aria-checked="' + !!S[k] + '" aria-label="' + n + '"></button></div>';
+    if (!v.page) {
+      const rows = this.ROWS.filter(r => !v.q || r.name.toLowerCase().includes(v.q));
+      return shell('Настройки', '<form class="o-form" style="padding-top:4px"><input class="o-input" name="q" placeholder="Поиск" value="' + esc(v.q) + '" style="flex:1" aria-label="Поиск настроек"></form>' +
+        '<div class="set-row" style="cursor:default"><div class="o-av" style="width:50px;height:50px;background:linear-gradient(135deg,#60a5fa,#c084fc);font-size:22px">П</div><div class="o-main"><div class="o-title">Пользователь</div><div class="o-sub">Локальная учётная запись</div></div></div>' +
+        (rows.length ? rows.map(r => '<div class="set-row" data-a="page" data-p="' + r.p + '"><div class="set-ic">' + r.icon + '</div><div class="o-main"><div class="o-title">' + r.name + '</div><div class="o-sub">' + r.sub() + '</div></div><div style="opacity:0.3">›</div></div>').join('') : '<div class="o-empty">Ничего не найдено</div>'));
+    }
+    const title = this.ROWS.find(r => r.p === v.page).name;
+    let body = '';
+    if (v.page === 'conn') body = tog('wifi', 'Wi-Fi') + tog('bt', 'Bluetooth') + tog('mobile', 'Мобильные данные') + tog('airplane', 'Авиарежим');
+    else if (v.page === 'sound') body = '<div class="o-card"><div style="margin-bottom:8px">Громкость мультимедиа</div><input class="o-range" type="range" min="0" max="100" name="volume" value="' + S.volume + '"></div><div class="about-note">Громкость действует на «Музыку».</div>';
+    else if (v.page === 'display') body = '<div class="o-card"><div style="margin-bottom:8px">Яркость</div><input class="o-range" type="range" min="30" max="100" name="brightness" value="' + S.brightness + '"></div>' + tog('light', 'Светлая тема') +
+      '<div class="o-card"><div style="margin-bottom:10px">Цвет акцента</div><div class="acc-row">' + Object.entries(ACCENTS).map(([k, x]) => '<button class="acc' + (S.accent === k ? ' on' : '') + '" data-a="accent" data-c="' + k + '" style="background:' + x.c + '" aria-label="' + x.name + '" title="' + x.name + '"></button>').join('') + '</div></div>' + tog('torch', 'Фонарик') + tog('dnd', 'Не беспокоить');
+    else if (v.page === 'wall') body = '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall' + (S.wall === k ? ' on' : '') + '" data-a="wall" data-w="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>';
+    else if (v.page === 'battery') body = '<div class="o-card"><div style="font-size:40px;font-weight:200">72%</div><div class="o-sub">Демо-значение: страница не читает настоящую батарею</div></div>';
+    else body = '<div class="about-note"><b>Телефон «Волна», версия 2.0.</b><br>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung. Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><div style="padding:0 20px"><button class="o-btn red" data-a="reset">Сбросить всё</button></div>';
+    return shell(title, body);
+  },
+  act(a, t) {
+    const v = views.settings;
+    if (a === 'page') { v.page = t.dataset.p; renderApp(); }
+    else if (a === 'tog') setS(t.dataset.k, !S[t.dataset.k]);
+    else if (a === 'wall') setS('wall', t.dataset.w);
+    else if (a === 'accent') setS('accent', t.dataset.c);
+    else if (a === 'reset') {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('oneui7'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
+  },
+  input(el) {
+    if (el.name === 'q') { views.settings.q = el.value.trim().toLowerCase(); const pos = el.selectionStart; renderApp(); const i = $('app-container').querySelector('[name=q]'); i.focus(); i.setSelectionRange(pos, pos); }
+    else if (el.name === 'volume' || el.name === 'brightness') { S[el.name] = +el.value; store.set('settings', S); $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7); $('bright-fill').style.width = S.brightness + '%'; if (musicGain) musicGain.gain.value = S.volume / 100; }
+  },
+  submit() { },
+  back() { if (views.settings.page) { views.settings.page = null; renderApp(); return true; } },
+};
+
+APPS.weather = {
+  view() {
+    const d = new Date();
+    const hours = Array.from({ length: 7 }, (_, i) => { const h = (d.getHours() + i) % 24; return [i ? pad2(h) : 'Сейчас', h < 6 || h >= 21 ? '🌙' : ['⛅', '☁', '⛅', '☀'][i % 4], tempAt(h)]; });
+    const days = Array.from({ length: 6 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return [i ? DAYS[x.getDay()] : 'Сегодня', ['⛅', '🌧', '☀', '☀', '⛅', '🌧'][i], 12 + i % 3, 19 + (i * 2) % 6]; });
+    return shell('Лиссабон', '<div style="text-align:center;padding:10px 20px 24px;color:#fff"><div style="font-size:84px;font-weight:100;line-height:1">' + tempAt(d.getHours()) + '°</div><div style="opacity:0.85;margin-top:6px">Облачно</div><div style="opacity:0.7;font-size:13px;margin-top:4px">Макс.: ' + days[0][3] + '° · Мин.: ' + days[0][2] + '°</div></div>' +
+      '<div class="o-card"><div class="o-sub" style="margin-bottom:10px;text-transform:uppercase">Почасовой прогноз</div><div style="display:flex;justify-content:space-between">' + hours.map(h => '<div style="text-align:center"><div style="font-size:11px;opacity:0.7">' + h[0] + '</div><div style="font-size:18px;margin:6px 0">' + h[1] + '</div><div style="font-size:13px">' + h[2] + '°</div></div>').join('') + '</div></div>' +
+      '<div class="o-card">' + days.map(x => '<div style="display:flex;align-items:center;gap:14px;padding:6px 0"><div style="flex:1;font-size:13px">' + x[0] + '</div><div>' + x[1] + '</div><div style="width:30px;text-align:right;opacity:0.6;font-size:13px">' + x[2] + '°</div><div style="width:30px;text-align:right;font-size:13px">' + x[3] + '°</div></div>').join('') + '</div>' +
+      '<div class="about-note" style="text-align:center">Демо-данные: интернет не используется</div>', '', 'linear-gradient(180deg, #1e3a8a 0%, #1e293b 50%, #0f172a 100%)');
+  },
+  act() { },
+};
+
+APPS.calendar = {
+  enter() { const m = new Date(); m.setDate(1); views.calendar = { month: m, sel: dayKey(new Date()) }; },
+  view() {
+    const v = views.calendar, ev = loadEvents(), m = v.month;
+    const start = new Date(m); start.setDate(1 - (m.getDay() + 6) % 7);
+    let cells = '';
+    for (let i = 0; i < 42; i++) { const x = new Date(start); x.setDate(start.getDate() + i); if (i >= 35 && x.getMonth() !== m.getMonth()) break; const k = dayKey(x); cells += '<div class="cal-cell' + (x.getMonth() !== m.getMonth() ? ' other' : '') + (k === dayKey(new Date()) ? ' today' : '') + (k === v.sel ? ' sel' : '') + ((ev[k] || []).length ? ' ev' : '') + '" data-a="day" data-d="' + k + '">' + x.getDate() + '</div>'; }
+    const list = (ev[v.sel] || []).map((e, i) => [e, i]).sort((a, b) => a[0].time.localeCompare(b[0].time));
+    const sd = new Date(v.sel + 'T12:00');
+    return shell('Календарь', '<div style="padding:6px 20px"><div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><button class="o-round" style="background:none;color:#fff;font-size:22px" data-a="m" data-d="-1" title="Предыдущий месяц">‹</button><div style="color:#fff;font-size:20px;font-weight:600">' + MONTHS[m.getMonth()] + ' ' + m.getFullYear() + '</div><button class="o-round" style="background:none;color:#fff;font-size:22px" data-a="m" data-d="1" title="Следующий месяц">›</button></div>' +
+      '<div class="cal-grid7" style="margin-bottom:6px">' + ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(x => '<div style="text-align:center;color:rgba(255,255,255,0.5);font-size:11px">' + x + '</div>').join('') + '</div><div class="cal-grid7">' + cells + '</div></div>' +
+      '<div style="color:rgba(255,255,255,0.7);font-size:12px;text-transform:uppercase;padding:14px 20px 8px">' + sd.getDate() + ' ' + MONTHS_GEN[sd.getMonth()] + ', ' + DAYS[sd.getDay()] + '</div>' +
+      '<form class="o-form"><input class="o-input" name="title" placeholder="Новое событие" maxlength="40" style="flex:1"><input class="o-input" type="time" name="time" value="12:00" style="flex:0 0 100px"><button class="o-btn">+</button></form>' +
+      (list.length ? list.map(([e, i]) => '<div class="ev-card"><div><div style="font-weight:600">' + esc(e.title) + '</div><div class="o-sub">' + e.time + '</div></div><button data-a="del" data-i="' + i + '" title="Удалить">×</button></div>').join('') : '<div class="o-empty" style="padding:14px">Событий нет</div>'));
+  },
+  act(a, t) {
+    const v = views.calendar, ev = loadEvents();
+    if (a === 'm') { v.month = new Date(v.month.getFullYear(), v.month.getMonth() + +t.dataset.d, 1); }
+    else if (a === 'day') { v.sel = t.dataset.d; const x = new Date(v.sel + 'T12:00'); if (x.getMonth() !== v.month.getMonth()) v.month = new Date(x.getFullYear(), x.getMonth(), 1); }
+    else if (a === 'del') { ev[v.sel].splice(+t.dataset.i, 1); if (!ev[v.sel].length) delete ev[v.sel]; store.set('events', ev); }
+    renderApp();
+  },
+  submit(f) {
+    const title = f.title.value.trim(); if (!title) { f.title.focus(); return; }
+    const ev = loadEvents(), v = views.calendar;
+    (ev[v.sel] = ev[v.sel] || []).push({ title, time: f.time.value || '12:00' }); store.set('events', ev); renderApp();
+  },
+};
+
+APPS.notes = {
+  enter(arg) { views.notes = { open: arg || null }; },
+  view() {
+    const notes = loadNotes().sort((a, b) => b.t - a.t), v = views.notes;
+    if (v.open) {
+      const n = notes.find(x => x.id === v.open);
+      if (n) return shell('Заметка', '<textarea class="note-area" name="note" placeholder="Первая строка - заголовок" aria-label="Текст заметки"></textarea>', '<button class="o-round" style="background:rgba(248,113,113,0.2);color:#f87171" data-a="delnote" title="Удалить заметку">🗑</button>').replace('<div class="app-content">', '<div class="app-content" style="display:flex;flex-direction:column">');
+      v.open = null;
+    }
+    return shell('Заметки', (notes.length ? notes.map(n => '<div class="note-card" data-a="open" data-id="' + n.id + '"><div style="font-weight:600;margin-bottom:4px">' + esc(n.text.split('\n')[0] || 'Новая заметка') + '</div><div style="opacity:0.7;font-size:12px;max-height:36px;overflow:hidden">' + esc(n.text.split('\n').slice(1).join(' ')) + '</div><div style="opacity:0.4;font-size:11px;margin-top:6px">' + fmtWhen(n.t) + '</div></div>').join('') : '<div class="o-empty">Заметок нет</div>') +
+      '<button class="o-fab" data-a="new" title="Новая заметка">+</button>');
+  },
+  after(c) { const ta = c.querySelector('[name=note]'); if (ta) { const n = loadNotes().find(x => x.id === views.notes.open); ta.value = n ? n.text : ''; ta.focus(); } },
+  act(a, t) {
+    const notes = loadNotes(), v = views.notes;
+    if (a === 'open') v.open = +t.dataset.id;
+    else if (a === 'new') { const n = { id: Date.now(), text: '', t: Date.now() }; notes.unshift(n); store.set('notes', notes); v.open = n.id; }
+    else if (a === 'delnote') { store.set('notes', notes.filter(x => x.id !== v.open)); v.open = null; }
+    renderApp();
+  },
+  input(el) { if (el.name !== 'note') return; const notes = loadNotes(), n = notes.find(x => x.id === views.notes.open); if (n) { n.text = el.value; n.t = Date.now(); store.set('notes', notes); } },
+  back() { if (views.notes.open) { const notes = loadNotes(); store.set('notes', notes.filter(x => x.id !== views.notes.open || x.text.trim())); views.notes.open = null; renderApp(); return true; } },
+  leave() { if (views.notes && views.notes.open) this.back(); },
+};
+
+// Музыка: мелодии синтезируются на месте через WebAudio, файлов и сети не нужно
+const TRACKS = [{ title: 'Ночной город', artist: 'Огни', art: 'linear-gradient(135deg,#c084fc 0%,#4a1a4a 50%,#1a0a2a 100%)' }, { title: 'Волна', artist: 'Прибой', art: 'linear-gradient(135deg,#38bdf8,#1e3a8a)' }, { title: 'Мятный ветер', artist: 'Сад', art: 'linear-gradient(135deg,#4ade80,#064e3b)' }];
+const LEN = 20;
+let musicCtx = null, musicGain = null, musicNodes = [], music = { idx: 0, playing: false, startAt: 0, offset: 0, shuffle: false, repeat: false }, musicTimer = null;
+const mNow = () => musicCtx ? musicCtx.currentTime : performance.now() / 1000;
+function mStop() { musicNodes.forEach(n => { try { n.stop(); } catch (e) { /* уже */ } }); musicNodes = []; }
+function mPlay() {
+  try { musicCtx = musicCtx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { musicCtx = null; }
+  mStop(); music.playing = true;
+  if (musicCtx) {
+    if (musicCtx.state === 'suspended') musicCtx.resume();
+    if (!musicGain) { musicGain = musicCtx.createGain(); musicGain.connect(musicCtx.destination); }
+    musicGain.gain.value = S.volume / 100;
+    const scale = [0, 2, 4, 7, 9, 12], root = 220 * Math.pow(2, music.idx * 3 / 12), beat = 0.3;
+    let seed = music.idx * 131 + 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const t0 = musicCtx.currentTime - music.offset;
+    for (let x = 0; x < LEN; x += beat) { const n = scale[Math.floor(rnd() * scale.length)]; if (x < music.offset) continue; const o = musicCtx.createOscillator(), gg = musicCtx.createGain(); o.type = 'sine'; o.frequency.value = root * Math.pow(2, n / 12); gg.gain.setValueAtTime(0, t0 + x); gg.gain.linearRampToValueAtTime(0.25, t0 + x + 0.02); gg.gain.exponentialRampToValueAtTime(0.001, t0 + x + beat * 0.9); o.connect(gg); gg.connect(musicGain); o.start(t0 + x); o.stop(t0 + x + beat); musicNodes.push(o); }
+  }
+  music.startAt = mNow() - music.offset;
+  clearInterval(musicTimer); musicTimer = setInterval(mTick, 250); mStatus();
+}
+function mPause() { if (!music.playing) return; music.offset = Math.min(LEN, mNow() - music.startAt); music.playing = false; mStop(); clearInterval(musicTimer); mStatus(); }
+function mSkip(d) { const was = music.playing; mPause(); music.offset = 0; music.idx = music.shuffle ? Math.floor(Math.random() * TRACKS.length) : (music.idx + d + TRACKS.length) % TRACKS.length; if (was) mPlay(); else mStatus(); }
+function mTick() { if (music.playing && mNow() - music.startAt >= LEN) { if (music.repeat) { music.offset = 0; mPlay(); } else mSkip(1); } if (state.app === 'music') { const x = music.playing ? mNow() - music.startAt : music.offset; const b = $('mu-bar'); if (b) b.style.width = (x / LEN * 100) + '%'; const c = $('mu-cur'); if (c) c.textContent = '0:' + pad2(Math.floor(x)); } }
+function mStatus() {
+  const tr = TRACKS[music.idx], txt = music.playing ? tr.title + ' - сейчас играет' : 'Музыка на паузе';
+  $('lock-now-text').textContent = txt; $('lock-now').classList.toggle('idle', !music.playing);
+  $('now-pill-text').textContent = music.playing ? tr.title : 'Музыка'; $('now-pill').classList.toggle('idle', !music.playing);
+  if (state.app === 'music') renderApp();
+}
+APPS.music = {
+  view() {
+    const tr = TRACKS[music.idx], x = music.playing ? mNow() - music.startAt : music.offset;
+    return shell('Сейчас играет', '<div style="display:flex;flex-direction:column;align-items:center;padding:10px 30px;color:#fff"><div style="width:100%;aspect-ratio:1;max-width:260px;border-radius:16px;background:' + tr.art + ';box-shadow:0 20px 50px rgba(192,132,252,0.3)"></div>' +
+      '<div style="margin-top:22px;text-align:center"><div style="font-size:22px;font-weight:600" id="mu-title">' + tr.title + '</div><div style="opacity:0.6;font-size:13px;margin-top:4px">' + tr.artist + '</div></div>' +
+      '<div style="width:100%;margin-top:22px"><div style="height:4px;background:rgba(255,255,255,0.2);border-radius:2px"><div id="mu-bar" style="height:100%;width:' + (x / LEN * 100) + '%;background:#fff;border-radius:2px"></div></div><div style="display:flex;justify-content:space-between;opacity:0.6;font-size:11px;margin-top:6px"><span id="mu-cur">0:' + pad2(Math.floor(x)) + '</span><span>0:' + LEN + '</span></div></div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:22px"><button class="mu-btn small' + (music.shuffle ? ' on' : '') + '" data-a="shuffle" title="Перемешать">⇆</button><button class="mu-btn" data-a="prev" title="Предыдущий">⏮</button>' +
+      '<button class="mu-play" data-a="play" title="' + (music.playing ? 'Пауза' : 'Играть') + '">' + (music.playing ? '⏸' : '▶') + '</button><button class="mu-btn" data-a="next" title="Следующий">⏭</button><button class="mu-btn small' + (music.repeat ? ' on' : '') + '" data-a="repeat" title="Повтор">↻</button></div>' +
+      '<div class="about-note" style="text-align:center;margin-top:16px">Мелодии собираются прямо в телефоне, без файлов и без сети. Громкость - в Настройках → Звук.</div></div>', '', 'linear-gradient(180deg, #4a1a4a 0%, #1a0f2e 100%)');
+  },
+  act(a) {
+    if (a === 'play') music.playing ? mPause() : mPlay();
+    else if (a === 'prev' || a === 'next') mSkip(a === 'next' ? 1 : -1);
+    else if (a === 'shuffle') { music.shuffle = !music.shuffle; renderApp(); }
+    else if (a === 'repeat') { music.repeat = !music.repeat; renderApp(); }
+  },
+  key(e) { if (e.key === ' ') { e.preventDefault(); this.act('play'); } },
+};
+
+APPS.browser = {
+  PAGES: {
+    'about:start': () => '<h2>Стартовая страница</h2><p style="opacity:0.7">Браузер работает без интернета: доступны встроенные страницы.</p><div class="b-tiles">' + [['about:help', '📖', 'Справка'], ['about:about', 'ⓘ', 'О телефоне'], ['about:time', '🕒', 'Время'], ['app:notes', '📝', 'Заметки']].map(t => '<div class="b-tile" data-a="go" data-u="' + t[0] + '"><b>' + t[1] + '</b>' + t[2] + '</div>').join('') + '</div>',
+    'about:help': () => '<h2>Справка</h2><p>Введите адрес вверху. Встроенные страницы: about:start, about:help, about:about, about:time.</p><p>Внешние сайты не открываются: сеть не используется.</p>',
+    'about:about': () => '<h2>О телефоне</h2><p>Телефон «Волна» - фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</p>',
+    'about:time': () => '<h2>Время</h2><p style="font-size:40px;font-weight:200">' + hhmm(new Date()) + '</p><p>' + new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '</p>',
+  },
+  enter() { views.browser = views.browser || { cur: 'about:start', hist: [], fwd: [] }; },
+  view() {
+    const v = views.browser, p = this.PAGES[v.cur];
+    return shell('Интернет', '<div class="b-bar"><button data-a="bk" title="Назад"' + (v.hist.length ? '' : ' disabled') + '>‹</button><button data-a="fw" title="Вперёд"' + (v.fwd.length ? '' : ' disabled') + '>›</button><form><input class="o-input" name="url" placeholder="Адрес или about:help" value="' + (v.cur === 'about:start' ? '' : esc(v.cur)) + '" spellcheck="false" aria-label="Адрес"></form><button data-a="go" data-u="about:start" title="Домой">⌂</button></div>' +
+      '<div class="b-page">' + (p ? p() : '<h2>Нет подключения</h2><p>Страница <b>' + esc(v.cur) + '</b> не открыта: телефон работает без сети.</p><p><a href="#" data-a="go" data-u="about:start" style="color:#818cf8">На стартовую</a></p>') + '</div>');
+  },
+  nav(u) {
+    const v = views.browser; u = u.trim(); if (!u) return;
+    if (u.startsWith('app:')) { openApp(u.slice(4)); return; }
+    if (!/^[a-z]+:/i.test(u)) u = /^[\w-]+(\.[\w-]+)+/.test(u) ? 'https://' + u : 'about:help';
+    if (u !== v.cur) { v.hist.push(v.cur); v.fwd = []; v.cur = u; }
+    renderApp();
+  },
+  act(a, t, e) { const v = views.browser; if (e) e.preventDefault(); if (a === 'go') this.nav(t.dataset.u); else if (a === 'bk' && v.hist.length) { v.fwd.push(v.cur); v.cur = v.hist.pop(); renderApp(); } else if (a === 'fw' && v.fwd.length) { v.hist.push(v.cur); v.cur = v.fwd.pop(); renderApp(); } },
+  submit(f) { this.nav(f.url.value); },
+};
+
+APPS.files = {
+  enter() { views.files = { cat: null }; },
+  view() {
+    const v = views.files, photos = loadPhotos(), notes = loadNotes();
+    const cats = [['img', '🖼', 'Изображения', photos.length, '#ec4899'], ['doc', '📄', 'Документы', notes.length, '#4ade80'], ['aud', '🎵', 'Аудио', TRACKS.length, '#f59e0b'], ['dl', '⬇', 'Загрузки', 0, '#a855f7']];
+    if (v.cat) {
+      const c = cats.find(x => x[0] === v.cat);
+      let rows = '';
+      if (v.cat === 'img') rows = photos.map((p, i) => '<div class="o-list-row" data-a="img" data-i="' + i + '"><div style="width:42px;height:42px;border-radius:8px;background:' + p.grad + '"></div><div class="o-main"><div class="o-title">Снимок_' + (i + 1) + '.jpg</div><div class="o-sub">' + fmtWhen(p.date) + '</div></div></div>').join('');
+      else if (v.cat === 'doc') rows = notes.map(n => '<div class="o-list-row" data-a="doc" data-id="' + n.id + '"><div class="set-ic">📄</div><div class="o-main"><div class="o-title">' + esc((n.text.split('\n')[0] || 'Заметка').slice(0, 30)) + '.txt</div><div class="o-sub">' + new Blob([n.text]).size + ' Б · ' + fmtWhen(n.t) + '</div></div></div>').join('');
+      else if (v.cat === 'aud') rows = TRACKS.map((t2, i) => '<div class="o-list-row" data-a="aud" data-i="' + i + '"><div class="set-ic">🎵</div><div class="o-main"><div class="o-title">' + t2.title + '.wav</div><div class="o-sub">' + t2.artist + ' · 0:' + LEN + '</div></div></div>').join('');
+      return shell(c[2], rows || '<div class="o-empty">Папка пуста</div>');
+    }
+    const used = photos.length * 3.1 + notes.length * 0.01 + TRACKS.length * 1.2;
+    return shell('Мои файлы', '<div class="o-card"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>Хранилище (демо)</span><span style="opacity:0.6">' + used.toFixed(1).replace('.', ',') + ' / 256 ГБ</span></div><div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + Math.max(2, used / 256 * 100) + '%;background:linear-gradient(to right,#60a5fa,#c084fc)"></div></div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' + cats.map(c => '<div class="o-card" style="margin:0;cursor:pointer" data-a="cat" data-c="' + c[0] + '"><div style="font-size:24px;margin-bottom:8px">' + c[1] + '</div><div style="font-size:13px">' + c[2] + '</div><div class="o-sub">' + c[3] + ' элем.</div></div>').join('') + '</div>');
+  },
+  act(a, t) {
+    const v = views.files;
+    if (a === 'cat') { v.cat = t.dataset.c; renderApp(); }
+    else if (a === 'img') { openApp('gallery'); views.gallery.view = +t.dataset.i; renderApp(); }
+    else if (a === 'doc') openApp('notes', +t.dataset.id);
+    else if (a === 'aud') { openApp('music'); music.idx = +t.dataset.i; music.offset = 0; mPlay(); }
+  },
+  back() { if (views.files.cat) { views.files.cat = null; renderApp(); return true; } },
+};
+
+APPS.mail = {
+  LETTERS: [
+    { from: 'Телефон «Волна»', subj: 'Добро пожаловать', color: '#60a5fa', body: ['Это фан-концепт интерфейса телефона в одной странице HTML.', 'Смахните вниз от верхнего края - шторка с уведомлениями и быстрыми настройками. Полоска внизу на главном экране открывает все приложения.'] },
+    { from: 'Советы', subj: 'Что сохраняется', color: '#4ade80', body: ['Заметки, события, будильники, переписка, фото с камеры и настройки остаются после перезагрузки.', 'Сброс - в Настройках → О телефоне.'] },
+    { from: 'О проекте', subj: 'Фан-концепт', color: '#c084fc', body: ['Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung. Сеть не используется.'] },
+  ],
+  enter() { views.mail = { open: -1 }; },
+  view() {
+    const read = store.get('mailRead', []), v = views.mail;
+    if (v.open >= 0) { const l = this.LETTERS[v.open]; return shell('Письмо', '<div class="b-page"><h2>' + esc(l.subj) + '</h2><div class="o-sub" style="margin-bottom:14px">' + esc(l.from) + '</div>' + l.body.map(p => '<p style="margin-bottom:10px">' + esc(p) + '</p>').join('') + '</div>'); }
+    const unread = this.LETTERS.filter((_, i) => !read.includes(i)).length;
+    return shell('Почта', '<div style="padding:0 20px 10px;color:rgba(255,255,255,0.7);font-size:12px">' + (unread ? 'Непрочитанных: ' + unread : 'Все письма прочитаны') + '</div>' +
+      this.LETTERS.map((l, i) => '<div class="o-list-row" data-a="open" data-i="' + i + '"><div class="o-av" style="background:' + l.color + '">' + esc(l.from[0]) + '</div><div class="o-main"><div class="o-title" style="font-weight:' + (read.includes(i) ? 400 : 600) + '">' + esc(l.from) + '</div><div class="o-sub">' + esc(l.subj) + '</div></div>' + (read.includes(i) ? '' : '<div style="width:8px;height:8px;border-radius:50%;background:#60a5fa"></div>') + '</div>').join(''));
+  },
+  act(a, t) { if (a === 'open') { const i = +t.dataset.i, read = store.get('mailRead', []); if (!read.includes(i)) { read.push(i); store.set('mailRead', read); } views.mail.open = i; renderApp(); } },
+  back() { if (views.mail.open >= 0) { views.mail.open = -1; renderApp(); return true; } },
+};
+
+// ===== Масштаб: телефон целиком помещается в окно =====
+function fit() {
+  const p = $('phone');
+  if (innerWidth <= 430) { p.style.transform = ''; return; }
+  p.style.transform = 'scale(' + Math.min(1, (innerHeight - 40) / (820 + 22), (innerWidth - 40) / (380 + 22)) + ')';
+}
+addEventListener('resize', fit);
+
+// ===== Запуск =====
+renderHome();
+renderNotifs();
+applySettings();
+tick();
+mStatus();
+fit();
+// ================================================================
+// Набор второго этапа: «Мои файлы» на IndexedDB, всплывающие уведомления, недавние приложения,
+// пауза в фоне. Файловая часть общая с телефоном «Стекло» (скопирована, своя база oneui7).
+// ================================================================
+const pad = pad2;
+const listeners = {};
+const on = (ev, fn) => (listeners[ev] = listeners[ev] || new Set()).add(fn);
+const emit = ev => (listeners[ev] || []).forEach(fn => fn());
+
+// ===== Файловая система в IndexedDB =====
+const FS = new Map();
+let TRASH = [], fdb = null, fdbOk = true, dbPending = 0;
+const ROOTS = ['Документы', 'Загрузки', 'Изображения', 'Музыка'];
+const parentOf = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+const baseName = p => p.slice(p.lastIndexOf('/') + 1);
+const extOf = p => { const b = baseName(p), i = b.lastIndexOf('.'); return i > 0 ? b.slice(i + 1).toLowerCase() : ''; };
+const isImage = p => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extOf(p));
+const isText = p => ['txt', 'md', 'csv', 'json', 'log'].includes(extOf(p)) || !extOf(p);
+// вторая вкладка с тем же телефоном узнаёт об изменениях и перечитывает базу
+const fsChannel = (() => { try { return new BroadcastChannel('oneui7-fs'); } catch (e) { return null; } })();
+let bcTimer = null;
+function announce() { if (!fsChannel) return; clearTimeout(bcTimer); bcTimer = setTimeout(() => fsChannel.postMessage('changed'), 60); }
+function idb(fn) {
+  return new Promise((res, rej) => {
+    if (!fdb) { res(null); return; }
+    const tx = fdb.transaction(['fs', 'trash'], 'readwrite');
+    dbPending++;
+    let done = false; const fin = () => { if (!done) { done = true; dbPending--; } };
+    try { fn(tx); } catch (e) { try { tx.abort(); } catch (e2) { /* уже */ } }
+    tx.oncomplete = () => { fin(); announce(); res(); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error || new Error('abort')); };
+  });
+}
+// запись не удалась (мало места): говорим об этом и возвращаем память к тому, что в базе
+let failShown = 0, dbFailing = false;
+function dbFail() {
+  if (Date.now() - failShown > 3000) { failShown = Date.now(); notify('files', 'Не сохранено: мало места', 'Последнее изменение не записалось, файлы возвращены к сохранённым'); }
+  if (!dbFailing) { dbFailing = true; setTimeout(() => { dbFailing = false; reloadFromDb(); }, 50); }
+}
+const dbWrite = fn => { if (fdb) idb(fn).catch(dbFail); };
+const dbPut = e => dbWrite(tx => tx.objectStore('fs').put(e));
+const dbDel = p => dbWrite(tx => tx.objectStore('fs').delete(p));
+// корзина по одной записи: две вкладки не стирают корзины друг друга
+const dbTrashPut = t => dbWrite(tx => tx.objectStore('trash').put(t));
+const dbTrashDel = id => dbWrite(tx => tx.objectStore('trash').delete(id));
+async function readDb() {
+  const all = store => new Promise(res => { const r = fdb.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  return [await all('fs'), await all('trash')];
+}
+async function reloadFromDb() {
+  if (!fdb) return;
+  if (dbPending) { setTimeout(reloadFromDb, 80); return; }
+  const [rows, trash] = await readDb();
+  FS.clear(); rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  emit('fs');
+}
+if (fsChannel) fsChannel.onmessage = () => reloadFromDb();
+function openFDB() {
+  return new Promise(res => {
+    let req;
+    try { req = indexedDB.open('oneui7', 1); } catch (e) { fdbOk = false; res(null); return; }
+    req.onupgradeneeded = () => { req.result.createObjectStore('fs', { keyPath: 'path' }); req.result.createObjectStore('trash', { keyPath: 'id' }); };
+    req.onsuccess = () => { const db = req.result; db.onversionchange = () => { db.close(); fdb = null; }; res(db); };
+    req.onerror = () => { fdbOk = false; res(null); };
+  });
+}
+function picSVG(a, b, c) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + a + '"/><stop offset="1" stop-color="' + b + '"/></linearGradient></defs>' +
+    '<rect width="400" height="300" fill="url(#s)"/><circle cx="300" cy="80" r="34" fill="#fff" opacity=".85"/><path d="M0 230 L90 140 L160 200 L240 120 L400 250 V300 H0Z" fill="' + c + '"/><path d="M0 260 L120 200 L220 250 L320 210 L400 260 V300 H0Z" fill="' + c + '" opacity=".7"/></svg>';
+}
+async function fsLoad() {
+  fdb = await openFDB();
+  let rows = [], trash = [];
+  if (fdb) [rows, trash] = await readDb();
+  if (!rows.length) {
+    const t = Date.now(), f = (path, text) => ({ path, type: 'file', mtime: t, mime: 'text/plain', size: new Blob([text]).size, text });
+    const img = (path, svg) => ({ path, type: 'file', mtime: t, mime: 'image/svg+xml', size: svg.length, text: svg });
+    rows = [...ROOTS.map(r => ({ path: r, type: 'dir', mtime: t })), { path: 'Документы/Учёба', type: 'dir', mtime: t },
+      f('Документы/Список покупок.txt', 'Молоко\nХлеб\nЯблоки\n'), f('Документы/Учёба/Конспект.txt', 'Тема: дроби\n1/2 + 1/4 = 3/4\n'),
+      f('Загрузки/Прочти меня.txt', 'Файлы можно добавить кнопкой «⋮» → «Добавить с устройства».\nФан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.\n'),
+      img('Изображения/Горы.svg', picSVG('#7dd3fc', '#fbcfe8', '#334155')), img('Изображения/Закат.svg', picSVG('#f97316', '#7c3aed', '#1e1b4b'))];
+    if (fdb) rows.forEach(dbPut);
+  }
+  rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  emit('fs');
+}
+// ссылки на картинки из памяти освобождаются, когда файл изменился, удалён или переименован
+const urlCache = new Map();
+function dropUrl(path) { const c = urlCache.get(path); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(path); } }
+function fileUrl(f) {
+  if (!f || f.type !== 'file') return null;
+  const c = urlCache.get(f.path); if (c && c.mtime === f.mtime) return c.url;
+  dropUrl(f.path);
+  let url;
+  if (f.blob) url = URL.createObjectURL(f.blob);
+  else if (f.mime === 'image/svg+xml' && f.text) url = URL.createObjectURL(new Blob([f.text], { type: 'image/svg+xml' }));
+  else return null;
+  urlCache.set(f.path, { url, mtime: f.mtime });
+  return url;
+}
+const childrenOf = dir => [...FS.values()].filter(e => e.path && parentOf(e.path) === dir).sort((a, b) => a.type === b.type ? baseName(a.path).localeCompare(baseName(b.path), 'ru') : a.type === 'dir' ? -1 : 1);
+function uniquePath(dir, base, ext = '') { let n = base + ext, i = 2; while (FS.has(dir + '/' + n)) n = base + ' ' + (i++) + ext; return dir + '/' + n; }
+function nameError(dir, name, self) {
+  if (!name || !name.trim()) return 'Введите имя';
+  if (/[\/:]/.test(name)) return 'Имя не может содержать «/» и «:»';
+  if (FS.has(dir + '/' + name) && dir + '/' + name !== self) return 'Имя «' + name + '» уже занято';
+  return '';
+}
+const subtree = p => [...FS.keys()].filter(k => k === p || k.startsWith(p + '/'));
+function fsChanged() { emit('fs'); }
+function writeFile(path, text) { const old = FS.get(path); const e = { path, type: 'file', mtime: Date.now(), mime: (old && old.mime) || 'text/plain', size: new Blob([text]).size, text }; FS.set(path, e); dbPut(e); fsChanged(); return e; }
+function makeDir(path) { const e = { path, type: 'dir', mtime: Date.now() }; FS.set(path, e); dbPut(e); fsChanged(); return e; }
+async function importFile(dir, file) {
+  const m = file.name.match(/\.[^.]+$/);
+  const path = uniquePath(dir, m ? file.name.slice(0, -m[0].length) : file.name, m ? m[0] : '');
+  const e = { path, type: 'file', mtime: Date.now(), mime: file.type || 'application/octet-stream', size: file.size };
+  if (file.type === 'image/svg+xml' || (isText(path) && file.size < 2e6)) e.text = await file.text(); else e.blob = file;
+  FS.set(path, e); dbPut(e); fsChanged();
+  return path;
+}
+function renamePath(from, name) {
+  const to = parentOf(from) + '/' + name;
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: to + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  fsChanged(); return to;
+}
+function copyPath(from) {
+  const b = baseName(from), dot = b.lastIndexOf('.'), f = FS.get(from).type === 'file' && dot > 0;
+  const to = uniquePath(parentOf(from), (f ? b.slice(0, dot) : b) + ' копия', f ? b.slice(dot) : '');
+  subtree(from).forEach(p => { const ne = Object.assign({}, FS.get(p), { path: to + p.slice(from.length), mtime: Date.now() }); FS.set(ne.path, ne); dbPut(ne); });
+  fsChanged(); return to;
+}
+function trashPath(path) {
+  if (!FS.has(path) || ROOTS.includes(path)) return;
+  const items = subtree(path).map(p => FS.get(p));
+  items.forEach(e => { FS.delete(e.path); dropUrl(e.path); dbDel(e.path); });
+  const t = { id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() };
+  TRASH.push(t);
+  dbTrashPut(t); fsChanged();
+}
+function restoreTrash(id) {
+  const i = TRASH.findIndex(t => t.id === id); if (i < 0) return;
+  const t = TRASH[i];
+  let dir = parentOf(t.path);
+  // на месте одной из родительских папок теперь файл: возвращаем рядом с ним
+  let a = dir; while (a) { if (FS.has(a) && FS.get(a).type !== 'dir') dir = parentOf(a); a = parentOf(a); }
+  // удалены и папка, и её родитель: восстанавливаем всю цепочку
+  const missing = []; let m = dir; while (m && !FS.has(m)) { missing.unshift(m); m = parentOf(m); }
+  missing.forEach(makeDir);
+  let to = (dir ? dir + '/' : '') + baseName(t.path);
+  if (FS.has(to)) { const b = baseName(to), dot = b.lastIndexOf('.'); to = uniquePath(dir, dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
+  t.items.forEach(e => { const ne = Object.assign({}, e, { path: to + e.path.slice(t.path.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  TRASH.splice(i, 1); dbTrashDel(t.id); fsChanged();
+}
+function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrashDel(id); fsChanged(); }
+const fmtSize = b => b < 1000 ? b + ' Б' : b < 1e6 ? (b / 1000).toFixed(1).replace('.', ',') + ' КБ' : (b / 1e6).toFixed(1).replace('.', ',') + ' МБ';
+const fmtWhenF = t => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fsReady = fsLoad();
+
+// ===== Диалоги в стиле телефона: вопрос с полем и нижний лист действий =====
+function oPrompt(title, value, okText = 'Готово') {
+  return new Promise(resolve => {
+    const d = document.createElement('div'); d.className = 'o-dlg-back';
+    d.innerHTML = '<div class="o-dlg" role="dialog"><b></b><input aria-label="Имя"><div class="o-dlg-btns"><button data-r="0">Отмена</button><button data-r="1">' + okText + '</button></div></div>';
+    d.querySelector('b').textContent = title;
+    const inp = d.querySelector('input'); inp.value = value;
+    $('screen').appendChild(d);
+    inp.focus(); const dot = value.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : value.length);
+    const done = v => { d.remove(); resolve(v); };
+    d.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1' ? inp.value.trim() : null); });
+    inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') done(inp.value.trim()); if (e.key === 'Escape') done(null); });
+  });
+}
+function oSheet(title, actions) {
+  const d = document.createElement('div'); d.className = 'o-dlg-back bottom';
+  d.innerHTML = '<div class="o-sheet">' + (title ? '<div class="os-title"></div>' : '') + actions.map((a, i) => '<button data-a2="' + i + '"' + (a.danger ? ' class="danger"' : '') + '>' + esc(a.label) + '</button>').join('') + '</div>';
+  if (title) d.querySelector('.os-title').textContent = title;
+  $('screen').appendChild(d);
+  d.addEventListener('click', e => { const b = e.target.closest('[data-a2]'); if (!b && e.target !== d) return; d.remove(); if (b) actions[+b.dataset.a2].run(); });
+}
+
+// ===== «Мои файлы» на IndexedDB =====
+const FOLDER_SVG = '<svg viewBox="0 0 40 32"><path d="M2 5a3 3 0 013-3h10l3 3.5h17a3 3 0 013 3V27a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#f5b400"/><path d="M2 10h36v17a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#ffca28"/></svg>';
+const DOC_SVG = '<svg viewBox="0 0 32 40"><path d="M3 1h18l8 8v28a2 2 0 01-2 2H3a2 2 0 01-2-2V3a2 2 0 012-2z" fill="#4c8bf5"/><path d="M21 1v8h8" fill="#8ab4f8"/><path d="M7 19h18M7 24h18M7 29h12" stroke="#fff" stroke-width="1.8"/></svg>';
+// значки разделов «Моих файлов»: цветной круг и белый рисунок, без эмодзи
+const CAT_SVG = {
+  img: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 13h14l-4.5-6-3.5 4.5-2.5-3z"/><circle cx="8.5" cy="8.5" r="1.8" fill="#fff"/></svg>',
+  doc: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M6 2h8l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm7 1.5V8h4.5zM7.5 12v1.6h9V12zm0 3.5v1.6h9v-1.6zm0 3.5v1.5h6V19z"/></svg>',
+  dl: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M9 3h6l1 1.5h4v2H4v-2h4zM6 8h12l-1 12.2a2 2 0 01-2 1.8H9a2 2 0 01-2-1.8zm3.2 2.5l.4 8h1.6l-.3-8zm4 0l-.3 8h1.6l.4-8z"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M8 2h8a2 2 0 012 2v16a2 2 0 01-2 2H8a2 2 0 01-2-2V4a2 2 0 012-2zm0 3v13h8V5zm3 14.2v1.3h2v-1.3z"/></svg>',
+};
+const thumbOf = e => { if (e.type === 'dir') return FOLDER_SVG; const u = isImage(e.path) && fileUrl(e); return u ? '<img src="' + u + '" alt="">' : DOC_SVG; };
+APPS.files = {
+  enter(arg) { views.files = { dir: arg && (FS.has(arg) || arg === '__trash') ? arg : null, view: null, q: '' }; },
+  view() {
+    const v = views.files;
+    if (v.view && FS.get(v.view)) {
+      const e = FS.get(v.view);
+      const body = isImage(v.view) ? '<div class="fv-img" style="background-image:url(' + (fileUrl(e) || '') + ')"></div>' : e.text != null ? '<textarea class="fv-text" name="fvtext" aria-label="Текст"></textarea>' : '<div class="o-empty">Просмотр недоступен</div>';
+      return shell(esc(baseName(v.view)), body, '<button class="o-hbtn" data-a="fvdel" aria-label="Удалить">' + CAT_SVG.trash + '</button>');
+    }
+    if (v.dir === null) {
+      const imgs = [...FS.values()].filter(e => e.type === 'file' && isImage(e.path)).length, docs = [...FS.values()].filter(e => e.type === 'file' && !isImage(e.path)).length;
+      const used = [...FS.values()].reduce((s, e) => s + (e.size || 0), 0);
+      const cats = [['Изображения', 'img', 'Изображения', imgs, '#d9467a'], ['Документы', 'doc', 'Документы', docs, '#1b8a52'], ['Загрузки', 'dl', 'Загрузки', childrenOf('Загрузки').length, '#2f6fd6'], ['__trash', 'trash', 'Корзина', TRASH.length, '#6b7385']];
+      return shell('Мои файлы', '<div class="o-card"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>Память телефона</span><span style="opacity:0.6">' + fmtSize(used) + (fdbOk ? ' · IndexedDB' : '') + '</span></div><div class="f-bar"><i style="width:' + Math.min(100, 4 + used / 2000) + '%"></i></div></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' + cats.map(c => '<div class="o-card" style="margin:0;cursor:pointer" data-a="go" data-d="' + c[0] + '"><div class="f-cat" style="background:' + c[4] + '">' + CAT_SVG[c[1]] + '</div><div style="margin-top:8px;font-weight:600">' + c[2] + '</div><div style="font-size:12px;opacity:0.6">' + c[3] + '</div></div>').join('') + '</div>' +
+        '<div class="o-card f-root" data-a="go" data-d="" style="cursor:pointer;margin-top:14px;display:flex;align-items:center;gap:12px"><div class="f-cat" style="background:#566479">' + CAT_SVG.phone + '</div><div style="flex:1"><div style="font-weight:600">Внутренняя память</div><div style="font-size:12px;opacity:0.6">Все папки</div></div><span style="opacity:.5">›</span></div>');
+    }
+    if (v.dir === '__trash') return shell('Корзина', TRASH.length ? [...TRASH].reverse().map(t => '<div class="o-list-row"><div class="f-th">' + (t.items[0].type === 'dir' ? FOLDER_SVG : DOC_SVG) + '</div><div class="o-main"><div class="o-title">' + esc(baseName(t.path)) + '</div><div class="o-sub">' + esc(parentOf(t.path)) + '</div></div><button class="o-chip" data-a="restore" data-id="' + t.id + '">Восстановить</button><button class="o-chip danger" data-a="kill" data-id="' + t.id + '">Удалить</button></div>').join('') : '<div class="o-empty">Корзина пуста</div>');
+    const list = v.q ? [...FS.values()].filter(e => e.path && (v.dir === '' || e.path.startsWith(v.dir + '/')) && baseName(e.path).toLowerCase().includes(v.q)) : v.dir === '' ? ROOTS.map(r => FS.get(r)) : childrenOf(v.dir);
+    return shell(v.dir === '' ? 'Внутренняя память' : esc(baseName(v.dir)), '<div class="f-crumbs">Память › ' + esc(v.dir.split('/').join(' › ')) + '</div><input class="o-input f-search" name="fq" placeholder="Поиск" aria-label="Поиск файлов">' +
+      (list.length ? list.map(e => '<div class="o-list-row" data-a="item" data-p="' + esc(e.path) + '"><div class="f-th">' + thumbOf(e) + '</div><div class="o-main"><div class="o-title">' + esc(baseName(e.path)) + '</div><div class="o-sub">' + new Date(e.mtime).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + (e.type === 'file' ? ' · ' + fmtSize(e.size || 0) : ' · ' + childrenOf(e.path).length + ' объект.') + '</div></div></div>').join('') : '<div class="o-empty">' + (v.q ? 'Ничего не найдено' : 'Папка пуста') + '</div>') +
+      '<input type="file" multiple hidden class="f-in">', v.dir !== '' ? '<button class="o-hbtn" data-a="more" aria-label="Ещё">⋮</button>' : '');
+  },
+  after(c) {
+    const v = views.files;
+    const ta = c.querySelector('[name=fvtext]'); if (ta) ta.value = FS.get(v.view).text;
+    const q = c.querySelector('[name=fq]'); if (q) q.value = v.q;
+    const fin = c.querySelector('.f-in');
+    if (fin) fin.addEventListener('change', async () => { for (const f of fin.files) await importFile(v.dir, f); notify('files', 'Файлы добавлены', 'Папка «' + baseName(v.dir) + '»'); });
+    c.querySelectorAll('[data-a=item]').forEach(row => {
+      row.addEventListener('contextmenu', e => { e.preventDefault(); APPS.files.actions(row.dataset.p); });
+      let lp = null;
+      row.addEventListener('pointerdown', () => { delete row.dataset.lp; lp = setTimeout(() => { lp = null; row.dataset.lp = '1'; APPS.files.actions(row.dataset.p); }, 550); });
+      ['pointerup', 'pointerleave'].forEach(ev => row.addEventListener(ev, () => { clearTimeout(lp); lp = null; }));
+    });
+  },
+  actions(p) {
+    if (ROOTS.includes(p)) return;
+    oSheet(baseName(p), [{ label: 'Переименовать', run: async () => { const n = await oPrompt('Переименовать', baseName(p)); if (n === null || n === baseName(p)) return; const err = nameError(parentOf(p), n, p); if (err) await oPrompt(err, n, 'ОК'); else renamePath(p, n); } },
+      { label: 'Копировать', run: () => copyPath(p) }, { label: 'Удалить', danger: true, run: () => trashPath(p) }]);
+  },
+  input(el) {
+    const v = views.files;
+    if (el.name === 'fq') { v.q = el.value.trim().toLowerCase(); renderApp(); const q = $('app-container').querySelector('[name=fq]'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  },
+  saveView() { const v = views.files, ta = $('app-container').querySelector('[name=fvtext]'); if (ta && v.view && FS.get(v.view) && ta.value !== FS.get(v.view).text) writeFile(v.view, ta.value); },
+  act(a, t) {
+    const v = views.files;
+    if (t.dataset.lp) { delete t.dataset.lp; return; }
+    if (a === 'go') { v.dir = t.dataset.d; v.q = ''; }
+    else if (a === 'item') { const e = FS.get(t.dataset.p); if (!e) return; if (e.type === 'dir') { v.dir = e.path; v.q = ''; } else v.view = e.path; }
+    else if (a === 'restore') restoreTrash(t.dataset.id);
+    else if (a === 'kill') deleteTrash(t.dataset.id);
+    else if (a === 'fvdel') { const p = v.view; v.view = null; trashPath(p); }
+    else if (a === 'more') {
+      oSheet(null, [{ label: 'Создать папку', run: async () => { const n = await oPrompt('Новая папка', 'Новая папка'); if (!n) return; const err = nameError(v.dir, n); if (err) await oPrompt(err, n, 'ОК'); else makeDir(v.dir + '/' + n); } },
+        { label: 'Создать текстовый файл', run: () => { v.view = writeFile(uniquePath(v.dir, 'Документ', '.txt'), '').path; renderApp(); } },
+        { label: 'Добавить с устройства', run: () => $('app-container').querySelector('.f-in').click() }]);
+      return;
+    }
+    renderApp();
+  },
+  back() {
+    const v = views.files;
+    if (v.view) { this.saveView(); v.view = null; renderApp(); return true; }
+    if (v.dir !== null) { v.dir = v.dir === '' || v.dir === '__trash' || !parentOf(v.dir) ? (v.dir === '' || v.dir === '__trash' ? null : '') : parentOf(v.dir); v.q = ''; renderApp(); return true; }
+  },
+  leave() { this.saveView(); },
+};
+on('fs', () => { if (state.app === 'files' && !$('app-container').querySelector('[name=fvtext]:focus, [name=fq]:focus')) renderApp(); if (state.app === 'gallery') renderApp(); });
+
+// ===== Уведомления: всплывающая карточка сверху и список в шторке =====
+function notify(app, title, text) {
+  notifs.unshift({ app, title, text }); notifs = notifs.slice(0, 20); store.set('notifs', notifs);
+  renderNotifs(); renderLockNotifs();
+  if (S.dnd || !state.unlocked || state.shade || state.recents) return;   // шторка или недавние открыты: карточка уже в списке, второй поверх не нужно
+  document.querySelectorAll('.heads-up').forEach(b => b.remove());
+  const a = APP_LIST.find(x => x.id === app);
+  const b = document.createElement('div'); b.className = 'heads-up'; b.setAttribute('role', 'status');
+  b.innerHTML = '<div class="notif-icon" style="background:' + (a ? a.bg : '#666') + '">' + (ICONS[app] || '') + '</div><div class="notif-body"><div class="notif-app">' + appName(app) + ' · сейчас</div><div class="notif-title"></div><div class="notif-text"></div></div>';
+  b.querySelector('.notif-title').textContent = title; b.querySelector('.notif-text').textContent = text;
+  b.addEventListener('click', () => { b.remove(); notifs = notifs.filter(n => !(n.app === app && n.title === title && n.text === text)); store.set('notifs', notifs); renderNotifs(); renderLockNotifs(); openApp(app); });
+  $('screen').appendChild(b);
+  setTimeout(() => { b.classList.add('out'); setTimeout(() => b.remove(), 300); }, 4500);
+}
+function renderLockNotifs() {
+  const box = $('lock-notifs'); if (!box) return;
+  box.innerHTML = notifs.slice(0, 2).map((n, i) => { const a = APP_LIST.find(x => x.id === n.app); return '<div class="ln-card" data-ln="' + i + '"><div class="notif-icon" style="background:' + (a ? a.bg : '#666') + '">' + (ICONS[n.app] || '') + '</div><div><b>' + esc(n.title) + '</b><span>' + esc(n.text) + '</span></div></div>'; }).join('') + (notifs.length > 2 ? '<div class="ln-more">и ещё ' + (notifs.length - 2) + '</div>' : '');
+}
+(function () {
+  const box = document.createElement('div'); box.id = 'lock-notifs'; box.className = 'lock-notifs';
+  $('lockscreen').insertBefore(box, $('lockscreen').querySelector('.lock-now-bar'));
+  box.addEventListener('click', e => { const c = e.target.closest('[data-ln]'); if (!c) return; e.stopPropagation(); const n = notifs.splice(+c.dataset.ln, 1)[0]; store.set('notifs', notifs); renderNotifs(); renderLockNotifs(); unlock(n.app); });
+  renderLockNotifs();
+})();
+const renderNotifs0 = renderNotifs;
+renderNotifs = function () { renderNotifs0(); renderLockNotifs(); };
+// снимок камеры, будильник
+let lastAlarm = '';
+setInterval(() => { const d = new Date(), hm = pad(d.getHours()) + ':' + pad(d.getMinutes()); if (hm === lastAlarm) return; lastAlarm = hm; store.get('alarms', []).filter(a => a.on && a.t === hm).forEach(a => notify('clock', 'Будильник ' + a.t, a.label)); }, 1000);
+
+// ===== Недавние приложения: смахнуть вверх и задержать или двойное нажатие на полоску =====
+let RECENTS = [];
+const openApp0 = openApp;
+openApp = function (id, arg) { closeRecents(); if ($('games-folder')) $('games-folder').classList.remove('open'); openApp0(id, arg); RECENTS = [id].concat(RECENTS.filter(x => x !== id)); };
+(function () {
+  const r = document.createElement('div'); r.id = 'recents'; r.setAttribute('role', 'dialog'); r.setAttribute('aria-label', 'Недавние приложения');
+  r.innerHTML = '<div class="statusbar"><div class="left" data-time></div><div class="right" data-status></div></div><div class="rc-row" id="rc-row"></div><div class="rc-empty">Нет недавних приложений</div><button class="rc-close-all" id="rc-close-all">Закрыть все</button>';
+  $('screen').appendChild(r);
+  renderStatus();
+})();
+function openRecents() {
+  closeShade(); closeDrawer(); document.querySelectorAll('.heads-up').forEach(b => b.remove());
+  $('rc-row').innerHTML = RECENTS.map(id => { const a = APP_LIST.find(x => x.id === id); return '<div class="rc-card" data-rc="' + id + '" role="button" aria-label="' + appName(id) + '"><div class="rc-head"><span class="notif-icon" style="background:' + (a ? a.bg : '#666') + '">' + (ICONS[id] || '') + '</span>' + appName(id) + '</div><div class="rc-shot"><div class="rc-clone"></div></div></div>'; }).join('');
+  $('rc-row').querySelectorAll('.rc-card').forEach(c => { try { c.querySelector('.rc-clone').innerHTML = APPS[c.dataset.rc].view(); } catch (e) { /* предпросмотр необязателен */ } });
+  $('recents').classList.toggle('empty', !RECENTS.length);
+  $('recents').classList.add('open');
+  state.recents = true;
+  $('recents').querySelector('[data-time]').textContent = hhmm(new Date());
+  renderStatus();
+}
+function closeRecents() { $('recents').classList.remove('open'); state.recents = false; }
+// закрыть программу совсем: музыка замолкает, игра получает паузу и убирается
+function killApp(id) { RECENTS = RECENTS.filter(x => x !== id); if (id === 'music') mPause(); if (APPS[id] && APPS[id].kill) APPS[id].kill(); if (state.app === id) closeApp(); }
+$('rc-close-all').addEventListener('click', e => { e.stopPropagation(); [...RECENTS].forEach(killApp); closeRecents(); closeApp(); });
+let rcDrag = null;
+let rcDown = false;   // отпускание того же нажатия, что открыло список, его не закрывает
+$('recents').addEventListener('pointerdown', e => { rcDown = true; const c = e.target.closest('.rc-card'); e.stopPropagation(); if (!c) return; rcDrag = { c, y: e.clientY, x: e.clientX, dy: 0 }; c.setPointerCapture(e.pointerId); });
+$('recents').addEventListener('pointermove', e => { if (!rcDrag) return; rcDrag.dy = Math.min(0, e.clientY - rcDrag.y); rcDrag.c.style.transform = 'translateY(' + rcDrag.dy + 'px)'; rcDrag.c.style.opacity = String(1 + rcDrag.dy / 400); });
+$('recents').addEventListener('pointerup', e => {
+  e.stopPropagation();
+  if (!rcDown) return;
+  rcDown = false;
+  if (!rcDrag) { if (e.target.id === 'recents' || e.target.id === 'rc-row' || e.target.closest('.rc-empty')) closeRecents(); return; }
+  const { c, dy, x, y } = rcDrag; rcDrag = null;
+  if (dy < -90) { c.classList.add('gone'); killApp(c.dataset.rc); setTimeout(() => { c.remove(); if (!RECENTS.length) $('recents').classList.add('empty'); }, 200); return; }
+  c.style.transform = ''; c.style.opacity = '';
+  if (Math.abs(e.clientX - x) < 8 && Math.abs(e.clientY - y) < 8) openApp(c.dataset.rc);
+});
+let hold = null;
+$('phone').addEventListener('pointerdown', e => {
+  const r = $('phone').getBoundingClientRect(), k = r.height / $('phone').offsetHeight;
+  if (state.unlocked && (e.clientY - r.top) / k > $('phone').offsetHeight - 70) hold = { y: e.clientY, k, timer: null };
+}, true);
+$('phone').addEventListener('pointermove', e => {
+  // сработает, только если палец замер: каждое движение откладывает срабатывание
+  if (!hold || (hold.y - e.clientY) / hold.k < 60) return;
+  clearTimeout(hold.timer);
+  hold.timer = setTimeout(() => { if (hold) { hold.fired = true; g = null; openRecents(); } }, 320);
+}, true);
+$('phone').addEventListener('pointerup', () => { if (hold) { clearTimeout(hold.timer); if (hold.fired) g = null; hold = null; } }, true);
+// долгое нажатие на полоску навигации - недавние приложения (следующий щелчок гасится)
+let pillTimer = null, swallowClick = false;
+document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('.nav-pill') || !state.unlocked) return; clearTimeout(pillTimer); pillTimer = setTimeout(() => { swallowClick = true; closeDrawer(); openRecents(); }, 500); }, true);
+document.addEventListener('pointerup', () => clearTimeout(pillTimer), true);
+document.addEventListener('click', e => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  // лист действий закрывается, окно ввода имени - как «Отмена» (даже если фокус ушёл с поля)
+  if (document.querySelector('.o-dlg-back')) { document.querySelectorAll('.o-dlg-back.bottom').forEach(x => x.remove()); const pr = document.querySelector('.o-dlg-back [data-r="0"]'); if (pr) pr.click(); e.stopImmediatePropagation(); return; }
+  if (state.recents) { e.stopImmediatePropagation(); closeRecents(); }
+}, true);
+const lock0 = lock;
+lock = function () { closeRecents(); document.querySelectorAll('.o-dlg-back, .heads-up').forEach(x => x.remove()); lock0(); };
+
+// ===== Вкладка скрыта - музыка и анимации на паузе =====
+let pausedByTab = false;
+document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('paused', document.hidden);
+  if (document.hidden && music.playing) { mPause(); pausedByTab = true; } else if (!document.hidden && pausedByTab) { pausedByTab = false; mPlay(); }
+});
+
+// ===== Шторка открылась - всплывающая карточка уходит (она уже в списке) =====
+const openShade0 = openShade;
+openShade = function (tab) { document.querySelectorAll('.heads-up').forEach(b => b.remove()); openShade0(tab); };
+
+// ===== Игры: папка «Игры» на втором экране, игра на весь экран из соседней папки =====
+// Игра живёт в своём слое (рамка не пересоздаётся при перерисовке), уход домой - пауза по протоколу
+// {mix:'pause'}/{mix:'resume'} (web/_os-shared/README.md), закрытие в недавних убирает рамку.
+(function () { const L = document.createElement('div'); L.id = 'game-layer'; $('screen').appendChild(L); })();
+function gameGlyph(g) { return '<svg viewBox="6 6 36 36">' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || '') + '</svg>'; }
+const gameEl = id => document.querySelector('#game-layer [data-g="' + id + '"]');
+function gamePost(id, msg) { const el = gameEl(id), f = el && el.querySelector('iframe'); if (f) try { f.contentWindow.postMessage({ mix: msg }, '*'); } catch (e) { /* грузится */ } }
+function showGame(id, g) {
+  let el = gameEl(id);
+  if (!el) {
+    el = document.createElement('div'); el.className = 'game-app'; el.dataset.g = id;
+    el.innerHTML = '<iframe class="game-frame" title="' + esc(g.title) + '" src="' + (g.src || '../' + g.dir + '/index.html') + '" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe><div class="game-bar" title="Домой"><div class="nav-pill"></div></div>';
+    // жест «Домой» уходит над рамкой игры: захват указателя, чтобы отпускание пришло телефону
+    el.querySelector('.game-bar').addEventListener('pointerdown', e => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ } });
+    el.querySelector('.game-bar').addEventListener('click', () => { if (state.app === id) closeApp(); });
+    $('game-layer').appendChild(el);
+  } else gamePost(id, 'resume');
+  $('game-layer').querySelectorAll('.game-app').forEach(x => x.classList.toggle('on', x === el));
+  $('game-layer').classList.add('open');
+}
+function hideGame(id) { gamePost(id, 'pause'); $('game-layer').classList.remove('open'); const el = gameEl(id); if (el) el.classList.remove('on'); }
+function addGame(g) {
+  const id = 'game-' + g.id;
+  APP_LIST.push({ id, name: g.title, bg: 'linear-gradient(160deg,' + g.colors[0] + ',' + g.colors[1] + ')', game: true });
+  ICONS[id] = gameGlyph(g);
+  APPS[id] = {
+    game: g,
+    enter() { showGame(id, g); },
+    leave() { hideGame(id); },
+    kill() { gamePost(id, 'pause'); const el = gameEl(id); if (el) setTimeout(() => { if (state.app !== id) el.remove(); }, 150); },
+    view() { const a = APP_LIST.find(x => x.id === id); return '<div class="app-screen active game-host"><div class="app-icon-img" style="background:' + a.bg + '">' + ICONS[id] + '</div><div class="gh-name">' + esc(g.title) + '</div></div>'; },
+    act() { },
+  };
+  return id;
+}
+const GAME_IDS = (window.OS_GAMES || []).map(addGame);
+if (GAME_IDS.length) PAGE2.push('games');
+const iconHTML0 = iconHTML;
+iconHTML = function (id, label = true) {
+  if (id !== 'games') return iconHTML0(id, label);
+  return '<div class="app-icon" data-folder="games" tabindex="0" role="button" aria-label="Игры"><div class="app-icon-img o-folder">' + GAME_IDS.slice(0, 4).map(x => '<i style="background:' + APP_LIST.find(a => a.id === x).bg + '">' + ICONS[x] + '</i>').join('') + '</div>' + (label ? '<div class="app-icon-label">Игры</div>' : '') + '</div>';
+};
+(function () {
+  const f = document.createElement('div'); f.id = 'games-folder'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Папка «Игры»');
+  f.innerHTML = '<div class="gf-box"><div class="gf-title">Игры</div><div class="gf-grid">' + GAME_IDS.map(x => iconHTML(x)).join('') + '</div></div>';
+  $('homescreen').appendChild(f);
+  $('homescreen').addEventListener('click', e => { if (e.target.closest('[data-folder]')) f.classList.add('open'); else if (e.target === f) f.classList.remove('open'); });
+  $('homescreen').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('[data-folder]')) f.classList.add('open'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && f.classList.contains('open')) { f.classList.remove('open'); e.stopImmediatePropagation(); } }, true);
+  renderHome();
+})();
+
+</script>
+</body>
+</html>

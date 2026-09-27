@@ -1,0 +1,54 @@
+# Проверки на домашнем Gitea. Копия .github/workflows/ci.yml, отличия три: задачи идут
+# на раннер ПК (метка windows), а не на windows-latest - такая метка есть только у
+# раннера ноутбука; Python берётся с ПК в своём окружении, а не setup-python (тому
+# нужны права администратора на реестр, у раннера их нет); проверки настоящего
+# Electron (npm run test:app) здесь не идут - они открывают окна на экране ПК, их
+# гоняют перед выпуском и на GitHub.
+# Раз папка .gitea/workflows есть, Gitea берёт проверки только отсюда: выпуски - дело
+# GitHub, здесь их нет. Меняя проверки, править оба файла.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Проверки
+    runs-on: windows
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Chromium для Playwright
+        run: npx playwright install chromium
+
+      - name: Страницы web/
+        run: npm test
+
+      - name: Приложение, законы модулей и значка
+        run: npm run test:unit
+
+      - name: Python в отдельном окружении
+        run: |
+          py -3.13 -m venv .ci-venv
+          [IO.File]::AppendAllText($env:GITHUB_PATH, "$((Resolve-Path .ci-venv).Path)\Scripts`n")
+
+      - name: Зависимости Python
+        run: pip install -r requirements-py.txt
+
+      - name: Программы py/
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests/py -q

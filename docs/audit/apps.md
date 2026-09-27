@@ -1,5 +1,7 @@
 # Разбор группы «приложения»
 
+> **27.09.2026:** владелец удалил страницы player, telegram, yandex-music и token-calc - они не нужны. Разбор ниже оставлен как история.
+
 Восемь одностраничных программ из `web/`: browser_1, calculator, player, python_ide,
 telegram, yandex-music, token-calc, english-abbreviations. Каждую открыл в Playwright,
 прощёлкал, снял экраны при 1280x800 и 1024x700, исправил, закрепил законами поведения
