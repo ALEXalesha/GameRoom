@@ -256,6 +256,7 @@ for (const game of Object.keys(SHELL)) {
     const s = SHELL[game];
     await page.click('[data-screen=main] ' + s.start);
     if (s.then) await page.click(s.then);
+    await page.waitForFunction(() => __game.kit.mode === 'play');       // головоломка «Судоку» готовится не мгновенно
     await page.evaluate(() => { __game.kit.audioCtx(); return __game.kit.ctx.resume(); });
     const f0 = await page.evaluate(s.frame);
     await page.waitForTimeout(300);
@@ -279,3 +280,19 @@ for (const game of Object.keys(SHELL)) {
     expect(await page.evaluate(() => (document.querySelector('meta[name="application-name"]') || {}).content)).toBe(SHELL[game].name);
   });
 }
+
+test('сообщение {mix:"pause"} принимается только от родительского окна, а не от вложенной страницы', async ({ page }) => {
+  await openGame(page, 'dino', 'seed=1');
+  await page.click('[data-screen=main] [data-id=endless]');
+  await page.evaluate(() => new Promise((r) => {
+    const fr = document.createElement('iframe');
+    fr.style.display = 'none';
+    fr.srcdoc = '<script>parent.postMessage({ mix: "pause" }, "*")</script>';
+    fr.onload = () => setTimeout(r, 200);
+    document.body.appendChild(fr);
+  }));
+  expect(await page.evaluate(() => __game.kit.mode)).toBe('play');
+  await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));        // верхнее окно - само себе родитель
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.kit.mode)).toBe('paused');
+});
