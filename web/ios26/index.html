@@ -1,0 +1,2912 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Телефон «Стекло» (фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  overscroll-behavior: none;
+}
+
+.app-icon, .icon, button, .calc-btn, .cc-tile, .toggle, .lock-circle, .settings-row {
+  touch-action: manipulation;
+}
+
+.settings-list {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+/* ===== Корпус телефона ===== */
+.device {
+  position: relative;
+  width: 393px; height: 852px;
+  background: #000;
+  border-radius: 56px;
+  box-shadow: 0 0 0 12px #1a1a1a, 0 0 0 14px #2a2a2a, 0 40px 80px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+
+@media (max-width: 420px) {
+  .device {
+    width: 100vw; height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+.screen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* Dynamic Island */
+.dynamic-island {
+  position: absolute;
+  top: 11px; left: 50%;
+  transform: translateX(-50%);
+  width: 124px; height: 37px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* Status bar */
+.status-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px 0 32px;
+  z-index: 100;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.status-bar.dark { color: #000; }
+.status-bar .time { padding-top: 6px; }
+.status-bar .right { display: flex; align-items: center; gap: 5px; padding-top: 6px; }
+
+/* ===== Экраны ===== */
+.page {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+}
+.page.active { display: block; }
+
+/* ===== LOCK SCREEN ===== */
+.wallpaper {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse at 30% 20%, #ff7eb3 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, #7873f5 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 90%, #4ac1ff 0%, transparent 50%),
+    linear-gradient(135deg, #1a0033 0%, #0d0d2b 100%);
+}
+
+.wallpaper::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.15) 0%, transparent 1%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.1) 0%, transparent 1%),
+    radial-gradient(circle at 60% 20%, rgba(255,255,255,0.08) 0%, transparent 1%);
+  background-size: 3px 3px, 5px 5px, 4px 4px;
+  opacity: 0.6;
+}
+
+.lock-clock {
+  position: absolute;
+  top: 100px;
+  left: 0; right: 0;
+  text-align: center;
+  z-index: 10;
+}
+
+.lock-date {
+  color: rgba(255,255,255,0.95);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.lock-time {
+  font-size: 96px;
+  font-weight: 200;
+  letter-spacing: -3px;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 2px 8px rgba(0,0,0,0.25),
+    0 0 1px rgba(255,255,255,0.3);
+  position: relative;
+}
+
+/* Виджеты */
+.lock-widgets {
+  position: absolute;
+  bottom: 180px;
+  left: 20px; right: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  z-index: 10;
+}
+
+.widget {
+  background: rgba(40, 40, 60, 0.6);
+  border: 0.5px solid rgba(255,255,255,0.3);
+  border-radius: 22px;
+  padding: 14px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.widget::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.2) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(255,255,255,0.1) 100%);
+  pointer-events: none;
+}
+
+.widget-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+.widget-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+.widget-sub {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* Lock bottom controls */
+.lock-bottom {
+  position: absolute;
+  bottom: 50px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 30px;
+  z-index: 10;
+}
+
+.lock-circle {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.home-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 3px;
+  z-index: 200;
+}
+
+.swipe-hint {
+  position: absolute;
+  bottom: 22px;
+  left: 0; right: 0;
+  text-align: center;
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
+  z-index: 100;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+
+/* ===== HOME SCREEN ===== */
+.home-wallpaper {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse at 50% 0%, #ffa07a 0%, transparent 40%),
+    radial-gradient(ellipse at 0% 50%, #ff6b9d 0%, transparent 40%),
+    radial-gradient(ellipse at 100% 80%, #5e72eb 0%, transparent 50%),
+    linear-gradient(180deg, #2d1b69 0%, #11052c 100%);
+}
+
+.home-grid {
+  position: absolute;
+  top: 70px;
+  bottom: 110px;
+  left: 0; right: 0;
+  padding: 0 27px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 84px;
+  gap: 18px 0;
+  align-content: start;
+  z-index: 10;
+}
+
+.app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease;
+}
+
+.icon::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.35) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(255,255,255,0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.icon::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.app-icon:active .icon {
+  transform: scale(0.92);
+}
+
+.app-label {
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  font-weight: 400;
+}
+
+/* Цвета иконок */
+.icon-phone { background: linear-gradient(180deg, #4ade80, #16a34a); }
+.icon-messages { background: linear-gradient(180deg, #5eead4, #06b6d4); }
+.icon-mail { background: linear-gradient(180deg, #60a5fa, #2563eb); }
+.icon-camera { background: linear-gradient(180deg, #4b5563, #1f2937); }
+.icon-photos { background: linear-gradient(180deg, #fbbf24, #ec4899); }
+.icon-music { background: linear-gradient(180deg, #fb7185, #e11d48); }
+.icon-maps { background: linear-gradient(180deg, #86efac, #15803d); }
+.icon-weather { background: linear-gradient(180deg, #38bdf8, #0c4a6e); }
+.icon-calc { background: linear-gradient(180deg, #4b5563, #111827); }
+.icon-clock { background: linear-gradient(180deg, #1f2937, #000); }
+.icon-notes { background: linear-gradient(180deg, #fef3c7, #fbbf24); color: #1f2937; }
+.icon-settings { background: linear-gradient(180deg, #d1d5db, #6b7280); }
+.icon-safari { background: linear-gradient(180deg, #e0f2fe, #0284c7); }
+.icon-calendar { background: linear-gradient(180deg, #fff, #f3f4f6); color: #ef4444; }
+.icon-wallet { background: linear-gradient(180deg, #1f2937, #000); }
+.icon-health { background: linear-gradient(180deg, #fff, #f3f4f6); }
+
+/* Большие виджеты на хом */
+.home-widget {
+  grid-column: span 2;
+  grid-row: span 2;
+  background: rgba(40, 40, 60, 0.5);
+  border: 0.5px solid rgba(255,255,255,0.3);
+  border-radius: 22px;
+  padding: 14px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.home-widget-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.weather-widget .temp {
+  font-size: 42px;
+  font-weight: 200;
+  margin-bottom: 4px;
+}
+.weather-widget .city {
+  font-size: 14px;
+  font-weight: 500;
+}
+.weather-widget .desc {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 6px;
+}
+
+/* Dock */
+.dock {
+  position: absolute;
+  bottom: 30px;
+  left: 16px; right: 16px;
+  height: 86px;
+  background: rgba(40, 40, 60, 0.55);
+  border: 0.5px solid rgba(255,255,255,0.25);
+  border-radius: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 16px;
+  z-index: 50;
+}
+
+.dock::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.15) 0%,
+    transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.page-dots {
+  position: absolute;
+  bottom: 130px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  z-index: 40;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+}
+.dot.active { background: #fff; }
+
+/* ===== ПРИЛОЖЕНИЯ ===== */
+.app-screen {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #f2f2f7;
+  z-index: 200;
+  display: none !important;
+}
+.app-screen.active {
+  display: block !important;
+}
+
+.app-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 60px 20px 12px;
+  z-index: 10;
+}
+
+.app-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #000;
+}
+
+.back-btn {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #007aff;
+  font-size: 17px;
+  font-weight: 400;
+  cursor: pointer;
+  z-index: 20;
+}
+
+/* Calculator */
+.app-screen.calc {
+  background: #000;
+}
+.calc-display {
+  position: absolute;
+  top: 0;
+  right: 0; left: 0;
+  padding: 60px 20px 30px;
+  text-align: right;
+  color: #fff;
+  font-size: 80px;
+  font-weight: 200;
+  height: 320px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+.calc-buttons {
+  position: absolute;
+  bottom: 30px;
+  left: 12px; right: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.calc-btn {
+  height: 80px;
+  border-radius: 50%;
+  background: #333;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 400;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+.calc-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15), transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.calc-btn:active { filter: brightness(1.5); }
+.calc-btn.gray { background: #a5a5a5; color: #000; }
+.calc-btn.orange { background: #ff9500; }
+.calc-btn.zero { grid-column: span 2; border-radius: 40px; text-align: left; padding-left: 32px; }
+
+/* Settings */
+.settings-list {
+  position: absolute;
+  top: 110px;
+  bottom: 0;
+  left: 0; right: 0;
+  overflow-y: auto;
+  padding: 0 16px 30px;
+}
+.settings-search {
+  margin-bottom: 16px;
+  background: rgba(118,118,128,0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #8e8e93;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-group {
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  padding: 11px 16px;
+  border-bottom: 0.5px solid #c6c6c8;
+  gap: 12px;
+  cursor: pointer;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-icon {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.settings-label {
+  flex: 1;
+  font-size: 17px;
+  color: #000;
+}
+.settings-value {
+  color: #8e8e93;
+  font-size: 17px;
+  margin-right: 4px;
+}
+.settings-row .chevron {
+  color: #c7c7cc;
+  font-size: 14px;
+}
+
+.toggle {
+  width: 51px; height: 31px;
+  border-radius: 16px;
+  background: #34c759;
+  position: relative;
+  transition: background 0.2s;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 27px; height: 27px;
+  background: #fff;
+  border-radius: 50%;
+  top: 2px;
+  left: 22px;
+  transition: left 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.toggle.off { background: #e9e9eb; }
+.toggle.off::after { left: 2px; }
+
+/* Weather app */
+.app-screen.weather-app {
+  background: linear-gradient(180deg, #4a90e2 0%, #1a3a5c 100%);
+  color: #fff;
+}
+.weather-current {
+  text-align: center;
+  padding-top: 80px;
+}
+.weather-city {
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.3px;
+}
+.weather-temp {
+  font-size: 92px;
+  font-weight: 200;
+  letter-spacing: -3px;
+}
+.weather-cond {
+  font-size: 20px;
+  margin-top: -8px;
+}
+.weather-hl {
+  font-size: 18px;
+  margin-top: 4px;
+  opacity: 0.95;
+}
+.weather-hourly {
+  margin: 30px 12px 0;
+  background: rgba(255,255,255,0.2);
+  border: 0.5px solid rgba(255,255,255,0.25);
+  border-radius: 18px;
+  padding: 14px 6px;
+}
+.weather-hourly-title {
+  font-size: 13px;
+  padding: 0 14px 10px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.3);
+  margin-bottom: 10px;
+  opacity: 0.85;
+}
+.hourly-row {
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 0;
+}
+.hour-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+}
+.hour-icon {
+  font-size: 22px;
+}
+.hour-temp {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.weather-forecast {
+  margin: 12px 12px 0;
+  background: rgba(255,255,255,0.2);
+  border: 0.5px solid rgba(255,255,255,0.25);
+  border-radius: 18px;
+  padding: 6px 14px;
+}
+.forecast-row {
+  display: grid;
+  grid-template-columns: 80px 30px 1fr 50px 30px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 0.5px solid rgba(255,255,255,0.2);
+  font-size: 17px;
+}
+.forecast-row:last-child { border-bottom: none; }
+.forecast-bar {
+  height: 6px;
+  background: linear-gradient(90deg, #4ac1ff, #ffa07a);
+  border-radius: 3px;
+  position: relative;
+}
+.forecast-low { text-align: right; opacity: 0.7; }
+
+/* ===== Часы ===== */
+.app-screen.clock-app { background: #000; color: #fff; }
+.clock-tabs {
+  position: absolute;
+  bottom: 30px; left: 0; right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 14px 0 6px;
+  border-top: 0.5px solid #333;
+  z-index: 5;
+}
+.clock-tab {
+  font-size: 11px;
+  color: #8e8e93;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.clock-tab.active { color: #ff9500; }
+.clock-tab svg { width: 24px; height: 24px; }
+.clock-content {
+  position: absolute;
+  top: 60px;
+  left: 0; right: 0; bottom: 90px;
+  padding: 20px;
+  overflow-y: auto;
+}
+.clock-bigtime {
+  font-size: 80px;
+  font-weight: 100;
+  text-align: center;
+  letter-spacing: -3px;
+  margin-top: 80px;
+  font-variant-numeric: tabular-nums;
+}
+.stopwatch-controls {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 60px;
+  gap: 20px;
+}
+.sw-btn {
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  background: #1c1c1e;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+.sw-btn.start { background: rgba(48, 209, 88, 0.2); color: #30d158; border-color: #30d15833; }
+.sw-btn.stop { background: rgba(255, 69, 58, 0.2); color: #ff453a; border-color: #ff453a33; }
+.alarm-list { padding: 0; }
+.alarm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 0.5px solid #2c2c2e;
+}
+.alarm-time {
+  font-size: 50px;
+  font-weight: 200;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.alarm-label { font-size: 14px; color: #8e8e93; margin-top: -4px; }
+
+/* ===== Календарь ===== */
+.app-screen.calendar-app { background: #000; color: #fff; }
+.cal-month {
+  position: absolute;
+  top: 60px; left: 0; right: 0;
+  padding: 0 16px;
+}
+.cal-header {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ff453a;
+  letter-spacing: -0.5px;
+  margin-bottom: 16px;
+}
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px;
+  color: #8e8e93;
+  font-weight: 600;
+  padding: 8px 0;
+  border-bottom: 0.5px solid #2c2c2e;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px 0;
+  margin-top: 6px;
+}
+.cal-day {
+  height: 50px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  font-size: 18px;
+  font-weight: 400;
+  position: relative;
+  cursor: pointer;
+}
+.cal-day.outside { color: #4b4b50; }
+.cal-day.today {
+  color: #fff;
+}
+.cal-day.today::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  width: 32px; height: 32px;
+  background: #ff453a;
+  border-radius: 50%;
+  z-index: -1;
+}
+.cal-day.has-event::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  width: 5px; height: 5px;
+  background: #ff453a;
+  border-radius: 50%;
+}
+.cal-events {
+  position: absolute;
+  bottom: 30px;
+  left: 0; right: 0; top: 480px;
+  padding: 14px 16px;
+  border-top: 0.5px solid #2c2c2e;
+  overflow-y: auto;
+}
+.cal-event {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+}
+.cal-event-bar {
+  width: 4px;
+  background: #ff453a;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.cal-event-time {
+  font-size: 13px;
+  color: #8e8e93;
+  width: 80px;
+  flex-shrink: 0;
+}
+.cal-event-title { font-size: 15px; font-weight: 500; }
+
+/* ===== Музыка ===== */
+.app-screen.music-app {
+  background: linear-gradient(180deg, #ff2d55 0%, #5e0a8a 50%, #1a0033 100%);
+  color: #fff;
+}
+.music-art {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px; height: 280px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 30% 30%, #ff8a8a, transparent 50%),
+    radial-gradient(circle at 70% 70%, #5856d6, transparent 50%),
+    linear-gradient(135deg, #ff2d55, #5856d6);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.music-info {
+  position: absolute;
+  top: 400px;
+  left: 30px; right: 30px;
+}
+.music-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.music-artist {
+  font-size: 18px;
+  color: rgba(255,255,255,0.7);
+}
+.music-progress {
+  position: absolute;
+  top: 470px;
+  left: 30px; right: 30px;
+}
+.music-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.music-bar-fill {
+  height: 100%;
+  background: rgba(255,255,255,0.85);
+  width: 35%;
+  transition: width 0.3s;
+}
+.music-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.music-controls {
+  position: absolute;
+  top: 530px;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+}
+.music-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+.music-btn.play {
+  width: 70px; height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.music-btn.play svg { width: 60px; height: 60px; }
+.music-volume {
+  position: absolute;
+  top: 640px;
+  left: 30px; right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255,255,255,0.6);
+}
+.music-vol-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+}
+.music-vol-fill {
+  height: 100%;
+  background: rgba(255,255,255,0.85);
+  width: 60%;
+  border-radius: 2px;
+}
+
+/* ===== Safari ===== */
+.app-screen.safari-app { background: #1c1c1e; color: #fff; }
+.safari-toolbar {
+  position: absolute;
+  top: 50px;
+  left: 12px; right: 12px;
+  background: rgba(60, 60, 65, 0.9);
+  border-radius: 14px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+}
+.safari-url {
+  flex: 1;
+  font-size: 14px;
+  color: #fff;
+  text-align: center;
+}
+.safari-url-prefix {
+  color: #8e8e93;
+  font-size: 13px;
+}
+.safari-content {
+  position: absolute;
+  top: 110px;
+  left: 0; right: 0; bottom: 90px;
+  background: #fff;
+  color: #000;
+  overflow-y: auto;
+  padding: 20px;
+}
+.safari-h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -0.3px;
+}
+.safari-meta {
+  font-size: 13px;
+  color: #6e6e73;
+  margin-bottom: 16px;
+}
+.safari-content p {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.safari-bottom-bar {
+  position: absolute;
+  bottom: 30px;
+  left: 0; right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 16px;
+  background: rgba(28, 28, 30, 0.95);
+  border-top: 0.5px solid #2c2c2e;
+}
+.safari-action {
+  color: #007aff;
+  cursor: pointer;
+  padding: 8px;
+}
+
+/* ===== Сообщения ===== */
+.app-screen.messages-app { background: #000; color: #fff; }
+.msg-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 50px 16px 8px;
+  background: rgba(28, 28, 30, 0.95);
+  border-bottom: 0.5px solid #2c2c2e;
+  z-index: 10;
+}
+.msg-title {
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+}
+.msg-back {
+  position: absolute;
+  top: 60px; left: 16px;
+  color: #007aff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+}
+.msg-list {
+  position: absolute;
+  top: 100px;
+  bottom: 70px;
+  left: 0; right: 0;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.msg-bubble {
+  max-width: 75%;
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+.msg-bubble.them {
+  background: #2c2c2e;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+.msg-bubble.me {
+  background: #007aff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.msg-time {
+  font-size: 11px;
+  color: #8e8e93;
+  text-align: center;
+  margin: 8px 0 4px;
+}
+.msg-input-bar {
+  position: absolute;
+  bottom: 30px;
+  left: 0; right: 0;
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #1c1c1e;
+  border-top: 0.5px solid #2c2c2e;
+}
+.msg-input {
+  flex: 1;
+  background: #2c2c2e;
+  border: 1px solid #3a3a3c;
+  border-radius: 18px;
+  padding: 8px 14px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+}
+.msg-send {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: #007aff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== Камера ===== */
+.app-screen.camera-app { background: #000; color: #fff; }
+.camera-viewfinder {
+  position: absolute;
+  top: 60px; left: 0; right: 0; bottom: 200px;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(255, 200, 100, 0.4), transparent 30%),
+    radial-gradient(circle at 70% 60%, rgba(100, 200, 255, 0.3), transparent 35%),
+    linear-gradient(180deg, #1a1a1a 0%, #000 100%);
+  overflow: hidden;
+}
+.camera-viewfinder::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px; height: 60px;
+  border: 1px solid rgba(255, 235, 59, 0.7);
+  border-radius: 4px;
+}
+.camera-grid-line {
+  position: absolute;
+  background: rgba(255,255,255,0.15);
+}
+.camera-grid-h1 { left: 0; right: 0; top: 33.33%; height: 0.5px; }
+.camera-grid-h2 { left: 0; right: 0; top: 66.66%; height: 0.5px; }
+.camera-grid-v1 { top: 0; bottom: 0; left: 33.33%; width: 0.5px; }
+.camera-grid-v2 { top: 0; bottom: 0; left: 66.66%; width: 0.5px; }
+.camera-modes {
+  position: absolute;
+  bottom: 200px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+}
+.camera-mode.active { color: #ffcc00; }
+.camera-shutter-area {
+  position: absolute;
+  bottom: 60px;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 30px;
+}
+.camera-shutter {
+  width: 75px; height: 75px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #fff;
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.camera-shutter:active { transform: scale(0.9); }
+.camera-thumb {
+  width: 44px; height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff8a8a, #5856d6);
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.camera-flip {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(120,120,128,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.camera-top-bar {
+  position: absolute;
+  top: 60px; left: 0; right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 16px;
+}
+.camera-top-btn {
+  font-size: 12px;
+  color: #ffcc00;
+  background: rgba(60,60,65,0.5);
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+.camera-flash-overlay {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99;
+}
+.camera-flash-overlay.flash {
+  animation: cam-flash 0.3s ease-out;
+}
+@keyframes cam-flash {
+  0% { opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+/* ===== Control Center ===== */
+.control-center {
+  position: absolute;
+  top: 0;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 500;
+  background: rgba(50,50,70,0.5);
+  padding: 60px 14px 30px;
+  transform: translateY(-100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  pointer-events: none;
+}
+.control-center.open {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.cc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.cc-tile {
+  background: rgba(255,255,255,0.15);
+  border: 0.5px solid rgba(255,255,255,0.2);
+  border-radius: 22px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 22px;
+  position: relative;
+  cursor: pointer;
+}
+
+.cc-tile.active {
+  background: #fff;
+  color: #000;
+}
+.cc-tile.wide {
+  grid-column: span 2;
+}
+.cc-tile.tall {
+  grid-row: span 2;
+}
+.cc-tile.large {
+  grid-column: span 2;
+  grid-row: span 2;
+  aspect-ratio: auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 14px;
+  gap: 8px;
+}
+
+.cc-conn {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  height: 100%;
+}
+.cc-conn-item {
+  background: rgba(255,255,255,0.12);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #fff;
+  aspect-ratio: 1;
+  align-self: center;
+  justify-self: center;
+  width: 50px; height: 50px;
+}
+.cc-conn-item.on { background: #007aff; }
+.cc-conn-item.green { background: #34c759; }
+
+.cc-slider {
+  background: rgba(255,255,255,0.15);
+  border: 0.5px solid rgba(255,255,255,0.2);
+  border-radius: 22px;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0;
+  color: #fff;
+}
+.cc-slider-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.85);
+  height: 60%;
+  border-radius: 0;
+}
+.cc-slider-icon-top, .cc-slider-icon-bot {
+  position: relative;
+  z-index: 2;
+  font-size: 22px;
+}
+.cc-slider-fill ~ .cc-slider-icon-top { color: #fff; }
+.cc-slider .with-fill-top { color: #fff; }
+.cc-slider .with-fill-bot { color: #000; }
+
+.cc-hint {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px; height: 5px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
+
+/* SVG icons util */
+.icn {
+  width: 1em; height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* nav button hidden helper for app pages */
+.nav-app { display: none; }
+.nav-app.active { display: block; }
+
+/* Reset button */
+.reset-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  z-index: 9999;
+}
+.reset-btn:hover { background: rgba(255,255,255,0.2); }
+
+/* ===== ДОБАВЛЕНО: масштаб устройства, новые экраны, тёмная тема ===== */
+html, body { font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+.stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+.device { flex-shrink: 0; transform-origin: center center; }
+.side-btn { position: absolute; right: -16px; top: 180px; width: 5px; height: 90px; border-radius: 3px; background: #3a3a3c; cursor: pointer; z-index: 5; }
+.side-btn:hover { background: #5a5a5e; }
+@media (max-width: 420px) { .side-btn { display: none; } .device { transform: none !important; } }
+.reset-btn { bottom: auto; top: 16px; }
+@media (max-width: 420px) { .reset-btn { display: none; } }
+.home-indicator { cursor: pointer; }
+.home-indicator::before { content: ''; position: absolute; inset: -10px -20px; }
+.status-bar .right { pointer-events: auto; cursor: pointer; }
+input, textarea { user-select: text; font-family: inherit; }
+button { font-family: inherit; }
+#torch-glow { position: absolute; inset: 0; z-index: 9000; pointer-events: none; display: none;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,250,220,0.35), transparent 45%); }
+#dim-layer { position: absolute; inset: 0; z-index: 9001; pointer-events: none; background: #000; opacity: 0; }
+.lock-circle { cursor: pointer; }
+.lock-circle.on { background: rgba(255,255,255,0.85); color: #000; }
+.icon-browser { background: linear-gradient(180deg, #67e8f9, #2563eb); }
+.icon-calc { background: linear-gradient(180deg, #4b5563, #111827); }
+.home-grid { grid-auto-rows: 84px; }
+.app-icon:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 14px; }
+
+/* Общие элементы экранов */
+.scr-body { position: absolute; top: 110px; left: 0; right: 0; bottom: 34px; overflow-y: auto; padding: 0 16px 20px; }
+.scr-body.low { top: 60px; }
+.nav-bar { position: absolute; top: 54px; left: 0; right: 0; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; z-index: 12; font-size: 17px; }
+.nav-bar .nb-title { font-weight: 600; position: absolute; left: 60px; right: 60px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.nav-btn { color: #007aff; background: none; border: none; font-size: 17px; cursor: pointer; padding: 6px; display: flex; align-items: center; gap: 2px; }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+.list-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 0.5px solid #c6c6c8; cursor: pointer; background: #fff; color: #000; }
+.list-row:last-child { border-bottom: none; }
+.list-row .lr-main { flex: 1; min-width: 0; }
+.list-row .lr-title { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .lr-sub { font-size: 13px; color: #8e8e93; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .unread { width: 10px; height: 10px; border-radius: 50%; background: #007aff; flex-shrink: 0; }
+.empty-note { text-align: center; color: #8e8e93; padding: 40px 10px; font-size: 15px; }
+.fab { position: absolute; right: 20px; bottom: 50px; width: 54px; height: 54px; border-radius: 50%; border: none; background: #ffcc00; color: #000; font-size: 28px; box-shadow: 0 6px 18px rgba(0,0,0,0.3); cursor: pointer; z-index: 15; }
+.settings-search input { border: none; background: none; outline: none; font-size: 17px; flex: 1; color: #000; }
+.settings-row input[type=range] { flex: 1; accent-color: #007aff; }
+.walls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.wall-opt { height: 150px; border-radius: 14px; border: 3px solid transparent; cursor: pointer; position: relative; }
+.wall-opt.on { border-color: #007aff; }
+.wall-opt span { position: absolute; left: 10px; bottom: 8px; color: #fff; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.about-note { font-size: 13px; color: #6e6e73; line-height: 1.5; padding: 0 4px 16px; }
+.sheet-btn { width: 100%; padding: 12px; border: none; border-radius: 12px; background: #fff; color: #ff3b30; font-size: 17px; cursor: pointer; }
+
+/* Телефон */
+.phone-app { background: #fff; color: #000; }
+.dial-num { position: absolute; top: 120px; left: 20px; right: 20px; text-align: center; font-size: 36px; font-weight: 300; min-height: 44px; letter-spacing: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: ltr; }
+.dial-pad { position: absolute; top: 200px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(3, 78px); gap: 16px 26px; }
+.dial-key { width: 78px; height: 78px; border-radius: 50%; border: none; background: #e5e5ea; font-size: 32px; color: #000; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.dial-key small { font-size: 9px; letter-spacing: 2px; color: #555; margin-top: 2px; }
+.dial-key:active { background: #c7c7cc; }
+.dial-actions { position: absolute; top: 590px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 50px; }
+.dial-call { width: 78px; height: 78px; border-radius: 50%; border: none; background: #34c759; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.dial-del { background: none; border: none; font-size: 26px; color: #8e8e93; cursor: pointer; width: 50px; }
+.call-screen { position: absolute; inset: 0; background: linear-gradient(180deg, #2c3e50, #000); color: #fff; z-index: 30; display: flex; flex-direction: column; align-items: center; padding-top: 140px; }
+.call-screen .cs-name { font-size: 32px; font-weight: 300; }
+.call-screen .cs-time { font-size: 17px; opacity: 0.8; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.call-screen .cs-end { margin-top: auto; margin-bottom: 110px; width: 78px; height: 78px; border-radius: 50%; border: none; background: #ff3b30; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+/* Почта и заметки */
+.mail-app, .notes-app { background: #f2f2f7; color: #000; }
+.read-view { position: absolute; top: 100px; left: 0; right: 0; bottom: 34px; overflow-y: auto; padding: 16px 20px; background: #fff; z-index: 11; }
+.read-view h2 { font-size: 22px; margin-bottom: 6px; }
+.read-view .meta { font-size: 13px; color: #8e8e93; margin-bottom: 16px; }
+.read-view p { font-size: 16px; line-height: 1.5; margin-bottom: 12px; }
+.note-edit { position: absolute; top: 100px; left: 0; right: 0; bottom: 34px; padding: 10px 20px; background: #fff; z-index: 11; }
+.note-edit textarea { width: 100%; height: 100%; border: none; outline: none; resize: none; font-size: 17px; line-height: 1.45; color: #000; background: transparent; }
+
+/* Сообщения */
+.chat-row { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 0.5px solid #2c2c2e; cursor: pointer; }
+.chat-av { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 17px; flex-shrink: 0; color: #fff; }
+.chat-row .lr-sub { color: #8e8e93; }
+
+/* Браузер */
+.browser-app { background: #1c1c1e; color: #fff; }
+.safari-toolbar form { flex: 1; display: flex; }
+.safari-toolbar input { flex: 1; border: none; outline: none; background: transparent; color: #fff; font-size: 14px; text-align: center; }
+.safari-action { background: none; border: none; }
+.safari-action:disabled { opacity: 0.3; cursor: default; }
+.b-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; }
+.b-tile { text-align: center; font-size: 12px; cursor: pointer; color: #000; }
+.b-tile b { display: flex; width: 58px; height: 58px; border-radius: 14px; margin: 0 auto 6px; background: #f2f2f7; align-items: center; justify-content: center; font-size: 26px; }
+
+/* Камера и фото */
+.camera-top-btn { cursor: pointer; border: none; }
+.camera-top-btn.off { color: #fff; opacity: 0.7; }
+.camera-mode { cursor: pointer; }
+.camera-thumb { cursor: pointer; background-size: cover; }
+.camera-viewfinder.front { background: radial-gradient(circle at 50% 45%, rgba(255,210,170,0.45), transparent 35%), linear-gradient(180deg, #2a2a2a, #111); }
+.rec-dot { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); background: #ff3b30; color: #fff; font-size: 13px; padding: 3px 10px; border-radius: 10px; z-index: 5; font-variant-numeric: tabular-nums; }
+.camera-countdown { position: absolute; top: 40%; left: 0; right: 0; text-align: center; font-size: 90px; font-weight: 200; z-index: 5; }
+.photos-app { background: #fff; color: #000; }
+.ph-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.ph-tile { aspect-ratio: 1; cursor: pointer; }
+.ph-view { position: absolute; inset: 0; background: #000; z-index: 30; display: flex; flex-direction: column; }
+.ph-view .pv-img { flex: 1; margin: 110px 0 20px; }
+.ph-view .pv-bar { display: flex; justify-content: space-around; padding: 10px 0 50px; }
+.ph-view .pv-bar button { background: none; border: none; color: #007aff; font-size: 16px; cursor: pointer; }
+.ph-view .pv-bar button.del { color: #ff3b30; }
+.ph-view .pv-cap { position: absolute; top: 64px; left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; }
+
+/* Часы */
+.clock-add { display: flex; gap: 8px; margin: 10px 0 14px; }
+.clock-add input { flex: 1; background: #1c1c1e; border: 1px solid #333; border-radius: 10px; color: #fff; padding: 8px 10px; font-size: 16px; }
+.clock-add button, .lap-btn { background: #ff9500; border: none; border-radius: 10px; color: #000; padding: 0 14px; font-size: 15px; cursor: pointer; }
+.alarm-del { background: none; border: none; color: #ff453a; font-size: 20px; cursor: pointer; margin-right: 10px; }
+.alarm-right { display: flex; align-items: center; }
+.laps { margin-top: 26px; font-variant-numeric: tabular-nums; }
+.laps div { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 0.5px solid #2c2c2e; font-size: 16px; }
+.clock-tab { background: none; border: none; }
+
+/* Календарь */
+.cal-header { display: flex; justify-content: space-between; align-items: center; }
+.cal-header button { background: none; border: none; color: #ff453a; font-size: 26px; cursor: pointer; padding: 0 8px; }
+.cal-day.sel:not(.today)::before { content: ''; position: absolute; top: 2px; width: 32px; height: 32px; background: #3a3a3c; border-radius: 50%; z-index: -1; }
+.cal-events { top: 470px; }
+.cal-add { display: flex; gap: 6px; margin: 8px 0; }
+.cal-add input { background: #1c1c1e; border: 1px solid #333; border-radius: 8px; color: #fff; padding: 6px 8px; font-size: 14px; min-width: 0; }
+.cal-add input[name=title] { flex: 1; }
+.cal-add button { background: #ff453a; border: none; border-radius: 8px; color: #fff; padding: 0 12px; cursor: pointer; }
+.cal-event .ev-del { margin-left: auto; background: none; border: none; color: #8e8e93; font-size: 18px; cursor: pointer; }
+
+/* Музыка */
+.music-app { background: linear-gradient(180deg, #7c3aed 0%, #3b0764 50%, #1a0033 100%); }
+.music-vol-bar { cursor: pointer; position: relative; height: 6px; }
+.music-list { position: absolute; top: 700px; left: 30px; right: 30px; font-size: 13px; color: rgba(255,255,255,0.7); text-align: center; }
+
+/* Пункт управления */
+.cc-tile { border: none; }
+.cc-conn-item { cursor: pointer; }
+.cc-conn-item.off { background: rgba(255,255,255,0.12) !important; }
+.cc-slider { cursor: ns-resize; touch-action: none; }
+.cc-label { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 9px; opacity: 0.75; }
+.cc-tile.active .cc-label { opacity: 0.9; }
+.cc-note { color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; margin-top: 16px; }
+
+/* Меньше стекла */
+body.no-glass .widget, body.no-glass .home-widget, body.no-glass .dock, body.no-glass .cc-tile, body.no-glass .cc-slider { background: rgba(30,30,40,0.95); }
+body.no-glass .widget::before, body.no-glass .icon::before, body.no-glass .icon::after, body.no-glass .dock::before { display: none; }
+body.no-glass .control-center { background: rgba(20,20,30,0.97); }
+
+/* Тёмная тема для светлых экранов */
+body.dark .app-screen[data-light] { background: #000 !important; color: #fff; }
+body.dark .settings-group, body.dark .list-row, body.dark .read-view, body.dark .note-edit { background: #1c1c1e; color: #fff; }
+body.dark .settings-label, body.dark .app-title, body.dark .list-row .lr-title, body.dark .note-edit textarea, body.dark .settings-search input { color: #fff; }
+body.dark .settings-row, body.dark .list-row { border-bottom-color: #38383a; }
+body.dark .dial-key { background: #333; color: #fff; }
+body.dark .dial-key small { color: #aaa; }
+body.dark .dial-num, body.dark .b-tile { color: #fff; }
+body.dark .b-tile b { background: #2c2c2e; }
+body.dark .wall-opt.on { border-color: #0a84ff; }
+@media (max-width: 760px) { .reset-btn { display: none; } }
+.icon-calendar { flex-direction: column; }
+.settings-icon svg { width: 18px; height: 18px; }
+.clock-add input { min-width: 0; }
+.clock-add input[type=time] { flex: 0 0 96px; }
+.camera-top-bar { z-index: 6; }
+body.dark .status-bar.dark { color: #fff; }
+/* ===== Второй этап: стекло, «Файлы», уведомления, переключатель программ ===== */
+body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
+/* Жидкое стекло: светлая кромка, блик и сильное размытие */
+.dock { background: rgba(255,255,255,0.16); backdrop-filter: blur(24px) saturate(1.9); -webkit-backdrop-filter: blur(24px) saturate(1.9); border: 1px solid rgba(255,255,255,0.28); box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 1px rgba(255,255,255,0.12), 0 12px 30px rgba(0,0,0,0.25); }
+.icon { box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.18); }
+.icon::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(160deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 45%); pointer-events: none; }
+.lock-time { font-weight: 600; letter-spacing: -2px; font-size: 100px; }
+.icon-files { background: linear-gradient(180deg, #5ac8fa, #007aff); }
+.app-screen.files-app { background: #f2f2f7; color: #000; }
+body.dark .app-screen.files-app { background: #000; color: #fff; }
+.f-more { position: absolute; right: 16px; top: 58px; width: 32px; height: 32px; border-radius: 16px; background: rgba(120,120,128,0.16); color: #007aff; font-size: 13px; letter-spacing: 1px; }
+.f-search { margin-bottom: 14px; }
+.f-sec { font-size: 20px; font-weight: 700; margin: 6px 4px 8px; }
+.f-group { background: #fff; border-radius: 12px; overflow: hidden; }
+body.dark .f-group { background: #1c1c1e; }
+.f-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px; min-height: 58px; border-bottom: 0.5px solid #c6c6c8; cursor: pointer; }
+body.dark .f-row { border-bottom-color: #38383a; }
+.f-row:last-child { border-bottom: none; }
+.f-row:active { background: rgba(120,120,128,0.12); }
+.f-th { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.f-th svg { width: 36px; height: 36px; }
+.f-th img { max-width: 40px; max-height: 40px; border-radius: 4px; }
+.f-main { flex: 1; min-width: 0; }
+.f-name { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f-sub { font-size: 12px; color: #8e8e93; }
+.f-act { font-size: 14px; color: #007aff; padding: 4px 6px; }
+.f-act.danger, .danger { color: #ff3b30 !important; }
+.f-row .chevron { color: #c7c7cc; font-size: 22px; }
+.f-viewer { position: absolute; inset: 0; z-index: 30; background: #f2f2f7; display: flex; flex-direction: column; padding-top: 50px; animation: fvIn 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+body.dark .f-viewer { background: #000; }
+@keyframes fvIn { from { transform: translateY(100%); } }
+.fv-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; gap: 10px; }
+.fv-bar b { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fv-bar button { color: #007aff; font-size: 16px; font-weight: 600; }
+.fv-text { flex: 1; margin: 0 12px 40px; padding: 14px; border: none; border-radius: 12px; outline: none; resize: none; font: 16px/1.5 -apple-system, system-ui, sans-serif; background: #fff; color: #000; }
+body.dark .fv-text { background: #1c1c1e; color: #fff; }
+.fv-img { flex: 1; background-size: contain; background-position: center; background-repeat: no-repeat; margin: 0 0 40px; }
+
+/* диалоги */
+.ios-alert-back, .ios-sheet-back { position: absolute; inset: 0; z-index: 600; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+.ios-alert { width: 270px; border-radius: 14px; background: rgba(242,242,247,0.86); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); color: #000; text-align: center; padding-top: 18px; overflow: hidden; animation: alertIn 0.2s ease-out; }
+@keyframes alertIn { from { transform: scale(1.15); opacity: 0; } }
+.ios-alert b { display: block; font-size: 17px; padding: 0 16px 12px; }
+.ios-alert input { width: calc(100% - 32px); height: 30px; border-radius: 7px; border: 0.5px solid #c6c6c8; padding: 0 8px; margin-bottom: 18px; font-size: 14px; outline: none; }
+.ia-btns { display: flex; border-top: 0.5px solid #c6c6c8; }
+.ia-btns button { flex: 1; height: 44px; color: #007aff; font-size: 17px; }
+.ia-btns button + button { border-left: 0.5px solid #c6c6c8; }
+.ia-btns .strong, .ios-sheet .strong { font-weight: 600; }
+.ios-sheet-back { align-items: flex-end; }
+.ios-sheet { width: calc(100% - 16px); margin-bottom: 28px; display: flex; flex-direction: column; gap: 8px; animation: sheetUp 0.3s cubic-bezier(0.2,0.9,0.25,1); }
+@keyframes sheetUp { from { transform: translateY(110%); } }
+.is-group { border-radius: 14px; overflow: hidden; background: rgba(242,242,247,0.9); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); }
+.is-title { font-size: 13px; color: #8e8e93; text-align: center; padding: 12px; border-bottom: 0.5px solid #c6c6c8; }
+.is-group button { width: 100%; height: 56px; font-size: 19px; color: #007aff; border-bottom: 0.5px solid #c6c6c8; }
+.is-group button:last-child { border-bottom: none; }
+
+/* уведомления */
+.n-card { display: flex; gap: 10px; padding: 12px 14px; border-radius: 22px; background: rgba(245,245,250,0.62); backdrop-filter: blur(24px) saturate(1.8); -webkit-backdrop-filter: blur(24px) saturate(1.8); color: #000; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 6px 20px rgba(0,0,0,0.15); text-align: left; cursor: pointer; }
+body.dark .n-card { background: rgba(40,40,46,0.6); color: #fff; }
+.n-ic .icon { width: 38px; height: 38px; border-radius: 9px; }
+.n-ic .icon svg { width: 22px; height: 22px; }
+.n-main { flex: 1; min-width: 0; }
+.n-top { display: flex; justify-content: space-between; font-size: 13px; }
+.n-top span { color: rgba(60,60,67,0.6); font-size: 12px; }
+body.dark .n-top span { color: rgba(235,235,245,0.6); }
+.n-title { font-size: 14px; font-weight: 600; }
+.n-body { font-size: 14px; opacity: 0.85; }
+.banner { position: absolute; top: 52px; left: 10px; right: 10px; z-index: 700; animation: bannerIn 0.45s cubic-bezier(0.34,1.4,0.64,1); }
+.banner.out { animation: bannerOut 0.3s ease-in forwards; }
+@keyframes bannerIn { from { transform: translateY(-140%); } }
+@keyframes bannerOut { to { transform: translateY(-140%); opacity: 0; } }
+.lock-notifs { position: absolute; left: 14px; right: 14px; top: 250px; bottom: 260px; overflow: auto; display: flex; flex-direction: column; gap: 8px; z-index: 5; pointer-events: none; }
+.lock-notifs .n-card { pointer-events: auto; }
+#nc { position: absolute; inset: 0; z-index: 500; background: rgba(20,20,30,0.35); backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4); color: #fff; transform: translateY(-100%); transition: transform 0.4s cubic-bezier(0.2,0.9,0.25,1); display: flex; flex-direction: column; }
+#nc.open { transform: none; }
+.nc-clock { text-align: center; padding-top: 70px; }
+.nc-date { font-size: 18px; font-weight: 600; }
+.nc-time { font-size: 80px; font-weight: 600; line-height: 1; letter-spacing: -2px; }
+.nc-head { display: flex; justify-content: space-between; align-items: center; padding: 26px 18px 8px; }
+.nc-head b { font-size: 18px; }
+.nc-head button { color: #fff; background: rgba(255,255,255,0.2); border-radius: 12px; padding: 4px 12px; font-size: 13px; }
+#nc-list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 12px 40px; }
+.nc-empty { text-align: center; opacity: 0.7; margin-top: 20px; }
+
+/* переключатель программ */
+#switcher { position: absolute; inset: 0; z-index: 480; display: none; background: rgba(0,0,0,0.35); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
+#switcher.open { display: flex; align-items: center; animation: swIn 0.3s ease-out; }
+@keyframes swIn { from { opacity: 0; } }
+.sw-row { display: flex; gap: 18px; overflow-x: auto; padding: 0 calc(50% - 110px); width: 100%; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.sw-row::-webkit-scrollbar { display: none; }
+.sw-card { flex: 0 0 220px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 8px; transition: transform 0.2s, opacity 0.2s; touch-action: none; }
+.sw-card.gone { transform: translateY(-120%) !important; opacity: 0 !important; }
+.sw-head { display: flex; align-items: center; gap: 8px; color: #fff; font-size: 14px; font-weight: 600; }
+.sw-head .icon { width: 30px; height: 30px; border-radius: 8px; }
+.sw-head .icon svg { width: 18px; height: 18px; }
+.sw-shot { position: relative; height: 477px; border-radius: 28px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.45); background: #fff; pointer-events: none; }
+.sw-clone { position: absolute !important; left: 0; top: 0; width: 393px; height: 852px; transform: scale(0.56); transform-origin: 0 0; }
+.sw-empty { display: none; color: #fff; width: 100%; text-align: center; font-size: 16px; }
+#switcher.empty .sw-empty { display: block; }
+
+/* ===== Ревью: пункт управления со стеклом, полоска на светлом, игры ===== */
+.control-center { background: rgba(18,18,26,0.6); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
+.app-screen[data-light] .home-indicator { background: rgba(0,0,0,0.35); }
+body.dark .app-screen[data-light] .home-indicator { background: rgba(255,255,255,0.55); }
+.files-app .app-header:has(.back-btn) .app-title { margin-top: 30px; }
+.files-app .app-header:has(.back-btn) ~ .scr-body { top: 146px; }
+.app-screen.game-app { background: #000; }
+.game-frame { position: absolute; left: 0; right: 0; top: 0; bottom: 34px; width: 100%; height: calc(100% - 34px); border: 0; background: #000; }
+.game-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: #000; }
+.game-bar .home-indicator { background: rgba(255,255,255,0.6); }
+.icon-game { padding: 0; }
+.icon-game svg { width: 100%; height: 100%; display: block; }
+.icon-folder { background: rgba(255,255,255,0.28); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 7px; }
+.folder-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; width: 100%; height: 100%; }
+.folder-grid i { display: block; border-radius: 3px; overflow: hidden; }
+.folder-grid svg { width: 100%; height: 100%; display: block; }
+#games-folder { position: absolute; inset: 0; z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(0,0,0,0.25); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+#games-folder.open { display: flex; animation: gfIn 0.25s cubic-bezier(0.2,0.9,0.25,1); }
+@keyframes gfIn { from { opacity: 0; transform: scale(0.9); } }
+.gf-title { color: #fff; font-size: 26px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
+.gf-box { width: 320px; padding: 20px 12px; border-radius: 36px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 8px; max-height: 60%; overflow: auto; }
+.gf-box .app-label { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); font-size: 11px; text-align: center; }
+.sw-game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #111; }
+.sw-game .icon { width: 90px; height: 90px; border-radius: 22px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="device" id="device">
+  <div class="side-btn" id="power-btn" title="Кнопка блокировки"></div>
+  <div class="screen" id="screen">
+    <div class="dynamic-island"></div>
+    <div id="torch-glow"></div>
+    <div id="dim-layer"></div>
+
+    <!-- ===== ЭКРАН БЛОКИРОВКИ ===== -->
+    <div class="page active" id="lock-page">
+      <div class="wallpaper" id="lock-wall"></div>
+      <div class="status-bar" data-sb></div>
+      <div class="lock-clock">
+        <div class="lock-date" id="lock-date"></div>
+        <div class="lock-time" id="lock-time"></div>
+      </div>
+      <div class="lock-widgets">
+        <div class="widget">
+          <div class="widget-title">Погода</div>
+          <div class="widget-value" id="w-temp">+18°</div>
+          <div class="widget-sub">Лиссабон · облачно</div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">Календарь</div>
+          <div class="widget-value" id="w-events"></div>
+          <div class="widget-sub" id="w-next"></div>
+        </div>
+      </div>
+      <div class="lock-bottom">
+        <div class="lock-circle" data-lock="torch" role="button" aria-label="Фонарик" title="Фонарик">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2h8v4l-2 3v13h-4V9L8 6z"/></svg>
+        </div>
+        <div class="lock-circle" data-lock="camera" role="button" aria-label="Камера" title="Камера">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4zm3 5a4 4 0 110 8 4 4 0 010-8z"/></svg>
+        </div>
+      </div>
+      <div class="swipe-hint">Нажмите или смахните вверх, чтобы открыть</div>
+      <div class="home-indicator"></div>
+    </div>
+
+    <!-- ===== ДОМАШНИЙ ЭКРАН ===== -->
+    <div class="page" id="home-page">
+      <div class="home-wallpaper" id="home-wall"></div>
+      <div class="status-bar" data-sb></div>
+      <div class="home-grid" id="home-grid"></div>
+      <div class="dock" id="dock"></div>
+      <div class="home-indicator"></div>
+      <div class="control-center" id="control-center">
+        <div class="cc-hint"></div>
+        <div class="cc-grid">
+          <div class="cc-tile large">
+            <div class="cc-conn">
+              <div class="cc-conn-item" data-cc="airplane" title="Авиарежим" role="button" aria-label="Авиарежим"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>
+              <div class="cc-conn-item green" data-cc="cellular" title="Сотовые данные" role="button" aria-label="Сотовые данные"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h2v-4H2zm4 0h2v-7H6zm4 0h2v-10h-2zm4 0h2v-13h-2zm4 0h2V6h-2z"/></svg></div>
+              <div class="cc-conn-item" data-cc="wifi" title="Wi-Fi" role="button" aria-label="Wi-Fi"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-4c-1.5 0-2.9.5-4 1.4l1.4 1.4c.7-.5 1.6-.8 2.6-.8s1.9.3 2.6.8l1.4-1.4c-1.1-.9-2.5-1.4-4-1.4zm0-4c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/></svg></div>
+              <div class="cc-conn-item" data-cc="bt" title="Bluetooth" role="button" aria-label="Bluetooth"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3-5-5zm2 4.4l1.6 1.6L14 9.6V6.4zm0 9.2L15.6 17 14 18.6v-3z"/></svg></div>
+            </div>
+          </div>
+          <div class="cc-slider tall" data-slider="brightness" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Яркость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">☀️</div><div></div></div>
+          <div class="cc-slider tall" data-slider="volume" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Громкость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">🔊</div><div></div></div>
+          <button class="cc-tile" data-cc="rotation" title="Блокировка поворота"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Поворот</span></button>
+          <button class="cc-tile" data-open="clock" title="Часы"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg><span class="cc-label">Часы</span></button>
+          <button class="cc-tile" data-cc="dnd" title="Не беспокоить"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><span class="cc-label">Не беспок.</span></button>
+          <button class="cc-tile" data-cc="dark" title="Тёмная тема"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 010 16z"/></svg><span class="cc-label">Тёмная</span></button>
+          <button class="cc-tile" data-open="camera" title="Камера"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4zm3 5a4 4 0 110 8 4 4 0 010-8z"/></svg><span class="cc-label">Камера</span></button>
+          <button class="cc-tile" data-cc="torch" title="Фонарик"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2h8v4l-2 3v13h-4V9L8 6z"/></svg><span class="cc-label">Фонарик</span></button>
+          <button class="cc-tile" data-open="calc" title="Калькулятор"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6h8v3H8zM8 12h2v2H8zm4 0h2v2h-2zm-4 4h2v2H8zm4 0h2v2h-2z"/></svg><span class="cc-label">Кальк.</span></button>
+          <button class="cc-tile" data-action="lock" title="Заблокировать"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Блок.</span></button>
+        </div>
+        <div class="cc-note">Смахните вверх или нажмите Esc, чтобы закрыть</div>
+      </div>
+    </div>
+
+    <div id="apps"></div>
+  </div>
+</div>
+</div>
+<button class="reset-btn" id="lock-btn">Заблокировать</button>
+
+<script src="../_os-shared/games.js"></script>
+<script>
+'use strict';
+// ================================================================
+// Телефон «Стекло»: фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.
+// Всё работает без сети; состояние хранится в localStorage под префиксом «ios26.».
+// ================================================================
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad2 = n => String(n).padStart(2, '0');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ios26.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ios26.' + k, JSON.stringify(v)); } catch (e) { /* нет хранилища */ } },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('ios26.')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* нет доступа */ } },
+};
+const listeners = {};
+const on = (ev, fn) => (listeners[ev] = listeners[ev] || new Set()).add(fn);
+const emit = ev => (listeners[ev] || []).forEach(fn => fn());
+const DAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const dayKey = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+
+// ===== Настройки =====
+const WALLS = {
+  aurora: { name: 'Сияние', lock: 'radial-gradient(ellipse at 30% 20%, #ff7eb3 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, #7873f5 0%, transparent 50%), radial-gradient(ellipse at 40% 90%, #4ac1ff 0%, transparent 50%), linear-gradient(135deg, #1a0033 0%, #0d0d2b 100%)',
+    home: 'radial-gradient(ellipse at 50% 0%, #ffa07a 0%, transparent 40%), radial-gradient(ellipse at 0% 50%, #ff6b9d 0%, transparent 40%), radial-gradient(ellipse at 100% 80%, #5e72eb 0%, transparent 50%), linear-gradient(180deg, #2d1b69 0%, #11052c 100%)' },
+  ocean: { name: 'Океан', lock: 'radial-gradient(ellipse at 50% 30%, #67e8f9 0%, transparent 50%), linear-gradient(180deg, #0c4a6e 0%, #082f49 100%)', home: 'radial-gradient(ellipse at 20% 80%, #22d3ee 0%, transparent 50%), linear-gradient(180deg, #075985 0%, #0c1a33 100%)' },
+  sunset: { name: 'Закат', lock: 'radial-gradient(ellipse at 50% 90%, #fde68a 0%, transparent 50%), linear-gradient(180deg, #312e81 0%, #be185d 70%, #fb923c 100%)', home: 'linear-gradient(180deg, #4c1d95 0%, #be185d 60%, #f97316 100%)' },
+  forest: { name: 'Лес', lock: 'radial-gradient(ellipse at 70% 30%, #86efac 0%, transparent 45%), linear-gradient(160deg, #064e3b 0%, #14532d 60%, #1a2e05 100%)', home: 'radial-gradient(ellipse at 30% 20%, #4ade80 0%, transparent 45%), linear-gradient(180deg, #14532d 0%, #052e16 100%)' },
+};
+const DEF = { airplane: false, cellular: true, wifi: true, bt: true, dnd: false, dark: false, torch: false, rotation: false, brightness: 100, volume: 60, wallpaper: 'aurora', glass: true };
+const S = Object.assign({}, DEF, store.get('settings', {}));
+function applySettings() {
+  const w = WALLS[S.wallpaper] || WALLS.aurora;
+  $('lock-wall').style.background = w.lock;
+  $('home-wall').style.background = w.home;
+  document.body.classList.toggle('dark', S.dark);
+  document.body.classList.toggle('no-glass', !S.glass);
+  $('torch-glow').style.display = S.torch ? 'block' : 'none';
+  $('dim-layer').style.opacity = String((100 - S.brightness) / 100 * 0.7);
+  document.querySelectorAll('[data-cc]').forEach(t => { const on = !!S[t.dataset.cc]; t.classList.toggle(t.classList.contains('cc-conn-item') ? 'on' : 'active', on); if (t.classList.contains('cc-conn-item')) t.classList.toggle('off', !on); });
+  document.querySelectorAll('[data-lock="torch"]').forEach(b => b.classList.toggle('on', S.torch));
+  document.querySelectorAll('[data-slider]').forEach(sl => { sl.querySelector('.cc-slider-fill').style.height = S[sl.dataset.slider] + '%'; sl.setAttribute('aria-valuenow', S[sl.dataset.slider]); });
+  renderStatusBars();
+  emit('settings');
+}
+function setS(k, v) {
+  S[k] = v;
+  if (k === 'airplane' && v) { S.wifi = false; S.bt = false; S.cellular = false; }
+  if (['wifi', 'bt', 'cellular'].includes(k) && v) S.airplane = false;
+  store.set('settings', S);
+  applySettings();
+}
+
+// ===== Строка состояния =====
+function statusHTML() {
+  const d = new Date();
+  const net = S.airplane ? '<svg width="16" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>'
+    : (S.cellular ? '<svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><path d="M1 3.5h2v4H1zm4-1h2v5H5zm4-1h2v6H9zm4-1h2v7h-2z"/></svg>' : '') +
+      (S.wifi ? '<svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor"><path d="M2 5.5C4 3 7 2 8 2s4 1 6 3.5"/><path d="M4 7.5c1.5-1.5 2.5-2 4-2s2.5.5 4 2"/><circle cx="8" cy="9" r="1" fill="currentColor"/></svg>' : '');
+  return '<span class="time">' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '</span><span class="right" title="Пункт управления">' + (S.dnd ? '🌙' : '') + net +
+    '<svg width="27" height="11" viewBox="0 0 27 11" fill="none"><rect x="0.5" y="0.5" width="22" height="10" rx="2.5" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="7" rx="1.5" fill="currentColor"/><path d="M24 4v3" stroke="currentColor" opacity="0.5"/></svg></span>';
+}
+function renderStatusBars() { const h = statusHTML(); document.querySelectorAll('[data-sb]').forEach(sb => { if (sb.innerHTML !== h) sb.innerHTML = h; }); }
+document.addEventListener('click', e => { if (e.target.closest('.status-bar .right') && $('home-page').classList.contains('active') && !document.querySelector('.app-screen.active')) openCC(); });
+
+// ===== Значки =====
+const ICONS = {
+  phone: ['icon-phone', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg>'],
+  messages: ['icon-messages', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.5 1.4 4.6 3.6 6L4 20l3.5-1.2c1.3.5 2.9.7 4.5.7 5.5 0 10-3.6 10-8s-4.5-8.5-10-8.5z"/></svg>'],
+  mail: ['icon-mail', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'],
+  browser: ['icon-browser', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18"/></svg>'],
+  camera: ['icon-camera', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4z"/><circle cx="12" cy="13" r="4" fill="#fff" opacity="0.3"/></svg>'],
+  photos: ['icon-photos', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><rect x="3" y="5" width="18" height="14" rx="2" opacity="0.9"/><circle cx="8.5" cy="10" r="2" fill="#ec4899"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fbbf24"/></svg>'],
+  music: ['icon-music', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M9 17V7l10-2v10c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2V8l-6 1.2v8.6c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2z"/></svg>'],
+  weather: ['icon-weather', '<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="11" r="4" fill="#fde047"/><path d="M14 14c2 0 4 1.5 4 4s-2 3-4 3H8c-2 0-3.5-1-3.5-3s2-4 4.5-4h5z"/></svg>'],
+  clock: ['icon-clock', '<svg width="44" height="44" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#fff"/><line x1="50" y1="50" x2="50" y2="20" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="50" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="50" y2="78" stroke="#ff9500" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="50" r="3" fill="#000"/></svg>'],
+  calc: ['icon-calc', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="8" y="5" width="8" height="3" rx="0.5"/><circle cx="9" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="15" cy="12" r="1" fill="#fb923c"/><circle cx="9" cy="16" r="1"/><circle cx="12" cy="16" r="1"/><circle cx="15" cy="16" r="1" fill="#fb923c"/></svg>'],
+  notes: ['icon-notes', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1f2937" stroke-width="1.5"><path d="M5 4h14v16H5z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/></svg>'],
+  calendar: ['icon-calendar', () => { const d = new Date(); return '<div style="font-size:9px;font-weight:700;color:#ef4444;margin-bottom:-4px;">' + MONTHS[d.getMonth()].slice(0, 3).toUpperCase() + '</div><div style="font-size:30px;font-weight:300;color:#1f2937;">' + d.getDate() + '</div>'; }],
+  settings: ['icon-settings', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5"><circle cx="12" cy="12" r="3" fill="#374151"/><path d="M12 2l1.5 3 3.3-.5-.5 3.3L19 9l-1.7 2.5L19 14l-2.7 1.2.5 3.3-3.3-.5L12 21l-1.5-3-3.3.5.5-3.3L5 14l1.7-2.5L5 9l2.7-1.2-.5-3.3 3.3.5z" fill="#9ca3af"/></svg>'],
+};
+const iconHTML = id => { const [cls, svg] = ICONS[id]; return '<div class="icon ' + cls + '">' + (typeof svg === 'function' ? svg() : svg) + '</div>'; };
+
+// ===== Программы =====
+const APPS = {
+  phone: { name: 'Телефон', cls: 'phone-app', light: true, init: initPhone },
+  messages: { name: 'Сообщения', cls: 'messages-app', init: initMessages },
+  mail: { name: 'Почта', cls: 'mail-app', light: true, init: initMail },
+  browser: { name: 'Браузер', cls: 'browser-app', init: initBrowser },
+  camera: { name: 'Камера', cls: 'camera-app', init: initCamera },
+  photos: { name: 'Фото', cls: 'photos-app', light: true, init: initPhotos },
+  music: { name: 'Музыка', cls: 'music-app', init: initMusic },
+  weather: { name: 'Погода', cls: 'weather-app', init: initWeather },
+  clock: { name: 'Часы', cls: 'clock-app', init: initClock },
+  calc: { name: 'Калькулятор', cls: 'calc', init: initCalc },
+  notes: { name: 'Заметки', cls: 'notes-app', light: true, init: initNotes },
+  calendar: { name: 'Календарь', cls: 'calendar-app', init: initCalendar },
+  settings: { name: 'Настройки', cls: 'settings-app', light: true, init: initSettings },
+};
+const HOME = ['weather', 'clock', 'phone', 'messages', 'mail', 'browser', 'camera', 'photos', 'music', 'calc', 'notes', 'calendar'];
+const DOCK = ['phone', 'browser', 'messages', 'settings'];
+const screens = {};
+function buildHome() {
+  $('home-grid').innerHTML = '<div class="home-widget weather-widget" data-app="weather" role="button" aria-label="Погода"><div class="home-widget-title">Лиссабон</div><div class="temp" id="hw-temp">+18°</div><div class="city">Облачно</div><div class="desc">Макс +21° · Мин +14°</div></div>' +
+    HOME.map(id => '<div class="app-icon" data-app="' + id + '" tabindex="0" role="button" aria-label="' + APPS[id].name + '">' + iconHTML(id) + '<div class="app-label">' + APPS[id].name + '</div></div>').join('');
+  $('dock').innerHTML = DOCK.map(id => '<div class="app-icon" data-app="' + id + '" tabindex="0" role="button" aria-label="' + APPS[id].name + '">' + iconHTML(id) + '</div>').join('');
+}
+function buildScreens() {
+  Object.entries(APPS).forEach(([id, a]) => {
+    const el = document.createElement('div');
+    el.className = 'app-screen ' + a.cls;
+    el.id = 'app-' + id;
+    if (a.light) el.dataset.light = '1';
+    $('apps').appendChild(el);
+    screens[id] = { el, inited: false, onShow: null, onHide: null, onKey: null };
+  });
+}
+// каждый экран: строка состояния, содержимое программы, полоска «домой»
+function shell(id, inner, darkBar) {
+  screens[id].el.innerHTML = '<div class="status-bar' + (darkBar ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
+  renderStatusBars();
+}
+
+// ===== Навигация =====
+let current = null;   // открытая программа
+function showLock() { closeCC(); hideApp(); $('home-page').classList.remove('active'); $('lock-page').classList.add('active'); updateWidgets(); }
+function showHome() { closeCC(); hideApp(); $('lock-page').classList.remove('active'); $('home-page').classList.add('active'); }
+function hideApp() { if (current && screens[current].onHide) screens[current].onHide(); document.querySelectorAll('.app-screen.active').forEach(s => s.classList.remove('active')); current = null; }
+function openApp(id, arg) {
+  const sc = screens[id]; if (!sc) return;
+  closeCC();
+  hideApp();
+  $('lock-page').classList.remove('active');
+  $('home-page').classList.add('active');
+  if (!sc.inited) { APPS[id].init(sc); sc.inited = true; }
+  sc.el.classList.add('active');
+  current = id;
+  if (sc.onShow) sc.onShow(arg);
+}
+let homeTap = null;
+$('screen').addEventListener('click', e => {
+  // полоска «Домой»: одно нажатие - домой, двойное - переключатель программ (первое нажатие ждёт второго)
+  // в игре полоска захватывает указатель (жест над рамкой), поэтому щелчок приходит самой полосе .game-bar
+  if (e.target.closest('.home-indicator, .game-bar') && !$('lock-page').classList.contains('active')) {
+    if (homeTap) { clearTimeout(homeTap); homeTap = null; openSwitcher(); } else homeTap = setTimeout(() => { homeTap = null; showHome(); }, 260);
+    return;
+  }
+  const a = e.target.closest('[data-app]');
+  if (a && !a.closest('.app-screen')) { openApp(a.dataset.app); return; }
+  const o = e.target.closest('[data-open]'); if (o) { openApp(o.dataset.open); return; }
+  const t = e.target.closest('[data-cc]'); if (t) { setS(t.dataset.cc, !S[t.dataset.cc]); return; }
+  if (e.target.closest('[data-action="lock"]')) { showLock(); return; }
+  const l = e.target.closest('[data-lock]');
+  if (l) { e.stopPropagation(); if (l.dataset.lock === 'torch') setS('torch', !S.torch); else openApp('camera'); }
+});
+$('screen').addEventListener('keydown', e => { const a = e.target.closest('.app-icon[data-app]'); if (a && e.key === 'Enter') openApp(a.dataset.app); });
+$('power-btn').addEventListener('click', () => { if ($('lock-page').classList.contains('active')) showHome(); else showLock(); });
+$('lock-btn').addEventListener('click', () => showLock());   // по имени: работает и обёртка из kit.js
+
+// Разблокировка: нажатие или смахивание вверх по экрану блокировки
+let lockPress = null;
+$('lock-page').addEventListener('pointerdown', e => { if (!e.target.closest('.lock-circle')) lockPress = e.clientY; });
+$('lock-page').addEventListener('pointerup', e => {
+  if (lockPress === null || e.target.closest('.lock-circle')) { lockPress = null; return; }
+  const dy = lockPress - e.clientY; lockPress = null;
+  if (Math.abs(dy) < 30 || dy > 60) showHome();
+});
+
+// Жесты: смахнуть вверх - домой, смахнуть вниз от верхнего края - пункт управления
+let g = null;
+$('device').addEventListener('pointerdown', e => {
+  const r = $('device').getBoundingClientRect(), k = r.height / $('device').offsetHeight;
+  g = { x: e.clientX, y: e.clientY, localY: (e.clientY - r.top) / k, localX: (e.clientX - r.left) / k, t: e.target };
+});
+$('device').addEventListener('pointerup', e => {
+  if (!g) return;
+  const k = $('device').getBoundingClientRect().height / $('device').offsetHeight;
+  const dy = (g.y - e.clientY) / k, dx = (e.clientX - g.x) / k, start = g; g = null;
+  if (Math.abs(dx) > Math.abs(dy) || Math.abs(dy) < 70) return;
+  if (start.t.closest('input, textarea, button, .cc-slider, .calc-btn, [data-scroll], .scr-body, .msg-list, .settings-list, .read-view, .note-edit')) return;
+  if ($('lock-page').classList.contains('active')) return;
+  const ccOpen = $('control-center').classList.contains('open');
+  // сверху слева - центр уведомлений, сверху справа - пункт управления (и в программах тоже)
+  if (dy < 0 && start.localY < 70 && !ccOpen && !$('nc').classList.contains('open')) { if (start.localX < $('device').offsetWidth * 0.45) openNC(); else openCC(); }
+  else if (dy > 0 && $('nc').classList.contains('open')) closeNC();
+  else if (dy > 0 && ccOpen) closeCC();
+  else if (dy > 0 && current && start.localY > $('device').offsetHeight - 120) showHome();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if ($('control-center').classList.contains('open')) closeCC();
+    else if (current && screens[current].onKey && screens[current].onKey(e)) return;
+    else if (current) showHome();
+    return;
+  }
+  if ($('lock-page').classList.contains('active') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showHome(); return; }
+  if (current && screens[current].onKey && !(e.target.closest && e.target.closest('input, textarea'))) screens[current].onKey(e);
+});
+
+// ===== Пункт управления =====
+function openCC() { $('control-center').classList.add('open'); }
+function closeCC() { $('control-center').classList.remove('open'); }
+$('control-center').addEventListener('click', e => { if (e.target.id === 'control-center') closeCC(); });
+document.querySelectorAll('[data-slider]').forEach(sl => {
+  sl.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    sl.setPointerCapture(e.pointerId);
+    const set = ev => { const r = sl.getBoundingClientRect(); setS(sl.dataset.slider, Math.round(Math.max(sl.dataset.slider === 'brightness' ? 30 : 0, Math.min(100, (r.bottom - ev.clientY) / r.height * 100)))); };
+    set(e);
+    const up = () => { sl.removeEventListener('pointermove', set); sl.removeEventListener('pointerup', up); };
+    sl.addEventListener('pointermove', set); sl.addEventListener('pointerup', up);
+  });
+});
+
+// ===== Часы на экране блокировки и виджеты =====
+function tick() {
+  const d = new Date();
+  const t = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  if ($('lock-time').textContent !== t) { $('lock-time').textContent = t; renderStatusBars(); }
+  $('lock-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()];
+}
+setInterval(tick, 1000);
+// демо-температура по часу суток: одна и та же в виджетах и в «Погоде»
+const tempAt = h => Math.round(17 + 3 * Math.sin((h - 9) / 24 * Math.PI * 2));
+function updateWidgets() {
+  const t = '+' + tempAt(new Date().getHours()) + '°';
+  $('w-temp').textContent = t;
+  const hw = $('hw-temp'); if (hw) hw.textContent = t;
+  const today = (loadEvents()[dayKey(new Date())] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+  const n = today.length;
+  $('w-events').textContent = n ? n + ' ' + (n === 1 ? 'событие' : n < 5 ? 'события' : 'событий') : 'Нет событий';
+  const now = pad2(new Date().getHours()) + ':' + pad2(new Date().getMinutes());
+  const next = today.find(e => e.time >= now);
+  $('w-next').textContent = next ? 'Следующее в ' + next.time : n ? 'На сегодня всё' : 'Сегодня свободно';
+}
+
+// ===== Калькулятор =====
+function initCalc(sc) {
+  const keys = [['AC', 'gray', 'C'], ['±', 'gray'], ['%', 'gray'], ['÷', 'orange', '/'], ['7'], ['8'], ['9'], ['×', 'orange', '*'], ['4'], ['5'], ['6'], ['−', 'orange', '-'], ['1'], ['2'], ['3'], ['+', 'orange', '+'], ['0', 'zero'], [',', '', '.'], ['=', 'orange', '=']];
+  shell('calc', '<div class="calc-display" id="calc-display">0</div><div class="calc-buttons">' + keys.map(k => '<button class="calc-btn ' + (k[1] || '') + '" data-calc="' + (k[2] || k[0]) + '">' + k[0] + '</button>').join('') + '</div>');
+  const disp = sc.el.querySelector('#calc-display');
+  let cur = '0', prev = null, op = null, fresh = false, err = false;
+  const num = x => String(parseFloat(x.toPrecision(10)));
+  const fmt = s => { if (err) return 'Ошибка'; const n = parseFloat(s); if (Math.abs(n) >= 1e9 || (n !== 0 && Math.abs(n) < 1e-7)) return n.toExponential(4).replace('.', ','); const [a, b] = s.split('.'); return a.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (b !== undefined ? ',' + b : ''); };
+  function show() { disp.textContent = fmt(cur); disp.style.fontSize = Math.min(80, Math.floor(340 / Math.max(4, disp.textContent.length * 0.62))) + 'px'; }
+  function compute() { const a = parseFloat(prev), b = parseFloat(cur); const r = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : b === 0 ? NaN : a / b; if (!isFinite(r)) { err = true; return '0'; } return num(r); }
+  function press(k) {
+    if (err && k !== 'C') { err = false; cur = '0'; prev = null; op = null; }
+    if (/^\d$/.test(k)) { if (fresh || cur === '0') { cur = k; fresh = false; } else if (cur.replace(/[-.]/g, '').length < 9) cur += k; }
+    else if (k === '.') { if (fresh) { cur = '0.'; fresh = false; } else if (!cur.includes('.')) cur += '.'; }
+    else if (k === 'C') { cur = '0'; prev = null; op = null; fresh = false; err = false; }
+    else if (k === '±') { if (cur !== '0') cur = cur.startsWith('-') ? cur.slice(1) : '-' + cur; }
+    else if (k === '%') cur = num(parseFloat(cur) / 100);
+    else if (k === 'back') { if (!fresh) cur = cur.length > 1 && !/^-\d$/.test(cur) ? cur.slice(0, -1) : '0'; }
+    else if ('+-*/'.includes(k)) { if (op && !fresh) cur = compute(); prev = cur; op = k; fresh = true; }
+    else if (k === '=') { if (op) { cur = compute(); op = null; prev = null; fresh = true; } }
+    show();
+  }
+  sc.el.addEventListener('click', e => { const b = e.target.closest('[data-calc]'); if (b) press(b.dataset.calc); });
+  sc.onKey = e => {
+    const map = { Enter: '=', '=': '=', Backspace: 'back', Delete: 'C', ',': '.', '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%' };
+    const k = /^\d$/.test(e.key) ? e.key : map[e.key];
+    if (k) { e.preventDefault(); press(k); return true; }
+  };
+  show();
+}
+
+// ===== Телефон =====
+function initPhone(sc) {
+  const keys = [['1', ''], ['2', 'АБВГ'], ['3', 'ДЕЖЗ'], ['4', 'ИЙКЛ'], ['5', 'МНОП'], ['6', 'РСТУ'], ['7', 'ФХЦЧ'], ['8', 'ШЩЪЫ'], ['9', 'ЬЭЮЯ'], ['*', ''], ['0', '+'], ['#', '']];
+  shell('phone', '<div class="app-header"><div class="app-title">Клавиши</div></div><div class="dial-num" id="dial-num"></div><div class="dial-pad">' +
+    keys.map(k => '<button class="dial-key" data-key="' + k[0] + '">' + k[0] + '<small>' + k[1] + '</small></button>').join('') + '</div>' +
+    '<div class="dial-actions"><span style="width:50px"></span><button class="dial-call" data-call title="Позвонить"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></button><button class="dial-del" data-del title="Стереть">⌫</button></div>', true);
+  let number = '', timer = null;
+  const numEl = sc.el.querySelector('#dial-num');
+  const show = () => { numEl.textContent = number; sc.el.querySelector('[data-del]').style.visibility = number ? 'visible' : 'hidden'; };
+  function endCall() { clearInterval(timer); const c = sc.el.querySelector('.call-screen'); if (c) c.remove(); }
+  function call() {
+    if (!number) return;
+    const start = Date.now();
+    const cs = document.createElement('div');
+    cs.className = 'call-screen';
+    cs.innerHTML = '<div class="cs-name"></div><div class="cs-time">вызов…</div><button class="cs-end" data-end title="Завершить"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fff" transform="rotate(135)"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></button>';
+    cs.querySelector('.cs-name').textContent = number;
+    sc.el.appendChild(cs);
+    timer = setInterval(() => { const s = Math.floor((Date.now() - start) / 1000); cs.querySelector('.cs-time').textContent = s < 2 ? 'вызов…' : pad2(Math.floor((s - 2) / 60)) + ':' + pad2((s - 2) % 60) + ' (демо-звонок)'; }, 500);
+  }
+  sc.el.addEventListener('click', e => {
+    const k = e.target.closest('[data-key]'); if (k && number.length < 16) { number += k.dataset.key; show(); return; }
+    if (e.target.closest('[data-del]')) { number = number.slice(0, -1); show(); return; }
+    if (e.target.closest('[data-call]')) { call(); return; }
+    if (e.target.closest('[data-end]')) endCall();
+  });
+  sc.onKey = e => {
+    if (e.key === 'Escape' && sc.el.querySelector('.call-screen')) { endCall(); return true; }
+    if (/^[\d*#]$/.test(e.key) && number.length < 16) { number += e.key; show(); return true; }
+    if (e.key === 'Backspace') { number = number.slice(0, -1); show(); return true; }
+    if (e.key === 'Enter') { call(); return true; }
+  };
+  sc.onHide = endCall;
+  show();
+}
+
+// ===== Сообщения =====
+function initMessages(sc) {
+  const def = { ann: { name: 'Аня', color: '#ec4899', msgs: [{ me: false, t: 'Привет! Как проект?' }, { me: true, t: 'Почти доделал 🙂' }] },
+    club: { name: 'Кружок робототехники', color: '#22c55e', msgs: [{ me: false, t: 'Занятие в четверг в 16:00' }] } };
+  let chats = store.get('chats', def), open = null;
+  const save = () => store.set('chats', chats);
+  function render() {
+    if (!open) {
+      shell('messages', '<div class="app-header"><div class="app-title" style="color:#fff">Сообщения</div></div><div class="scr-body" style="padding:0">' +
+        Object.entries(chats).map(([id, c]) => '<div class="chat-row" data-chat="' + id + '"><div class="chat-av" style="background:' + c.color + '">' + esc(c.name[0]) + '</div><div class="lr-main"><div class="lr-title">' + esc(c.name) + '</div><div class="lr-sub">' + esc((c.msgs[c.msgs.length - 1] || { t: '' }).t) + '</div></div></div>').join('') + '</div>');
+      return;
+    }
+    const c = chats[open];
+    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn" data-back>‹ Назад</button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
+      c.msgs.map(m => '<div class="msg-bubble ' + (m.me ? 'me' : 'them') + '">' + esc(m.t) + '</div>').join('') + '</div>' +
+      '<form class="msg-input-bar"><input class="msg-input" id="msg-input" placeholder="Сообщение" autocomplete="off"><button class="msg-send" title="Отправить"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8z" transform="rotate(-90 12 12)"/></svg></button></form>');
+    const list = sc.el.querySelector('#msg-list'); list.scrollTop = list.scrollHeight;
+  }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-chat]'); if (r) { open = r.dataset.chat; render(); sc.el.querySelector('#msg-input').focus(); return; }
+    if (e.target.closest('[data-back]')) { open = null; render(); }
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = sc.el.querySelector('#msg-input'), text = inp.value.trim(); if (!text) return;
+    const chat = open;
+    chats[chat].msgs.push({ me: true, t: text }); save(); render(); sc.el.querySelector('#msg-input').focus();
+    setTimeout(() => {
+      chats[chat].msgs.push({ me: false, t: ['Хорошо', 'Понятно 👍', 'Окей', 'Договорились', 'Спасибо!'][Math.floor(Math.random() * 5)] }); save();
+      if (current === 'messages' && open === chat) { const had = sc.el.querySelector('#msg-input').value; render(); const i = sc.el.querySelector('#msg-input'); i.value = had; i.focus(); }
+    }, 900);
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open) { open = null; render(); return true; } };
+  render();
+}
+
+// ===== Почта (письма встроенные, без сети) =====
+function initMail(sc) {
+  const LETTERS = [
+    { id: 1, from: 'Телефон «Стекло»', subj: 'Добро пожаловать', body: ['Это фан-концепт интерфейса телефона в одной странице HTML.', 'Смахните вверх или нажмите на полоску внизу, чтобы вернуться домой. Смахните вниз от верхнего края или нажмите на значки справа вверху - откроется пункт управления.'] },
+    { id: 2, from: 'Советы', subj: 'Что сохраняется', body: ['Заметки, события календаря, будильники, переписка, снимки камеры и настройки остаются после перезагрузки.', 'Сбросить всё можно в Настройках → Об устройстве.'] },
+    { id: 3, from: 'О проекте', subj: 'Фан-концепт', body: ['Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.', 'Значки и обои нарисованы заново, шрифты системные, сеть не нужна.'] },
+  ];
+  let read = new Set(store.get('mailRead', [])), open = null;
+  function render() {
+    if (!open) {
+      shell('mail', '<div class="app-header"><div class="app-title">Входящие</div></div><div class="scr-body"><div class="settings-group">' +
+        LETTERS.map(l => '<div class="list-row" data-letter="' + l.id + '">' + (read.has(l.id) ? '<span style="width:10px"></span>' : '<span class="unread"></span>') + '<div class="lr-main"><div class="lr-title">' + esc(l.from) + '</div><div class="lr-sub">' + esc(l.subj) + '</div></div><div class="chevron">›</div></div>').join('') + '</div></div>', true);
+      return;
+    }
+    const l = LETTERS.find(x => x.id === open);
+    shell('mail', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Входящие</button></div><div class="read-view"><h2>' + esc(l.subj) + '</h2><div class="meta">' + esc(l.from) + '</div>' + l.body.map(p => '<p>' + esc(p) + '</p>').join('') + '</div>', true);
+  }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-letter]'); if (r) { open = +r.dataset.letter; read.add(open); store.set('mailRead', [...read]); render(); return; }
+    if (e.target.closest('[data-back]')) { open = null; render(); }
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open) { open = null; render(); return true; } };
+  render();
+}
+
+// ===== Браузер (только встроенные страницы) =====
+function initBrowser(sc) {
+  const PAGES = {
+    'about:start': () => '<div class="safari-h1">Стартовая страница</div><div class="safari-meta">Браузер работает без интернета</div><div class="b-tiles">' +
+      [['about:help', '📖', 'Справка'], ['about:about', 'ℹ️', 'О телефоне'], ['about:time', '🕒', 'Время'], ['app:notes', '📝', 'Заметки']].map(t => '<div class="b-tile" data-go="' + t[0] + '"><b>' + t[1] + '</b>' + t[2] + '</div>').join('') + '</div>',
+    'about:help': () => '<div class="safari-h1">Справка</div><p>Введите адрес вверху. Встроенные страницы: about:start, about:help, about:about, about:time.</p><p>Внешние сайты не открываются: сеть не используется.</p>',
+    'about:about': () => '<div class="safari-h1">О телефоне</div><p>Телефон «Стекло» - фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</p>',
+    'about:time': () => '<div class="safari-h1">Время</div><p style="font-size:40px;font-weight:200">' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + '</p><p>' + new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '</p>',
+  };
+  const hist = [], fwd = [];
+  let cur = 'about:start';
+  shell('browser', '<div class="safari-toolbar"><form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form></div><div class="safari-content" id="b-content"></div>' +
+    '<div class="safari-bottom-bar"><button class="safari-action" data-b="back" title="Назад"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
+    '<button class="safari-action" data-b="fwd" title="Вперёд"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
+    '<button class="safari-action" data-b="reload" title="Обновить"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.7M20 4v5h-5"/></svg></button>' +
+    '<button class="safari-action" data-b="home" title="Стартовая"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></button></div>');
+  const content = sc.el.querySelector('#b-content'), input = sc.el.querySelector('input');
+  function render() {
+    content.innerHTML = PAGES[cur] ? PAGES[cur]() : '<div class="safari-h1">Нет подключения</div><p>Страница <b>' + esc(cur) + '</b> не открыта: телефон работает без сети.</p><p><a href="#" data-go="about:start">На стартовую</a></p>';
+    input.value = cur === 'about:start' ? '' : cur;
+    sc.el.querySelector('[data-b=back]').disabled = !hist.length;
+    sc.el.querySelector('[data-b=fwd]').disabled = !fwd.length;
+  }
+  function nav(u) {
+    u = u.trim(); if (!u) return;
+    if (u.startsWith('app:')) { openApp(u.slice(4)); return; }
+    if (!/^[a-z]+:/i.test(u)) u = /^[\w-]+(\.[\w-]+)+/.test(u) ? 'https://' + u : 'about:help';
+    if (u !== cur) { hist.push(cur); fwd.length = 0; cur = u; }
+    render();
+  }
+  sc.el.querySelector('form').addEventListener('submit', e => { e.preventDefault(); nav(input.value); input.blur(); });
+  sc.el.addEventListener('click', e => {
+    const g2 = e.target.closest('[data-go]'); if (g2) { e.preventDefault(); nav(g2.dataset.go); return; }
+    const b = e.target.closest('[data-b]'); if (!b || b.disabled) return;
+    if (b.dataset.b === 'back') { fwd.push(cur); cur = hist.pop(); } else if (b.dataset.b === 'fwd') { hist.push(cur); cur = fwd.pop(); } else if (b.dataset.b === 'home') { nav('about:start'); return; }
+    render();
+  });
+  render();
+}
+
+// ===== Камера и Фото: снимки - градиенты, хранятся в памяти браузера =====
+const PHOTO_GRADS = ['linear-gradient(135deg,#ff7e5f,#feb47b)', 'linear-gradient(135deg,#4a90e2,#2e5fa0)', 'linear-gradient(135deg,#b86fc9,#5e3a87)', 'linear-gradient(135deg,#ffcc00,#ff9500)', 'linear-gradient(135deg,#34c759,#1f8f3a)', 'linear-gradient(135deg,#5ac8fa,#007aff)', 'linear-gradient(160deg,#2e1a5e,#5b2a8c)', 'linear-gradient(180deg,#7dd3fc,#0e7490)'];
+const loadShots = () => store.get('photos', null) || PHOTO_GRADS.slice(0, 6).map((g, i) => ({ id: 'p' + i, grad: g, date: Date.now() - (6 - i) * 86400000 }));
+// снимки камеры + картинки из «Файлов» (папка «Изображения»)
+const loadPhotos = () => (typeof FS === 'undefined' ? [] : [...FS.values()].filter(e => e.type === 'file' && e.path.startsWith('Изображения/') && isImage(e.path) && fileUrl(e)).map(e => ({ id: 'fs:' + e.path, fs: e.path, grad: 'url(' + fileUrl(e) + ') center/cover no-repeat', date: e.mtime }))).concat(loadShots());
+function savePhotos(p) { store.set('photos', p.filter(x => !x.fs)); emit('photos'); }
+function initCamera(sc) {
+  const MODES = ['ВИДЕО', 'ФОТО', 'ПОРТРЕТ', 'ПАНОРАМА'];
+  let mode = 'ФОТО', flash = 0, delay = 0, hdr = true, front = false, rec = null;
+  shell('camera', '<div class="camera-top-bar"><button class="camera-top-btn" data-t="flash"></button><button class="camera-top-btn" data-t="timer"></button><button class="camera-top-btn" data-t="hdr">HDR</button></div>' +
+    '<div class="camera-viewfinder"><div class="camera-grid-line camera-grid-h1"></div><div class="camera-grid-line camera-grid-h2"></div><div class="camera-grid-line camera-grid-v1"></div><div class="camera-grid-line camera-grid-v2"></div></div>' +
+    '<div class="camera-modes">' + MODES.map(m => '<div class="camera-mode" data-mode="' + m + '">' + m + '</div>').join('') + '</div>' +
+    '<div class="camera-shutter-area"><div class="camera-thumb" title="Открыть Фото" data-thumb></div><div class="camera-shutter" id="camera-shutter" role="button" aria-label="Снимок"></div><div class="camera-flip" title="Сменить камеру" data-flip><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M16 3l3 3-3 3M2 9V7a4 4 0 014-4h13M8 21l-3-3 3-3M22 15v2a4 4 0 01-4 4H5"/></svg></div></div>' +
+    '<div class="camera-flash-overlay" id="camera-flash"></div>');
+  const vf = sc.el.querySelector('.camera-viewfinder');
+  function render() {
+    sc.el.querySelector('[data-t=flash]').textContent = '⚡ ' + ['Авто', 'Вкл', 'Выкл'][flash];
+    sc.el.querySelector('[data-t=timer]').textContent = '⏱ ' + (delay ? delay + ' с' : 'Выкл');
+    sc.el.querySelector('[data-t=hdr]').classList.toggle('off', !hdr);
+    sc.el.querySelectorAll('[data-mode]').forEach(m => m.classList.toggle('active', m.dataset.mode === mode));
+    vf.classList.toggle('front', front);
+    const ph = loadPhotos(); const last = ph[ph.length - 1];
+    sc.el.querySelector('[data-thumb]').style.background = last ? last.grad : '#333';
+  }
+  function snap() {
+    const f = sc.el.querySelector('#camera-flash'); f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+    const ph = loadPhotos(); ph.push({ id: 'p' + Date.now(), grad: PHOTO_GRADS[Math.floor(Math.random() * PHOTO_GRADS.length)], date: Date.now(), mode }); savePhotos(ph); render();
+  }
+  function shutter() {
+    if (mode === 'ВИДЕО') {
+      if (rec) { clearInterval(rec.t); sc.el.querySelector('.rec-dot').remove(); rec = null; snap(); return; }
+      const d = document.createElement('div'); d.className = 'rec-dot'; d.textContent = '● 00:00'; sc.el.appendChild(d);
+      const st = Date.now(); rec = { t: setInterval(() => { const s = Math.floor((Date.now() - st) / 1000); d.textContent = '● ' + pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }, 500) };
+      return;
+    }
+    if (!delay) { snap(); return; }
+    let n = delay; const c = document.createElement('div'); c.className = 'camera-countdown'; c.textContent = n; sc.el.appendChild(c);
+    const t = setInterval(() => { n--; if (n <= 0) { clearInterval(t); c.remove(); snap(); } else c.textContent = n; }, 1000);
+  }
+  sc.el.addEventListener('click', e => {
+    const t = e.target.closest('[data-t]');
+    if (t) { if (t.dataset.t === 'flash') flash = (flash + 1) % 3; else if (t.dataset.t === 'timer') delay = delay === 0 ? 3 : delay === 3 ? 10 : 0; else hdr = !hdr; render(); return; }
+    const m = e.target.closest('[data-mode]'); if (m && !rec) { mode = m.dataset.mode; render(); return; }
+    if (e.target.closest('#camera-shutter')) { shutter(); return; }
+    if (e.target.closest('[data-flip]')) { front = !front; render(); return; }
+    if (e.target.closest('[data-thumb]')) openApp('photos', 'last');
+  });
+  sc.onHide = () => { if (rec) { clearInterval(rec.t); rec = null; const d = sc.el.querySelector('.rec-dot'); if (d) d.remove(); } };
+  sc.onKey = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); shutter(); return true; } };
+  sc.onShow = render;
+  render();
+}
+function initPhotos(sc) {
+  let view = -1;
+  function render() {
+    const ph = loadPhotos();
+    if (view >= ph.length) view = ph.length - 1;
+    shell('photos', '<div class="app-header"><div class="app-title">Фото</div></div><div class="scr-body" style="padding:0">' + (ph.length ? '<div class="ph-grid">' + ph.map((p, i) => '<div class="ph-tile" data-ph="' + i + '" style="background:' + p.grad + '"></div>').join('') + '</div>' : '<div class="empty-note">Снимков нет. Откройте Камеру.</div>') + '</div>' +
+      (view >= 0 ? '<div class="ph-view"><div class="pv-cap">' + new Date(ph[view].date).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '</div><div class="pv-img" style="background:' + ph[view].grad + '"></div><div class="pv-bar"><button data-pv="prev">‹</button><button data-pv="close">Все фото</button><button class="del" data-pv="del">Удалить</button><button data-pv="next">›</button></div></div>' : ''), true);
+  }
+  sc.el.addEventListener('click', e => {
+    const t = e.target.closest('[data-ph]'); if (t) { view = +t.dataset.ph; render(); return; }
+    const b = e.target.closest('[data-pv]'); if (!b) return;
+    const ph = loadPhotos();
+    if (b.dataset.pv === 'close') view = -1;
+    else if (b.dataset.pv === 'del') { const it = ph[view]; if (it.fs) { trashPath(it.fs); ph.splice(view, 1); } else { ph.splice(view, 1); savePhotos(ph); } if (!ph.length) view = -1; }
+    else view = (view + (b.dataset.pv === 'next' ? 1 : -1) + ph.length) % ph.length;
+    render();
+  });
+  sc.onShow = arg => { view = arg === 'last' ? loadPhotos().length - 1 : -1; render(); };
+  sc.onKey = e => {
+    if (view < 0) return;
+    if (e.key === 'Escape') { view = -1; render(); return true; }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = loadPhotos().length; view = (view + (e.key === 'ArrowRight' ? 1 : -1) + n) % n; render(); return true; }
+  };
+  on('photos', () => { if (current === 'photos') render(); });
+  on('fs', () => { if (current === 'photos') render(); });
+  render();
+}
+
+// ===== Музыка: мелодии собираются на месте (WebAudio) =====
+function initMusic(sc) {
+  const TRACKS = [{ title: 'Стеклянные сны', artist: 'Синтезатор', art: 'linear-gradient(135deg, #a855f7, #3b82f6)' }, { title: 'Полуночное преломление', artist: 'Неоновые волны', art: 'linear-gradient(135deg, #0ea5e9, #5e0a8a)' }, { title: 'Северная дорога', artist: 'Полярные огни', art: 'linear-gradient(135deg, #34c759, #0ea5e9)' }];
+  const LEN = 20;
+  let idx = 0, playing = false, ctx = null, gain = null, nodes = [], startAt = 0, offset = 0, t = null;
+  shell('music', '<div class="music-art" id="music-art"></div><div class="music-info"><div class="music-title" id="music-title"></div><div class="music-artist" id="music-artist"></div></div>' +
+    '<div class="music-progress"><div class="music-bar"><div class="music-bar-fill" id="music-bar-fill" style="width:0"></div></div><div class="music-times"><span id="music-cur">0:00</span><span id="music-tot">-0:' + LEN + '</span></div></div>' +
+    '<div class="music-controls"><button class="music-btn" data-m="prev" title="Предыдущий"><svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6v12h2V6H6zm3 6l9 6V6l-9 6z"/></svg></button>' +
+    '<button class="music-btn play" data-m="play" title="Играть"><svg viewBox="0 0 24 24" fill="currentColor"><path id="music-play-icon" d="M8 5v14l11-7L8 5z"/></svg></button>' +
+    '<button class="music-btn" data-m="next" title="Следующий"><svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6v12h2V6h-2zm-7-1v14l9-7-9-7z"/></svg></button></div>' +
+    '<div class="music-volume"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5z"/></svg><div class="music-vol-bar" data-vol role="slider" aria-label="Громкость"><div class="music-vol-fill"></div></div><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5zm11.5 3a4 4 0 00-2.5-3.7v7.4a4 4 0 002.5-3.7z"/></svg></div>' +
+    '<div class="music-list">Мелодии собираются прямо в телефоне, без файлов и без сети</div>');
+  const now = () => ctx ? ctx.currentTime : performance.now() / 1000;
+  function stopNodes() { nodes.forEach(n => { try { n.stop(); } catch (e) { /* уже */ } }); nodes = []; }
+  function schedule(from) {
+    const scale = [0, 3, 5, 7, 10, 12, 15], root = 196 * Math.pow(2, idx * 2 / 12), beat = 0.32;
+    let seed = idx * 7919 + 17; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const t0 = ctx.currentTime - from;
+    for (let x = 0; x < LEN; x += beat) {
+      const n = scale[Math.floor(rnd() * scale.length)];
+      if (x < from) continue;
+      const o = ctx.createOscillator(), g2 = ctx.createGain();
+      o.frequency.value = root * Math.pow(2, n / 12); o.type = 'triangle';
+      g2.gain.setValueAtTime(0, t0 + x); g2.gain.linearRampToValueAtTime(0.22, t0 + x + 0.02); g2.gain.exponentialRampToValueAtTime(0.001, t0 + x + beat * 0.9);
+      o.connect(g2); g2.connect(gain); o.start(t0 + x); o.stop(t0 + x + beat); nodes.push(o);
+    }
+  }
+  function render() {
+    const tr = TRACKS[idx];
+    sc.el.querySelector('#music-art').style.background = tr.art;
+    sc.el.querySelector('#music-title').textContent = tr.title;
+    sc.el.querySelector('#music-artist').textContent = tr.artist;
+    sc.el.querySelector('#music-play-icon').setAttribute('d', playing ? 'M6 4h4v16H6V4zm8 0h4v16h-4V4z' : 'M8 5v14l11-7L8 5z');
+    sc.el.querySelector('.music-vol-fill').style.width = S.volume + '%';
+  }
+  function progress() {
+    const x = playing ? Math.min(LEN, now() - startAt) : offset;
+    sc.el.querySelector('#music-bar-fill').style.width = (x / LEN * 100) + '%';
+    sc.el.querySelector('#music-cur').textContent = '0:' + pad2(Math.floor(x));
+    sc.el.querySelector('#music-tot').textContent = '-0:' + pad2(Math.ceil(LEN - x));
+    if (playing && x >= LEN) { offset = 0; idx = (idx + 1) % TRACKS.length; play(); }
+  }
+  function play() {
+    try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; }
+    stopNodes(); playing = true;
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); if (!gain) { gain = ctx.createGain(); gain.connect(ctx.destination); } gain.gain.value = S.volume / 100; schedule(offset); }
+    startAt = now() - offset; clearInterval(t); t = setInterval(progress, 250); render();
+  }
+  function pause() { if (!playing) return; offset = Math.min(LEN, now() - startAt); playing = false; stopNodes(); clearInterval(t); render(); progress(); }
+  sc.onKill = () => { pause(); offset = 0; };   // закрыли смахиванием в переключателе - музыка молчит
+  sc.el.addEventListener('click', e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'play') { playing ? pause() : play(); return; }
+    const was = playing; pause(); offset = 0; idx = (idx + (m.dataset.m === 'next' ? 1 : -1) + TRACKS.length) % TRACKS.length; render(); progress(); if (was) play();
+  });
+  sc.el.querySelector('[data-vol]').addEventListener('pointerdown', e => { const r = e.currentTarget.getBoundingClientRect(); setS('volume', Math.round(Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)))); });
+  on('settings', () => { if (gain) gain.gain.value = S.volume / 100; if (sc.inited) render(); });
+  let pausedByTab = false;
+  on('visibility', () => { if (document.hidden && playing) { pause(); pausedByTab = true; } else if (!document.hidden && pausedByTab) { pausedByTab = false; play(); } });
+  sc.state = () => ({ playing, idx });
+  render(); progress();
+}
+
+// ===== Погода: демо-данные, без сети =====
+function initWeather(sc) {
+  const d = new Date();
+  const hours = Array.from({ length: 5 }, (_, i) => { const h = (d.getHours() + i) % 24; return { h: i ? pad2(h) : 'Сейчас', t: tempAt(h), ic: h < 6 || h >= 21 ? '🌙' : ['☁️', '⛅', '☀️'][i % 3] }; });
+
+  const days = Array.from({ length: 6 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return { n: i === 0 ? 'Сегодня' : i === 1 ? 'Завтра' : DAYS[x.getDay()].slice(0, 2), ic: ['☁️', '🌧️', '⛅', '☀️', '☀️', '⛅'][i], lo: 12 + i % 3, hi: 18 + (i * 2) % 6 }; });
+  shell('weather', '<div class="weather-current"><div class="weather-city">Лиссабон</div><div class="weather-temp">' + hours[0].t + '°</div><div class="weather-cond">Облачно</div><div class="weather-hl">Макс: ' + days[0].hi + '° · Мин: ' + days[0].lo + '°</div></div>' +
+    '<div class="weather-hourly"><div class="weather-hourly-title">ПРОГНОЗ НА БЛИЖАЙШЕЕ ВРЕМЯ</div><div class="hourly-row">' + hours.map(x => '<div class="hour-item"><span>' + x.h + '</span><span class="hour-icon">' + x.ic + '</span><span class="hour-temp">' + x.t + '°</span></div>').join('') + '</div></div>' +
+    '<div class="weather-forecast">' + days.map(x => '<div class="forecast-row"><span>' + x.n + '</span><span>' + x.ic + '</span><div class="forecast-bar"></div><span class="forecast-low">' + x.lo + '°</span><span>' + x.hi + '°</span></div>').join('') + '</div>' +
+    '<div style="text-align:center;font-size:12px;opacity:0.7;margin-top:10px">Демо-данные: интернет не используется</div>');
+}
+
+// ===== Часы =====
+function initClock(sc) {
+  const ZONES = [['Москва', 'Europe/Moscow'], ['Лондон', 'Europe/London'], ['Нью-Йорк', 'America/New_York'], ['Токио', 'Asia/Tokyo']];
+  let tab = 'world', alarms = store.get('alarms', [{ t: '07:00', label: 'Будильник', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
+  let sw = { run: false, start: 0, acc: 0, laps: [] }, swTimer = null, worldTimer = null;
+  const swFmt = ms => { const cs = Math.floor(ms / 10); return pad2(Math.floor(cs / 6000)) + ':' + pad2(Math.floor(cs / 100) % 60) + ',' + pad2(cs % 100); };
+  const swNow = () => sw.acc + (sw.run ? Date.now() - sw.start : 0);
+  const offsetText = tz => { const now = new Date(); const local = now.getTimezoneOffset(); const there = new Date(now.toLocaleString('en-US', { timeZone: tz })); const here = new Date(now.toLocaleString('en-US')); const diff = Math.round((there - here) / 3600000); return diff === 0 ? 'Сегодня, ±0 ч' : 'Сегодня, ' + (diff > 0 ? '+' : '') + diff + ' ч'; };
+  function body() {
+    if (tab === 'world') return '<div style="font-size:32px;font-weight:700;margin-bottom:14px">Мировые часы</div><div class="alarm-list">' + ZONES.map(([n, tz]) => '<div class="alarm-item"><div><div class="alarm-label" style="font-size:13px;margin-bottom:2px">' + offsetText(tz) + '</div><div style="font-size:18px">' + n + '</div></div><div class="alarm-time">' + new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) + '</div></div>').join('') + '</div>';
+    if (tab === 'alarms') return '<div style="font-size:32px;font-weight:700;margin-bottom:6px">Будильник</div><form class="clock-add"><input type="time" name="t" value="08:00" aria-label="Время"><input name="label" placeholder="Подпись" maxlength="20" aria-label="Подпись"><button>Добавить</button></form><div class="alarm-list">' +
+      (alarms.length ? alarms.map((a, i) => '<div class="alarm-item"><div><div class="alarm-time" style="opacity:' + (a.on ? 1 : 0.45) + '">' + a.t + '</div><div class="alarm-label">' + esc(a.label) + '</div></div><div class="alarm-right"><button class="alarm-del" data-del="' + i + '" title="Удалить">×</button><div class="toggle' + (a.on ? '' : ' off') + '" data-al="' + i + '" role="switch" aria-checked="' + a.on + '"></div></div></div>').join('') : '<div class="empty-note">Будильников нет</div>') + '</div>';
+    return '<div class="clock-bigtime" id="sw-display">' + swFmt(swNow()) + '</div><div class="stopwatch-controls"><button class="sw-btn stop" data-sw="lap">' + (sw.run ? 'Круг' : 'Сброс') + '</button><button class="sw-btn ' + (sw.run ? 'stop' : 'start') + '" data-sw="toggle">' + (sw.run ? 'Стоп' : 'Старт') + '</button></div><div class="laps">' +
+      sw.laps.map((l, i) => '<div><span>Круг ' + (sw.laps.length - i) + '</span><span>' + swFmt(l) + '</span></div>').join('') + '</div>';
+  }
+  function render() {
+    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs">' + [['world', 'Мировые'], ['alarms', 'Будильник'], ['stopwatch', 'Секундомер']].map(([k, n]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '">' + n + '</button>').join('') + '</div>');
+  }
+  const saveAl = () => store.set('alarms', alarms);
+  sc.el.addEventListener('click', e => {
+    const tb = e.target.closest('[data-tab]'); if (tb) { tab = tb.dataset.tab; render(); return; }
+    const al = e.target.closest('[data-al]'); if (al) { alarms[+al.dataset.al].on = !alarms[+al.dataset.al].on; saveAl(); render(); return; }
+    const dl = e.target.closest('[data-del]'); if (dl) { alarms.splice(+dl.dataset.del, 1); saveAl(); render(); return; }
+    const s = e.target.closest('[data-sw]'); if (!s) return;
+    if (s.dataset.sw === 'toggle') { if (sw.run) { sw.acc += Date.now() - sw.start; sw.run = false; clearInterval(swTimer); } else { sw.start = Date.now(); sw.run = true; swTimer = setInterval(() => { const d = sc.el.querySelector('#sw-display'); if (d) d.textContent = swFmt(swNow()); }, 40); } }
+    else if (sw.run) sw.laps.unshift(swNow());
+    else { sw.acc = 0; sw.laps = []; }
+    render();
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target, t = f.t.value; if (!t) return;
+    alarms.push({ t, label: f.label.value.trim() || 'Будильник', on: true }); alarms.sort((a, b) => a.t.localeCompare(b.t)); saveAl(); render();
+  });
+  sc.onShow = () => { render(); clearInterval(worldTimer); worldTimer = setInterval(() => { if (tab === 'world' && current === 'clock') render(); }, 15000); };
+  sc.onHide = () => clearInterval(worldTimer);
+  sc.onKill = () => { if (sw.run) { sw.acc += Date.now() - sw.start; sw.run = false; clearInterval(swTimer); } };   // закрытые «Часы» не считают секундомер
+  sc.state = () => ({ tab, sw: swNow() });
+  render();
+}
+
+// ===== Заметки =====
+function initNotes(sc) {
+  let notes = store.get('notes', [{ id: 1, text: 'Идеи проектов\nИгра на Qt, свой калькулятор, оболочка с вкладками', t: Date.now() }, { id: 2, text: 'Покупки\nХлеб, молоко, кофе', t: Date.now() - 86400000 }]);
+  let open = null;
+  const save = () => store.set('notes', notes);
+  const title = n => (n.text.split('\n')[0] || 'Новая заметка').slice(0, 40);
+  function render() {
+    if (open === null) {
+      notes.sort((a, b) => b.t - a.t);
+      shell('notes', '<div class="app-header"><div class="app-title">Заметки</div></div><div class="scr-body">' + (notes.length ? '<div class="settings-group">' + notes.map(n => '<div class="list-row" data-note="' + n.id + '"><div class="lr-main"><div class="lr-title">' + esc(title(n)) + '</div><div class="lr-sub">' +
+        new Date(n.t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) + ' · ' + esc(n.text.split('\n').slice(1).join(' ').slice(0, 40)) + '</div></div><div class="chevron">›</div></div>').join('') + '</div>' : '<div class="empty-note">Заметок нет</div>') +
+        '</div><button class="fab" data-new title="Новая заметка">＋</button>', true);
+      return;
+    }
+    const n = notes.find(x => x.id === open);
+    shell('notes', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Заметки</button><button class="nav-btn" data-delnote style="color:#ff3b30">Удалить</button></div><div class="note-edit"><textarea aria-label="Текст заметки" placeholder="Первая строка - заголовок"></textarea></div>', true);
+    const ta = sc.el.querySelector('textarea');
+    ta.value = n.text;
+    ta.addEventListener('input', () => { n.text = ta.value; n.t = Date.now(); save(); });
+    ta.focus();
+  }
+  function back() { const n = notes.find(x => x.id === open); if (n && !n.text.trim()) notes = notes.filter(x => x !== n); save(); open = null; render(); }
+  sc.el.addEventListener('click', e => {
+    const r = e.target.closest('[data-note]'); if (r) { open = +r.dataset.note; render(); return; }
+    if (e.target.closest('[data-new]')) { const n = { id: Date.now(), text: '', t: Date.now() }; notes.unshift(n); open = n.id; render(); return; }
+    if (e.target.closest('[data-back]')) { back(); return; }
+    if (e.target.closest('[data-delnote]')) { notes = notes.filter(x => x.id !== open); save(); open = null; render(); }
+  });
+  sc.onKey = e => { if (e.key === 'Escape' && open !== null) { back(); return true; } };
+  sc.onHide = () => { if (open !== null) back(); };
+  render();
+}
+
+// ===== Календарь =====
+function loadEvents() {
+  const ev = store.get('events', null);
+  if (ev) return ev;
+  const d = n => { const x = new Date(); x.setDate(x.getDate() + n); return dayKey(x); };
+  return { [d(0)]: [{ title: 'Прогулка', time: '18:00' }], [d(2)]: [{ title: 'Встреча с друзьями', time: '15:00' }] };
+}
+function initCalendar(sc) {
+  let month = new Date(); month.setDate(1);
+  let sel = dayKey(new Date());
+  let events = loadEvents();
+  const save = () => { store.set('events', events); updateWidgets(); };
+  function render() {
+    const first = new Date(month), shift = (first.getDay() + 6) % 7, start = new Date(first); start.setDate(1 - shift);
+    const cells = [];
+    for (let i = 0; i < 42; i++) { const x = new Date(start); x.setDate(start.getDate() + i); if (i >= 35 && x.getMonth() !== month.getMonth()) break; cells.push(x); }
+    const today = dayKey(new Date()), list = (events[sel] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+    const selDate = new Date(sel + 'T12:00');
+    shell('calendar', '<div class="cal-month"><div class="cal-header"><button data-m="-1" title="Предыдущий месяц">‹</button><span>' + MONTHS[month.getMonth()] + ' ' + month.getFullYear() + '</span><button data-m="1" title="Следующий месяц">›</button></div>' +
+      '<div class="cal-weekdays"><div>ПН</div><div>ВТ</div><div>СР</div><div>ЧТ</div><div>ПТ</div><div>СБ</div><div>ВС</div></div><div class="cal-grid">' +
+      cells.map(x => { const k = dayKey(x); return '<div class="cal-day' + (x.getMonth() !== month.getMonth() ? ' outside' : '') + (k === today ? ' today' : '') + (k === sel ? ' sel' : '') + ((events[k] || []).length ? ' has-event' : '') + '" data-day="' + k + '">' + x.getDate() + '</div>'; }).join('') + '</div></div>' +
+      '<div class="cal-events"><div style="font-size:14px;font-weight:600;color:#8e8e93;text-transform:uppercase">' + selDate.getDate() + ' ' + MONTHS_GEN[selDate.getMonth()] + ' · ' + DAYS[selDate.getDay()] + '</div>' +
+      '<form class="cal-add"><input name="title" placeholder="Новое событие" maxlength="40" aria-label="Название события"><input type="time" name="time" value="12:00" aria-label="Время"><button title="Добавить">+</button></form>' +
+      (list.length ? list.map(ev => '<div class="cal-event"><div class="cal-event-bar"></div><div class="cal-event-time">' + ev.time + '</div><div class="cal-event-title">' + esc(ev.title) + '</div><button class="ev-del" data-evdel="' + events[sel].indexOf(ev) + '" title="Удалить">×</button></div>').join('') : '<div style="color:#8e8e93;padding:8px 0">Событий нет</div>') + '</div>');
+  }
+  sc.el.addEventListener('click', e => {
+    const m = e.target.closest('[data-m]'); if (m) { month.setMonth(month.getMonth() + +m.dataset.m); render(); return; }
+    const d = e.target.closest('[data-day]'); if (d) { sel = d.dataset.day; const x = new Date(sel + 'T12:00'); if (x.getMonth() !== month.getMonth()) { month = new Date(x); month.setDate(1); } render(); return; }
+    const del = e.target.closest('[data-evdel]'); if (del) { events[sel].splice(+del.dataset.evdel, 1); if (!events[sel].length) delete events[sel]; save(); render(); }
+  });
+  sc.el.addEventListener('submit', e => {
+    e.preventDefault();
+    const title = e.target.title.value.trim(); if (!title) { e.target.title.focus(); return; }
+    (events[sel] = events[sel] || []).push({ title, time: e.target.time.value || '12:00' }); save(); render();
+  });
+  sc.onShow = () => { month = new Date(); month.setDate(1); sel = dayKey(new Date()); render(); };
+  render();
+}
+
+// ===== Настройки =====
+function initSettings(sc) {
+  let page = 'main', q = '';
+  const tog = k => '<div class="toggle' + (S[k] ? '' : ' off') + '" data-set="' + k + '" role="switch" aria-checked="' + !!S[k] + '"></div>';
+  const G = p => '<svg viewBox="0 0 24 24" fill="#fff">' + p + '</svg>';
+  const ROWS = [
+    { k: 'airplane', name: 'Авиарежим', color: '#ff9500', toggle: true, g: G('<path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>') },
+    { k: 'wifi', name: 'Wi-Fi', color: '#007aff', toggle: true, g: G('<path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-8c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/>') },
+    { k: 'bt', name: 'Bluetooth', color: '#007aff', toggle: true, g: G('<path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3z"/>') },
+    { k: 'cellular', name: 'Сотовые данные', color: '#34c759', toggle: true, g: G('<path d="M2 22h3v-5H2zm5 0h3v-9H7zm5 0h3V9h-3zm5 0h3V4h-3z"/>') },
+    { k: 'dnd', name: 'Не беспокоить', color: '#5856d6', toggle: true, g: G('<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>') },
+    { p: 'display', name: 'Экран и яркость', color: '#007aff', g: G('<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="#fff" stroke-width="2"/>') },
+    { p: 'wall', name: 'Обои', color: '#a855f7', g: G('<path d="M4 5h16v14H4z" fill="none" stroke="#fff" stroke-width="2"/><path d="M5 18l5-6 4 4 2-2 3 4z"/>') },
+    { p: 'sound', name: 'Звуки', color: '#ff3b30', g: G('<path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16 8a5 5 0 010 8" fill="none" stroke="#fff" stroke-width="1.8"/>') },
+    { p: 'about', name: 'Об устройстве', color: '#8e8e93', g: G('<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M11 10h2v7h-2zM11 7h2v2h-2z"/>') },
+  ];
+  const PAGES = {
+    display: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Тёмное оформление</div>' + tog('dark') + '</div><div class="settings-row"><div class="settings-label">Меньше стекла</div><div class="toggle' + (S.glass ? ' off' : '') + '" data-set="glass-inv" role="switch" aria-checked="' + !S.glass + '"></div></div></div>' +
+      '<div class="settings-group"><div class="settings-row"><span>☀️</span><input type="range" min="30" max="100" value="' + S.brightness + '" data-range="brightness" aria-label="Яркость"></div></div>',
+    wall: () => '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall-opt' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>',
+    sound: () => '<div class="settings-group"><div class="settings-row"><span>🔈</span><input type="range" min="0" max="100" value="' + S.volume + '" data-range="volume" aria-label="Громкость"><span>🔊</span></div></div><div class="about-note">Громкость действует на «Музыку».</div>',
+    about: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Название</div><div class="settings-value">Телефон «Стекло»</div></div><div class="settings-row"><div class="settings-label">Версия</div><div class="settings-value">2.0</div></div></div>' +
+      '<div class="about-note"><b>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</b> Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><button class="sheet-btn" data-reset>Сбросить всё</button>',
+  };
+  function render() {
+    if (page === 'main') {
+      const rows = ROWS.filter(r => !q || r.name.toLowerCase().includes(q));
+      shell('settings', '<div class="app-header"><div class="app-title">Настройки</div></div><div class="settings-list"><label class="settings-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Поиск" aria-label="Поиск настроек"></label><div class="settings-group">' +
+        (rows.length ? rows.map(r => '<div class="settings-row"' + (r.p ? ' data-page="' + r.p + '"' : '') + '><div class="settings-icon" style="background:' + r.color + '">' + r.g + '</div><div class="settings-label">' + r.name + '</div>' + (r.toggle ? tog(r.k) : '<div class="chevron">›</div>') + '</div>').join('') : '<div class="settings-row"><div class="settings-label" style="color:#8e8e93">Ничего не найдено</div></div>') + '</div></div>', true);
+      const inp = sc.el.querySelector('.settings-search input'); inp.value = q;
+      inp.addEventListener('input', () => { q = inp.value.trim().toLowerCase(); const pos = inp.selectionStart; render(); const i2 = sc.el.querySelector('.settings-search input'); i2.focus(); i2.setSelectionRange(pos, pos); });
+      return;
+    }
+    shell('settings', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Настройки</button><div class="nb-title">' + ROWS.find(r => r.p === page).name + '</div></div><div class="scr-body">' + PAGES[page]() + '</div>', true);
+  }
+  let own = false;
+  sc.el.addEventListener('click', e => {
+    const p = e.target.closest('[data-page]'); if (p) { page = p.dataset.page; render(); return; }
+    if (e.target.closest('[data-back]')) { page = 'main'; render(); return; }
+    const t = e.target.closest('[data-set]'); if (t) { if (t.dataset.set === 'glass-inv') setS('glass', !S.glass); else setS(t.dataset.set, !S[t.dataset.set]); return; }
+    const w = e.target.closest('[data-wall]'); if (w) { setS('wallpaper', w.dataset.wall); return; }
+    if (e.target.closest('[data-reset]')) {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('ios26'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
+  });
+  sc.el.addEventListener('input', e => { const r = e.target.closest('[data-range]'); if (r) { own = true; setS(r.dataset.range, +r.value); own = false; } });
+  on('settings', () => { if (sc.inited && !own && current === 'settings' && !sc.el.querySelector('.settings-search input:focus')) render(); });
+  sc.onKey = e => { if (e.key === 'Escape' && page !== 'main') { page = 'main'; render(); return true; } };
+  sc.onShow = () => { page = 'main'; q = ''; render(); };
+  render();
+}
+
+// ===== Масштаб: телефон целиком помещается в окно любой высоты =====
+function fit() {
+  const d = $('device');
+  if (innerWidth <= 420) { d.style.transform = ''; return; }
+  const k = Math.min(1, (innerHeight - 40) / (852 + 28), (innerWidth - 40) / (393 + 28));
+  d.style.transform = 'scale(' + k + ')';
+}
+addEventListener('resize', fit);
+
+// ===== Запуск =====
+buildHome();
+buildScreens();
+applySettings();
+tick();
+updateWidgets();
+fit();
+// ================================================================
+// Набор второго этапа: «Файлы» на IndexedDB, уведомления с центром уведомлений,
+// переключатель программ (смахнуть вверх и задержать или двойной щелчок по полоске), пауза в фоне.
+// ================================================================
+
+// ===== Файловая система в IndexedDB =====
+const FS = new Map();
+let TRASH = [], fdb = null, fdbOk = true, dbPending = 0;
+const ROOTS = ['Документы', 'Загрузки', 'Изображения'];
+const parentOf = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+const baseName = p => p.slice(p.lastIndexOf('/') + 1);
+const extOf = p => { const b = baseName(p), i = b.lastIndexOf('.'); return i > 0 ? b.slice(i + 1).toLowerCase() : ''; };
+const isImage = p => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extOf(p));
+const isText = p => ['txt', 'md', 'csv', 'json', 'log'].includes(extOf(p)) || !extOf(p);
+// вторая вкладка с тем же телефоном узнаёт об изменениях и перечитывает базу
+const fsChannel = (() => { try { return new BroadcastChannel('ios26-fs'); } catch (e) { return null; } })();
+let bcTimer = null;
+function announce() { if (!fsChannel) return; clearTimeout(bcTimer); bcTimer = setTimeout(() => fsChannel.postMessage('changed'), 60); }
+function idb(fn) {
+  return new Promise((res, rej) => {
+    if (!fdb) { res(null); return; }
+    const tx = fdb.transaction(['fs', 'trash'], 'readwrite');
+    dbPending++;
+    let done = false; const fin = () => { if (!done) { done = true; dbPending--; } };
+    try { fn(tx); } catch (e) { try { tx.abort(); } catch (e2) { /* уже */ } }
+    tx.oncomplete = () => { fin(); announce(); res(); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error || new Error('abort')); };
+  });
+}
+// запись не удалась (мало места): говорим об этом и возвращаем память к тому, что в базе
+let failShown = 0, dbFailing = false;
+function dbFail() {
+  if (Date.now() - failShown > 3000) { failShown = Date.now(); notify('files', 'Не сохранено: мало места', 'Последнее изменение не записалось, файлы возвращены к сохранённым'); }
+  if (!dbFailing) { dbFailing = true; setTimeout(() => { dbFailing = false; reloadFromDb(); }, 50); }
+}
+const dbWrite = fn => { if (fdb) idb(fn).catch(dbFail); };
+const dbPut = e => dbWrite(tx => tx.objectStore('fs').put(e));
+const dbDel = p => dbWrite(tx => tx.objectStore('fs').delete(p));
+// корзина по одной записи: две вкладки не стирают корзины друг друга
+const dbTrashPut = t => dbWrite(tx => tx.objectStore('trash').put(t));
+const dbTrashDel = id => dbWrite(tx => tx.objectStore('trash').delete(id));
+async function readDb() {
+  const all = store => new Promise(res => { const r = fdb.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  return [await all('fs'), await all('trash')];
+}
+async function reloadFromDb() {
+  if (!fdb) return;
+  if (dbPending) { setTimeout(reloadFromDb, 80); return; }
+  const [rows, trash] = await readDb();
+  FS.clear(); rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  emit('fs');
+}
+if (fsChannel) fsChannel.onmessage = () => reloadFromDb();
+function openFDB() {
+  return new Promise(res => {
+    let req;
+    try { req = indexedDB.open('ios26', 1); } catch (e) { fdbOk = false; res(null); return; }
+    req.onupgradeneeded = () => { req.result.createObjectStore('fs', { keyPath: 'path' }); req.result.createObjectStore('trash', { keyPath: 'id' }); };
+    req.onsuccess = () => { const db = req.result; db.onversionchange = () => { db.close(); fdb = null; }; res(db); };
+    req.onerror = () => { fdbOk = false; res(null); };
+  });
+}
+function picSVG(a, b, c) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + a + '"/><stop offset="1" stop-color="' + b + '"/></linearGradient></defs>' +
+    '<rect width="400" height="300" fill="url(#s)"/><circle cx="300" cy="80" r="34" fill="#fff" opacity=".85"/><path d="M0 230 L90 140 L160 200 L240 120 L400 250 V300 H0Z" fill="' + c + '"/><path d="M0 260 L120 200 L220 250 L320 210 L400 260 V300 H0Z" fill="' + c + '" opacity=".7"/></svg>';
+}
+async function fsLoad() {
+  fdb = await openFDB();
+  let rows = [], trash = [];
+  if (fdb) [rows, trash] = await readDb();
+  if (!rows.length) {
+    const t = Date.now(), f = (path, text) => ({ path, type: 'file', mtime: t, mime: 'text/plain', size: new Blob([text]).size, text });
+    const img = (path, svg) => ({ path, type: 'file', mtime: t, mime: 'image/svg+xml', size: svg.length, text: svg });
+    rows = [...ROOTS.map(r => ({ path: r, type: 'dir', mtime: t })), { path: 'Документы/Учёба', type: 'dir', mtime: t },
+      f('Документы/Список покупок.txt', 'Молоко\nХлеб\nЯблоки\n'), f('Документы/Учёба/Конспект.txt', 'Тема: дроби\n1/2 + 1/4 = 3/4\n'),
+      f('Загрузки/Прочти меня.txt', 'Файлы можно добавить кнопкой «…» → «Импорт».\nФан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.\n'),
+      img('Изображения/Горы.svg', picSVG('#7dd3fc', '#fbcfe8', '#334155')), img('Изображения/Закат.svg', picSVG('#f97316', '#7c3aed', '#1e1b4b'))];
+    if (fdb) rows.forEach(dbPut);
+  }
+  rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  emit('fs');
+}
+// ссылки на картинки из памяти освобождаются, когда файл изменился, удалён или переименован
+const urlCache = new Map();
+function dropUrl(path) { const c = urlCache.get(path); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(path); } }
+function fileUrl(f) {
+  if (!f || f.type !== 'file') return null;
+  const c = urlCache.get(f.path); if (c && c.mtime === f.mtime) return c.url;
+  dropUrl(f.path);
+  let url;
+  if (f.blob) url = URL.createObjectURL(f.blob);
+  else if (f.mime === 'image/svg+xml' && f.text) url = URL.createObjectURL(new Blob([f.text], { type: 'image/svg+xml' }));
+  else return null;
+  urlCache.set(f.path, { url, mtime: f.mtime });
+  return url;
+}
+const childrenOf = dir => [...FS.values()].filter(e => e.path && parentOf(e.path) === dir).sort((a, b) => a.type === b.type ? baseName(a.path).localeCompare(baseName(b.path), 'ru') : a.type === 'dir' ? -1 : 1);
+function uniquePath(dir, base, ext = '') { let n = base + ext, i = 2; while (FS.has(dir + '/' + n)) n = base + ' ' + (i++) + ext; return dir + '/' + n; }
+function nameError(dir, name, self) {
+  if (!name || !name.trim()) return 'Введите имя';
+  if (/[\/:]/.test(name)) return 'Имя не может содержать «/» и «:»';
+  if (FS.has(dir + '/' + name) && dir + '/' + name !== self) return 'Имя «' + name + '» уже занято';
+  return '';
+}
+const subtree = p => [...FS.keys()].filter(k => k === p || k.startsWith(p + '/'));
+function fsChanged() { emit('fs'); }
+function writeFile(path, text) { const old = FS.get(path); const e = { path, type: 'file', mtime: Date.now(), mime: (old && old.mime) || 'text/plain', size: new Blob([text]).size, text }; FS.set(path, e); dbPut(e); fsChanged(); return e; }
+function makeDir(path) { const e = { path, type: 'dir', mtime: Date.now() }; FS.set(path, e); dbPut(e); fsChanged(); return e; }
+async function importFile(dir, file) {
+  const m = file.name.match(/\.[^.]+$/);
+  const path = uniquePath(dir, m ? file.name.slice(0, -m[0].length) : file.name, m ? m[0] : '');
+  const e = { path, type: 'file', mtime: Date.now(), mime: file.type || 'application/octet-stream', size: file.size };
+  if (file.type === 'image/svg+xml' || (isText(path) && file.size < 2e6)) e.text = await file.text(); else e.blob = file;
+  FS.set(path, e); dbPut(e); fsChanged();
+  return path;
+}
+function renamePath(from, name) {
+  const to = parentOf(from) + '/' + name;
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: to + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  fsChanged(); return to;
+}
+function copyPath(from) {
+  const b = baseName(from), dot = b.lastIndexOf('.'), f = FS.get(from).type === 'file' && dot > 0;
+  const to = uniquePath(parentOf(from), (f ? b.slice(0, dot) : b) + ' копия', f ? b.slice(dot) : '');
+  subtree(from).forEach(p => { const ne = Object.assign({}, FS.get(p), { path: to + p.slice(from.length), mtime: Date.now() }); FS.set(ne.path, ne); dbPut(ne); });
+  fsChanged(); return to;
+}
+function trashPath(path) {
+  if (!FS.has(path) || ROOTS.includes(path)) return;
+  const items = subtree(path).map(p => FS.get(p));
+  items.forEach(e => { FS.delete(e.path); dropUrl(e.path); dbDel(e.path); });
+  const t = { id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() };
+  TRASH.push(t);
+  dbTrashPut(t); fsChanged();
+}
+function restoreTrash(id) {
+  const i = TRASH.findIndex(t => t.id === id); if (i < 0) return;
+  const t = TRASH[i];
+  let dir = parentOf(t.path);
+  // на месте одной из родительских папок теперь файл: возвращаем рядом с ним
+  let a = dir; while (a) { if (FS.has(a) && FS.get(a).type !== 'dir') dir = parentOf(a); a = parentOf(a); }
+  // удалены и папка, и её родитель: восстанавливаем всю цепочку
+  const missing = []; let m = dir; while (m && !FS.has(m)) { missing.unshift(m); m = parentOf(m); }
+  missing.forEach(makeDir);
+  let to = (dir ? dir + '/' : '') + baseName(t.path);
+  if (FS.has(to)) { const b = baseName(to), dot = b.lastIndexOf('.'); to = uniquePath(dir, dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
+  t.items.forEach(e => { const ne = Object.assign({}, e, { path: to + e.path.slice(t.path.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  TRASH.splice(i, 1); dbTrashDel(t.id); fsChanged();
+}
+function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrashDel(id); fsChanged(); }
+const fmtSize = b => b < 1000 ? b + ' Б' : b < 1e6 ? (b / 1000).toFixed(1).replace('.', ',') + ' КБ' : (b / 1e6).toFixed(1).replace('.', ',') + ' МБ';
+const fmtWhenF = t => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fsReady = fsLoad();
+
+// ===== Диалоги в стиле телефона: вопрос с полем и лист действий =====
+function iosPrompt(title, value, okText = 'Готово') {
+  return new Promise(resolve => {
+    const d = document.createElement('div'); d.className = 'ios-alert-back';
+    d.innerHTML = '<div class="ios-alert" role="dialog"><b></b><input aria-label="Имя"><div class="ia-btns"><button data-r="0">Отменить</button><button data-r="1" class="strong">' + okText + '</button></div></div>';
+    d.querySelector('b').textContent = title;
+    const inp = d.querySelector('input'); inp.value = value;
+    $('screen').appendChild(d);
+    inp.focus(); const dot = value.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : value.length);
+    const done = v => { d.remove(); resolve(v); };
+    d.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1' ? inp.value.trim() : null); });
+    inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') done(inp.value.trim()); if (e.key === 'Escape') done(null); });
+  });
+}
+function iosSheet(title, actions) {
+  const d = document.createElement('div'); d.className = 'ios-sheet-back';
+  d.innerHTML = '<div class="ios-sheet"><div class="is-group">' + (title ? '<div class="is-title"></div>' : '') + actions.map((a, i) => '<button data-a="' + i + '"' + (a.danger ? ' class="danger"' : '') + '>' + esc(a.label) + '</button>').join('') + '</div><div class="is-group"><button data-a="x" class="strong">Отменить</button></div></div>';
+  if (title) d.querySelector('.is-title').textContent = title;
+  $('screen').appendChild(d);
+  d.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b && e.target !== d) return; d.remove(); if (b && b.dataset.a !== 'x') actions[+b.dataset.a].run(); });
+}
+
+// ===== Программа «Файлы» =====
+ICONS.files = ['icon-files', '<svg width="36" height="36" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5h4.2l1.8 2h9A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" fill="#fff"/><path d="M3 9h18" stroke="#60a5fa" stroke-width="1.2"/></svg>'];
+APPS.files = { name: 'Файлы', cls: 'files-app', light: true, init: initFiles };
+HOME.splice(HOME.indexOf('calendar') + 1, 0, 'files');
+(function addFilesScreen() {
+  const el = document.createElement('div');
+  el.className = 'app-screen files-app'; el.id = 'app-files'; el.dataset.light = '1';
+  $('apps').appendChild(el);
+  screens.files = { el, inited: false, onShow: null, onHide: null, onKey: null };
+  buildHome();
+  updateWidgets();   // погода на рабочем столе та же, что на экране блокировки и в «Погоде»
+})();
+const TRASH_SVG = '<svg viewBox="0 0 40 40"><rect x="4" y="4" width="32" height="32" rx="8" fill="#8e8e93"/><path d="M13 14h14M17.5 14v-2.2h5V14M14.6 14l1 13.4c.1 1 .9 1.6 1.8 1.6h5.2c.9 0 1.7-.6 1.8-1.6l1-13.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.2 18v7M21.8 18v7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const FOLDER_SVG = '<svg viewBox="0 0 40 32"><path d="M2 5a3 3 0 013-3h10l3 3.5h17a3 3 0 013 3V27a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#5ac8fa"/><path d="M2 10h36v17a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#34aadc"/></svg>';
+const DOC_SVG = '<svg viewBox="0 0 32 40"><path d="M3 1h18l8 8v28a2 2 0 01-2 2H3a2 2 0 01-2-2V3a2 2 0 012-2z" fill="#fff" stroke="#c7c7cc"/><path d="M21 1v8h8" fill="#e5e5ea"/><path d="M7 17h18M7 22h18M7 27h12" stroke="#8e8e93" stroke-width="1.5"/></svg>';
+function thumbOf(e) { if (e.type === 'dir') return FOLDER_SVG; const u = isImage(e.path) && fileUrl(e); return u ? '<img src="' + u + '" alt="">' : DOC_SVG; }
+function initFiles(sc) {
+  let dir = '', q = '', view = null;
+  function listHTML() {
+    if (dir === '__trash') return TRASH.length ? '<div class="f-group">' + [...TRASH].reverse().map(t => '<div class="f-row"><div class="f-th">' + (t.items[0].type === 'dir' ? FOLDER_SVG : DOC_SVG) + '</div><div class="f-main"><div class="f-name">' + esc(baseName(t.path)) + '</div><div class="f-sub">Удалено ' + fmtWhenF(t.deleted) + '</div></div><button class="f-act" data-restore="' + t.id + '">Вернуть</button><button class="f-act danger" data-kill="' + t.id + '">Удалить</button></div>').join('') + '</div>' : '<div class="empty-note">Недавно удалённых нет</div>';
+    if (dir === '' && !q) return '<div class="f-sec">Места</div><div class="f-group">' + ROOTS.map(r => '<div class="f-row" data-f="' + r + '"><div class="f-th">' + FOLDER_SVG + '</div><div class="f-main"><div class="f-name">' + r + '</div><div class="f-sub">Объектов: ' + childrenOf(r).length + '</div></div><span class="chevron">›</span></div>').join('') +
+      '<div class="f-row" data-f="__trash"><div class="f-th">' + TRASH_SVG + '</div><div class="f-main"><div class="f-name">Недавно удалённые</div><div class="f-sub">Объектов: ' + TRASH.length + '</div></div><span class="chevron">›</span></div></div>';
+    const list = q ? [...FS.values()].filter(e => e.path && !ROOTS.includes(e.path) && (dir === '' || e.path.startsWith(dir + '/')) && baseName(e.path).toLowerCase().includes(q)) : childrenOf(dir);
+    return list.length ? '<div class="f-group">' + list.map(e => '<div class="f-row" data-f="' + esc(e.path) + '"><div class="f-th">' + thumbOf(e) + '</div><div class="f-main"><div class="f-name">' + esc(baseName(e.path)) + '</div><div class="f-sub">' + fmtWhenF(e.mtime) + (e.type === 'file' ? ' · ' + fmtSize(e.size || 0) : ' · объектов: ' + childrenOf(e.path).length) + '</div></div>' + (e.type === 'dir' ? '<span class="chevron">›</span>' : '') + '</div>').join('') + '</div>' : '<div class="empty-note">' + (q ? 'Ничего не найдено' : 'Папка пуста') + '</div>';
+  }
+  function render() {
+    const title = dir === '' ? 'Обзор' : dir === '__trash' ? 'Недавно удалённые' : baseName(dir);
+    const canWrite = dir !== '' && dir !== '__trash';
+    shell('files', '<div class="app-header">' + (dir !== '' ? '<button class="back-btn" data-fx="up">‹ ' + esc(dir === '__trash' || !parentOf(dir) ? 'Обзор' : baseName(parentOf(dir))) + '</button>' : '') +
+      (canWrite ? '<button class="f-more" data-fx="more" aria-label="Ещё">•••</button>' : '') + '<div class="app-title">' + esc(title) + '</div></div>' +
+      '<div class="scr-body"><label class="settings-search f-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input placeholder="Поиск" aria-label="Поиск файлов"></label>' + listHTML() + '</div><input type="file" multiple hidden class="f-in">' +
+      (view ? viewerHTML() : ''), true);
+    const inp = sc.el.querySelector('.f-search input'); inp.value = q;
+    inp.addEventListener('input', () => { q = inp.value.trim().toLowerCase(); const pos = inp.selectionStart; render(); const i2 = sc.el.querySelector('.f-search input'); i2.focus(); i2.setSelectionRange(pos, pos); });
+  }
+  function viewerHTML() {
+    const e = FS.get(view); if (!e) { view = null; return ''; }
+    const body = isImage(view) ? '<div class="fv-img" style="background-image:url(' + (fileUrl(e) || '') + ')"></div>' : e.text != null ? '<textarea class="fv-text" aria-label="Текст">' + esc(e.text) + '</textarea>' : '<div class="empty-note">Просмотр недоступен</div>';
+    return '<div class="f-viewer"><div class="fv-bar"><button data-fv="close">Готово</button><b>' + esc(baseName(view)) + '</b><button data-fv="del" class="danger" aria-label="Удалить">Удалить</button></div>' + body + '</div>';
+  }
+  function saveView() { const ta = sc.el.querySelector('.fv-text'); if (ta && view && FS.get(view) && ta.value !== FS.get(view).text) writeFile(view, ta.value); }
+  async function rename(p) {
+    const n = await iosPrompt('Переименовать', baseName(p)); if (n === null || n === baseName(p)) return;
+    const err = nameError(parentOf(p), n, p);
+    if (err) { await iosPrompt(err, n, 'ОК'); return; }
+    renamePath(p, n);
+  }
+  function actions(p) {
+    iosSheet(baseName(p), [{ label: 'Переименовать', run: () => rename(p) }, { label: 'Дублировать', run: () => copyPath(p) }, { label: 'Удалить', danger: true, run: () => trashPath(p) }]);
+  }
+  sc.el.addEventListener('click', async e => {
+    const x = e.target.closest('[data-fx]');
+    if (x && x.dataset.fx === 'up') { dir = dir === '__trash' ? '' : parentOf(dir); q = ''; render(); return; }
+    if (x && x.dataset.fx === 'more') {
+      iosSheet(null, [{ label: 'Новая папка', run: async () => { const n = await iosPrompt('Новая папка', 'Новая папка'); if (n) { const err = nameError(dir, n); if (err) await iosPrompt(err, n, 'ОК'); else makeDir(dir + '/' + n); } } },
+        { label: 'Новый текстовый файл', run: () => { const p = writeFile(uniquePath(dir, 'Без названия', '.txt'), '').path; view = p; render(); } },
+        { label: 'Импорт с устройства', run: () => sc.el.querySelector('.f-in').click() }]);
+      return;
+    }
+    const r = e.target.closest('[data-restore]'); if (r) { restoreTrash(r.dataset.restore); return; }
+    const k = e.target.closest('[data-kill]'); if (k) { deleteTrash(k.dataset.kill); return; }
+    const fv = e.target.closest('[data-fv]');
+    if (fv) { if (fv.dataset.fv === 'close') { saveView(); view = null; render(); } else { const p = view; view = null; trashPath(p); } return; }
+    const row = e.target.closest('[data-f]'); if (!row) return;
+    const p = row.dataset.f;
+    if (p === '__trash' || (FS.get(p) && FS.get(p).type === 'dir')) { dir = p; q = ''; render(); }
+    else if (FS.get(p)) { view = p; render(); }
+  });
+  sc.el.addEventListener('contextmenu', e => { const row = e.target.closest('[data-f]'); if (!row || row.dataset.f === '__trash' || ROOTS.includes(row.dataset.f)) return; e.preventDefault(); actions(row.dataset.f); });
+  // долгое нажатие на строку - действия
+  let lp = null;
+  sc.el.addEventListener('pointerdown', e => { const row = e.target.closest('[data-f]'); if (!row || row.dataset.f === '__trash' || ROOTS.includes(row.dataset.f)) return; lp = setTimeout(() => { lp = null; actions(row.dataset.f); }, 550); });
+  ['pointerup', 'pointerleave', 'pointermove'].forEach(ev => sc.el.addEventListener(ev, e => { if (lp && (ev !== 'pointermove' || Math.abs(e.movementY) > 3)) { clearTimeout(lp); lp = null; } }));
+  sc.el.addEventListener('change', async e => { if (e.target.classList.contains('f-in')) { for (const f of e.target.files) await importFile(dir, f); e.target.value = ''; notify('files', 'Файлы добавлены', 'Папка «' + baseName(dir) + '»'); } });
+  sc.onKey = e => { if (e.key === 'Escape' && view) { saveView(); view = null; render(); return true; } if (e.key === 'Escape' && dir !== '') { dir = dir === '__trash' ? '' : parentOf(dir); render(); return true; } };
+  sc.onHide = saveView;
+  sc.onShow = arg => { if (arg) { dir = FS.has(arg) || arg === '__trash' ? arg : ''; view = null; } render(); };
+  on('fs', () => { if (current === 'files' && !sc.el.querySelector('.fv-text:focus, .f-search input:focus')) render(); });
+  fsReady.then(render);
+  render();
+}
+
+// ===== Уведомления =====
+let NOTIFS = [];
+const nTime = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'сейчас' : m < 60 ? m + ' мин назад' : pad2(new Date(t).getHours()) + ':' + pad2(new Date(t).getMinutes()); };
+function notifCard(n) { return '<div class="n-card" data-n="' + n.id + '"><div class="n-ic">' + iconHTML(n.app) + '</div><div class="n-main"><div class="n-top"><b>' + esc(APPS[n.app] ? APPS[n.app].name : 'Система') + '</b><span>' + nTime(n.t) + '</span></div><div class="n-title">' + esc(n.title) + '</div><div class="n-body">' + esc(n.body) + '</div></div></div>'; }
+function notify(app, title, body) {
+  const n = { id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5), app, title, body, t: Date.now() };
+  NOTIFS.unshift(n); NOTIFS = NOTIFS.slice(0, 20);
+  renderNotifs();
+  if (S.dnd || $('lock-page').classList.contains('active')) return n;       // «Не беспокоить» и экран блокировки: без баннера
+  document.querySelectorAll('.banner').forEach(b => b.remove());
+  const b = document.createElement('div');
+  b.className = 'banner'; b.setAttribute('role', 'status'); b.innerHTML = notifCard(n);
+  b.addEventListener('click', () => { b.remove(); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); openApp(app); });
+  $('screen').appendChild(b);
+  setTimeout(() => { b.classList.add('out'); setTimeout(() => b.remove(), 300); }, 4500);
+  return n;
+}
+function renderNotifs() {
+  const html = NOTIFS.map(notifCard).join('');
+  $('lock-notifs').innerHTML = html;
+  $('nc-list').innerHTML = html || '<div class="nc-empty">Нет уведомлений</div>';
+  $('nc-clear').hidden = !NOTIFS.length;
+}
+(function buildNotifUI() {
+  const ln = document.createElement('div'); ln.id = 'lock-notifs'; ln.className = 'lock-notifs';
+  $('lock-page').insertBefore(ln, $('lock-page').querySelector('.lock-widgets'));
+  const nc = document.createElement('div'); nc.id = 'nc'; nc.setAttribute('role', 'dialog'); nc.setAttribute('aria-label', 'Центр уведомлений');
+  nc.innerHTML = '<div class="status-bar" data-sb></div><div class="nc-clock"><div class="nc-date"></div><div class="nc-time"></div></div><div class="nc-head"><b>Уведомления</b><button id="nc-clear">Очистить</button></div><div id="nc-list"></div><div class="home-indicator"></div>';
+  $('screen').appendChild(nc);
+  renderStatusBars();
+})();
+function openNC() { closeCC(); document.querySelectorAll('.banner').forEach(b => b.remove()); const d = new Date(); $('nc').querySelector('.nc-time').textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes()); $('nc').querySelector('.nc-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()]; renderNotifs(); $('nc').classList.add('open'); }
+function closeNC() { $('nc').classList.remove('open'); }
+$('nc').addEventListener('click', e => {
+  if (e.target.closest('#nc-clear')) { NOTIFS = []; renderNotifs(); return; }
+  const c = e.target.closest('[data-n]');
+  if (c) { const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); closeNC(); if (n) openApp(n.app); return; }
+  if (e.target.closest('.home-indicator') || e.target.id === 'nc' || e.target.closest('.nc-clock')) closeNC();
+});
+$('lock-notifs').addEventListener('pointerup', e => { if (e.target.closest('.n-card')) e.stopPropagation(); });
+$('lock-notifs').addEventListener('click', e => { const c = e.target.closest('[data-n]'); if (!c) return; e.stopPropagation(); const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); if (n) openApp(n.app); });
+// события, о которых сообщается
+on('photos', () => { if (current === 'camera') notify('photos', 'Снимок сохранён', 'Фото добавлено в медиатеку'); });
+
+// ===== Переключатель программ =====
+let RECENTS = [];
+const openApp0 = openApp;
+openApp = function (id, arg) { closeNC(); closeSwitcher(true); openApp0(id, arg); if (current === id) RECENTS = [id].concat(RECENTS.filter(x => x !== id)); };
+(function buildSwitcher() {
+  const s = document.createElement('div'); s.id = 'switcher'; s.setAttribute('role', 'dialog'); s.setAttribute('aria-label', 'Переключатель программ');
+  s.innerHTML = '<div class="sw-row" id="sw-row"></div><div class="sw-empty">Нет открытых программ</div>';
+  $('screen').appendChild(s);
+})();
+function openSwitcher() {
+  if ($('lock-page').classList.contains('active')) return;   // поверх экрана блокировки переключателя нет
+  closeCC(); closeNC();
+  const row = $('sw-row');
+  row.innerHTML = RECENTS.map(id => '<div class="sw-card" data-sw="' + id + '" role="button" aria-label="' + APPS[id].name + '"><div class="sw-head">' + iconHTML(id) + '<span>' + APPS[id].name + '</span></div><div class="sw-shot"></div></div>').join('');
+  row.querySelectorAll('.sw-card').forEach(card => {
+    if (APPS[card.dataset.sw].game) { card.querySelector('.sw-shot').innerHTML = '<div class="sw-game">' + iconHTML(card.dataset.sw) + '</div>'; return; }   // рамку игры не копируем: она бы запустилась второй раз
+    const src = screens[card.dataset.sw].el, c = src.cloneNode(true);
+    c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    c.classList.add('active', 'sw-clone');
+    card.querySelector('.sw-shot').appendChild(c);
+  });
+  $('switcher').classList.toggle('empty', !RECENTS.length);
+  $('switcher').classList.add('open');
+  const cur = row.querySelector('[data-sw="' + current + '"]'); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+function closeSwitcher(silent) { if (!$('switcher').classList.contains('open')) return; $('switcher').classList.remove('open'); if (!silent && !current) showHome(); }
+function killApp(id) {
+  RECENTS = RECENTS.filter(x => x !== id);
+  if (current === id) hideApp();
+  const sc = screens[id]; if (sc.onHide) sc.onHide();
+  if (sc.onKill) sc.onKill();   // программа закрыта совсем: музыка, секундомер, игра останавливаются
+}
+let swDrag = null;
+let swDown = false;   // отпускание того же нажатия, что открыло переключатель, его не закрывает
+$('switcher').addEventListener('pointerdown', e => { swDown = true; const c = e.target.closest('.sw-card'); if (!c) return; e.stopPropagation(); swDrag = { c, y: e.clientY, x: e.clientX, dy: 0 }; c.setPointerCapture(e.pointerId); });
+$('switcher').addEventListener('pointermove', e => { if (!swDrag) return; swDrag.dy = Math.min(0, e.clientY - swDrag.y); swDrag.c.style.transform = 'translateY(' + swDrag.dy + 'px)'; swDrag.c.style.opacity = String(1 + swDrag.dy / 400); });
+$('switcher').addEventListener('pointerup', e => {
+  e.stopPropagation();
+  if (!swDown) return;
+  swDown = false;
+  if (!swDrag) { if (!e.target.closest('.sw-card')) { closeSwitcher(); } return; }
+  const { c, dy, x, y } = swDrag; swDrag = null;
+  if (dy < -90) { c.classList.add('gone'); killApp(c.dataset.sw); setTimeout(() => { c.remove(); if (!RECENTS.length) { $('switcher').classList.add('empty'); } }, 200); return; }
+  c.style.transform = ''; c.style.opacity = '';
+  if (Math.abs(e.clientX - x) < 8 && Math.abs(e.clientY - y) < 8) { const id = c.dataset.sw; closeSwitcher(true); openApp(id); }
+});
+// жест: смахнуть снизу вверх и задержать палец - переключатель
+let hold = null;
+$('device').addEventListener('pointerdown', e => {
+  const r = $('device').getBoundingClientRect(), k = r.height / $('device').offsetHeight;
+  if ((e.clientY - r.top) / k > $('device').offsetHeight - 70 && !$('lock-page').classList.contains('active')) hold = { y: e.clientY, k, timer: null };
+}, true);
+$('device').addEventListener('pointermove', e => {
+  // сработает, только если палец замер: каждое движение откладывает срабатывание
+  if (!hold || (hold.y - e.clientY) / hold.k < 60) return;
+  clearTimeout(hold.timer);
+  hold.timer = setTimeout(() => { if (hold) { hold.fired = true; g = null; openSwitcher(); } }, 320);
+}, true);
+$('device').addEventListener('pointerup', () => { if (hold) { clearTimeout(hold.timer); if (hold.fired) g = null; hold = null; } }, true);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  // окно ввода имени: Escape - это «Отменить», даже если фокус ушёл с поля; дальше клавиша не идёт
+  const al = document.querySelector('.ios-alert-back'); if (al) { al.querySelector('[data-r="0"]').click(); e.stopImmediatePropagation(); return; }
+  if (document.querySelector('.ios-sheet-back')) { document.querySelectorAll('.ios-sheet-back').forEach(x => x.remove()); e.stopImmediatePropagation(); return; }
+  if ($('switcher').classList.contains('open')) { e.stopImmediatePropagation(); closeSwitcher(); return; }
+  if ($('nc').classList.contains('open')) { e.stopImmediatePropagation(); closeNC(); }
+}, true);
+const showLock0 = showLock;
+showLock = function () { closeNC(); closeSwitcher(true); document.querySelectorAll('.ios-alert-back, .ios-sheet-back, .banner').forEach(x => x.remove()); showLock0(); renderNotifs(); };
+
+// будильники из «Часов» присылают уведомление
+let lastAlarm = '';
+setInterval(() => { const d = new Date(), hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes()); if (hm === lastAlarm) return; lastAlarm = hm; store.get('alarms', []).filter(a => a.on && a.t === hm).forEach(a => notify('clock', 'Будильник ' + a.t, a.label)); }, 1000);
+
+
+// ===== Чёткий значок «Настроек»: шестерня из зубцов и кольца =====
+ICONS.settings = ['icon-settings', '<svg width="44" height="44" viewBox="0 0 44 44"><g fill="#3a3a3c">' + Array.from({ length: 12 }, (_, i) => '<rect x="20" y="4" width="4" height="8" rx="1.2" transform="rotate(' + i * 30 + ' 22 22)"/>').join('') + '</g><circle cx="22" cy="22" r="13" fill="#3a3a3c"/><circle cx="22" cy="22" r="9.5" fill="#d1d1d6"/><circle cx="22" cy="22" r="4.5" fill="#3a3a3c"/></svg>'];
+
+// ===== Игры «Игротеки»: папка на рабочем столе, игра на весь экран телефона =====
+// Таблица - ../_os-shared/games.js; игра открывает ../<папка>/index.html; пауза - протокол из README.md.
+function gameIconSVG(g) {
+  const id = 'pg-' + g.id;
+  return '<svg width="60" height="60" viewBox="0 0 48 48"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + g.colors[0] + '"/><stop offset="1" stop-color="' + g.colors[1] + '"/></linearGradient></defs><rect width="48" height="48" fill="url(#' + id + ')"/>' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || '') + '</svg>';
+}
+function addGame(g) {
+  const id = 'game-' + g.id;
+  ICONS[id] = ['icon-game', gameIconSVG(g)];
+  APPS[id] = { name: g.title, cls: 'game-app', game: true, init: sc => initGame(sc, g) };
+  const el = document.createElement('div');
+  el.className = 'app-screen game-app'; el.id = 'app-' + id;
+  $('apps').appendChild(el);
+  screens[id] = { el, inited: false, onShow: null, onHide: null, onKey: null };
+  return id;
+}
+function gamePost(sc, msg) { const f = sc.el.querySelector('iframe'); if (f) try { f.contentWindow.postMessage({ mix: msg }, '*'); } catch (e) { /* грузится */ } }
+function initGame(sc, g) {
+  sc.el.innerHTML = '<iframe class="game-frame" title="' + esc(g.title) + '" src="' + (g.src || '../' + g.dir + '/index.html') + '" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe><div class="game-bar"><div class="home-indicator" title="Домой"></div></div>';
+  // жест «Домой» уходит над рамкой игры: захват указателя, чтобы отпускание пришло телефону, а не игре
+  const bar = sc.el.querySelector('.game-bar'); let downY = null;
+  bar.addEventListener('pointerdown', e => { downY = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ } });
+  // смахивание с захватом тоже рождает щелчок по полосе: его не считаем нажатием (иначе с следующим выйдет «двойное»)
+  bar.addEventListener('click', e => { if (downY !== null && Math.abs(e.clientY - downY) > 10) e.stopPropagation(); downY = null; });
+  sc.onShow = () => gamePost(sc, 'resume');
+  sc.onHide = () => gamePost(sc, 'pause');
+  sc.onKill = () => { gamePost(sc, 'pause'); setTimeout(() => { if (current !== sc.el.id.slice(4)) { sc.el.innerHTML = ''; sc.inited = false; } }, 150); };
+}
+const GAME_IDS = (window.OS_GAMES || []).map(addGame);
+ICONS.games = ['icon-folder', () => '<div class="folder-grid">' + GAME_IDS.slice(0, 9).map(id => '<i>' + ICONS[id][1] + '</i>').join('') + '</div>'];
+APPS.games = { name: 'Игры', cls: 'folder', init() { } };
+if (GAME_IDS.length) HOME.push('games');
+(function buildGamesFolder() {
+  const f = document.createElement('div'); f.id = 'games-folder'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Папка «Игры»');
+  f.innerHTML = '<div class="gf-title">Игры</div><div class="gf-box">' + GAME_IDS.map(id => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') + '</div>';
+  $('home-page').appendChild(f);
+  f.addEventListener('click', e => { if (e.target === f) f.classList.remove('open'); });
+  buildHome(); updateWidgets();
+})();
+const openApp1 = openApp;
+openApp = function (id, arg) { $('games-folder').classList.remove('open'); if (id === 'games') { closeCC(); $('games-folder').classList.add('open'); return; } openApp1(id, arg); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('games-folder').classList.contains('open')) { $('games-folder').classList.remove('open'); e.stopImmediatePropagation(); } }, true);
+
+// ===== Вкладка скрыта - анимации и звук на паузе =====
+document.addEventListener('visibilitychange', () => { document.body.classList.toggle('paused', document.hidden); emit('visibility'); });
+renderNotifs();
+
+</script>
+</body>
+</html>
