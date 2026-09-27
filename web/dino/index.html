@@ -91,9 +91,14 @@ let autopilot = false;
 let kit;
 const progress = { leg: 0, done: false };     // до какого этапа дошёл (контрольная точка)
 const records = { endless: 0, journeyTime: {}, totalDist: 0, totalJumps: 0, totalBirds: 0, runs: 0 };
+// Загрузка по схеме: испорченное хранилище (этап 7, время null) не роняет игру
 function loadProgress() {
-  Object.assign(progress, { leg: 0, done: false }, kit.load('progress', {}));
-  Object.assign(records, { endless: 0, journeyTime: {}, totalDist: 0, totalJumps: 0, totalBirds: 0, runs: 0 }, kit.load('records', {}));
+  const S = GameKit.S, N = 1e9;
+  Object.assign(progress, kit.loadSafe('progress', S.obj({ leg: S.int(0, 0, LEGS.length - 1), done: S.bool(false) })));
+  Object.assign(records, kit.loadSafe('records', S.obj({
+    endless: S.int(0, 0, N), journeyTime: S.map(S.int(0, 1, N), ['easy', 'normal', 'hard']),
+    totalDist: S.int(0, 0, N), totalJumps: S.int(0, 0, N), totalBirds: S.int(0, 0, N), runs: S.int(0, 0, N),
+  })));
 }
 function saveProgress() { kit.save('progress', progress); kit.save('records', records); }
 
@@ -178,6 +183,7 @@ function resetRun(mode, fromDist) {
   state.dist = fromDist || 0;
   state.leg = legAt(state.dist);
   state.legStart = state.dist;
+  state.fromStart = state.dist === 0;       // время путешествия и его достижения - только за забег с нуля
   state.maxLives = mode === 'endless' ? 1 : diffLives();
   state.lives = state.maxLives;
   state.invuln = 0; state.frame = 0; state.nextGap = 300; state.banner = null; state.shake = 0; state.flashT = 0;
@@ -217,13 +223,16 @@ function update() {
   let jumpDown, duckDown;
   if (autopilot) { const a = pilot(); jumpDown = a.jump; duckDown = a.duck; }
   else { jumpDown = kit.isDown('jump') || pointerHeld; duckDown = kit.isDown('duck'); }
+  // нажатие и отпускание между кадрами - короткий прыжок, а не пропуск
+  const jumpTap = !autopilot && (kit.wasPressed('jump') || pointerTap);
+  pointerTap = false;
 
   const before = Math.floor(state.dist / 100);
   state.speed += (targetSpeed() - state.speed) * 0.02;
   state.dist += state.speed / 10;
   if (Math.floor(state.dist / 100) > before && state.mode !== 'demo' && Math.floor(state.dist / 100) % 5 === 0) SFX.point();
 
-  if (jumpDown && !dino.jumping && !duckDown) {
+  if ((jumpDown || jumpTap) && !dino.jumping && !duckDown) {
     dino.vy = JUMP_V; dino.jumping = true; state.stats.jumps++;
     if (state.mode !== 'demo') { SFX.jump(); burst(dino.x + 20, FLOOR, pal.groundDark, 5, 1.5, 0.6); }
   }
@@ -316,12 +325,14 @@ function winJourney() {
   progress.done = true; progress.leg = LEGS.length - 1;
   const secs = Math.round(state.stats.steps / 60);
   const d = kit.settings.difficulty;
-  if (!records.journeyTime[d] || secs < records.journeyTime[d]) records.journeyTime[d] = secs;
+  if (state.fromStart) {                     // забег с середины (выбор этапа, контрольная точка) рекордом не считается
+    if (!records.journeyTime[d] || secs < records.journeyTime[d]) records.journeyTime[d] = secs;
+    kit.unlock('leg4');
+    if (d === 'hard') kit.unlock('hardJourney');
+  }
   finishRunRecords();
-  kit.unlock('leg4');
-  if (d === 'hard') kit.unlock('hardJourney');
   SFX.leg();
-  setTimeout(showVictory, 1600);
+  kit.later(showVictory, 1600);
 }
 
 function pilot() {
@@ -353,11 +364,11 @@ function showGameOver() {
   if (state.mode === 'endless') {
     const rec = Math.floor(state.dist) >= records.endless;
     kit.show({ id: 'over', title: rec ? 'Новый рекорд!' : 'Забег окончен', html: statsHtml() + `<p>Рекорд: <b>${records.endless} м</b></p>`, row: true,
-      buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+      buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
   } else {
     const L = LEGS[state.leg];
     kit.show({ id: 'over', title: 'Сердца кончились', html: statsHtml() + `<p>Контрольная точка: начало этапа «${L.name}» (${L.from} м).</p>`, row: true,
-      buttons: [{ label: `С отметки ${L.from} м`, primary: true, id: 'again', onClick: () => startJourney(state.leg) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+      buttons: [{ label: `С отметки ${L.from} м`, primary: true, id: 'again', onClick: () => startJourney(state.leg) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
   }
 }
 function showVictory() {
@@ -365,9 +376,9 @@ function showVictory() {
   const d = kit.settings.difficulty;
   kit.show({ id: 'victory', title: 'Путешествие завершено!', wide: true,
     html: `<p>Динозаврик пробежал пустыню, каньон, ночную степь и снежный перевал - все 10 000 метров.</p>${statsHtml()}
-      <p>Лучшее время (${({ easy: 'лёгкая', normal: 'обычная', hard: 'трудная' })[d]} сложность): <b>${fmtTime(records.journeyTime[d])}</b></p>
+      <p>${state.fromStart ? '' : 'Забег начат не с нулевой отметки - время и достижения путешествия не засчитаны. '}Лучшее время (${({ easy: 'лёгкая', normal: 'обычная', hard: 'трудная' })[d]} сложность): <b>${records.journeyTime[d] ? fmtTime(records.journeyTime[d]) : 'ещё нет'}</b></p>
       <p style="color:var(--kit-dim)">Игра и рисунки - в коде страницы, музыка и звуки синтезированы. Спасибо, что добежали!</p>`,
-    row: true, buttons: [{ label: 'Бесконечный бег', primary: true, onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+    row: true, buttons: [{ label: 'Бесконечный бег', primary: true, onClick: startEndless }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
 }
 function showLegSelect() {
   const node = document.createElement('div');
@@ -579,7 +590,7 @@ function heart(x, y, full) {
 function flag(x, y, c) { ctx.fillStyle = '#333'; ctx.fillRect(x, y, 2, 14); ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x + 2, y); ctx.lineTo(x + 12, y + 4); ctx.lineTo(x + 2, y + 8); ctx.fill(); }
 function hudText(t, x, y, size, align = 'left', color = '#fff') {
   ctx.font = `bold ${size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = align;
-  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.strokeText(t, x, y);
+  ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.strokeText(t, x, y);
   ctx.fillStyle = color; ctx.fillText(t, x, y);
   ctx.textAlign = 'left';
 }
@@ -634,8 +645,8 @@ function render() {
 }
 
 // ================= Ввод мышью и касанием: нажал - прыжок, держишь - выше =================
-let pointerHeld = false;
-canvas.addEventListener('pointerdown', (e) => { if (kit.mode === 'play' && e.button === 0) { pointerHeld = true; e.preventDefault(); } });
+let pointerHeld = false, pointerTap = false;
+canvas.addEventListener('pointerdown', (e) => { if (kit.mode === 'play' && e.button === 0) { pointerHeld = true; pointerTap = true; e.preventDefault(); } });
 addEventListener('pointerup', () => { pointerHeld = false; });
 addEventListener('blur', () => { pointerHeld = false; });
 
@@ -687,7 +698,7 @@ kit = GameKit.create({
     const grd = g.createLinearGradient(0, 0, 0, h);
     grd.addColorStop(0, '#ffe27a'); grd.addColorStop(1, '#ff9d3d');
     g.font = 'bold 64px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineWidth = 8; g.strokeStyle = '#2b3a1f'; g.strokeText('ДИНО-БЕГ', w / 2 + 40, h / 2 + 4);
+    g.lineWidth = 8; g.lineJoin = 'round'; g.strokeStyle = '#2b3a1f'; g.strokeText('ДИНО-БЕГ', w / 2 + 40, h / 2 + 4);
     g.fillStyle = grd; g.fillText('ДИНО-БЕГ', w / 2 + 40, h / 2 + 4);
     drawLogoDino(g, 40, 50 - Math.abs(Math.sin(t * 5)) * 16, t);
   },
@@ -703,6 +714,7 @@ kit = GameKit.create({
     musicFor() { return state.mode === 'journey' && LEGS[state.leg].pal === 'night' ? 'night' : 'game'; },
     onRestart() { if (state.mode === 'endless') startEndless(); else startJourney(state.leg); },
     onQuit() { startDemo(); },
+    onRelease() { pointerHeld = false; pointerTap = false; },
     onResetProgress() { loadProgress(); },
     recordsHtml() {
       const jt = records.journeyTime;

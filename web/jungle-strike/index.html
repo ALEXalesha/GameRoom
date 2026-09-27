@@ -105,6 +105,8 @@ let kit;
 let progress = { unlocked: 0, done: false, best: {} };
 let shotsFired = 0;
 let mouseFire = false, fireQueued = false, autopilot = false;
+let mouseQueued = false;                      // очередной выстрел заказан кликом - летит в курсор
+const aim = { x: 0, y: 0 };                   // курсор в точках поля (экранных, без камеры)
 
 // ================= Звуки =================
 let lastShot = 0;
@@ -224,9 +226,14 @@ function updatePlayer() {
   if (p.y > H + 20) fellInPit();
   // стрельба: клавиша, ЛКМ и короткий клик - один общий темп
   if (p.cd > 0) p.cd--;
-  if (!autopilot && kit.wasPressed('fire')) fireQueued = true;
+  if (!autopilot && kit.wasPressed('fire')) { fireQueued = true; mouseQueued = false; }
   const rate = p.weapon === 'rapid' ? 4 : p.weapon === 'laser' ? 10 : p.weapon === 'spread' ? 9 : 8;
-  if ((input('fire') || fireQueued) && p.cd === 0) { p.cd = rate; fireQueued = false; shoot(); }
+  if ((input('fire') || fireQueued) && p.cd === 0) {
+    // мышью - в курсор (герой поворачивается к нему), клавишей - по направлению взгляда
+    const byMouse = !autopilot && !kit.isDown('fire') && (mouseFire || mouseQueued);
+    p.cd = rate; fireQueued = false; mouseQueued = false;
+    shoot(byMouse ? { x: aim.x + G.cam, y: aim.y } : null);
+  }
   // камера идёт только вперёд; у арены босса останавливается
   const target = p.x - W * 0.4;
   if (target > G.cam) G.cam = Math.min(target, G.level.arena);
@@ -239,10 +246,15 @@ function updatePlayer() {
     if (G.mode === 'mission') SFX.flag();
   }
 }
-function shoot() {
+function shoot(target) {
   const p = player;
   let bx, by, vx, vy;
-  if (p.prone) { bx = p.x + p.dir * 8; by = p.y - 4; vx = p.dir; vy = 0; }
+  if (target) {
+    p.dir = target.x < p.x ? -1 : 1;
+    bx = p.x + p.dir * (p.prone ? 8 : 6); by = p.y - (p.prone ? 4 : 12);
+    vx = target.x - bx; vy = target.y - by;
+    if (!vx && !vy) vx = p.dir;
+  } else if (p.prone) { bx = p.x + p.dir * 8; by = p.y - 4; vx = p.dir; vy = 0; }
   else if (p.aimUp && p.vx) { bx = p.x + p.dir * 5; by = p.y - 19; vx = p.dir * 0.707; vy = -0.707; }
   else if (p.aimUp) { bx = p.x + 1; by = p.y - 24; vx = 0; vy = -1; }
   else { bx = p.x + p.dir * 9; by = p.y - 12; vx = p.dir; vy = 0; }
@@ -351,7 +363,7 @@ function updateEnemies() {
       case 'mine':
         if (!e.armed && Math.abs(e.x - p.x) < 14 && Math.abs(e.y - p.y) < 20) e.armed = 24;
         if (e.armed && --e.armed === 0) {
-          e.hp = 0; explode(e.x, e.y - 2, false);
+          e.hp = 0; e.exploded = true; explode(e.x, e.y - 2, false);
           if (Math.abs(e.x - p.x) < 22 && Math.abs(e.y - p.y) < 26) hurtPlayer();
         }
         break;
@@ -462,7 +474,7 @@ function updateBullets() {
     if (b.x < G.cam - 10 || b.x > G.cam + W + 10 || b.y < 0 || b.y > H) b.life = 0;
     for (const e of enemies) {
       if (b.life <= 0 || (b.hitSet && b.hitSet.has(e))) continue;
-      if (b.x > e.x - e.w / 2 && b.x < e.x + e.w / 2 && b.y > e.y - e.h && b.y < e.y) {
+      if (b.x > e.x - e.w / 2 && b.x < e.x + e.w / 2 && b.y >= e.y - e.h - 1 && b.y <= e.y) {     // включительно: пуля лёжа идёт ровно по верху мины
         e.hp -= b.dmg; e.flash = 4; G.stats.hits++;
         burst(b.x, b.y, '#ffd040', 3, 1, 8);
         if (e.type === 'mine') e.exploded = false;
@@ -552,11 +564,11 @@ function gameOver() {
   G.banner = null;
   player.alive = false;
   explode(player.x, player.y - 10, true);
-  setTimeout(() => {
+  kit.later(() => {
     kit.mode = 'menu';
     const cp = G.checkpoint;
     kit.show({ id: 'over', title: 'Задание провалено', html: statsHtml() + `<p>${cp ? 'Продолжить можно с контрольной точки ' + cp + ' с полным запасом жизней.' : 'Контрольных точек ещё не было - миссия сначала.'}</p>`, row: true,
-      buttons: [{ label: cp ? 'С контрольной точки' : 'Заново', primary: true, id: 'again', onClick: () => startMission(G.mission, true) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+      buttons: [{ label: cp ? 'С контрольной точки' : 'Заново', primary: true, id: 'again', onClick: () => startMission(G.mission, true) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
   }, params.has('fast') ? 0 : 1100);
 }
 function fmtTime(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
@@ -573,6 +585,7 @@ function missionComplete() {
   progress.best[mi] = { score: Math.max(b.score || 0, G.score), time: b.time ? Math.min(b.time, secs) : secs };
   progress.unlocked = Math.max(progress.unlocked, Math.min(mi + 1, MISSIONS.length - 1));
   if (G.stats.deaths === 0) kit.unlock('flawless');
+  if (kit.settings.difficulty === 'hard') progress.hard[mi] = true;
   G.total = G.total || { score: 0, kills: 0, deaths: 0, steps: 0 };
   if (mi === 0) G.total = { score: 0, kills: 0, deaths: 0, steps: 0 };
   for (const k of ['kills', 'deaths', 'steps']) G.total[k] += G.stats[k];
@@ -580,19 +593,20 @@ function missionComplete() {
   if (mi === MISSIONS.length - 1) {
     progress.done = true;
     kit.save('progress', progress);
-    kit.unlock('campaign');
-    if (kit.settings.difficulty === 'hard') kit.unlock('campaignHard');
+    // Кампания засчитывается, когда пройдены все миссии, а не только последняя из «Выбора миссии»
+    if (MISSIONS.every((_, i) => progress.best[i])) kit.unlock('campaign');
+    if (MISSIONS.every((_, i) => progress.hard[i])) kit.unlock('campaignHard');
     const t = G.total;
     kit.show({ id: 'victory', title: 'Задание выполнено - вышка взята!', wide: true,
       html: `<p>Форт, река, пещеры, база и вышка позади. Джунгли свободны.</p>${statsHtml()}
         ${t && t.steps ? `<p>Вся кампания: очков <b>${t.score}</b>, уничтожено ${t.kills}, потеряно жизней ${t.deaths}, время ${fmtTime(Math.round(t.steps / 60))}.</p>` : ''}
         <p style="color:var(--kit-dim)">«Огненные джунгли» - часть «Игротеки». Всё нарисовано в коде, звуки синтезированы. Спасибо за игру!</p>`,
-      row: true, buttons: [{ label: 'Выбор миссии', primary: true, onClick: showMissionSelect }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+      row: true, buttons: [{ label: 'Выбор миссии', primary: true, onClick: showMissionSelect }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
     return;
   }
   kit.save('progress', progress);
   kit.show({ id: 'missionClear', title: `Миссия ${mi + 1} выполнена!`, html: statsHtml() + `<p>Дальше: <b>${MISSIONS[mi + 1].name}</b> - ${MISSIONS[mi + 1].intro}</p>`, row: true,
-    buttons: [{ label: 'Следующая миссия', primary: true, id: 'next', onClick: () => startMission(mi + 1, false) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+    buttons: [{ label: 'Следующая миссия', primary: true, id: 'next', onClick: () => startMission(mi + 1, false) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
 }
 function showMissionSelect() {
   const node = document.createElement('div');
@@ -613,12 +627,15 @@ function showMissionSelect() {
 const cv = document.getElementById('c');
 let ctx = cv.getContext('2d');
 let pal = PALS.jungle;
+// Размер на экране - целое кратное 400x225 в пикселях экрана, остальное - поля.
+// Так все пиксели игры одного размера (при дробном масштабе одни были в 3, другие в 4 точки).
 function fitCanvas() {
-  const s = Math.min(innerWidth / W, innerHeight / H);
-  const cssW = Math.floor(W * s), cssH = Math.floor(H * s);
-  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
-  const k = Math.max(1, Math.round(cssW * (devicePixelRatio || 1) / W));     // целое кратное: пиксели квадратные, текст чёткий
-  cv.width = W * k; cv.height = H * k;
+  const dpr = devicePixelRatio || 1;
+  const fitK = Math.min(innerWidth * dpr / W, innerHeight * dpr / H);
+  const k = fitK >= 1 ? Math.floor(fitK) : fitK;
+  cv.style.width = (W * k / dpr) + 'px'; cv.style.height = (H * k / dpr) + 'px';
+  const kb = Math.max(1, Math.round(k));
+  cv.width = W * kb; cv.height = H * kb;
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.imageSmoothingEnabled = false;
 }
@@ -902,6 +919,7 @@ function render() {
   pal = PALS[MISSIONS[G.mission].pal];
   const k = cv.width / W;
   ctx.setTransform(k, 0, 0, k, 0, 0);
+  px(0, 0, pal.sky[2], W, H);                            // до сдвига тряски: у края не остаётся полоса прошлого кадра
   if (G.shake > 0.5) ctx.translate(Math.round((rnd() - 0.5) * G.shake), Math.round((rnd() - 0.5) * G.shake));
   drawSky(); drawFar(); drawMid(); drawTrees(); drawGround();
   for (const e of enemies) drawEnemy(e);
@@ -917,11 +935,19 @@ function render() {
 }
 
 // ================= Мышь: огонь ЛКМ только по полю, тем же темпом =================
+// Курсор - в точки поля: учитываются положение и масштаб холста (камера - при выстреле)
+function trackAim(e) {
+  const r = cv.getBoundingClientRect();
+  aim.x = (e.clientX - r.left) / r.width * W;
+  aim.y = (e.clientY - r.top) / r.height * H;
+}
+addEventListener('pointermove', trackAim);
 cv.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
   e.preventDefault();
+  trackAim(e);
   if (kit.mode !== 'play') return;
-  mouseFire = true; fireQueued = true;
+  mouseFire = true; fireQueued = true; mouseQueued = true;
 });
 addEventListener('pointerup', (e) => { if (e.button === 0) mouseFire = false; });
 addEventListener('pointercancel', () => { mouseFire = false; });
@@ -990,6 +1016,7 @@ kit = GameKit.create({
     musicFor() { return boss ? 'boss' : 'game'; },
     onRestart() { startMission(G.mission, true); },
     onQuit() { startDemo(); },
+    onRelease() { mouseFire = false; fireQueued = false; mouseQueued = false; },
     onResetProgress() { loadAll(); },
     recordsHtml() {
       return `<table>${MISSIONS.map((m, i) => { const b = progress.best[i]; return `<tr><td>${i + 1}. ${m.name}</td><td>${b ? 'очки ' + b.score + ' · ' + fmtTime(b.time) : (i <= progress.unlocked ? 'не пройдена' : '🔒')}</td></tr>`; }).join('')}
@@ -997,7 +1024,15 @@ kit = GameKit.create({
     },
   },
 });
-function loadAll() { progress = Object.assign({ unlocked: 0, done: false, best: {} }, kit.load('progress', {})); }
+// Загрузка по схеме: испорченное хранилище (миссия 9, рекорд null) не роняет игру
+function loadAll() {
+  const Z = GameKit.S, N = 1e9, keys = MISSIONS.map((_, i) => String(i));
+  progress = kit.loadSafe('progress', Z.obj({
+    unlocked: Z.int(0, 0, MISSIONS.length - 1), done: Z.bool(false),
+    best: Z.map(Z.obj({ score: Z.int(0, 0, N), time: Z.int(1, 1, N) }), keys),
+    hard: Z.map(Z.bool(false), keys),
+  }));
+}
 
 let last = performance.now(), acc = 0;
 function loop(now) {

@@ -80,6 +80,7 @@ const UPGRADES = {
   rate: { name: 'Скорострельность', desc: () => '-10% к паузе между выстрелами', prices: [120, 250, 420] },
 };
 const REPAIR_PRICE = 40, BOMB_PRICE = 60, MAX_BOMBS = 3;
+const HUD_BOTTOM = 72;          // ниже полос прочности, кредитов и полосы босса
 
 // ================= Состояние =================
 const S = {
@@ -145,7 +146,8 @@ function startSector(i, fromCheckpoint) {
     S.up = { ...progress.up }; S.credits = progress.credits; S.bombs = progress.bombs;
     if (progress.stats) S.stats = { ...progress.stats };
     applyUpgrades(true);
-  } else applyUpgrades(false);
+  } else if (fromCheckpoint) { newCampaignState(); applyUpgrades(true); }   // мастерской ещё не было: чистый корабль, а не корабль заставки
+  else applyUpgrades(false);
   Object.assign(P, { x: W / 2, y: H * 0.72, vx: 0, vy: 0, invuln: 60, cd: 0, overdrive: 0 });
   for (let k = 0; k < SECTORS[i].asteroids; k++) spawnAsteroid();
   startWave();
@@ -305,7 +307,7 @@ function updatePlayer() {
   }
   const acc = 0.55 * (1 + 0.12 * S.up.speed);
   P.vx = (P.vx + mx * acc) * 0.88; P.vy = (P.vy + my * acc) * 0.88;
-  P.x = clamp(P.x + P.vx, P.r, W - P.r); P.y = clamp(P.y + P.vy, P.r + 30, H - P.r);
+  P.x = clamp(P.x + P.vx, P.r, W - P.r); P.y = clamp(P.y + P.vy, HUD_BOTTOM + P.r, H - P.r);
   P.angle = aimAngle();
   if (P.cd > 0) P.cd--;
   if (P.invuln > 0) P.invuln--;
@@ -543,6 +545,7 @@ function sectorCleared() {
   if (S.sectorDamage === 0) kit.unlock('untouched');
   if (S.stats.shots > 40 && S.stats.hits / S.stats.shots >= 0.7) kit.unlock('sniper');
   P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.4);          // между секторами - частичный ремонт
+  if (kit.settings.difficulty === 'hard') progress.hardSec[S.sector] = true;
   if (S.sector === SECTORS.length - 1) { winCampaign(); return; }
   saveCheckpoint(S.sector + 1);
   kit.save('records', records);
@@ -556,7 +559,7 @@ function playerDied() {
   burst(P.x, P.y, '#00e5ff', 60, 7, 70); burst(P.x, P.y, '#ff9a3c', 40, 5, 60);
   SFX.boom(true); shake(26);
   records.kills = records.kills; kit.save('records', records);
-  setTimeout(() => {
+  kit.later(() => {
     S.phase = 'over';
     kit.mode = 'menu';
     if (S.mode === 'survival') {
@@ -564,10 +567,10 @@ function playerDied() {
       records.survivalScore = Math.max(records.survivalScore, S.stats.credits);
       kit.save('records', records);
       kit.show({ id: 'over', title: 'Корабль уничтожен', html: statsHtml() + `<p>Пережито волн: <b>${S.survivalWave}</b> · рекорд: <b>${records.survival}</b></p>`, row: true,
-        buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+        buttons: [{ label: 'Ещё раз', primary: true, id: 'again', onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
     } else {
       kit.show({ id: 'over', title: 'Корабль уничтожен', html: statsHtml() + `<p>Контрольная точка - начало сектора ${S.sector + 1} «${SECTORS[S.sector].name}» с улучшениями на тот момент.</p>`, row: true,
-        buttons: [{ label: `Повторить сектор ${S.sector + 1}`, primary: true, id: 'again', onClick: () => startCampaign(S.sector) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+        buttons: [{ label: `Повторить сектор ${S.sector + 1}`, primary: true, id: 'again', onClick: () => startCampaign(S.sector) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
     }
   }, params.has('fast') ? 0 : 1300);
 }
@@ -580,9 +583,11 @@ function winCampaign() {
   if (!records.bestTime[d] || secs < records.bestTime[d]) records.bestTime[d] = secs;
   kit.save('records', records);
   kit.unlock('campaign');
-  if (d === 'hard') kit.unlock('campaignHard');
+  // «Трудная кампания» - только если все сектора пройдены на трудной, а не последний из «Выбора сектора»
+  if (SECTORS.every((_, i) => progress.hardSec[i])) kit.unlock('campaignHard');
+  kit.save('progress', progress);
   SFX.fanfare();
-  setTimeout(showVictory, params.has('fast') ? 0 : 2200);
+  kit.later(showVictory, params.has('fast') ? 0 : 2200);
 }
 
 function demoDirector() {
@@ -646,7 +651,7 @@ function showShop() {
   row('repair', 'Ремонт', '+50 прочности', '', REPAIR_PRICE, S.credits >= REPAIR_PRICE && P.hp < P.maxHp);
   row('bomb', 'Бомба', 'Очищает экран от пуль и бьёт всех врагов', '●'.repeat(S.bombs) + `<i>${'●'.repeat(MAX_BOMBS - S.bombs)}</i>`, BOMB_PRICE, S.credits >= BOMB_PRICE && S.bombs < MAX_BOMBS);
   const def = { id: 'shop', title: 'Мастерская', node, wide: true, row: true, back: () => {},
-    buttons: [{ label: `В бой: сектор ${S.sector + 2}`, primary: true, id: 'next', onClick: () => startCampaign(S.sector + 1) }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] };
+    buttons: [{ label: `В бой: сектор ${S.sector + 2}`, primary: true, id: 'next', onClick: () => startCampaign(S.sector + 1) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] };
   if (kit.topId() === 'shop') kit.replace(def); else kit.show(def);
 }
 function refreshShop() { showShop(); }
@@ -657,7 +662,7 @@ function showVictory() {
     html: `<p>Все восемь секторов свободны. Флот вернулся домой, а ваш корабль стал легендой.</p>${statsHtml()}
       <p>Лучшее время (${({ easy: 'лёгкая', normal: 'обычная', hard: 'трудная' })[d]}): <b>${fmtTime(records.bestTime[d])}</b></p>
       <p style="color:var(--kit-dim)">«Космический стрелок»: код, рисунки, музыка и звуки сделаны в самой странице. Спасибо за игру!</p>`,
-    row: true, buttons: [{ label: 'Выживание', primary: true, onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.showMain() }] });
+    row: true, buttons: [{ label: 'Выживание', primary: true, onClick: startSurvival }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
 }
 function showSectorSelect() {
   const node = document.createElement('div');
@@ -667,7 +672,7 @@ function showSectorSelect() {
   SECTORS.forEach((sc, i) => {
     const open = i <= progress.maxSector;
     const bossName = sc.end === 'elite' ? 'элитное звено' : 'босс: ' + BOSSES[sc.end].name;
-    const b = kit.btn(`${open ? '' : '🔒 '}${i + 1}. ${sc.name}<small>${bossName}</small>`, () => { if (open) { if (i !== progress.sector && progress.up) saveCheckpoint(i); startCampaign(i); } });
+    const b = kit.btn(`${open ? '' : '🔒 '}${i + 1}. ${sc.name}<small>${bossName}</small>`, () => { if (open) { if (i !== progress.sector) { progress.sector = i; kit.save('progress', progress); } startCampaign(i); } });
     b.disabled = !open; b.dataset.sector = i;
     grid.appendChild(b);
   });
@@ -957,9 +962,19 @@ kit = GameKit.create({
     },
   },
 });
+// Загрузка по схеме: испорченное хранилище (сектор 11, улучшения «x») не роняет игру
 function loadAll() {
-  progress = Object.assign({ sector: 0, maxSector: 0, done: false, up: null, credits: 0, bombs: 1, hp: 100 }, kit.load('progress', {}));
-  records = Object.assign({ survival: 0, survivalScore: 0, bestTime: {}, kills: 0 }, kit.load('records', {}));
+  const G = GameKit.S, N = 1e9, last = SECTORS.length - 1;
+  const lvl = (k) => G.int(0, 0, UPGRADES[k].prices.length);
+  progress = kit.loadSafe('progress', G.obj({
+    sector: G.int(0, 0, last), maxSector: G.int(0, 0, last), done: G.bool(false),
+    up: G.nul(G.obj({ weapon: lvl('weapon'), damage: lvl('damage'), shield: lvl('shield'), speed: lvl('speed'), rate: lvl('rate') })),
+    credits: G.int(0, 0, N), bombs: G.int(1, 0, MAX_BOMBS), hp: G.num(100, 1, 1000),
+    hardSec: G.map(G.bool(false), SECTORS.map((_, i) => String(i))),
+    stats: G.nul(G.obj({ kills: G.int(0, 0, N), shots: G.int(0, 0, N), hits: G.int(0, 0, N), dmgTaken: G.num(0, 0, N), steps: G.int(0, 0, N), credits: G.int(0, 0, N) })),
+  }));
+  progress.maxSector = Math.max(progress.maxSector, progress.sector);
+  records = kit.loadSafe('records', G.obj({ survival: G.int(0, 0, N), survivalScore: G.int(0, 0, N), bestTime: G.map(G.int(0, 1, N), ['easy', 'normal', 'hard']), kills: G.int(0, 0, N) }));
 }
 
 let last = performance.now(), acc = 0;
