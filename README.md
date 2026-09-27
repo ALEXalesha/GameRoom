@@ -3,7 +3,7 @@
 **English** · [Русский](README.ru.md)
 
 A collection of small projects that have been fixed up, plus **Igroteka** («Игротека»,
-"game library"), a desktop app that runs eight of the games from this collection in
+"game library"), a desktop app that runs ten of the games from this collection in
 tabs of one window.
 
 - `web/` - 25 standalone HTML pages: games, tools and desktop-shell demos. Each opens
@@ -17,8 +17,8 @@ The interface of all projects is in Russian.
 
 ## Igroteka
 
-Eight games in one window: Cube World, Cube Parkour, 3D Shooting Range, Dino Run,
-Hop-Skip (a platformer), Horizon Drift, Fire Jungle and Space Shooter. All games are fan
+Ten games in one window: Cube World, Cube Parkour, 3D Shooting Range, Dino Run,
+Hop-Skip (a platformer), Horizon Drift, Fire Jungle, Space Shooter, Blocks and Sudoku. All games are fan
 concepts and are not affiliated with any rights holders.
 
 ![A game in a tab](docs/screens/app-game.png)
@@ -29,7 +29,7 @@ concepts and are not affiliated with any rights holders.
   and everything survives a restart. The data of a single game can be cleared in the
   settings without touching the others.
 - **Background tabs are paused and silent.** A hidden game pauses, gets no animation
-  frames and is muted. Checked on all eight games.
+  frames and is muted. Checked on every game.
 - **No network.** Game pages cannot reach the internet or read files outside their own
   folder. An external link opens in the system browser, and only after you confirm.
 - **The window remembers** its size, position and maximised state, and which tabs were
@@ -70,7 +70,7 @@ npm run dist              # build the installer and the portable exe into dist/
 
 The Windows x64 build gives `dist/Igroteka-1.0.0-Setup.exe` (NSIS, per-user, no admin
 rights, Russian) and `dist/Igroteka-1.0.0-Portable.exe`, 98 MB each. Only `app/` and the
-eight game folders go into the build.
+ten game folders go into the build.
 
 ```
 npm test                  # web/ pages in Chromium (284 checks)

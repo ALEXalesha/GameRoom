@@ -4,9 +4,9 @@
 
 **EN**
 
-- New: Igroteka, an Electron desktop app with eight games from `web/` in tabs of one
+- New: Igroteka, an Electron desktop app with ten games from `web/` in tabs of one
   window: Cube World, Cube Parkour, 3D Shooting Range, Dino Run, Hop-Skip, Horizon Drift,
-  Fire Jungle, Space Shooter.
+  Fire Jungle, Space Shooter, Blocks, Sudoku.
 - Each game has its own storage (`persist:<game>` session): records and saves do not mix
   and survive a restart; one game's data can be cleared in the settings.
 - Background tabs are detached from the window (paused, no animation frames) and muted.
@@ -23,7 +23,7 @@
 
 **RU**
 
-- Новое: «Игротека», приложение на Electron: восемь игр из `web/` во вкладках одного окна.
+- Новое: «Игротека», приложение на Electron: десять игр из `web/` во вкладках одного окна.
 - У каждой игры своё хранилище (сеанс `persist:<игра>`): рекорды и сохранения не
   смешиваются и живут после перезапуска; данные одной игры можно стереть в настройках.
 - Фоновая вкладка снимается с окна (пауза, кадры не идут) и молчит.
