@@ -631,7 +631,6 @@ function showImport() {
 }
 
 // ================= Ввод: действия набора и цифры =================
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 addEventListener('pagehide', save);
 addEventListener('keydown', (e) => {
   if (kit.mode !== 'play' || kit.stack.length || e.altKey) return;

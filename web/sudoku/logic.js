@@ -283,8 +283,9 @@
     }
   }
   // Одна попытка: решение, убираем клетки (решение остаётся единственным); логикой не решается - возвращаем
-  // клетки, пока не решится; приём проще нужного - убираем ещё, пока уровень не дорастёт (подъём к уровню).
+  // клетки, пока не решится. Уровень не тот - попытка не засчитана.
   function* oneAttempt(L, rnd) {
+    yield 0;
     const solution = randomSolution(rnd), puzzle = solution.slice();
     const target = L.clues[0] + Math.floor(rnd() * (L.clues[1] - L.clues[0] + 1));
     let clues = 81;
@@ -301,18 +302,6 @@
       }
     }
     if (!r.solved || r.maxTier > L.tier) return null;
-    if (r.maxTier < L.tier) {
-      for (const i of shuffle(puzzle.map((v, k) => (v ? k : -1)).filter((k) => k >= 0), rnd)) {
-        if (clues <= L.clues[0]) break;
-        yield 0;
-        const keep = puzzle[i]; puzzle[i] = 0;
-        if (countSolutions(puzzle, 2) !== 1) { puzzle[i] = keep; continue; }
-        const t = solveLogic(puzzle);
-        if (!t.solved || t.maxTier > L.tier) { puzzle[i] = keep; continue; }
-        clues--; r = t;
-        if (r.maxTier === L.tier) break;
-      }
-    }
     if (r.maxTier !== L.tier || clues > L.clues[1] || clues < L.clues[0]) return null;
     return { puzzle, solution, clues, tier: r.maxTier };
   }

@@ -325,6 +325,7 @@ test.describe('Судоку: пауза, клавиши, окно', () => {
     // нажатие держится, пока игра его не увидит (по кадрам, а не по часам - под нагрузкой кадры реже)
     const frames = (n) => page.evaluate((n) => new Promise((r) => { const f = (k) => (k ? requestAnimationFrame(() => f(k - 1)) : r()); f(n); }), n);
     const tap = async (b) => { await page.evaluate((b) => { __pad.buttons[b].pressed = true; }, b); await frames(3); await page.evaluate((b) => { __pad.buttons[b].pressed = false; }, b); await frames(3); };
+    await frames(3);                 // набор замечает, что кнопки отпущены после смены экрана
     await tap(15);
     expect(await page.evaluate(() => __game.state.selected)).toEqual({ r: 4, c: 5 });
     const e = await page.evaluate(EMPTY);
@@ -410,7 +411,8 @@ test.describe('Судоку: по второму ревью', () => {
 
   test('испорченное сохранение: неверная дата, чужое решение, 50 ошибок - игра продолжается честно, победа засчитывается', async ({ page }) => {
     const errors = await open(page);
-    const real = await page.evaluate(() => { const g = __game; g.newSync('easy', 23); g.kit.play(); g.save(); return g.state.solution.join(''); });
+    // партия сохранена, выходим в меню (заставка при уходе со страницы ничего не пишет) и портим сохранение
+    const real = await page.evaluate(() => { const g = __game; g.newSync('easy', 23); g.kit.play(); g.save(); const sol = g.state.solution.join(''); g.kit.toMenu(); return sol; });
     await page.evaluate(() => {
       const o = JSON.parse(localStorage.getItem('sudoku:game'));
       o.daily = 'x'; o.mistakes = 50; o.solution = o.solution.split('').reverse().join('');
@@ -442,9 +444,10 @@ test.describe('Судоку: по второму ревью', () => {
 
   test('тёмная тема: неверная цифра в выбранной клетке читается (контраст не ниже 4.5)', async ({ page }) => {
     await open(page);
-    const ratio = await page.evaluate((E) => {
+    const ratio = await page.evaluate(async (E) => {
       const g = __game; g.kit.set('theme', 'dark'); g.newSync('easy', 25);
       const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1);
+      await new Promise((r) => setTimeout(r, 400));          // плавная смена фона закончилась
       const cs = getComputedStyle(g.cellEl(e.r, e.c));
       const rgb = (x) => x.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const lum = ([r, gg, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(gg) + 0.0722 * f(b); };
