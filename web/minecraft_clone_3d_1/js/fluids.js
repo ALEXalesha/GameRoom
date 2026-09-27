@@ -59,6 +59,7 @@
       for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]]) {
         if (FL[Math.max(0, get(x + dx, y + dy, z + dz))] === WATER) { set(x, y, z, isSource(id) ? B.obsidian : B.cobblestone); VX.audio.play('fizz'); touch(x, y, z); return; }
       }
+      lavaCells.add(key(x, y, z));
     }
     if (!isSource(id)) {
       const above = get(x, y + 1, z);
@@ -88,8 +89,9 @@
     // вниз - в первую очередь
     const bl = get(x, y - 1, z);
     if (y > 0 && bl >= 0) {
-      if (fam === LAVA && FL[bl] === WATER) { set(x, y - 1, z, B.stone); VX.audio.play('fizz'); return; }
-      if (fam === WATER && FL[bl] === LAVA) { set(x, y - 1, z, isSource(bl) ? B.obsidian : B.cobblestone); VX.audio.play('fizz'); return; }
+      // застывание не останавливает саму жидкость: она перепроверится и растечётся дальше
+      if (fam === LAVA && FL[bl] === WATER) { set(x, y - 1, z, B.stone); VX.audio.play('fizz'); schedule(x, y, z); return; }
+      if (fam === WATER && FL[bl] === LAVA) { set(x, y - 1, z, isSource(bl) ? B.obsidian : B.cobblestone); VX.audio.play('fizz'); schedule(x, y, z); return; }
       if (REPLACEABLE.has(bl) || (FL[bl] === fam && !isSource(bl) && !FF[bl])) { set(x, y - 1, z, FALL[fam]); touch(x, y - 1, z); return; }
       if (FL[bl] === fam) return;                  // жидкость на жидкости вбок не растекается
     }
@@ -98,8 +100,8 @@
     if (next > MAX[fam]) return;
     for (const [dx, dz] of SIDES) {
       const n = get(x + dx, y, z + dz);
-      if (fam === LAVA && FL[n] === WATER) { set(x + dx, y, z + dz, B.stone); VX.audio.play('fizz'); continue; }
-      if (fam === WATER && FL[n] === LAVA) { set(x + dx, y, z + dz, isSource(n) ? B.obsidian : B.cobblestone); VX.audio.play('fizz'); continue; }
+      if (fam === LAVA && FL[n] === WATER) { set(x + dx, y, z + dz, B.stone); VX.audio.play('fizz'); touch(x + dx, y, z + dz); continue; }
+      if (fam === WATER && FL[n] === LAVA) { set(x + dx, y, z + dz, isSource(n) ? B.obsidian : B.cobblestone); VX.audio.play('fizz'); touch(x + dx, y, z + dz); continue; }
       if (canFill(n, fam, next)) { set(x + dx, y, z + dz, flowing(fam, next)); schedule(x + dx, y, z + dz); }
     }
     // лава поджигает горючее рядом
@@ -117,6 +119,16 @@
 
   // ---------- Огонь ----------
   const fires = new Map();      // клетка -> сколько горит
+  const lavaCells = new Set();  // лава, которую видели: она случайно поджигает горючее и в покое, как в оригинале
+  function lavaRandomTicks() {
+    let n = 0;
+    for (const k of lavaCells) {
+      if (n++ > 60) break;
+      const [x, y, z] = k.split(',').map(Number);
+      if (FL[Math.max(0, get(x, y, z))] !== LAVA) { lavaCells.delete(k); continue; }
+      if (Math.random() < 0.3) igniteNear(x, y, z);
+    }
+  }
   function tickFires(dt) {
     for (const [k, age] of fires) {
       const [x, y, z] = k.split(',').map(Number);
@@ -138,6 +150,7 @@
       timers[fam] += dt;
       if (timers[fam] < PERIOD[fam]) continue;
       timers[fam] = 0;
+      if (fam === LAVA) lavaRandomTicks();
       const q = queues[fam];
       if (!q.size) continue;
       const cells = [...q].slice(0, 3000);
@@ -147,7 +160,7 @@
     tickFires(dt);
   }
   function reset(meta) {
-    queues[1].clear(); queues[2].clear(); fires.clear();
+    queues[1].clear(); queues[2].clear(); fires.clear(); lavaCells.clear();
     for (const k of (meta && meta.fires) || []) fires.set(k, 0);
   }
   function save(meta) { meta.fires = [...fires.keys()].slice(0, 500); }

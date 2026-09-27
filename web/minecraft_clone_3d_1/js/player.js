@@ -115,12 +115,12 @@
   // Касается ли коробка блока с id из набора (кактус - чуть шире коробки, огонь и лава - клетка)
   function touching(world, box, ids, pad) {
     for (let x = Math.floor(box[0] - pad); x <= Math.floor(box[3] + pad - EPS); x++)
-      for (let y = Math.floor(box[1]); y <= Math.floor(box[4] - EPS); y++)
+      for (let y = Math.floor(box[1] - pad); y <= Math.floor(box[4] + pad - EPS); y++)
         for (let z = Math.floor(box[2] - pad); z <= Math.floor(box[5] + pad - EPS); z++) {
           const b = world.getBlock(x, y, z);
           if (b <= 0 || !ids(b)) continue;
           const q = C.SHAPE[b] ? C.SHAPE[b][0] : FULL[0];
-          if (box[0] - pad < x + q[3] / 16 && box[3] + pad > x + q[0] / 16 && box[1] < y + q[4] / 16 && box[4] > y + q[1] / 16 && box[2] - pad < z + q[5] / 16 && box[5] + pad > z + q[2] / 16) return [x + 0.5, y, z + 0.5];
+          if (box[0] - pad < x + q[3] / 16 && box[3] + pad > x + q[0] / 16 && box[1] - pad < y + q[4] / 16 && box[4] + pad > y + q[1] / 16 && box[2] - pad < z + q[5] / 16 && box[5] + pad > z + q[2] / 16) return [x + 0.5, y, z + 0.5];
         }
     return null;
   }
