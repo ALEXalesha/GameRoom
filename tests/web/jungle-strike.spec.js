@@ -394,3 +394,22 @@ test.describe('jungle-strike: пиксельный шрифт', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('jungle-strike: тряска', () => {
+  test('при тряске у края кадра не остаётся полосы прошлой картинки', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] [data-id=campaign]');
+    const bad = await page.evaluate(() => {
+      const g = __game, c = document.getElementById('c'), x = c.getContext('2d');
+      let bad = 0;
+      for (let i = 0; i < 12; i++) {
+        x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#ff00ff'; x.fillRect(0, 0, c.width, c.height);   // «прошлый кадр»
+        g.G.shake = 12; g.step(1, true);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        for (let p = 0; p < d.length; p += 4) if (d[p] === 255 && d[p + 1] === 0 && d[p + 2] === 255) bad++;
+      }
+      return bad;
+    });
+    expect(bad).toBe(0);
+  });
+});
