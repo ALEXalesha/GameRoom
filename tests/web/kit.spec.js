@@ -20,6 +20,9 @@ const GAMES = {
     nested: { progress: [{ levels: { 0: { stars: null, best: 100 } } }, { levels: { 0: null, 3: { stars: [1, 'x'], best: 'x' } } }, { levels: [] }] } },
   tetris: { id: 'blocks', start: '[data-id=play]', keys: { records: '__game.records', stats: '__game.stats' },
     nested: { records: [{ marathon: [{ score: 'x', lines: null }], sprint: null }, { sprint: [{ time: -5 }, 7, null] }, { zen: {} }] } },
+  sudoku: { id: 'sudoku', start: '[data-id=new]', keys: { records: '__game.records' },
+    nested: { records: [{ levels: { easy: null, hard: { best: 'x' } } }, { daily: { done: { '2026-01-01': 'x' }, streak: -3 } }, { streak: null }],
+      game: [{ puzzle: '1'.repeat(81), solution: 'x' }, { puzzle: '5'.repeat(2) + '0'.repeat(79), user: null }, { notes: 'x' }] } },
 };
 const BAD = [null, 'x', -1, 7, 999, 1.5, [], {}, true];
 
@@ -70,7 +73,7 @@ for (const game of Object.keys(GAMES)) {
     const cfg = GAMES[game];
     const samples = await page.evaluate((keys) => { const o = {}; for (const k in keys) o[k] = JSON.parse(JSON.stringify(eval(keys[k]))); return o; }, cfg.keys);
     const variants = [];
-    for (const key of [...Object.keys(cfg.keys), 'achievements']) {
+    for (const key of [...Object.keys(cfg.keys), 'achievements', ...Object.keys(cfg.nested).filter((k) => !cfg.keys[k])]) {
       for (const bad of [...BAD, '{broken json']) variants.push({ key, raw: typeof bad === 'string' && bad.startsWith('{') ? bad : JSON.stringify(bad) });
       const base = samples[key];
       if (base && typeof base === 'object') {
@@ -223,6 +226,8 @@ const DEFEAT = {
   mario: { start: '[data-id=play]', die: '(() => { const g = __game; for (let i = 0; i < 3; i++) { g.player.invuln = 0; g.hurt(); g.step(80, false); } })()', demo: '__game.state.mode' },
   tetris: { start: '[data-id=play]', then: '[data-screen=modes] [data-mode=marathon]', die: "(() => { const g = __game; g.setGrid(Array.from({ length: 21 }, (_, i) => (i % 2 ? 'XXXX.XXXXX' : 'XXXXX.XXXX'))); for (let i = 0; i < 6 && g.state.phase === 'play'; i++) g.hardDrop(); g.step(100, false); })()", demo: '__game.state.mode' },
 };
+DEFEAT.sudoku = { start: '[data-id=new]', then: '[data-screen=levels] [data-level=easy]', demo: '__game.state.demo ? "demo" : "game"',
+  die: "(async () => { const g = __game; while (g.kit.mode !== 'play') await new Promise((r) => setTimeout(r, 20)); g.kit.set('mistakeLimit', 3); for (let k = 0; k < 3; k++) { const s = g.state, i = s.user.findIndex((v) => !v); g.select(Math.floor(i / 9), i % 9); g.input(s.solution[i] === 9 ? 1 : s.solution[i] + 1); g.erase(); } })()" };
 for (const game of Object.keys(DEFEAT)) {
   test(`${game}: «В меню» с экрана поражения возвращает живую заставку`, async ({ page }) => {
     await openGame(page, game, 'seed=1');
@@ -243,6 +248,7 @@ const SHELL = {
   'jungle-strike': { start: '[data-id=campaign]', frame: '__game.G.t', name: 'Огненные джунгли' },
   mario: { start: '[data-id=play]', frame: '__game.state.timer', name: 'Прыг-скок' },
   tetris: { start: '[data-id=play]', then: '[data-screen=modes] [data-mode=zen]', frame: '__game.state.frame', name: 'Блоки' },
+  sudoku: { start: '[data-id=new]', then: '[data-screen=levels] [data-level=easy]', frame: '__game.state.elapsed', name: 'Судоку' },
 };
 for (const game of Object.keys(SHELL)) {
   test(`${game}: сообщение оболочки {mix:'pause'} останавливает игру и звук, {mix:'resume'} паузу не снимает`, async ({ page }) => {

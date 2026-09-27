@@ -1,692 +1,670 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="application-name" content="Судоку">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Судоку</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0;
-    font-family: "Segoe UI", Roboto, Arial, sans-serif;
-    background: #f5f5f5;
-    color: #1a1a1a;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 12px 16px;
-    overflow: auto;
+  :root, [data-theme=dark] {
+    --bg: #11141f; --bg2: #1a1f33; --cell: #1b2031; --cell-given: #e8ecf6; --cell-user: #8fb1ff; --cell-hint: #5fd7a0;
+    --line: #2c3350; --line-strong: #7082b8; --peer: #222a42; --same: #34437a; --sel: #3c5bd6; --sel-fg: #ffffff;
+    --err-bg: #4a1f2a; --err: #ff7a8a; --note: #9aa6c8; --text: #e8ecf6; --dim: #8a93b0; --btn: #232a41; --btn-hover: #2c3552; --accent: #7aa2ff;
   }
-  h1 { margin: 0; font-size: 22px; font-weight: 600; }
-  /* Поле слева, всё управление справа: так судоку целиком влезает в 1280x800 и 1024x700 */
-  .main { display: flex; gap: 24px; align-items: flex-start; }
-  .side { width: 300px; display: flex; flex-direction: column; gap: 10px; }
-  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .stats { font-size: 13px; color: #666; display: flex; gap: 14px; flex-wrap: wrap; }
-  .stats b { color: #1a1a1a; font-weight: 600; }
-  select, button {
-    padding: 7px 12px; font-size: 13px; border: 1px solid #d0d0d0; background: #fff; color: #1a1a1a;
-    border-radius: 6px; cursor: pointer; font-family: inherit;
+  [data-theme=light] {
+    --bg: #eef1f7; --bg2: #ffffff; --cell: #ffffff; --cell-given: #1d2433; --cell-user: #2b5ce6; --cell-hint: #178a55;
+    --line: #d5dae6; --line-strong: #3a4466; --peer: #eef2fb; --same: #cfdcff; --sel: #3b6ef5; --sel-fg: #ffffff;
+    --err-bg: #ffe3e7; --err: #d0263b; --note: #6b7385; --text: #1d2433; --dim: #6b7385; --btn: #ffffff; --btn-hover: #eef2fb; --accent: #3b6ef5;
   }
-  button:hover { background: #f0f0f0; }
-  button:active { transform: scale(0.98); }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.active { background: #d6e7ff; border-color: #4a90e2; color: #1565c0; }
-  .board-wrap { position: relative; }
-  .board {
-    display: grid; grid-template-columns: repeat(9, 1fr);
-    width: min(540px, calc(100vh - 110px), calc(100vw - 380px));
-    min-width: 300px;
-    aspect-ratio: 1; background: #fff; border: 2px solid #1a1a1a; border-radius: 6px; overflow: hidden;
-  }
-  .board.paused .cell { color: transparent !important; }
-  .board.paused .notes { visibility: hidden; }
-  .cell {
-    position: relative; display: flex; align-items: center; justify-content: center;
-    font-size: clamp(16px, 3.2vmin, 28px); cursor: pointer; user-select: none; background: #fff; color: #1a1a1a;
-    border-right: 1px solid #d0d0d0; border-bottom: 1px solid #d0d0d0; transition: background 0.1s;
-  }
-  .cell:nth-child(3n) { border-right: 2px solid #1a1a1a; }
-  .cell:nth-child(9n) { border-right: none; }
-  .cell.row-bb { border-bottom: 2px solid #1a1a1a; }
-  .cell.row-last { border-bottom: none; }
-  .cell.given { font-weight: 600; }
-  .cell.user { color: #1565c0; }
-  .cell.hint { color: #2e7d32; }
-  .cell.error { color: #c62828; background: #ffebee; }
-  .cell.peer { background: #f0f0f0; }
-  .cell.same-num { background: #b3d4ff; }
-  .cell.selected { background: #d6e7ff; }
-  .notes {
-    position: absolute; inset: 2px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
-    font-size: clamp(7px, 1.3vmin, 11px); color: #888;
-  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+  #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
+  #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+  .wrap { --bs: min(calc(100vh - 56px), calc(100vw - 440px), 840px); display: flex; gap: 32px; align-items: stretch; }
+  #board { width: var(--bs); height: var(--bs); min-width: 300px; min-height: 300px; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr);
+    background: var(--cell); border: 3px solid var(--line-strong); border-radius: 14px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.25); position: relative; }
+  .cell { position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--cell);
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: calc(var(--bs) * 0.058); font-weight: 500; color: var(--cell-user); transition: background .12s; }
+  .cell.br { border-right: 3px solid var(--line-strong); }
+  .cell.bb { border-bottom: 3px solid var(--line-strong); }
+  .cell.nr { border-right: none; } .cell.nb { border-bottom: none; }
+  .cell.given { color: var(--cell-given); font-weight: 650; }
+  .cell.hinted { color: var(--cell-hint); }
+  .cell.peer { background: var(--peer); }
+  .cell.same { background: var(--same); }
+  .cell.focus { background: var(--sel); color: var(--sel-fg); }
+  .cell.error, .cell.conflict { color: var(--err); }
+  .cell.error:not(.focus) { background: var(--err-bg); }
+  .cell.hintcell:not(.focus) { box-shadow: inset 0 0 0 3px var(--cell-hint); }
+  .cell.pop { animation: pop .28s ease-out; }
+  @keyframes pop { from { transform: scale(1.25); } to { transform: none; } }
+  .notes { position: absolute; inset: 3px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); font-size: calc(var(--bs) * 0.022); color: var(--note); font-weight: 600; }
   .notes span { display: flex; align-items: center; justify-content: center; }
-  .pause-cover {
-    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-    font-size: 22px; color: #1565c0; background: rgba(255,255,255,0.6); border-radius: 6px; cursor: pointer;
-  }
-  .pause-cover.show { display: flex; }
-  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .pad button { font-size: 20px; font-weight: 600; padding: 6px 0; }
-  .pad button .count { display: block; font-size: 10px; font-weight: 400; color: #888; }
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .msg { font-size: 14px; min-height: 20px; }
-  .msg.win { color: #2e7d32; font-weight: 600; }
-  .msg.bad { color: #c62828; }
-  details { font-size: 13px; }
-  details summary { cursor: pointer; color: #555; }
-  textarea {
-    width: 100%; min-height: 54px; padding: 6px; font-family: Consolas, monospace; font-size: 12px;
-    border: 1px solid #d0d0d0; border-radius: 6px; resize: vertical; margin-top: 6px;
-  }
-  .help { font-size: 11px; color: #888; line-height: 1.5; }
-  kbd { background: #fff; border: 1px solid #d0d0d0; border-radius: 3px; padding: 0 4px; font-size: 10px; font-family: Consolas, monospace; }
-  @media (max-width: 760px) {
-    .main { flex-direction: column; align-items: center; }
-    .board { width: min(540px, calc(100vw - 32px)); }
-    .side { width: min(540px, calc(100vw - 32px)); }
+  .notes span.hl { color: var(--accent); }
+  #board.hidden .cell > * , #board.hidden .cell { color: transparent !important; }
+  #board.hidden::after { content: 'Пауза'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--dim); background: var(--cell); }
+  #side { width: 360px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--bg2); border-radius: 14px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .level { font-size: 20px; font-weight: 700; }
+  .tag { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .menu-btn { font: inherit; font-size: 14px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--btn); color: var(--text); cursor: pointer; }
+  .stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 14px; color: var(--dim); }
+  .stats b { color: var(--text); font-size: 18px; display: block; font-variant-numeric: tabular-nums; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button, .acts button { font: inherit; border: 1px solid var(--line); background: var(--btn); color: var(--text); border-radius: 12px; cursor: pointer; transition: background .12s, transform .08s; }
+  .pad button { font-size: 28px; font-weight: 600; padding: 6px 0 4px; color: var(--cell-user); }
+  .pad button small { display: block; font-size: 11px; color: var(--dim); font-weight: 500; }
+  .pad button.done { opacity: .3; }
+  .pad button.padsel { outline: 3px solid var(--accent); }
+  .pad button:hover, .acts button:hover, .menu-btn:hover { background: var(--btn-hover); }
+  .pad button:active, .acts button:active { transform: scale(.96); }
+  .acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .acts button { font-size: 13px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .acts button .ic { font-size: 20px; line-height: 1; }
+  .acts button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .acts button:disabled { opacity: .35; cursor: default; }
+  #hintText { font-size: 13.5px; line-height: 1.45; color: var(--text); min-height: 40px; }
+  #hintText b { color: var(--cell-hint); }
+  #hintText .err { color: var(--err); font-weight: 600; }
+  .grow { flex: 1; overflow: auto; }
+  @media (max-width: 860px) {
+    .wrap { flex-direction: column; --bs: min(calc(100vw - 24px), calc(100vh - 380px)); align-items: center; }
+    #side { width: var(--bs); }
   }
 </style>
 </head>
 <body>
-
-<h1>Судоку</h1>
-
-<div class="main">
-  <div class="board-wrap">
-    <div class="board" id="board"></div>
-    <div class="pause-cover" id="pauseCover">Пауза - нажмите, чтобы продолжить</div>
-  </div>
-
-  <div class="side">
-    <div class="row">
-      <select id="diff" aria-label="Сложность">
-        <option value="easy">Лёгкий</option>
-        <option value="medium" selected>Средний</option>
-        <option value="hard">Сложный</option>
-        <option value="expert">Эксперт</option>
-      </select>
-      <button id="newBtn">↻ Новая игра</button>
-      <button id="pauseBtn">⏸ Пауза</button>
-    </div>
-    <div class="stats">
-      <span>Время: <b id="time">00:00</b></span>
-      <span>Ошибки: <b id="errs">0</b></span>
-      <span>Осталось: <b id="left">0</b></span>
-      <span>Рекорд: <b id="best">-</b></span>
-    </div>
-    <div class="pad" id="pad"></div>
-    <div class="actions">
-      <button id="undoBtn">↶ Отменить</button>
-      <button id="redoBtn">↷ Вернуть</button>
-      <button id="notesBtn">✎ Заметки</button>
-      <button id="eraseBtn">⌫ Стереть</button>
-      <button id="hintBtn">💡 Подсказка</button>
-      <button id="checkBtn">✓ Проверить</button>
-      <button id="singlesBtn">⚡ Одиночки</button>
-      <button id="saveBtn">💾 Сохранить</button>
-    </div>
-    <div class="msg" id="msg"></div>
-    <details>
-      <summary>Импорт и экспорт пазла</summary>
-      <div class="row" style="margin-top:6px">
-        <button id="exportBtn">⬇ Экспорт</button>
-        <button id="importBtn">⬆ Импорт</button>
+<div id="app">
+  <div class="wrap">
+    <div id="board" aria-label="Поле судоку"></div>
+    <div id="side">
+      <div class="card">
+        <div class="head"><div><div class="level" id="lvl">Лёгкий</div><div class="tag" id="tag">новая игра</div></div><button class="menu-btn" id="menuBtn" title="Пауза и меню (Esc)">☰ Меню</button></div>
+        <div class="stats"><span>Время<b id="time">0:00</b></span><span>Ошибки<b id="mist">0</b></span><span>Подсказки<b id="hints">0</b></span></div>
       </div>
-      <textarea id="ioArea" placeholder="81 символ: цифры 1-9 - открытые клетки, 0 или точка - пустые"></textarea>
-    </details>
-    <div class="help">
-      <kbd>1-9</kbd> ввод, <kbd>0</kbd>/<kbd>Backspace</kbd> стереть, стрелки - выбор клетки, <kbd>N</kbd> заметки,
-      <kbd>P</kbd> пауза, <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> отмена и возврат (в любой раскладке). Прогресс сохраняется сам.
+      <div class="card pad" id="pad"></div>
+      <div class="card acts" id="acts"></div>
+      <div class="card grow"><div id="hintText">Выберите клетку и цифру. Подсказка объяснит следующий ход.</div></div>
     </div>
   </div>
+  <canvas id="fx"></canvas>
 </div>
-
+<script src="logic.js"></script>
+<script src="kit.js"></script>
 <script>
 'use strict';
-const N = 9;
-const DIFF = { easy: 40, medium: 32, hard: 26, expert: 22 };
-const DIFF_NAMES = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', expert: 'Эксперт' };
-const STORAGE_KEY = 'sudoku_save_v1';
-const BEST_KEY = 'sudoku_best_v1';
-
-// ?seed=N - повторяемые пазлы (для проверок)
+const L = SudokuLogic;
 const params = new URLSearchParams(location.search);
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+const FAST = params.has('fast');
+let seedBase = params.has('seed') ? Number(params.get('seed')) || 1 : Math.floor(Math.random() * 1e9);
+const nextSeed = () => (seedBase = (seedBase * 1103515245 + 12345) >>> 0);
+const LEVEL_NAMES = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', expert: 'Эксперт' };
+const WEEK_LEVEL = ['expert', 'easy', 'medium', 'medium', 'hard', 'hard', 'expert'];      // по дням недели: вс..сб
+const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function isValid(b, r, c, n) {
-  for (let i = 0; i < N; i++) if (b[r][i] === n || b[i][c] === n) return false;
-  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (b[br + i][bc + j] === n) return false;
-  return true;
-}
-
-// Быстрый решатель на битовых масках: каждый раз берёт клетку с наименьшим числом вариантов.
-// Возвращает число решений (не больше limit); если передан out - кладёт туда первое решение.
-// Противоречивые открытые цифры (две пятёрки в ряду) сразу дают 0 решений.
-function countSolutions(board, limit = 2, out = null) {
-  const b = board.map((r) => r.slice());
-  const rows = new Array(9).fill(0), cols = new Array(9).fill(0), boxes = new Array(9).fill(0);
-  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
-    const v = b[r][c];
-    if (!v) continue;
-    const bit = 1 << v, bi = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-    if ((rows[r] | cols[c] | boxes[bi]) & bit) return 0;
-    rows[r] |= bit; cols[c] |= bit; boxes[bi] |= bit;
-  }
-  let count = 0;
-  (function rec() {
-    if (count >= limit) return;
-    let br = -1, bc = -1, bm = 0, bn = 10;
-    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
-      if (b[r][c]) continue;
-      const m = ~(rows[r] | cols[c] | boxes[Math.floor(r / 3) * 3 + Math.floor(c / 3)]) & 0x3FE;
-      let n = 0; for (let x = m; x; x &= x - 1) n++;
-      if (n < bn) { bn = n; br = r; bc = c; bm = m; if (n === 0) return; }
-    }
-    if (br < 0) { if (count === 0 && out) for (let r = 0; r < 9; r++) out[r] = b[r].slice(); count++; return; }
-    const bi = Math.floor(br / 3) * 3 + Math.floor(bc / 3);
-    for (let v = 1; v <= 9; v++) {
-      const bit = 1 << v;
-      if (!(bm & bit)) continue;
-      b[br][bc] = v; rows[br] |= bit; cols[bc] |= bit; boxes[bi] |= bit;
-      rec();
-      b[br][bc] = 0; rows[br] &= ~bit; cols[bc] &= ~bit; boxes[bi] &= ~bit;
-      if (count >= limit) return;
-    }
-  })();
-  return count;
-}
-
-function fillBoard(b) {
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-    if (b[r][c] !== 0) continue;
-    for (const n of shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
-      if (isValid(b, r, c, n)) {
-        b[r][c] = n;
-        if (fillBoard(b)) return true;
-        b[r][c] = 0;
-      }
-    }
-    return false;
-  }
-  return true;
-}
-
-// Пазл с единственным решением. Для трудных уровней - несколько попыток и лучшая (меньше подсказок).
-function generate(diff) {
-  const target = DIFF[diff];
-  let best = null;
-  const tries = diff === 'expert' ? 6 : diff === 'hard' ? 3 : 1;
-  for (let t = 0; t < tries; t++) {
-    const solution = Array.from({ length: N }, () => Array(N).fill(0));
-    fillBoard(solution);
-    const puzzle = solution.map((r) => r.slice());
-    let clues = 81;
-    for (const pos of shuffle(Array.from({ length: 81 }, (_, i) => i))) {
-      if (clues <= target) break;
-      const r = Math.floor(pos / 9), c = pos % 9;
-      const keep = puzzle[r][c];
-      puzzle[r][c] = 0;
-      if (countSolutions(puzzle, 2) !== 1) puzzle[r][c] = keep; else clues--;
-    }
-    if (!best || clues < best.clues) best = { puzzle, solution, clues };
-    if (clues <= target) break;
-  }
-  return { puzzle: best.puzzle, solution: best.solution };
-}
-
+// ================= Состояние =================
 const state = {
-  puzzle: null, solution: null, user: null, notes: null, given: null, hinted: null,
-  selected: null, notesMode: false, errors: 0, elapsed: 0, running: false, paused: false,
-  won: false, diff: 'medium', history: [], future: [],
+  puzzle: [], solution: [], user: [], given: [], hinted: [], notes: [], level: 'easy', daily: null,
+  selected: null, notesMode: false, mistakes: 0, hints: 0, elapsed: 0, phase: 'play', padDigit: 1, demo: false, moves: 0,
+};
+let history = [], future = [], autopilot = false, pilotT = 0, hintCells = [], kit, records;
+
+function today() {
+  if (params.has('date')) return params.get('date');
+  const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function dateLabel(s) { const [y, m, d] = s.split('-').map(Number); return `${d} ${MONTHS[m - 1]}`; }
+function dayShift(s, k) { const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + k)); return t.toISOString().slice(0, 10); }
+function dailyLevel(s) { const [y, m, d] = s.split('-').map(Number); return WEEK_LEVEL[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]; }
+function dailySeed(s) { return Number(s.replace(/-/g, '')) * 7 + 13; }
+const fmt = (sec) => { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+const rc = (i) => ({ r: Math.floor(i / 9), c: i % 9 });
+
+// ================= Начало партии =================
+function setup(puzzle, solution, level, daily) {
+  Object.assign(state, {
+    puzzle: puzzle.slice(), solution: solution.slice(), user: puzzle.slice(), given: puzzle.map(Boolean), hinted: puzzle.map(() => false),
+    notes: puzzle.map(() => new Set()), level, daily: daily || null, selected: null, notesMode: false, mistakes: 0, hints: 0,
+    elapsed: 0, phase: 'play', moves: 0,
+  });
+  history = []; future = []; hintCells = [];
+  setHint('Выберите клетку и цифру. Подсказка объяснит следующий ход.');
+  render();
+}
+function beginPlay(demo) {
+  state.demo = !!demo;
+  autopilot = !!demo;
+  if (!demo) {
+    abandonCheck();
+    const rec = records.levels[state.level]; rec.played++;
+    saveRecords();
+    save();
+    kit.play();
+  }
+}
+// Брошенная партия (были ходы, не решена) рвёт серию побед
+function abandonCheck() { if (records.active) { records.streak.cur = 0; records.active = false; saveRecords(); } }
+function newSync(level, seed) {
+  const g = L.generate(level, seed === undefined ? nextSeed() : seed);
+  setup(g.puzzle, g.solution, level, null);
+}
+function startLevel(level) {
+  preparing(`Готовлю головоломку: ${LEVEL_NAMES[level]}…`);
+  L.generateAsync(level, nextSeed(), (g) => { setup(g.puzzle, g.solution, level, null); beginPlay(false); });
+}
+function startDailySync(date) {
+  const d = date || today(), level = dailyLevel(d), g = L.generate(level, dailySeed(d));
+  setup(g.puzzle, g.solution, level, d);
+}
+function startDaily() {
+  const d = today(), level = dailyLevel(d);
+  preparing(`Готовлю ежедневную головоломку на ${dateLabel(d)}…`);
+  L.generateAsync(level, dailySeed(d), (g) => { setup(g.puzzle, g.solution, level, d); beginPlay(false); });
+}
+function preparing(text) { kit.show({ id: 'preparing', title: 'Минутку', html: `<p style="text-align:center">${text}</p>` }); }
+function startDemo() {
+  const g = L.generate('easy', nextSeed());
+  setup(g.puzzle, g.solution, 'easy', null);
+  // заставка: решено больше половины - меньше ждать
+  const empty = state.user.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+  for (let k = 0; k < empty.length * 0.4; k++) state.user[empty[k]] = state.solution[empty[k]];
+  beginPlay(true);
+  render();
+}
+
+// ================= Ходы =================
+function snapshot() { return { user: state.user.slice(), notes: state.notes.map((s) => new Set(s)), hinted: state.hinted.slice(), mistakes: state.mistakes }; }
+function pushHistory() { history.push(snapshot()); if (history.length > 500) history.shift(); future = []; }
+function restore(s) { state.user = s.user.slice(); state.notes = s.notes.map((x) => new Set(x)); state.hinted = s.hinted.slice(); state.mistakes = s.mistakes; }
+function undo() { if (state.phase !== 'play' || !history.length) return; future.push(snapshot()); restore(history.pop()); render(); save(); }
+function redo() { if (state.phase !== 'play' || !future.length) return; history.push(snapshot()); restore(future.pop()); render(); save(); checkWin(); }
+const locked = (i) => state.given[i] || state.hinted[i];
+function select(r, c) { state.selected = { r, c }; render(); }
+function selIndex() { return state.selected ? state.selected.r * 9 + state.selected.c : -1; }
+function clearPeerNotes(i, d) { for (const j of L.PEERS[i]) state.notes[j].delete(d); }
+function input(d) {
+  const i = selIndex();
+  if (state.phase !== 'play' || i < 0 || locked(i)) return;
+  if (state.notesMode) {
+    if (state.user[i]) return;
+    pushHistory();
+    if (state.notes[i].has(d)) state.notes[i].delete(d); else state.notes[i].add(d);
+    render(); save(); return;
+  }
+  if (state.user[i] === d) return;
+  pushHistory();
+  state.user[i] = d; state.notes[i].clear(); state.moves++;
+  if (!state.demo) records.active = true;
+  if (kit.settings.autoRemoveNotes) clearPeerNotes(i, d);
+  const wrong = d !== state.solution[i];
+  if (wrong && kit.settings.instantCheck) {
+    state.mistakes++;
+    if (!state.demo) SFX.wrong();
+    const lim = kit.settings.mistakeLimit;
+    if (lim > 0 && state.mistakes >= lim && !state.demo) { render(); lose(); return; }
+  } else if (!state.demo) SFX.put();
+  popCell(i);
+  render(); save(); checkWin();
+}
+function erase() {
+  const i = selIndex();
+  if (state.phase !== 'play' || i < 0 || locked(i)) return;
+  if (!state.user[i] && !state.notes[i].size) return;
+  pushHistory();
+  state.user[i] = 0; state.notes[i].clear();
+  render(); save();
+}
+function toggleNotes() { state.notesMode = !state.notesMode; render(); }
+function autoNotes() {
+  if (state.phase !== 'play') return;
+  pushHistory();
+  const cand = L.candidates(state.user.map((v, i) => (v === state.solution[i] || !kit.settings.instantCheck ? v : 0)));
+  const candAll = L.candidates(state.user);
+  for (let i = 0; i < 81; i++) if (!state.user[i]) state.notes[i] = new Set(L.digits(candAll[i] || cand[i]));
+  render(); save();
+}
+function moveSel(dr, dc) {
+  const s = state.selected || { r: 4, c: 4 };
+  select((s.r + dr + 9) % 9, (s.c + dc + 9) % 9);
+}
+
+// ================= Подсказка с объяснением =================
+function setHint(html) { const el = document.getElementById('hintText'); if (el) el.innerHTML = html; }
+function hint() {
+  if (state.phase !== 'play') return;
+  // сначала - неверные цифры игрока
+  const wrong = state.user.findIndex((v, i) => v && v !== state.solution[i]);
+  if (wrong >= 0) {
+    state.selected = rc(wrong); hintCells = [wrong];
+    setHint(`<span class="err">В клетке ${L.name(wrong)} ошибка:</span> цифра ${state.user[wrong]} здесь не подходит. Сотрите её (⌫), а потом просите подсказку снова.`);
+    render(); return;
+  }
+  const h = L.hintFrom(state.user);
+  pushHistory();
+  let i, d, text;
+  if (h.place) {
+    [i, d] = h.place;
+    const pre = h.elims.length ? `Сначала исключения: ${h.elims.map((e) => `<b>${e.tech}</b> - ${e.why}`).join(' ')} Тогда: ` : '';
+    text = `${pre}<b>${h.tech}.</b> ${h.why}`;
+    hintCells = h.cells || [i];
+  } else {
+    i = state.user.findIndex((v) => !v); d = state.solution[i];
+    text = `Доступными приёмами дальше не продвинуться - открываю клетку ${L.name(i)}.`;
+    hintCells = [i];
+  }
+  state.user[i] = d; state.hinted[i] = true; state.notes[i].clear(); clearPeerNotes(i, d);
+  state.hints++; state.selected = rc(i);
+  if (!state.demo) { records.active = true; SFX.hint(); }
+  setHint(text);
+  popCell(i);
+  render(); save(); checkWin();
+}
+// Автопилот: те же логические шаги, что и подсказка, но ходом игрока
+function pilotStep() {
+  const h = L.hintFrom(state.user);
+  let i, d;
+  if (h.place) [i, d] = h.place;
+  else { i = state.user.findIndex((v) => !v); if (i < 0) return; d = state.solution[i]; }
+  const nm = state.notesMode; state.notesMode = false;
+  state.selected = rc(i); input(d);
+  state.notesMode = nm;
+}
+
+// ================= Итоги =================
+function checkWin() {
+  if (state.phase !== 'play' || state.user.some((v, i) => v !== state.solution[i])) return;
+  state.phase = 'won';
+  if (state.demo) { kit.later(() => { if (state.demo) startDemo(); }, 1500); confetti(); return; }
+  const rec = records.levels[state.level], secs = Math.floor(state.elapsed);
+  rec.won++; rec.total += secs;
+  const newBest = !rec.best || secs < rec.best;
+  if (newBest) rec.best = secs;
+  records.streak.cur++; records.streak.best = Math.max(records.streak.best, records.streak.cur);
+  records.active = false;
+  if (state.daily) {
+    const dly = records.daily;
+    if (!dly.done[state.daily]) {
+      dly.streak = dly.last === dayShift(state.daily, -1) ? dly.streak + 1 : dly.last === state.daily ? dly.streak : 1;
+      dly.best = Math.max(dly.best, dly.streak); dly.last = state.daily; dly.done[state.daily] = secs;
+      const keys = Object.keys(dly.done).sort(); while (keys.length > 400) delete dly.done[keys.shift()];
+      if (dly.streak >= 7) kit.unlock('daily7');
+      kit.unlock('daily');
+    }
+  }
+  kit.unlock('first'); kit.unlock(state.level + 'Win');
+  if (!state.mistakes && !state.hints) kit.unlock('clean');
+  if (state.level === 'expert' && !state.hints) kit.unlock('expertClean');
+  if (state.level !== 'easy' && secs < 600) kit.unlock('fast');
+  if (records.streak.cur >= 5) kit.unlock('streak5');
+  saveRecords();
+  kit.remove('game');
+  SFX.win(); confetti();
+  const secsLabel = fmt(secs);
+  kit.later(() => {
+    kit.mode = 'menu';
+    kit.show({ id: 'win', title: 'Решено!', wide: true,
+      html: `<p style="text-align:center;font-size:18px">${LEVEL_NAMES[state.level]}${state.daily ? ' · ежедневная, ' + dateLabel(state.daily) : ''} - за <b>${secsLabel}</b>${newBest ? ' · <b>новый рекорд!</b>' : ''}</p>
+        <table><tr><td>Ошибок</td><td>${state.mistakes}</td></tr><tr><td>Подсказок</td><td>${state.hints}</td></tr>
+        <tr><td>Рекорд уровня</td><td>${fmt(rec.best)}</td></tr><tr><td>Серия побед</td><td>${records.streak.cur} (лучшая ${records.streak.best})</td></tr>
+        ${state.daily ? `<tr><td>Ежедневные подряд</td><td>${records.daily.streak} дн.</td></tr>` : ''}</table>`,
+      row: true, buttons: [{ label: 'Новая игра', primary: true, id: 'new', onClick: showLevels }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
+  }, FAST ? 0 : 700);
+}
+function lose() {
+  state.phase = 'lost';
+  records.streak.cur = 0; records.active = false; saveRecords();
+  SFX.lose();
+  kit.later(() => {
+    kit.mode = 'menu';
+    kit.show({ id: 'over', title: 'Слишком много ошибок', html: `<p style="text-align:center">Ошибок: <b>${state.mistakes}</b> из ${kit.settings.mistakeLimit}. Можно продолжить с последней попыткой или начать заново. Лимит меняется в настройках.</p>`, row: true,
+      buttons: [{ label: 'Ещё шанс', primary: true, id: 'again', onClick: () => { state.mistakes = kit.settings.mistakeLimit - 1; state.phase = 'play'; kit.play(); render(); save(); } },
+        { label: 'Новая игра', id: 'new', onClick: showLevels }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
+  }, FAST ? 0 : 500);
+}
+
+// ================= Сохранение =================
+function save() {
+  if (state.demo || state.phase !== 'play' || !state.puzzle.length) return;
+  kit.save('game', { puzzle: state.puzzle.join(''), solution: state.solution.join(''), user: state.user.join(''), hinted: state.hinted.map(Number).join(''),
+    notes: state.notes.map((s) => [...s].sort().join('')), level: state.level, daily: state.daily, mistakes: state.mistakes, hints: state.hints, elapsed: Math.floor(state.elapsed) });
+}
+function loadGame() {
+  const Z = GameKit.S;
+  const g = kit.loadSafe('game', Z.nul(Z.obj({ puzzle: Z.str(''), solution: Z.str(''), user: Z.str(''), hinted: Z.str(''), notes: Z.arr(Z.str(''), 81), level: Z.str('easy', Object.keys(LEVEL_NAMES)),
+    daily: Z.nul(Z.str('')), mistakes: Z.int(0, 0, 99), hints: Z.int(0, 0, 81), elapsed: Z.int(0, 0, 1e7) })));
+  if (!g) return null;
+  const arr = (s) => (/^[0-9]{81}$/.test(s) ? [...s].map(Number) : null);
+  const p = arr(g.puzzle), so = arr(g.solution), u = arr(g.user);
+  if (!p || !so || !u || L.countSolutions(p, 2) !== 1 || so.some((v) => !v) || p.some((v, i) => v && v !== so[i])) return null;
+  return { g, p, so, u };
+}
+function continueGame() {
+  const x = loadGame();
+  if (!x) return;
+  setup(x.p, x.so, x.g.level, x.g.daily || null);
+  state.user = x.u.map((v, i) => (x.p[i] ? x.p[i] : v));
+  state.hinted = [...x.g.hinted.padEnd(81, '0')].map((ch, i) => ch === '1' && !x.p[i]);
+  state.notes = Array.from({ length: 81 }, (_, i) => new Set([...(x.g.notes[i] || '')].map(Number).filter((d) => d >= 1 && d <= 9)));
+  state.mistakes = x.g.mistakes; state.hints = x.g.hints; state.elapsed = x.g.elapsed;
+  state.demo = false; autopilot = false;
+  records.active = true;
+  kit.play();
+  render();
+}
+function saveRecords() { kit.save('records', records); }
+function importPuzzle(text) {
+  const s = String(text || '').replace(/\s/g, '').replace(/\./g, '0');
+  if (!/^[0-9]{81}$/.test(s)) { setHint('<span class="err">Нужно ровно 81 символ: цифры 1-9 и 0 или точка для пустых.</span>'); return false; }
+  const p = [...s].map(Number), sol = [];
+  const n = L.countSolutions(p, 2, sol);
+  if (n !== 1) { setHint(`<span class="err">${n === 0 ? 'У головоломки нет решения (или цифры противоречат друг другу).' : 'У головоломки больше одного решения.'}</span>`); return false; }
+  const lg = L.solveLogic(p);
+  const level = !lg.solved ? 'expert' : lg.maxTier === 1 ? (p.filter(Boolean).length >= 36 ? 'easy' : 'medium') : lg.maxTier === 2 ? 'hard' : 'expert';
+  setup(p, sol, level, null);
+  setHint('Головоломка загружена. Уровень по нужным приёмам: <b>' + LEVEL_NAMES[level] + '</b>.');
+  return true;
+}
+
+// ================= Поле на экране =================
+const boardEl = document.getElementById('board'), padEl = document.getElementById('pad'), actsEl = document.getElementById('acts');
+const cells = [];
+for (let i = 0; i < 81; i++) {
+  const el = document.createElement('div');
+  const { r, c } = rc(i);
+  el.className = 'cell';
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); if (kit.mode === 'play') select(r, c); });
+  boardEl.appendChild(el); cells.push(el);
+}
+const padBtns = [];
+for (let d = 1; d <= 9; d++) {
+  const b = document.createElement('button'); b.type = 'button';
+  b.addEventListener('click', () => { if (kit.mode === 'play') { state.padDigit = d; input(d); } });
+  padEl.appendChild(b); padBtns.push(b);
+}
+const ACTS = [
+  ['undo', '↶', 'Отменить', () => undo()], ['redo', '↷', 'Вернуть', () => redo()], ['erase', '⌫', 'Стереть', () => erase()],
+  ['notes', '✎', 'Заметки', () => toggleNotes()], ['autonotes', '✦', 'Автозаметки', () => autoNotes()], ['hint', '💡', 'Подсказка', () => hint()],
+];
+const actBtns = {};
+for (const [id, ic, label, fn] of ACTS) {
+  const b = document.createElement('button'); b.type = 'button'; b.dataset.act = id;
+  b.innerHTML = `<span class="ic">${ic}</span>${label}`;
+  b.addEventListener('click', () => { if (kit.mode === 'play') fn(); });
+  actsEl.appendChild(b); actBtns[id] = b;
+}
+document.getElementById('menuBtn').addEventListener('click', () => { if (kit.mode === 'play') kit.pause(); });
+
+function popCell(i) { if (!kit.settings.effects) return; const el = cells[i]; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+function render() {
+  const sel = selIndex(), selVal = sel >= 0 ? state.user[sel] : 0;
+  const hlSame = kit.settings.highlightSame, hlPeers = kit.settings.highlightPeers;
+  // конфликты по правилам: одинаковые цифры в одной строке, столбце или квадрате
+  const conflict = new Set();
+  for (const u of L.UNITS) {
+    const seen = {};
+    for (const i of u.cells) { const v = state.user[i]; if (!v) continue; if (seen[v] !== undefined) { conflict.add(i); conflict.add(seen[v]); } else seen[v] = i; }
+  }
+  const counts = Array(10).fill(0);
+  for (let i = 0; i < 81; i++) {
+    const el = cells[i], v = state.user[i], { r, c } = rc(i);
+    let cls = 'cell';
+    if (c === 2 || c === 5) cls += ' br'; if (c === 8) cls += ' nr';
+    if (r === 2 || r === 5) cls += ' bb'; if (r === 8) cls += ' nb';
+    if (state.given[i]) cls += ' given'; else if (state.hinted[i]) cls += ' hinted';
+    if (v && !state.given[i] && !state.hinted[i] && v !== state.solution[i] && kit.settings.instantCheck) cls += ' error';
+    if (conflict.has(i)) cls += ' conflict';
+    if (sel >= 0) {
+      const s = state.selected;
+      if (i === sel) cls += ' focus';
+      else if (selVal && v === selVal && hlSame) cls += ' same';
+      else if (hlPeers && (s.r === r || s.c === c || L.BOX(i) === L.BOX(sel))) cls += ' peer';
+    }
+    if (hintCells.includes(i)) cls += ' hintcell';
+    if (el.className.replace(/ pop/, '') !== cls) el.className = cls + (el.classList.contains('pop') ? ' pop' : '');
+    const key = v ? 'v' + v : 'n' + [...state.notes[i]].sort().join('') + (selVal || '');
+    if (el.dataset.key !== key) {
+      el.dataset.key = key;
+      if (v) el.textContent = v;
+      else if (state.notes[i].size) el.innerHTML = '<div class="notes">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => `<span${d === selVal ? ' class="hl"' : ''}>${state.notes[i].has(d) ? d : ''}</span>`).join('') + '</div>';
+      else el.textContent = '';
+    }
+    if (v && v === state.solution[i]) counts[v]++;
+  }
+  padBtns.forEach((b, k) => {
+    const d = k + 1, left = 9 - counts[d];
+    const html = `${d}<small>${left > 0 ? 'ещё ' + left : '✓'}</small>`;
+    if (b.innerHTML !== html) b.innerHTML = html;
+    b.classList.toggle('done', left <= 0);
+    b.classList.toggle('padsel', state.padDigit === d && padUsed);
+  });
+  actBtns.notes.classList.toggle('on', state.notesMode);
+  actBtns.undo.disabled = !history.length; actBtns.redo.disabled = !future.length;
+  document.getElementById('lvl').textContent = LEVEL_NAMES[state.level] || '';
+  document.getElementById('tag').textContent = state.demo ? 'заставка' : state.daily ? 'ежедневная · ' + dateLabel(state.daily) : 'обычная партия';
+  const lim = kit.settings.mistakeLimit;
+  document.getElementById('mist').textContent = lim > 0 ? `${state.mistakes} / ${lim}` : String(state.mistakes);
+  document.getElementById('hints').textContent = state.hints;
+  document.getElementById('time').textContent = kit.settings.showTimer ? fmt(state.elapsed) : '—';
+  boardEl.classList.toggle('hidden', kit.mode === 'paused');
+}
+let padUsed = false;
+
+// ================= Праздничный салют =================
+const fx = document.getElementById('fx'), fxc = fx.getContext('2d');
+const bits = [];
+let fxRnd = L.mulberry32(5);
+function confetti() {
+  if (!kit.settings.effects) return;
+  const b = boardEl.getBoundingClientRect();
+  for (let k = 0; k < 140; k++) bits.push({ x: b.left + b.width / 2, y: b.top + b.height / 2, vx: (fxRnd() - 0.5) * 16, vy: -fxRnd() * 14 - 4, life: 90 + fxRnd() * 60, c: `hsl(${Math.floor(fxRnd() * 360)},85%,62%)`, s: 4 + fxRnd() * 5, r: fxRnd() * 6 });
+}
+function drawFx() {
+  const dpr = devicePixelRatio || 1;
+  if (fx.width !== Math.round(innerWidth * dpr)) { fx.width = Math.round(innerWidth * dpr); fx.height = Math.round(innerHeight * dpr); }
+  fxc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fxc.clearRect(0, 0, innerWidth, innerHeight);
+  for (const p of bits) { p.x += p.vx; p.y += p.vy; p.vy += 0.35; p.vx *= 0.99; p.life--; p.r += 0.2; fxc.save(); fxc.translate(p.x, p.y); fxc.rotate(p.r); fxc.fillStyle = p.c; fxc.globalAlpha = Math.min(1, p.life / 30); fxc.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); fxc.restore(); }
+  for (let i = bits.length - 1; i >= 0; i--) if (bits[i].life <= 0) bits.splice(i, 1);
+}
+
+// ================= Звук =================
+const SFX = {
+  put: () => kit.tone(620, 0.06, { type: 'triangle', vol: 0.07 }),
+  wrong: () => kit.tone(180, 0.18, { type: 'sawtooth', vol: 0.06, slide: 120 }),
+  hint: () => { kit.tone(660, 0.08, { type: 'sine', vol: 0.07 }); kit.tone(990, 0.12, { type: 'sine', vol: 0.07, delay: 0.08 }); },
+  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => kit.tone(f, 0.2, { type: 'triangle', vol: 0.07, delay: i * 0.09 })),
+  lose: () => kit.tone(300, 0.4, { type: 'triangle', vol: 0.07, slide: 150 }),
 };
 
-const boardEl = document.getElementById('board');
-const padEl = document.getElementById('pad');
-const msgEl = document.getElementById('msg');
-const timeEl = document.getElementById('time');
-const errsEl = document.getElementById('errs');
-const leftEl = document.getElementById('left');
-const diffEl = document.getElementById('diff');
-const notesBtn = document.getElementById('notesBtn');
-const undoBtn = document.getElementById('undoBtn');
-const redoBtn = document.getElementById('redoBtn');
-const ioArea = document.getElementById('ioArea');
-
-// ---------- Рекорды по уровням ----------
-function loadBests() { try { return JSON.parse(localStorage.getItem(BEST_KEY) || '{}') || {}; } catch (e) { return {}; } }
-function saveBests(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) { /* нет хранилища */ } }
-function fmt(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
-function showBest() {
-  const b = loadBests()[state.diff];
-  document.getElementById('best').textContent = b ? fmt(b) : '-';
+// ================= Каркас =================
+const THEMES = {
+  dark: { panel: 'rgba(27,32,48,0.98)', fg: '#e8ecf6', dim: '#8a93b0', accent: '#7aa2ff', accent2: '#4f6ef0', shade: 'rgba(8,10,18,.45)' },
+  light: { panel: 'rgba(255,255,255,0.98)', fg: '#1d2433', dim: '#6b7385', accent: '#3b6ef5', accent2: '#3b6ef5', shade: 'rgba(30,36,60,.3)', line: 'rgba(0,0,0,.08)', btn: 'rgba(20,30,60,.06)', btnHover: 'rgba(20,30,60,.11)' },
+};
+function applyTheme() {
+  const t = kit.settings.theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  kit.setTheme(Object.assign({ font: '"Segoe UI", Roboto, Arial, sans-serif' }, THEMES[t]));
 }
-
-// ---------- История: в снимок входит и «открытость» клеток (подсказка тоже отменяется) ----------
-function snapshot() {
-  return {
-    user: state.user.map((r) => r.slice()),
-    notes: state.notes.map((row) => row.map((s) => new Set(s))),
-    hinted: state.hinted.map((r) => r.slice()),
-    errors: state.errors,
-  };
-}
-function pushHistory() {
-  state.history.push(snapshot());
-  if (state.history.length > 200) state.history.shift();
-  state.future = [];
-  updateUndoRedo();
-}
-function applySnapshot(snap) {
-  state.user = snap.user.map((r) => r.slice());
-  state.notes = snap.notes.map((row) => row.map((s) => new Set(s)));
-  state.hinted = snap.hinted.map((r) => r.slice());
-  state.errors = snap.errors;
-  errsEl.textContent = state.errors;
-}
-function undo() {
-  if (state.won || !state.history.length) return;
-  state.future.push(snapshot());
-  applySnapshot(state.history.pop());
-  render(); updateUndoRedo(); saveProgress();
-}
-function redo() {
-  if (state.won || !state.future.length) return;
-  state.history.push(snapshot());
-  applySnapshot(state.future.pop());
-  render(); updateUndoRedo(); saveProgress(); checkWin();
-}
-function updateUndoRedo() {
-  undoBtn.disabled = state.won || state.history.length === 0;
-  redoBtn.disabled = state.won || state.future.length === 0;
-}
-
-const locked = (r, c) => state.given[r][c] || state.hinted[r][c];
-
-// ---------- Поле ----------
-function buildBoard() {
-  boardEl.innerHTML = '';
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    cell.dataset.r = r; cell.dataset.c = c;
-    cell.addEventListener('click', () => selectCell(r, c));
-    boardEl.appendChild(cell);
-  }
-}
-function buildPad() {
-  padEl.innerHTML = '';
-  for (let n = 1; n <= 9; n++) {
-    const b = document.createElement('button');
-    b.innerHTML = `${n}<span class="count" id="cnt${n}"></span>`;
-    b.addEventListener('click', () => inputNumber(n));
-    padEl.appendChild(b);
-  }
-}
-
-function render() {
-  const cells = boardEl.children;
-  const sel = state.selected;
-  const selVal = sel ? state.user[sel.r][sel.c] : 0;
-  const counts = Array(10).fill(0);
-  let left = 0;
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-    const cell = cells[r * 9 + c];
-    let cls = 'cell';
-    if (r === 2 || r === 5) cls += ' row-bb';
-    if (r === 8) cls += ' row-last';
-    const v = state.user[r][c];
-    cell.innerHTML = '';
-    if (v !== 0) {
-      cell.textContent = v;
-      if (state.given[r][c]) cls += ' given';
-      else if (state.hinted[r][c]) cls += ' hint';
-      else { cls += ' user'; if (v !== state.solution[r][c]) cls += ' error'; }
-      if (v === state.solution[r][c]) counts[v]++;
-    } else {
-      left++;
-      const notes = state.notes[r][c];
-      if (notes.size) {
-        const nd = document.createElement('div');
-        nd.className = 'notes';
-        for (let n = 1; n <= 9; n++) { const s = document.createElement('span'); s.textContent = notes.has(n) ? n : ''; nd.appendChild(s); }
-        cell.appendChild(nd);
-      }
-    }
-    if (sel) {
-      if (sel.r === r && sel.c === c) cls += ' selected';
-      else if (sel.r === r || sel.c === c || (Math.floor(sel.r / 3) === Math.floor(r / 3) && Math.floor(sel.c / 3) === Math.floor(c / 3))) cls += ' peer';
-      if (selVal !== 0 && v === selVal && !(sel.r === r && sel.c === c)) cls += ' same-num';
-    }
-    cell.className = cls;
-  }
-  for (let n = 1; n <= 9; n++) {
-    const el = document.getElementById('cnt' + n);
-    if (el) el.textContent = 9 - counts[n] > 0 ? 9 - counts[n] : '✓';
-  }
-  leftEl.textContent = left;
-}
-
-function selectCell(r, c) {
-  if (state.paused) return;
-  state.selected = { r, c };
-  render();
-}
-
-function clearPeerNotes(r, c, n) {
-  for (let i = 0; i < N; i++) { state.notes[r][i].delete(n); state.notes[i][c].delete(n); }
-  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) state.notes[br + i][bc + j].delete(n);
-}
-
-function inputNumber(n) {
-  const sel = state.selected;
-  if (state.won || state.paused || !sel || locked(sel.r, sel.c)) return;
-  if (state.notesMode) {
-    if (state.user[sel.r][sel.c] !== 0) return;
-    pushHistory();
-    const set = state.notes[sel.r][sel.c];
-    if (set.has(n)) set.delete(n); else set.add(n);
-  } else {
-    if (state.user[sel.r][sel.c] === n) return;
-    pushHistory();
-    state.user[sel.r][sel.c] = n;
-    state.notes[sel.r][sel.c].clear();
-    if (n !== state.solution[sel.r][sel.c]) { state.errors++; errsEl.textContent = state.errors; }
-    else clearPeerNotes(sel.r, sel.c, n);
-  }
-  render(); saveProgress(); checkWin();
-}
-
-function eraseCell() {
-  const sel = state.selected;
-  if (state.won || state.paused || !sel || locked(sel.r, sel.c)) return;
-  if (state.user[sel.r][sel.c] === 0 && state.notes[sel.r][sel.c].size === 0) return;
-  pushHistory();
-  state.user[sel.r][sel.c] = 0;
-  state.notes[sel.r][sel.c].clear();
-  render(); saveProgress();
-}
-
-function giveHint() {
-  if (state.won || state.paused) return;
-  const cand = [];
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (state.user[r][c] !== state.solution[r][c]) cand.push([r, c]);
-  if (!cand.length) return;
-  // Сначала выбранная клетка, если она пустая или с ошибкой
-  const sel = state.selected;
-  const pick = sel && state.user[sel.r][sel.c] !== state.solution[sel.r][sel.c] ? [sel.r, sel.c] : cand[Math.floor(rnd() * cand.length)];
-  pushHistory();
-  const [r, c] = pick;
-  state.user[r][c] = state.solution[r][c];
-  state.notes[r][c].clear();
-  state.hinted[r][c] = true;
-  clearPeerNotes(r, c, state.user[r][c]);
-  state.selected = { r, c };
-  render(); saveProgress(); checkWin();
-}
-
-// «Одиночки»: клетки, где остаётся единственная цифра. Ошибочные цифры игрока не считаются
-// опорой (раньше из-за них сюда могли попасть неверные цифры).
-function fillSingles() {
-  if (state.won || state.paused) return;
-  const b = state.user.map((row, r) => row.map((v, c) => (v === state.solution[r][c] ? v : 0)));
-  const fills = [];
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      if (b[r][c] !== 0 || state.user[r][c] !== 0) continue;
-      const cands = [];
-      for (let n = 1; n <= 9; n++) if (isValid(b, r, c, n)) cands.push(n);
-      if (cands.length === 1) { b[r][c] = cands[0]; fills.push([r, c, cands[0]]); changed = true; }
-    }
-  }
-  if (!fills.length) { showMsg('Одиночек нет', 'bad'); return; }
-  pushHistory();
-  for (const [r, c, n] of fills) { state.user[r][c] = n; state.notes[r][c].clear(); clearPeerNotes(r, c, n); }
-  showMsg('Заполнено клеток: ' + fills.length, '');
-  render(); saveProgress(); checkWin();
-}
-
-function checkBoard() {
-  let wrong = 0, empty = 0;
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-    if (state.user[r][c] === 0) empty++;
-    else if (state.user[r][c] !== state.solution[r][c]) wrong++;
-  }
-  if (wrong) showMsg('Найдено ошибок: ' + wrong, 'bad');
-  else if (empty) showMsg('Пока всё верно. Осталось клеток: ' + empty, '');
-  else showMsg('Всё правильно!', 'win');
-}
-
-let msgTimer = 0;
-function showMsg(text, cls, sticky) {
-  msgEl.textContent = text;
-  msgEl.className = 'msg ' + (cls || '');
-  clearTimeout(msgTimer);
-  if (!sticky && cls !== 'win') msgTimer = setTimeout(() => { if (!state.won) { msgEl.textContent = ''; msgEl.className = 'msg'; } }, 3000);
-}
-
-function checkWin() {
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (state.user[r][c] !== state.solution[r][c]) return;
-  state.won = true;
-  state.running = false;
-  const secs = Math.floor(state.elapsed);
-  const bests = loadBests();
-  const record = !bests[state.diff] || secs < bests[state.diff];
-  if (record) { bests[state.diff] = secs; saveBests(bests); }
-  showMsg(`Решено за ${fmt(secs)}, ошибок: ${state.errors}.` + (record ? ' Новый рекорд!' : ''), 'win', true);
-  showBest();
-  updateUndoRedo();
-  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* нет хранилища */ }
-}
-
-// ---------- Время: идёт, только когда игра на экране и не на паузе ----------
-function tickTime(dt) {
-  if (!state.running || state.paused || state.won) return;
-  state.elapsed += dt;
-  timeEl.textContent = fmt(Math.floor(state.elapsed));
-}
-let lastTick = performance.now();
-setInterval(() => { const now = performance.now(); tickTime((now - lastTick) / 1000); lastTick = now; }, 250);
-
-function setPaused(p) {
-  if (state.won || !state.running) p = false;
-  state.paused = p;
-  boardEl.classList.toggle('paused', p);
-  document.getElementById('pauseCover').classList.toggle('show', p);
-  document.getElementById('pauseBtn').textContent = p ? '▶ Продолжить' : '⏸ Пауза';
-  if (!p) saveProgress();
-}
-document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
-
-function newGame() {
-  showMsg('Генерирую пазл...', '', true);
-  setTimeout(() => {
-    const { puzzle, solution } = generate(diffEl.value);
-    setupGame(puzzle, solution, diffEl.value);
-    showMsg('', '');
-    saveProgress();
-  }, 20);
-}
-
-function setupGame(puzzle, solution, diff) {
-  state.puzzle = puzzle;
-  state.solution = solution;
-  state.user = puzzle.map((r) => r.slice());
-  state.given = puzzle.map((r) => r.map((v) => v !== 0));
-  state.hinted = puzzle.map((r) => r.map(() => false));
-  state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set()));
-  state.selected = null;
-  state.notesMode = false;
-  state.errors = 0;
-  state.elapsed = 0;
-  state.running = true;
-  state.won = false;
-  state.diff = diff || state.diff;
-  state.history = [];
-  state.future = [];
-  notesBtn.classList.remove('active');
-  errsEl.textContent = '0';
-  timeEl.textContent = '00:00';
-  setPaused(false);
-  showBest();
-  updateUndoRedo();
-  render();
-}
-
-function boardToString(b) { return b.flat().map((v) => (v === 0 ? '0' : v)).join(''); }
-function stringToBoard(s) {
-  s = s.replace(/\s/g, '').replace(/\./g, '0');
-  if (s.length !== 81) throw new Error('нужно ровно 81 символ');
-  if (!/^[0-9]+$/.test(s)) throw new Error('только цифры 0-9 и точки');
-  const b = [];
-  for (let r = 0; r < 9; r++) b.push([...s.slice(r * 9, r * 9 + 9)].map(Number));
-  return b;
-}
-
-function exportPuzzle() {
-  ioArea.value = boardToString(state.puzzle);
-  ioArea.select();
-  showMsg('Пазл - в поле ниже', '');
-}
-function importPuzzle(text) {
-  text = (text !== undefined ? text : ioArea.value).trim();
-  if (!text) { showMsg('Вставьте строку в поле', 'bad'); return false; }
-  try {
-    const puzzle = stringToBoard(text);
-    const solution = [];
-    const n = countSolutions(puzzle, 2, solution);
-    if (n === 0) { showMsg('У пазла нет решения (или открытые цифры противоречат друг другу)', 'bad'); return false; }
-    if (n > 1) { showMsg('У пазла больше одного решения', 'bad'); return false; }
-    setupGame(puzzle, solution, state.diff);
-    showMsg('Пазл загружен', '');
-    saveProgress();
-    return true;
-  } catch (e) {
-    showMsg('Ошибка: ' + e.message, 'bad');
-    return false;
-  }
-}
-
-function saveProgress() {
-  if (!state.puzzle || state.won) return;
-  const data = {
-    puzzle: boardToString(state.puzzle),
-    solution: boardToString(state.solution),
-    user: boardToString(state.user),
-    hinted: state.hinted.flat().map((v) => (v ? '1' : '0')).join(''),
-    notes: state.notes.flat().map((s) => Array.from(s).sort().join('')).join(','),
-    errors: state.errors,
-    elapsed: Math.floor(state.elapsed),
-    diff: state.diff,
-  };
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* нет хранилища */ }
-}
-
-// Молча: при первом запуске сохранения нет, и это не ошибка
-function loadProgress() {
-  let data;
-  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { data = null; }
-  if (!data) return false;
-  try {
-    const puzzle = stringToBoard(data.puzzle);
-    setupGame(puzzle, stringToBoard(data.solution), data.diff || 'medium');
-    state.user = stringToBoard(data.user);
-    const h = (data.hinted || data.given || '').split('');
-    state.hinted = puzzle.map((row, r) => row.map((v, c) => !v && h[r * 9 + c] === '1'));
-    const parts = (data.notes || '').split(',');
-    state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => new Set((parts[r * 9 + c] || '').split('').filter(Boolean).map(Number))));
-    state.errors = data.errors || 0;
-    state.elapsed = data.elapsed || 0;
-    diffEl.value = state.diff;
-    errsEl.textContent = state.errors;
-    timeEl.textContent = fmt(Math.floor(state.elapsed));
-    showBest();
-    render();
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-document.getElementById('newBtn').addEventListener('click', newGame);
-document.getElementById('pauseBtn').addEventListener('click', () => setPaused(!state.paused));
-document.getElementById('pauseCover').addEventListener('click', () => setPaused(false));
-document.getElementById('saveBtn').addEventListener('click', () => { saveProgress(); showMsg('Сохранено', ''); });
-document.getElementById('eraseBtn').addEventListener('click', eraseCell);
-document.getElementById('hintBtn').addEventListener('click', giveHint);
-document.getElementById('checkBtn').addEventListener('click', checkBoard);
-document.getElementById('singlesBtn').addEventListener('click', fillSingles);
-document.getElementById('exportBtn').addEventListener('click', exportPuzzle);
-document.getElementById('importBtn').addEventListener('click', () => importPuzzle());
-diffEl.addEventListener('change', () => { if (confirm('Начать новую игру уровня «' + DIFF_NAMES[diffEl.value] + '»?')) newGame(); else diffEl.value = state.diff; });
-undoBtn.addEventListener('click', undo);
-redoBtn.addEventListener('click', redo);
-notesBtn.addEventListener('click', () => { state.notesMode = !state.notesMode; notesBtn.classList.toggle('active', state.notesMode); });
-
-// Клавиши по коду (e.code): Ctrl+Z, Ctrl+Y, N, P работают и в русской раскладке
-document.addEventListener('keydown', (e) => {
-  if (document.activeElement === ioArea || document.activeElement === diffEl) return;
-  const code = e.code;
-  if ((e.ctrlKey || e.metaKey) && code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
-  if ((e.ctrlKey || e.metaKey) && code === 'KeyY') { e.preventDefault(); redo(); return; }
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (code === 'KeyP') { setPaused(!state.paused); return; }
-  if (code === 'KeyN') { notesBtn.click(); return; }
-  const digit = /^(Digit|Numpad)([0-9])$/.exec(code);
-  if (!state.selected) {
-    if (digit || code.startsWith('Arrow')) { selectCell(4, 4); if (!digit) { e.preventDefault(); return; } }
-    else return;
-  }
-  const { r, c } = state.selected;
-  if (digit && digit[2] !== '0') { inputNumber(Number(digit[2])); e.preventDefault(); }
-  else if ((digit && digit[2] === '0') || code === 'Backspace' || code === 'Delete') { eraseCell(); e.preventDefault(); }
-  else if (code === 'ArrowUp') { selectCell((r + 8) % 9, c); e.preventDefault(); }
-  else if (code === 'ArrowDown') { selectCell((r + 1) % 9, c); e.preventDefault(); }
-  else if (code === 'ArrowLeft') { selectCell(r, (c + 8) % 9); e.preventDefault(); }
-  else if (code === 'ArrowRight') { selectCell(r, (c + 1) % 9); e.preventDefault(); }
+const MUSIC = {
+  menu: { bpm: 70, voices: [
+    { type: 'sine', vol: 0.07, notes: 'E5 - - . G5 - - . D5 - - . B4 - - . C5 - - . E5 - - . A4 - - - - - - .' },
+    { type: 'triangle', vol: 0.08, notes: 'C3 - - - - - - - G2 - - - - - - - A2 - - - - - - - F2 - - - - - - -' } ], drums: '' },
+  game: { bpm: 64, voices: [
+    { type: 'sine', vol: 0.05, notes: 'A4 - - . C5 - - . E5 - - . D5 - - . C5 - - . B4 - - . G4 - - - - - - .' },
+    { type: 'sine', vol: 0.07, notes: 'A2 - - - - - - - F2 - - - - - - - C3 - - - - - - - G2 - - - - - - -' } ], drums: '' },
+};
+kit = GameKit.create({
+  id: 'sudoku',
+  root: document.getElementById('app'),
+  theme: THEMES.dark,
+  noDifficulty: true,
+  graphics: ['effects', 'showFps'],
+  reservedKeys: { label: 'Цифры', text: '1-9 и цифровой блок', codes: ['Digit0', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Numpad0', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad8', 'Numpad9'] },
+  actions: {
+    up: { label: 'Вверх', keys: ['ArrowUp', 'KeyW'], pad: ['b12', 'a1-'] },
+    down: { label: 'Вниз', keys: ['ArrowDown', 'KeyS'], pad: ['b13', 'a1+'] },
+    left: { label: 'Влево', keys: ['ArrowLeft', 'KeyA'], pad: ['b14', 'a0-'] },
+    right: { label: 'Вправо', keys: ['ArrowRight', 'KeyD'], pad: ['b15', 'a0+'] },
+    place: { label: 'Поставить выбранную цифру', keys: ['Enter'], pad: ['b0'] },
+    prevDigit: { label: 'Цифра меньше', keys: ['BracketLeft'], pad: ['b4'] },
+    nextDigit: { label: 'Цифра больше', keys: ['BracketRight'], pad: ['b5'] },
+    erase: { label: 'Стереть', keys: ['Backspace', 'Delete'], pad: ['b1'] },
+    notes: { label: 'Заметки', keys: ['KeyN'], pad: ['b2'] },
+    autonotes: { label: 'Автозаметки', keys: ['KeyQ'], pad: [] },
+    hint: { label: 'Подсказка', keys: ['KeyH'], pad: ['b3'] },
+    undo: { label: 'Отменить (и Ctrl+Z)', keys: ['KeyZ'], pad: [] },
+    redo: { label: 'Вернуть (и Ctrl+Y)', keys: ['KeyY'], pad: [] },
+    pause: { label: 'Пауза', keys: ['KeyP'], pad: [] },
+  },
+  extraSettings: [
+    { name: 'mistakeLimit', label: 'Лимит ошибок', type: 'choice', default: 3, options: [{ value: 0, label: 'Нет' }, { value: 3, label: '3' }, { value: 5, label: '5' }] },
+    { name: 'instantCheck', label: 'Сразу показывать ошибки', default: true },
+    { name: 'autoRemoveNotes', label: 'Цифра убирает заметки соседей', default: true },
+    { name: 'highlightSame', label: 'Подсвечивать одинаковые цифры', default: true },
+    { name: 'highlightPeers', label: 'Подсвечивать строку, столбец и квадрат', default: true },
+    { name: 'showTimer', label: 'Показывать время', default: true },
+    { name: 'theme', label: 'Тема', type: 'choice', default: 'dark', options: [{ value: 'dark', label: 'Тёмная' }, { value: 'light', label: 'Светлая' }], section: 'Графика' },
+  ],
+  music: MUSIC,
+  achievements: [
+    { id: 'first', name: 'Первая победа', desc: 'Решить любую головоломку' },
+    { id: 'easyWin', name: 'Разминка', desc: 'Решить «Лёгкий»' },
+    { id: 'mediumWin', name: 'В ритме', desc: 'Решить «Средний»' },
+    { id: 'hardWin', name: 'Пары и пересечения', desc: 'Решить «Сложный»' },
+    { id: 'expertWin', name: 'Эксперт', desc: 'Решить «Эксперт»' },
+    { id: 'clean', name: 'Чистая работа', desc: 'Решить без ошибок и подсказок' },
+    { id: 'expertClean', name: 'Сам себе учитель', desc: '«Эксперт» без подсказок' },
+    { id: 'fast', name: 'Быстрый ум', desc: 'Решить не «Лёгкий» быстрее 10 минут' },
+    { id: 'streak5', name: 'Пять подряд', desc: 'Серия из 5 побед' },
+    { id: 'daily', name: 'Каждый день', desc: 'Решить ежедневную головоломку' },
+    { id: 'daily7', name: 'Неделя', desc: 'Ежедневные 7 дней подряд' },
+  ],
+  howto: `<p><b>Правило:</b> в каждой строке, столбце и квадрате 3x3 цифры 1-9 стоят по одному разу. У каждой головоломки ровно одно решение.</p>
+    <p><b>Ввод:</b> щелчок по клетке или стрелки, затем цифра на клавиатуре или на панели. Заметки (N) - маленькие цифры-кандидаты; автозаметки (Q) расставят все возможные. Стереть - Backspace, отмена - Ctrl+Z, повтор - Ctrl+Y.</p>
+    <p><b>Подсказка</b> (H) ставит одну цифру и объясняет приём: последний кандидат, скрытая одиночка, пересечение, пары и тройки, крест. Если на поле ошибка - сначала покажет её.</p>
+    <p><b>Уровни</b> различаются приёмами: «Лёгкий» и «Средний» решаются одиночками, «Сложный» требует пересечений и пар, «Эксперт» - троек и «креста». Ежедневная головоломка одна на всех в этот день.</p>
+    <p><b>Геймпад:</b> крестовина - выбор клетки, LB/RB - цифра, A - поставить, B - стереть, X - заметки, Y - подсказка.</p>`,
+  credits: `<p><b>Судоку</b> - часть «Игротеки». Головоломки строятся в самой странице: решатель на битовых масках проверяет, что решение одно, а логический решатель человеческими приёмами определяет уровень и объясняет подсказки.</p><p>Музыка и звуки синтезируются, файлов из сети нет.</p>`,
+  drawLogo(g, w, h, t) {
+    const cell = 22, x0 = w / 2 - 170, y0 = h / 2 - 34;
+    g.lineWidth = 2; g.strokeStyle = 'rgba(122,162,255,0.8)';
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) { g.strokeRect(x0 + c * cell, y0 + r * cell, cell, cell); }
+    g.font = '600 15px "Segoe UI", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let k = 0; k < 9; k++) { const on = (Math.floor(t * 2) % 9) >= k; g.fillStyle = on ? '#7aa2ff' : 'rgba(150,160,190,0.35)'; g.fillText(String(k + 1), x0 + (k % 3) * cell + cell / 2, y0 + Math.floor(k / 3) * cell + cell / 2 + 1); }
+    g.font = '700 64px "Segoe UI", Arial, sans-serif'; g.textAlign = 'left'; g.fillStyle = '#ffffff';
+    const grd = g.createLinearGradient(0, 0, w, 0); grd.addColorStop(0, '#7aa2ff'); grd.addColorStop(1, '#b38cff');
+    g.fillStyle = grd; g.fillText('Судоку', x0 + 3 * cell + 22, h / 2 + 2);
+  },
+  game: {
+    menuItems() {
+      const items = [];
+      if (loadGame()) items.push({ label: 'Продолжить', primary: true, id: 'continue', onClick: continueGame });
+      items.push({ label: 'Новая игра', primary: !loadGame(), id: 'new', onClick: showLevels });
+      const d = today(), done = records.daily.done[d];
+      items.push({ label: `Ежедневная · ${dateLabel(d)}${done ? ' ✓' : ''}`, id: 'daily', onClick: startDaily });
+      return items;
+    },
+    onRestart() { state.user = state.puzzle.slice(); state.notes = state.puzzle.map(() => new Set()); state.hinted = state.puzzle.map(() => false); state.mistakes = 0; state.hints = 0; state.elapsed = 0; state.phase = 'play'; history = []; future = []; kit.play(); render(); save(); },
+    onQuit() { save(); startDemo(); },
+    onPause() { render(); },
+    onResume() { render(); },
+    onSettings() { if (kit) { applyTheme(); render(); } },
+    onResetProgress() { loadRecords(); },
+    recordsHtml() {
+      const rows = Object.keys(LEVEL_NAMES).map((l) => { const r = records.levels[l]; return `<tr><td>${LEVEL_NAMES[l]}</td><td>${r.best ? 'рекорд <b>' + fmt(r.best) + '</b>' : '—'}${r.won ? ' · в среднем ' + fmt(r.total / r.won) : ''}</td><td>${r.won} из ${r.played}</td></tr>`; }).join('');
+      return `<table><tr><td></td><td>Время</td><td>Побед</td></tr>${rows}</table>
+        <table style="margin-top:8px"><tr><td>Серия побед</td><td>${records.streak.cur} (лучшая ${records.streak.best})</td></tr>
+        <tr><td>Ежедневные подряд</td><td>${records.daily.streak} дн. (лучшая ${records.daily.best})</td></tr>
+        <tr><td>Ежедневных решено</td><td>${Object.keys(records.daily.done).length}</td></tr></table>`;
+    },
+  },
 });
-
-window.addEventListener('beforeunload', saveProgress);
-
-buildBoard();
-buildPad();
-if (!loadProgress()) {
-  const { puzzle, solution } = generate(diffEl.value);
-  setupGame(puzzle, solution, diffEl.value);
-  saveProgress();
+function loadRecords() {
+  const Z = GameKit.S, N = 1e9, lv = Z.obj({ played: Z.int(0, 0, N), won: Z.int(0, 0, N), best: Z.int(0, 0, N), total: Z.int(0, 0, N) });
+  records = kit.loadSafe('records', Z.obj({
+    levels: Z.obj({ easy: lv, medium: lv, hard: lv, expert: lv }),
+    streak: Z.obj({ cur: Z.int(0, 0, N), best: Z.int(0, 0, N) }),
+    daily: Z.obj({ last: Z.str(''), streak: Z.int(0, 0, N), best: Z.int(0, 0, N), done: Z.map(Z.int(0, 0, N)) }),
+    active: Z.bool(false),
+  }));
+}
+function showLevels() {
+  const node = document.createElement('div');
+  const grid = document.createElement('div'); grid.className = 'kit-grid';
+  const desc = { easy: 'одиночки, много открытых', medium: 'одиночки, меньше открытых', hard: 'пересечения и пары', expert: 'тройки и «крест»' };
+  for (const l of Object.keys(LEVEL_NAMES)) {
+    const r = records.levels[l];
+    const b = kit.btn(`${LEVEL_NAMES[l]}<small>${desc[l]}</small><small>${r.best ? 'рекорд ' + fmt(r.best) : 'ещё не решали'}</small>`, () => startLevel(l));
+    b.dataset.level = l; grid.appendChild(b);
+  }
+  node.appendChild(grid);
+  kit.show({ id: 'levels', title: 'Новая игра', node, wide: true, buttons: [{ label: 'Своя головоломка', id: 'import', onClick: showImport }, { label: 'Назад', onClick: () => kit.pop() }], row: true });
+}
+function showImport() {
+  const node = document.createElement('div');
+  node.innerHTML = '<p>81 символ: цифры 1-9 - открытые клетки, 0 или точка - пустые.</p><textarea id="ioArea" rows="4" style="width:100%;font:14px Consolas,monospace;padding:8px;border-radius:8px;border:1px solid var(--kit-line);background:transparent;color:var(--kit-fg)"></textarea><p id="ioMsg" class="kit-warn"></p>';
+  kit.show({ id: 'import', title: 'Своя головоломка', node, wide: true, row: true, buttons: [
+    { label: 'Загрузить', primary: true, id: 'load', onClick: () => { if (importPuzzle(document.getElementById('ioArea').value)) beginPlay(false); else document.getElementById('ioMsg').innerHTML = document.getElementById('hintText').innerHTML; } },
+    { label: 'Назад', onClick: () => kit.pop() }] });
 }
 
-// ---------- Крючок для проверок ----------
+// ================= Ввод: действия набора и цифры =================
+addEventListener('keydown', (e) => {
+  if (kit.mode !== 'play' || kit.stack.length || e.altKey) return;
+  const m = /^(Digit|Numpad)([0-9])$/.exec(e.code);
+  if (m && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const d = Number(m[2]); if (d) { state.padDigit = d; input(d); } else erase(); return; }
+  const a = kit.actionOf(e.code);
+  if (e.repeat && (a === 'up' || a === 'down' || a === 'left' || a === 'right')) handleAction(a);   // держишь стрелку - выбор бежит
+});
+function handleAction(a) {
+  if (a === 'up') moveSel(-1, 0); else if (a === 'down') moveSel(1, 0); else if (a === 'left') moveSel(0, -1); else if (a === 'right') moveSel(0, 1);
+  else if (a === 'erase') erase(); else if (a === 'notes') toggleNotes(); else if (a === 'autonotes') autoNotes(); else if (a === 'hint') hint();
+  else if (a === 'undo') undo(); else if (a === 'redo') redo();
+  else if (a === 'prevDigit') { state.padDigit = state.padDigit === 1 ? 9 : state.padDigit - 1; padUsed = true; render(); }
+  else if (a === 'nextDigit') { state.padDigit = state.padDigit === 9 ? 1 : state.padDigit + 1; padUsed = true; render(); }
+  else if (a === 'place') input(state.padDigit);
+}
+const ACTION_NAMES = ['up', 'down', 'left', 'right', 'erase', 'notes', 'autonotes', 'hint', 'undo', 'redo', 'prevDigit', 'nextDigit', 'place'];
+function frame(dt) {
+  if (kit.mode === 'play' && !state.demo) {
+    for (const a of ACTION_NAMES) if (kit.wasPressed(a)) handleAction(a);
+    if (state.phase === 'play') state.elapsed += dt / 1000;
+  }
+  if ((autopilot && state.phase === 'play') && (kit.mode === 'play' || (kit.mode === 'menu' && state.demo))) {
+    pilotT += 1;
+    if (pilotT >= (state.demo ? 22 : 1)) { pilotT = 0; pilotStep(); }
+  }
+  kit.endStep();
+}
+let last = performance.now(), timerShown = -1;
+function loop(now) {
+  const dt = Math.min(100, now - last); last = now;
+  frame(dt);
+  if (Math.floor(state.elapsed) !== timerShown) { timerShown = Math.floor(state.elapsed); document.getElementById('time').textContent = kit.settings.showTimer ? fmt(state.elapsed) : '—'; }
+  boardEl.classList.toggle('hidden', kit.mode === 'paused');
+  drawFx();
+  kit.countFrame();
+  requestAnimationFrame(loop);
+}
+
+loadRecords();
+applyTheme();
+startDemo();
+kit.showMain();
+requestAnimationFrame(loop);
+
+// ================= Крючок для проверок =================
 window.__game = {
-  ready: true,
-  state,
-  generate, setupGame, countSolutions, selectCell, inputNumber, eraseCell, giveHint, fillSingles,
-  undo, redo, importPuzzle, setPaused, tickTime, loadBests,
-  newSync(diff) { const { puzzle, solution } = generate(diff); diffEl.value = diff; setupGame(puzzle, solution, diff); saveProgress(); },
+  ready: true, state, get kit() { return kit; }, get records() { return records; }, get autopilot() { return autopilot; },
+  setAutopilot(v) { autopilot = v; pilotT = 0; },
+  step(n = 1) { for (let i = 0; i < n; i++) frame(1000 / 60); render(); },
+  newSync(level, seed) { newSync(level, seed); beginPlay(false); kit.closeAll(); kit.mode = 'menu'; },
+  startDailySync(date) { startDailySync(date); beginPlay(false); kit.closeAll(); kit.mode = 'menu'; },
+  select, input, erase, toggleNotes, autoNotes, hint, undo, redo, save, importPuzzle,
+  cellEl: (r, c) => cells[r * 9 + c],
 };
 </script>
 </body>

@@ -1,183 +1,344 @@
-// Законы «Судоку»: пазл с единственным решением и нужным числом подсказок, верная и неверная
-// цифра, открытые клетки не меняются, отмена и возврат, подсказка отменяется вместе с
-// «замком», «Одиночки» не ставят неверных цифр, импорт отвергает противоречия, победа и рекорд,
-// автосохранение, клавиши в русской раскладке, пауза, окно.
+// Законы «Судоку» для «Игротеки»: уровни от лёгкого до эксперта различаются нужными приёмами,
+// у каждой головоломки ровно одно решение, заметки и автозаметки, подсветка одинаковых цифр и
+// конфликтов, отмена и повтор, подсказка с объяснением приёма, ежедневная головоломка по дате,
+// лимит ошибок, рекорды по уровням, серия побед, статистика, тёмная и светлая тема, продолжение
+// после перезагрузки, автопилот решает каждый уровень, пауза, клавиши, геймпад, окно.
 const { test, expect } = require('@playwright/test');
-const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
+const { openGame, fitReport, expectFits } = require('./_games-helpers');
+const { hideTab, showTab } = require('./_kit-helpers');
 
-const CLASSIC = '530070000600195000098000060800060003400803001700020006060000280000419005000080079';
-const SOLVED = '534678912672195348198342567859761423426853791713924856961537284287419635345286179';
+const open = (page, q = 'seed=1&date=2026-09-27') => openGame(page, 'sudoku', q);
+const LEVELS = ['easy', 'medium', 'hard', 'expert'];
+// Первая пустая клетка и её верная цифра
+const EMPTY = `(() => { const s = __game.state; const i = s.user.findIndex((v) => !v); return { i, r: Math.floor(i / 9), c: i % 9, d: s.solution[i] }; })()`;
 
-// Первая пустая клетка и её верная и неверная цифры
-const firstEmpty = () => {
-  const s = __game.state;
-  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (!s.user[r][c]) return { r, c, ok: s.solution[r][c], bad: s.solution[r][c] % 9 + 1 };
-  return null;
-};
-
-test.describe('sudoku', () => {
-  test('первый запуск: пазл есть, красной ошибки «Сохранения нет» нет', async ({ page }) => {
-    const errors = await openGame(page, 'sudoku', 'seed=1');
-    await expect(page.locator('.cell')).toHaveCount(81);
-    await expect(page.locator('#msg')).not.toHaveClass(/bad/);
-    await expect(page.locator('#msg')).toHaveText('');
+test.describe('Судоку: меню, уровни, единственность', () => {
+  test('главное меню над живой заставкой; «Новая игра» - четыре уровня; в игре правит игрок', async ({ page }) => {
+    const errors = await open(page);
+    for (const t of ['Новая игра', 'Ежедневная', 'Настройки', 'Достижения и рекорды', 'Как играть', 'Об игре']) await expect(page.locator(`[data-screen=main] .kit-btn:has-text("${t}")`).first()).toBeVisible();
+    expect(await page.evaluate(() => __game.autopilot)).toBe(true);
+    const f0 = await page.evaluate(() => __game.state.user.filter(Boolean).length);
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => __game.state.user.filter(Boolean).length)).toBeGreaterThan(f0);   // заставка решает
+    await page.click('[data-screen=main] [data-id=new]');
+    for (const l of LEVELS) await expect(page.locator(`[data-screen=levels] [data-level=${l}]`)).toBeVisible();
+    await page.click('[data-screen=levels] [data-level=easy]');
+    await page.waitForFunction(() => __game.kit.mode === 'play');
+    expect(await page.evaluate(() => [__game.autopilot, __game.state.level, __game.state.daily])).toEqual([false, 'easy', null]);
     expect(errors).toEqual([]);
   });
 
-  test('пазлы с единственным решением и нужным числом открытых клеток; «Эксперт» строится быстро', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=3');
+  test('у каждой головоломки ровно одно решение; уровни различаются нужными приёмами и числом подсказок', async ({ page }) => {
+    test.setTimeout(120000);
+    await open(page);
     const r = await page.evaluate(() => {
-      const g = __game, out = {};
-      for (const d of ['easy', 'medium', 'hard', 'expert']) {
-        const t = performance.now();
-        const { puzzle, solution } = g.generate(d);
-        const ms = performance.now() - t;
-        const agree = puzzle.every((row, i) => row.every((v, j) => !v || v === solution[i][j]));
-        out[d] = { clues: puzzle.flat().filter(Boolean).length, unique: g.countSolutions(puzzle, 2), agree, ms };
+      const L = SudokuLogic, out = {};
+      for (const lv of ['easy', 'medium', 'hard', 'expert']) {
+        out[lv] = [];
+        for (let seed = 1; seed <= 4; seed++) {
+          const g = L.generate(lv, seed * 101);
+          const sol = []; const n = L.countSolutions(g.puzzle, 3, sol);
+          const lg = L.solveLogic(g.puzzle);
+          out[lv].push({ n, same: sol.join('') === g.solution.join(''), clues: g.puzzle.filter(Boolean).length, tier: lg.maxTier, solved: lg.solved });
+        }
       }
       return out;
     });
-    expect(r.easy.clues).toBe(40);
-    expect(r.medium.clues).toBe(32);
-    expect(r.hard.clues).toBeLessThanOrEqual(27);
-    expect(r.expert.clues).toBeLessThanOrEqual(25);
-    for (const d of Object.keys(r)) {
-      expect(r[d].unique, d).toBe(1);
-      expect(r[d].agree, d).toBe(true);
-    }
-    expect(r.expert.ms).toBeLessThan(1000);     // раньше до секунды и дольше, страница замирала
+    for (const lv of LEVELS) for (const x of r[lv]) { expect(x.n, lv).toBe(1); expect(x.same, lv).toBe(true); expect(x.solved, lv).toBe(true); }
+    expect(r.easy.every((x) => x.tier === 1 && x.clues >= 36)).toBe(true);
+    expect(r.medium.every((x) => x.tier === 1 && x.clues <= 33)).toBe(true);
+    expect(r.hard.every((x) => x.tier === 2)).toBe(true);
+    expect(r.expert.every((x) => x.tier === 3)).toBe(true);
   });
 
-  test('верная цифра встаёт, неверная - ошибка и красная клетка; открытую клетку не изменить', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    await page.evaluate(() => __game.newSync('medium'));
-    const r = await page.evaluate((fe) => {
-      const g = __game, s = g.state, e = eval(fe)();
-      g.selectCell(e.r, e.c); g.inputNumber(e.bad);
-      const errBad = s.errors, cls = document.querySelectorAll('.cell')[e.r * 9 + e.c].className;
-      g.inputNumber(e.ok);
-      const okVal = s.user[e.r][e.c], errAfter = s.errors;
-      let gr = -1, gc = -1;
-      for (let i = 0; i < 81 && gr < 0; i++) if (s.given[Math.floor(i / 9)][i % 9]) { gr = Math.floor(i / 9); gc = i % 9; }
-      const before = s.user[gr][gc];
-      g.selectCell(gr, gc); g.inputNumber(before % 9 + 1);
-      return { errBad, cls, okVal, ok: e.ok, errAfter, givenSame: s.user[gr][gc] === before };
-    }, firstEmpty.toString().replace(/^/, '(') + ')');
-    expect(r.errBad).toBe(1);
-    expect(r.cls).toContain('error');
-    expect(r.okVal).toBe(r.ok);
-    expect(r.errAfter).toBe(1);
-    expect(r.givenSame).toBe(true);
+  test('ежедневная головоломка: одна и та же в один день, другая - в другой; решение одно', async ({ page }) => {
+    await open(page);
+    const a = await page.evaluate(() => { __game.startDailySync('2026-09-27'); return { p: __game.state.puzzle.join(''), n: SudokuLogic.countSolutions(__game.state.puzzle, 3), level: __game.state.level }; });
+    await open(page, 'seed=77&date=2026-09-27');
+    const b = await page.evaluate(() => { __game.startDailySync('2026-09-27'); return __game.state.puzzle.join(''); });
+    const c = await page.evaluate(() => { __game.startDailySync('2026-09-28'); return __game.state.puzzle.join(''); });
+    expect(b).toBe(a.p);
+    expect(c).not.toBe(a.p);
+    expect(a.n).toBe(1);
+    expect(LEVELS).toContain(a.level);
+  });
+});
+
+test.describe('Судоку: ввод и помощь', () => {
+  test('верная цифра встаёт; неверная - ошибка и красная клетка; открытую клетку не изменить', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate((E) => {
+      const g = __game; g.newSync('easy', 1);
+      const e = eval(E);
+      g.select(e.r, e.c); g.input(e.d);
+      const ok = g.state.user[e.i] === e.d;
+      const e2 = eval(E); g.select(e2.r, e2.c); g.input(e2.d === 9 ? 1 : e2.d + 1);
+      const err = { mistakes: g.state.mistakes, cls: g.cellEl(e2.r, e2.c).classList.contains('error') };
+      const gi = g.state.given.indexOf(true); const before = g.state.user[gi];
+      g.select(Math.floor(gi / 9), gi % 9); g.input(before === 9 ? 1 : before + 1);
+      return { ok, err, given: g.state.user[gi] === before };
+    }, EMPTY);
+    expect(r).toEqual({ ok: true, err: { mistakes: 1, cls: true }, given: true });
   });
 
-  test('отмена и возврат; подсказка отменяется, и клетка снова доступна', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    await page.evaluate(() => __game.newSync('medium'));
-    const r = await page.evaluate((fe) => {
-      const g = __game, s = g.state, e = eval(fe)();
-      g.selectCell(e.r, e.c); g.inputNumber(e.ok);
-      g.undo(); const undone = s.user[e.r][e.c];
-      g.redo(); const redone = s.user[e.r][e.c];
-      g.undo();
-      g.selectCell(e.r, e.c); g.giveHint();
-      const hinted = s.user[e.r][e.c];
-      g.undo();
-      g.selectCell(e.r, e.c); g.inputNumber(e.ok);
-      return { undone, redone, hinted, ok: e.ok, after: s.user[e.r][e.c] };
-    }, '(' + firstEmpty.toString() + ')');
-    expect(r.undone).toBe(0);
-    expect(r.redone).toBe(r.ok);
-    expect(r.hinted).toBe(r.ok);
-    expect(r.after).toBe(r.ok);            // раньше клетка оставалась пустой и запертой навсегда
-  });
-
-  test('«Одиночки» не ставят неверных цифр, даже когда у игрока есть ошибка', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    await page.evaluate(() => __game.newSync('easy'));
-    const r = await page.evaluate((fe) => {
-      const g = __game, s = g.state, e = eval(fe)();
-      g.selectCell(e.r, e.c); g.inputNumber(e.bad);      // сознательная ошибка
-      g.fillSingles();
-      let wrong = 0, filled = 0;
-      for (let i = 0; i < 81; i++) {
-        const rr = Math.floor(i / 9), cc = i % 9, v = s.user[rr][cc];
-        if (v && !(rr === e.r && cc === e.c)) { filled++; if (v !== s.solution[rr][cc]) wrong++; }
-      }
-      return { wrong, filled };
-    }, '(' + firstEmpty.toString() + ')');
-    expect(r.wrong).toBe(0);
-    expect(r.filled).toBeGreaterThan(40);
-    // Подстроенный случай: пусты (0,0)=5, (0,3)=6, (1,0)=6; игрок ошибочно ставит 5 в (1,0).
-    // Если считать ошибку опорой, в (0,0) остаётся одна «шестёрка» - и она неверна.
-    const t = SOLVED.split(''); t[0] = '0'; t[3] = '0'; t[9] = '0';
-    const trap = await page.evaluate((str) => {
-      const g = __game, s = g.state;
-      g.importPuzzle(str); g.selectCell(1, 0); g.inputNumber(5); g.fillSingles();
-      return [s.user[0][0], s.user[0][3]];
-    }, t.join(''));
-    expect([0, 5]).toContain(trap[0]);
-    expect([0, 6]).toContain(trap[1]);
-  });
-
-  test('импорт: противоречивые открытые цифры отвергаются, классический пазл загружается', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    const bad = '55' + CLASSIC.slice(2);                      // две пятёрки в первой строке
-    const r = await page.evaluate(([b, ok]) => ({ bad: __game.importPuzzle(b), msg: document.getElementById('msg').textContent, good: __game.importPuzzle(ok), first: __game.state.solution[0].join('') }), [bad, CLASSIC]);
-    expect(r.bad).toBe(false);
-    // Полностью заполненная сетка с повтором (две тройки в строке) - тоже не пазл
-    const dup = '3' + SOLVED.slice(1);
-    expect(await page.evaluate((d) => __game.importPuzzle(d), dup)).toBe(false);
-    expect(r.msg).toContain('нет решения');
-    expect(r.good).toBe(true);
-    expect(r.first).toBe('534678912');
-  });
-
-  test('победа: рекорд времени уровня записан и переживает перезагрузку', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    await page.evaluate(() => { localStorage.clear(); __game.newSync('easy'); __game.tickTime(75); });
-    await page.evaluate(() => {
-      const g = __game, s = g.state;
-      for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (!s.user[r][c]) { g.selectCell(r, c); g.inputNumber(s.solution[r][c]); }
+  test('конфликт по правилам (две одинаковые цифры в строке) подсвечивается и без проверки ошибок', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.kit.set('instantCheck', false); g.newSync('easy', 2);
+      const s = g.state, r0 = s.user.findIndex((v, i) => v && s.given[i]) , row = Math.floor(r0 / 9);
+      const empty = [...Array(9).keys()].map((c) => row * 9 + c).find((i) => !s.user[i]);
+      g.select(row, empty % 9); g.input(s.user[r0]);
+      return { conflict: g.cellEl(row, empty % 9).classList.contains('conflict') && g.cellEl(row, r0 % 9).classList.contains('conflict'), mistakes: s.mistakes };
     });
-    expect(await page.evaluate(() => __game.state.won)).toBe(true);
-    await expect(page.locator('#msg')).toContainText('Новый рекорд');
-    await expect(page.locator('#best')).toHaveText('01:15');
+    expect(r).toEqual({ conflict: true, mistakes: 0 });
+  });
+
+  test('заметки карандашом; цифра убирает свою заметку у соседей; автозаметки - все кандидаты', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate((E) => {
+      const g = __game; g.newSync('easy', 3);
+      const e = eval(E);
+      g.toggleNotes(); g.select(e.r, e.c); g.input(1); g.input(2); g.input(2);
+      const notes = [...g.state.notes[e.i]].sort();
+      g.toggleNotes();
+      // сосед по строке с заметкой d
+      const s = g.state, peer = [...Array(9).keys()].map((c) => e.r * 9 + c).find((i) => !s.user[i] && i !== e.i);
+      g.toggleNotes(); g.select(Math.floor(peer / 9), peer % 9); g.input(e.d); g.toggleNotes();
+      g.select(e.r, e.c); g.input(e.d);
+      const peerHas = g.state.notes[peer].has(e.d);
+      g.autoNotes();
+      const cand = SudokuLogic.candidates(g.state.user);
+      const exact = g.state.user.every((v, i) => v || [...g.state.notes[i]].sort().join('') === SudokuLogic.digits(cand[i]).join(''));
+      return { notes, peerHas, exact };
+    }, EMPTY);
+    expect(r).toEqual({ notes: [1], peerHas: false, exact: true });
+  });
+
+  test('подсветка: выбранная цифра подсвечена во всех клетках, где она стоит', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.newSync('easy', 4);
+      const s = g.state, i = s.user.findIndex(Boolean), d = s.user[i];
+      g.select(Math.floor(i / 9), i % 9);
+      const same = s.user.map((v, k) => [v, k]).filter(([v]) => v === d).map(([, k]) => g.cellEl(Math.floor(k / 9), k % 9).classList.contains('same'));
+      const other = s.user.findIndex((v) => v && v !== d);
+      return { all: same.slice(1).every(Boolean) || same.every(Boolean), n: same.length, other: g.cellEl(Math.floor(other / 9), other % 9).classList.contains('same') };
+    });
+    expect(r.n).toBeGreaterThan(1);
+    expect(r.all).toBe(true);
+    expect(r.other).toBe(false);
+  });
+
+  test('отмена и повтор: ввод, заметки и подсказка; Ctrl+Z работает в русской раскладке', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { __game.newSync('easy', 5); __game.kit.play(); });
+    const e = await page.evaluate(EMPTY);
+    await page.evaluate((e) => { __game.select(e.r, e.c); __game.input(e.d); }, e);
+    await page.keyboard.press('Control+KeyZ');
+    await page.waitForTimeout(80);
+    expect(await page.evaluate((i) => __game.state.user[i], e.i)).toBe(0);
+    await page.keyboard.press('Control+KeyY');
+    await page.waitForTimeout(80);
+    expect(await page.evaluate((i) => __game.state.user[i], e.i)).toBe(e.d);
+    const h = await page.evaluate(() => { const before = __game.state.user.filter(Boolean).length; __game.hint(); const after = __game.state.user.filter(Boolean).length; __game.undo(); return [before, after, __game.state.user.filter(Boolean).length, __game.state.hints]; });
+    expect(h[1]).toBe(h[0] + 1);
+    expect(h[2]).toBe(h[0]);
+  });
+
+  test('подсказка ставит цифру и объясняет приём; при ошибке сначала показывает её', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate((E) => {
+      const g = __game; g.newSync('hard', 6);
+      const before = g.state.user.filter(Boolean).length;
+      g.hint();
+      const text1 = document.getElementById('hintText').textContent;
+      const placed = g.state.user.filter(Boolean).length === before + 1;
+      const correct = g.state.user.every((v, i) => !v || v === g.state.solution[i]);
+      const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1);
+      const n = g.state.user.filter(Boolean).length;
+      g.hint();
+      const text2 = document.getElementById('hintText').textContent;
+      return { text1, placed, correct, text2, same: g.state.user.filter(Boolean).length === n, sel: g.state.selected, wrong: e.i, hints: g.state.hints };
+    }, EMPTY);
+    expect(r.placed).toBe(true);
+    expect(r.correct).toBe(true);
+    expect(r.text1).toMatch(/Последний кандидат|Скрытая одиночка|Пересечение|пара|тройка|Крест|Рыба/);
+    expect(r.text1).toMatch(/R\dC\d/);
+    expect(r.text2).toMatch(/ошибк/i);
+    expect(r.same).toBe(true);
+    expect(r.sel.r * 9 + r.sel.c).toBe(r.wrong);
+    expect(r.hints).toBe(1);
+  });
+
+  test('лимит ошибок: три ошибки - поражение; без лимита - игра идёт', async ({ page }) => {
+    await open(page);
+    await page.evaluate((E) => {
+      const g = __game; g.kit.set('mistakeLimit', 3); g.newSync('easy', 7); g.kit.play();
+      for (let k = 0; k < 3; k++) { const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1); g.erase(); }
+    }, EMPTY);
+    await expect(page.locator('[data-screen=over]')).toBeVisible();
+    const r = await page.evaluate((E) => {
+      const g = __game; g.kit.set('mistakeLimit', 0); g.newSync('easy', 7); g.kit.play();
+      for (let k = 0; k < 5; k++) { const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1); g.erase(); }
+      return [g.state.mistakes, g.state.phase];
+    }, EMPTY);
+    expect(r).toEqual([5, 'play']);
+  });
+});
+
+test.describe('Судоку: итоги, рекорды, прогресс', () => {
+  test('победа: окно итога, рекорд уровня, серия побед и статистика переживают перезагрузку', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => {
+      localStorage.clear(); const g = __game; g.newSync('easy', 8); g.kit.play();
+      g.state.elapsed = 125;
+      const s = g.state; s.user.forEach((v, i) => { if (!v) { g.select(Math.floor(i / 9), i % 9); g.input(s.solution[i]); } });
+    });
+    await expect(page.locator('[data-screen=win]')).toBeVisible();
+    await expect(page.locator('[data-screen=win]')).toContainText('2:05');
     await page.reload();
     await page.waitForFunction(() => window.__game && __game.ready);
-    expect(await page.evaluate(() => __game.loadBests().easy)).toBe(75);
+    const r = await page.evaluate(() => ({ best: __game.records.levels.easy.best, won: __game.records.levels.easy.won, streak: __game.records.streak }));
+    expect(r.best).toBe(125);
+    expect(r.won).toBe(1);
+    expect(r.streak.cur).toBe(1);
+    await page.click('[data-screen=main] [data-id=achievements]');
+    await expect(page.locator('[data-screen=achievements]')).toContainText('Лёгкий');
+    await expect(page.locator('[data-screen=achievements]')).toContainText('Серия побед');
   });
 
-  test('ход сохраняется сам и переживает перезагрузку', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    const e = await page.evaluate((fe) => { __game.newSync('medium'); const e = eval(fe)(); __game.selectCell(e.r, e.c); __game.inputNumber(e.ok); return e; }, '(' + firstEmpty.toString() + ')');
+  test('ежедневная: решённая отмечается, серия дней растёт на следующий день и рвётся после пропуска', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      localStorage.clear(); const g = __game, out = [];
+      const solve = () => { const s = g.state; s.user.forEach((v, i) => { if (!v) { g.select(Math.floor(i / 9), i % 9); g.input(s.solution[i]); } }); };
+      for (const d of ['2026-09-27', '2026-09-28', '2026-09-30']) { g.startDailySync(d); g.kit.play(); solve(); out.push(g.records.daily.streak); }
+      return { out, done: Object.keys(g.records.daily.done).sort() };
+    });
+    expect(r.out).toEqual([1, 2, 1]);
+    expect(r.done).toEqual(['2026-09-27', '2026-09-28', '2026-09-30']);
+  });
+
+  test('ход сохраняется сам: после перезагрузки «Продолжить» возвращает поле, заметки и время', async ({ page }) => {
+    await open(page);
+    const e = await page.evaluate((E) => {
+      localStorage.clear(); const g = __game; g.newSync('medium', 9); g.kit.play();
+      const e = eval(E); g.select(e.r, e.c); g.input(e.d);
+      const e2 = eval(E); g.toggleNotes(); g.select(e2.r, e2.c); g.input(3); g.toggleNotes();
+      g.state.elapsed = 61; g.save();
+      return { e, e2, puzzle: g.state.puzzle.join('') };
+    }, EMPTY);
     await page.reload();
     await page.waitForFunction(() => window.__game && __game.ready);
-    expect(await page.evaluate((x) => __game.state.user[x.r][x.c], e)).toBe(e.ok);
+    await page.click('[data-screen=main] [data-id=continue]');
+    const r = await page.evaluate(([i, j]) => ({ v: __game.state.user[i], n: [...__game.state.notes[j]], t: Math.floor(__game.state.elapsed), p: __game.state.puzzle.join(''), mode: __game.kit.mode }), [e.e.i, e.e2.i]);
+    expect(r).toEqual({ v: e.e.d, n: [3], t: 61, p: e.puzzle, mode: 'play' });
   });
 
-  test('Ctrl+Z работает в русской раскладке; P ставит паузу и время стоит', async ({ page }) => {
-    await openGame(page, 'sudoku', 'seed=1');
-    const r = await page.evaluate((fe) => {
-      const g = __game, s = g.state; g.newSync('medium');
-      const e = eval(fe)();
-      g.selectCell(e.r, e.c); g.inputNumber(e.ok);
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'я', code: 'KeyZ', ctrlKey: true, bubbles: true }));
-      const undone = s.user[e.r][e.c];
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'з', code: 'KeyP', bubbles: true }));
-      const t = s.elapsed; g.tickTime(30);
-      return { undone, paused: s.paused, frozen: s.elapsed === t };
-    }, '(' + firstEmpty.toString() + ')');
-    expect(r).toEqual({ undone: 0, paused: true, frozen: true });
-    await expect(page.locator('#pauseCover')).toBeVisible();
+  test('тёмная и светлая тема: цвета поля и окон меняются сразу и сохраняются', async ({ page }) => {
+    await open(page);
+    const dark = await page.evaluate(() => { __game.kit.set('theme', 'dark'); return getComputedStyle(document.body).backgroundColor; });
+    const light = await page.evaluate(() => { __game.kit.set('theme', 'light'); return { bg: getComputedStyle(document.body).backgroundColor, panel: getComputedStyle(document.querySelector('.kit-panel')).backgroundColor }; });
+    expect(light.bg).not.toBe(dark);
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    expect(await page.evaluate(() => [document.documentElement.dataset.theme, getComputedStyle(document.body).backgroundColor])).toEqual(['light', light.bg]);
+    await page.click('[data-screen=main] [data-id=settings]');
+    await expect(page.locator('[data-setting=theme][data-value=dark]')).toBeVisible();
   });
 
-  for (const size of SIZES) {
-    test(`влезает в окно ${size.width}x${size.height} без прокрутки`, async ({ page }) => {
+  test('автопилот решает головоломку каждого уровня логикой, без ошибок, до окна победы', async ({ page }) => {
+    test.setTimeout(120000);
+    await open(page);
+    for (const lv of LEVELS) {
+      const r = await page.evaluate((lv) => {
+        const g = __game; g.kit.closeAll(); g.newSync(lv, 11); g.kit.play(); g.setAutopilot(true);
+        let n = 0; while (g.state.phase === 'play' && n++ < 5000) g.step(1);
+        g.setAutopilot(false);
+        return { phase: g.state.phase, mistakes: g.state.mistakes, hints: g.state.hints };
+      }, lv);
+      expect(r, lv).toEqual({ phase: 'won', mistakes: 0, hints: 0 });
+      await expect(page.locator('[data-screen=win]')).toBeVisible();
+    }
+  });
+
+  test('своя головоломка: противоречивая отвергается, классическая загружается', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const bad = '55' + '0'.repeat(79);
+      const good = '530070000600195000098000060800060003400803001700020006060000280000419005000080079';
+      return { bad: __game.importPuzzle(bad), good: __game.importPuzzle(good), p: __game.state.puzzle.join('') };
+    });
+    expect(r.bad).toBe(false);
+    expect(r.good).toBe(true);
+    expect(r.p).toBe('530070000600195000098000060800060003400803001700020006060000280000419005000080079');
+  });
+});
+
+test.describe('Судоку: пауза, клавиши, окно', () => {
+  test('пауза прячет поле и останавливает время; скрытая вкладка - тоже пауза', async ({ page }) => {
+    await open(page);
+    await page.click('[data-screen=main] [data-id=new]');
+    await page.click('[data-screen=levels] [data-level=easy]');
+    await page.waitForFunction(() => __game.kit.mode === 'play');
+    await page.keyboard.press('Escape');
+    const t = await page.evaluate(() => __game.state.elapsed);
+    await page.waitForTimeout(600);
+    const r = await page.evaluate(() => ({ t: __game.state.elapsed, hidden: document.getElementById('board').classList.contains('hidden') }));
+    expect(r).toEqual({ t, hidden: true });
+    await page.click('[data-screen=pause] [data-id=resume]');
+    await hideTab(page); await showTab(page);
+    expect(await page.evaluate(() => __game.kit.mode)).toBe('paused');
+  });
+
+  test('клавиши: стрелки двигают выбор, цифры ставят; подсказку можно переназначить, цифру взять нельзя', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => localStorage.clear());
+    await page.click('[data-screen=main] [data-id=settings]');
+    await page.click('[data-bind="hint:0"]'); await page.keyboard.press('Digit5');
+    await expect(page.locator('.kit-modal .kit-warn')).toContainText('Цифры');
+    await page.keyboard.press('KeyJ');
+    await page.click('[data-screen=settings] .kit-btn:has-text("Готово")');
+    await page.evaluate(() => { __game.newSync('easy', 12); __game.kit.closeAll(); __game.kit.play(); __game.select(0, 0); });
+    await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(80);
+    expect(await page.evaluate(() => __game.state.selected)).toEqual({ r: 1, c: 1 });
+    const e = await page.evaluate(EMPTY);
+    await page.evaluate((e) => __game.select(e.r, e.c), e);
+    await page.keyboard.press('Digit' + e.d);
+    expect(await page.evaluate((i) => __game.state.user[i], e.i)).toBe(e.d);
+    const n = await page.evaluate(() => __game.state.hints);
+    await page.keyboard.press('KeyJ');
+    await page.waitForTimeout(80);
+    expect(await page.evaluate(() => __game.state.hints)).toBe(n + 1);
+  });
+
+  test('геймпад: крестовина двигает выбор, RB выбирает цифру, A ставит', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__pad = { connected: true, id: 'fake', index: 0, mapping: 'standard', buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), axes: [0, 0, 0, 0] };
+      navigator.getGamepads = () => [window.__pad];
+    });
+    await open(page);
+    await page.evaluate(() => { __game.newSync('easy', 13); __game.kit.closeAll(); __game.kit.play(); __game.select(4, 4); });
+    const tap = async (b) => { await page.evaluate((b) => { __pad.buttons[b].pressed = true; }, b); await page.waitForTimeout(60); await page.evaluate((b) => { __pad.buttons[b].pressed = false; }, b); await page.waitForTimeout(60); };
+    await tap(15);
+    expect(await page.evaluate(() => __game.state.selected)).toEqual({ r: 4, c: 5 });
+    const e = await page.evaluate(EMPTY);
+    await page.evaluate((e) => { __game.select(e.r, e.c); __game.state.padDigit = 1; }, e);
+    for (let k = 1; k < e.d; k++) await tap(5);
+    await tap(0);
+    expect(await page.evaluate((i) => __game.state.user[i], e.i)).toBe(e.d);
+  });
+
+  for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }, { width: 1024, height: 700 }]) {
+    test(`поле и панель влезают в окно ${size.width}x${size.height} без прокрутки`, async ({ page }) => {
       await page.setViewportSize(size);
-      await openGame(page, 'sudoku', 'seed=1');
+      await open(page);
+      await page.evaluate(() => { __game.newSync('easy', 1); __game.kit.closeAll(); __game.kit.play(); });
       expectFits(expect, await fitReport(page, '#board'));
-      expectFits(expect, await fitReport(page, '#pad'));
-      expectFits(expect, await fitReport(page, '#singlesBtn'));
+      expectFits(expect, await fitReport(page, '#side'));
+      const b = await page.evaluate(() => document.getElementById('board').getBoundingClientRect().width);
+      expect(b).toBeGreaterThan(size.height * 0.6);
     });
   }
 });
