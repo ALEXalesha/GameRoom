@@ -1259,7 +1259,7 @@ $('menubar').addEventListener('click', e => {
   else if (b.id === 'mb-app') openMbMenu(b, appMenus(activeWin)[APPS[activeWin ? activeWin.app : 'finder'].title]);
   else if (b.dataset.mb) openMbMenu(b, appMenus(activeWin)[b.dataset.mb]);
   else if (b.id === 'mb-cc') togglePanel('cc', b);
-  else if (b.id === 'mb-clock') togglePanel('nc', b, () => { renderNotifs(); renderWidgets(); });
+  else if (b.id === 'mb-clock') togglePanel('nc', b, () => { $('toasts').innerHTML = ''; renderNotifs(); renderWidgets(); });   // всплывшие карточки уходят в центр
   else if (b.id === 'mb-search') toggleSpotlight();
   else if (b.id === 'mb-wifi') { openMbMenu(b, [{ label: 'Wi-Fi', checked: S.wifi, action: () => setS({ wifi: !S.wifi }) }, { sep: true }, { label: S.wifi ? 'Домашняя сеть (условно)' : 'Wi-Fi выключен', disabled: true }, { sep: true }, { label: 'Настройки сети…', action: () => openApp('settings', 'network') }]); }
   else if (b.id === 'mb-bat') openMbMenu(b, [{ label: 'Аккумулятор: 84% (условно)', disabled: true }, { label: 'Настройки аккумулятора…', action: () => openApp('settings', 'display') }]);

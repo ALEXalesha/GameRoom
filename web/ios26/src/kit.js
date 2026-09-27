@@ -255,7 +255,7 @@ function renderNotifs() {
   $('screen').appendChild(nc);
   renderStatusBars();
 })();
-function openNC() { closeCC(); const d = new Date(); $('nc').querySelector('.nc-time').textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes()); $('nc').querySelector('.nc-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()]; renderNotifs(); $('nc').classList.add('open'); }
+function openNC() { closeCC(); document.querySelectorAll('.banner').forEach(b => b.remove()); const d = new Date(); $('nc').querySelector('.nc-time').textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes()); $('nc').querySelector('.nc-date').textContent = DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()]; renderNotifs(); $('nc').classList.add('open'); }
 function closeNC() { $('nc').classList.remove('open'); }
 $('nc').addEventListener('click', e => {
   if (e.target.closest('#nc-clear')) { NOTIFS = []; renderNotifs(); return; }

@@ -270,6 +270,7 @@ function openRecents() {
   $('recents').classList.toggle('empty', !RECENTS.length);
   $('recents').classList.add('open');
   state.recents = true;
+  $('recents').querySelector('[data-time]').textContent = hhmm(new Date());
   renderStatus();
 }
 function closeRecents() { $('recents').classList.remove('open'); state.recents = false; }
