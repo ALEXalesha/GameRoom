@@ -150,7 +150,7 @@ test.describe('roblox-mini (Блоксити): устойчивость', () => 
       document.dispatchEvent(new Event('pointerlockchange'));
     });
     await expect(page.locator('#g-cross')).toBeVisible();
-    await page.mouse.click(200, 300);                                  // курсор где угодно - ставится в центр
+    await page.mouse.click(300, 80);                                   // курсор в небе - блок всё равно ставится в центр
     const r = await page.evaluate(() => { const c = Array.from(__blox.game.state.cells.values())[0]; const p = __blox.game.player.pos; return c && { dx: 2 * c.i + 1 - p.x, dz: 2 * c.k + 1 - p.z }; });
     expect(r).not.toBeNull();
     expect(Math.hypot(r.dx, r.dz)).toBeLessThan(12);

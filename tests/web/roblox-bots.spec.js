@@ -320,7 +320,8 @@ test.describe('roblox-mini (Блоксити): боты', () => {
         const LAZY = ['roam', 'look', 'wait', 'stroll'];
         let said = 0; const say = g.say.bind(g), texts = [], repeats = [];
         const names0 = new Set(g.bots.map((b) => b.name));
-        g.say = (n, t, c, sys) => { if (names0.has(n)) { said++; if (texts.slice(-8).includes(t)) repeats.push(t); texts.push(t); } return say(n, t, c, sys); };
+        let lastT = -1e9, tight = 0;
+        g.say = (n, t, c, sys) => { if (names0.has(n)) { said++; if (g.time - lastT < 2) tight++; lastT = g.time; if (texts.slice(-8).includes(t)) repeats.push(t); texts.push(t); } return say(n, t, c, sys); };
         const aimless = (goal) => !goal || goal === 'idle' || goal === 'arrived';
         for (let i = 0; i < 60 * 180; i++) {
           __blox.run(1);
@@ -348,13 +349,14 @@ test.describe('roblox-mini (Блоксити): боты', () => {
         const names = new Set(g.bots.map((b) => b.name));
         const botLines = g.chatLog.filter((m) => names.has(m.name)).map((m) => m.text);
         const pattern = (t) => [...allowed].some((a) => new RegExp('^' + a.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{\w+\}/g, '.+') + '$').test(t));
-        return { plates, worst, lazy, said, repeats, inWall, lines: botLines.length, foreign: botLines.filter((t) => !pattern(t)) };
+        return { plates, worst, lazy, said, tight, repeats, inWall, lines: botLines.length, foreign: botLines.filter((t) => !pattern(t)) };
       });
       expect(r.plates.length).toBeGreaterThan(0);
       for (const p of r.plates) { expect(p.text).toBe(p.name); expect(p.visible).toBe(true); }
       for (const [name, t] of Object.entries(r.worst)) expect(t, name).toBeLessThan(10);
       for (const [name, t] of Object.entries(r.lazy)) expect(t, name + ': бродит/ждёт без дела').toBeLessThan(15);
-      expect(r.said, 'чат не засыпан: не больше 12 реплик ботов в минуту').toBeLessThanOrEqual(36);
+      expect(r.said, 'чат не засыпан: не больше 10 реплик ботов в минуту').toBeLessThanOrEqual(30);
+      expect(r.tight, 'реплики ботов не чаще чем раз в 2 с').toBe(0);
       expect(r.repeats, 'одинаковые реплики подряд').toEqual([]);
       expect(r.inWall).toEqual([]);
       expect(r.lines).toBeGreaterThanOrEqual(3);
