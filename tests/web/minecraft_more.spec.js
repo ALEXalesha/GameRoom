@@ -45,7 +45,7 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
     const x = Math.floor(p.pos.x), z = Math.floor(p.pos.z);
     v.setBlock(x, 70, z - 3, B.stone); v.setBlock(x, 71, z - 3, B.stone);
     v.inv.slots[0] = heldKey ? { id: v.data.I[heldKey], count: 1, dmg: 0 } : null; v.select(0);
-    v.look(0, -0.25);
+    v.look(0, -0.75);
     const m = v.spawnMob(type, 0, -1.7); m.y = 70;
     const hp0 = m.hp;
     let hits = 0;
