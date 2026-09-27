@@ -274,7 +274,7 @@
     s.append(t, cause, row);
     const CAUSES = { fall: 'Разбился, упав с высоты', drown: 'Утонул', starve: 'Умер от голода', zombie: 'Убит зомби', void: 'Выпал из мира', burn: 'Сгорел',
       explosion: 'Взорван', skeleton: 'Застрелен скелетом', arrow: 'Застрелен', spider: 'Убит пауком', lava: 'Сгорел в лаве', fire: 'Сгорел', cactus: 'Исколот кактусом',
-      fireball: 'Сражён огненным шаром', zombie_pigman: 'Убит зомби-свиночеловеком', blaze: 'Сожжён ифритом' };
+      fireball: 'Сражён огненным шаром', zombie_pigman: 'Убит зомби-свиночеловеком', blaze: 'Сожжён ифритом', enderman: 'Убит эндерменом', dragon: 'Убит эндер-драконом' };
     s.onShow = () => { const d = G.player.lastDamage; cause.textContent = CAUSES[d && d.cause] || 'Погиб'; };
   }
 
@@ -379,8 +379,9 @@
       const st = (G.meta && G.meta.stats) || {};
       const mins = Math.round((st.played || 0) / 60);
       credits.innerHTML = `<div class="roll">
-        <p class="big">Вы собрали Сердце мира.</p>
-        <p>Мир «${esc(G.meta ? G.meta.name : '')}» пройден. Можно играть дальше: мир ваш.</p>
+        <p class="big">Эндер-дракон повержен. Край свободен.</p>
+        <p>От первого бревна до последнего острова: шахты, огонь Нижнего мира, крепость и око Края.</p>
+        <p>Мир «${esc(G.meta ? G.meta.name : '')}» пройден. Можно играть дальше: мир ваш, дорога в Край открыта.</p>
         <p>Сломано блоков: ${st.broken || 0} · поставлено: ${st.placed || 0} · побеждено зомби: ${(G.meta && G.meta.ach && G.meta.ach.progress['kill:zombie']) || 0} · гибелей: ${st.deaths || 0} · в игре: ${mins} мин</p>
         <p class="gold">Кубический мир</p>
         <p>Фан-песочница в духе Minecraft, не связана с Mojang/Microsoft.</p>
@@ -692,7 +693,7 @@
     hud.id = 'hud';
     hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните, чтобы играть</div>
       <div id="hurt"></div><div id="waterTint"></div><div id="lavaTint"></div><div id="fireTint"></div><div id="bars"><div id="armorbar"></div><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
-      <div id="actionBar"></div><div id="sleepFade"></div>
+      <div id="actionBar"></div><div id="sleepFade"></div><div id="bossbar"><span></span><div class="bb"><div class="fill"></div></div></div>
       <div id="effects"></div><div id="itemName"></div><div id="xpbar"><div class="fill"></div><span></span></div><div id="hotbar"></div><div id="toasts"></div>`;
     root.appendChild(hud);
     const hb = $('#hotbar', hud);
@@ -733,6 +734,9 @@
       const lines = VX.brewing.hudLines(), es = lines.map((l) => l.text).join('|');
       if (es !== UI.effSig) { UI.effSig = es; $('#effects', hud).innerHTML = lines.map((l) => `<div class="eff ${l.key}">${esc(l.text)}</div>`).join(''); }
     }
+    const bb = $('#bossbar', hud), bo = VX.endgame ? VX.endgame.boss() : null;
+    bb.style.display = bo ? 'block' : 'none';
+    if (bo) { const sg = bo.name + (bo.frac * 200 | 0); if (bb.dataset.sig !== sg) { bb.dataset.sig = sg; bb.firstChild.textContent = bo.name; bb.querySelector('.fill').style.width = (bo.frac * 100).toFixed(1) + '%'; } }
     const nm = $('#itemName', hud);
     const held = inv.held();
     nm.textContent = held ? D.info(held.id).name : '';
@@ -842,7 +846,7 @@
       let ready = 0, total = 0;
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { total++; const ch = w.chunk(pcx + dx, pcz + dz); if (ch && ch.data && !ch.needMesh && !ch.pending) ready++; }
       UI.loadingFill.style.width = Math.round(ready / total * 100) + '%';
-      UI.loadingSub.textContent = G.dim === 'nether' ? (ready < total / 2 ? 'Разливаем лаву…' : 'Строим крепости…') : ready < total / 2 ? 'Строим рельеф…' : 'Сажаем деревья…';
+      UI.loadingSub.textContent = G.dim === 'nether' ? (ready < total / 2 ? 'Разливаем лаву…' : 'Строим крепости…') : G.dim === 'end' ? (ready < total / 2 ? 'Поднимаем остров…' : 'Будим дракона…') : ready < total / 2 ? 'Строим рельеф…' : 'Сажаем деревья…';
     }
   };
 

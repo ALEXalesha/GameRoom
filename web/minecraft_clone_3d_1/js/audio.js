@@ -119,6 +119,15 @@
     drink(t) { for (let k = 0; k < 3; k++) noise(t + k * 0.12, 0.08, 'lowpass', 600 + k * 100, 2, 0.3); },
     glass_break(t) { for (let k = 0; k < 4; k++) tone(t + k * 0.02, 0.15, 'sine', 2600 + Math.random() * 1600, 1800, 0.08); noise(t, 0.2, 'highpass', 4000, 1, 0.2); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
+    enderman(t) { const o = tone(t, 0.6, 'sawtooth', 90, 70, 0.07, 0.1); o.detune.linearRampToValueAtTime(-500, t + 0.6); noise(t, 0.5, 'bandpass', 300, 3, 0.08, 0.1); },
+    enderman_scream(t) { const o = tone(t, 0.9, 'sawtooth', 700, 400, 0.08, 0.05); o.detune.linearRampToValueAtTime(900, t + 0.9); noise(t, 0.8, 'bandpass', 1500, 4, 0.1, 0.05); },
+    teleport(t) { const o = tone(t, 0.4, 'sine', 300, 1200, 0.12, 0.01); o.detune.linearRampToValueAtTime(-600, t + 0.4); noise(t, 0.3, 'bandpass', 2000, 2, 0.1, 0.01); },
+    dragon(t) { tone(t, 1.6, 'sawtooth', 70, 45, 0.18, 0.2); noise(t, 1.4, 'lowpass', 500, 1, 0.3, 0.2); },
+    dragon_flap(t) { noise(t, 0.35, 'lowpass', 300, 0.7, 0.35, 0.08); },
+    dragon_death(t) { const o = tone(t, 5, 'sawtooth', 120, 40, 0.18, 0.3); o.detune.linearRampToValueAtTime(-1200, t + 5); noise(t, 5, 'lowpass', 600, 1, 0.25, 0.5); },
+    eye_throw(t) { tone(t, 0.3, 'sine', 500, 1100, 0.1, 0.01); },
+    eye_place(t) { tone(t, 0.25, 'triangle', 700, 520, 0.12); noise(t, 0.1, 'highpass', 3000, 1, 0.15); },
+    end_portal(t) { [196, 247, 294, 392, 494].forEach((f, k) => tone(t + k * 0.12, 1.2, 'triangle', f, f, 0.1, 0.05)); noise(t, 1.5, 'bandpass', 500, 2, 0.1, 0.4); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };
   function play(name, o) {

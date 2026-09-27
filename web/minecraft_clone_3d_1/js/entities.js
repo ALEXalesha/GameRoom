@@ -210,6 +210,14 @@
     TEX.slime = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#6ab84a', '#5aa83a', '#78c858'], 27));
     TEX.slimeFace = pixTex(8, 8, face(['#6ab84a', '#5aa83a'], [[1, 2, '#1a3a10'], [2, 2, '#1a3a10'], [5, 2, '#1a3a10'], [6, 2, '#1a3a10'], [4, 5, '#1a3a10']]));
     TEX.spiderFace = pixTex(8, 8, face(['#3a2e2a', '#2e2420'], [[1, 2, '#e02020'], [2, 3, '#e02020'], [5, 3, '#e02020'], [6, 2, '#e02020'], [3, 2, '#b01010'], [4, 2, '#b01010']]));
+    // Край: эндермен, дракон, кристалл
+    TEX.ender = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#161616', '#101010', '#1c1c1c'], 30));
+    TEX.enderFace = pixTex(8, 8, face(['#161616', '#101010', '#1c1c1c'], [[0, 4, '#e070f0'], [1, 4, '#c040e0'], [2, 4, '#e070f0'], [5, 4, '#e070f0'], [6, 4, '#c040e0'], [7, 4, '#e070f0']]));
+    TEX.dragon = pixTex(8, 8, (g, w, h) => { noiseFill(g, w, h, ['#1a1a1a', '#141414', '#222222'], 31); g.fillStyle = '#2e2e2e'; g.fillRect(0, 0, 8, 1); g.fillRect(3, 3, 2, 1); });
+    TEX.dragonFace = pixTex(8, 8, face(['#1a1a1a', '#141414', '#222222'], [[1, 2, '#e070ff'], [2, 2, '#b040e0'], [5, 2, '#b040e0'], [6, 2, '#e070ff'], [2, 6, '#3a3a3a'], [5, 6, '#3a3a3a']]));
+    TEX.dragonWing = pixTex(16, 8, (g, w, h) => { noiseFill(g, w, h, ['#3a3a3a', '#323232', '#424242'], 32); g.fillStyle = '#1a1a1a'; for (let x = 0; x < 16; x += 5) g.fillRect(x, 0, 1, 8); g.fillRect(0, 0, 16, 1); });
+    TEX.crystal = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#e0a0f0', '#c070e0', '#f0c8ff', '#b060d0'], 33));
+    TEX.cage = pixTex(8, 8, (g, w, h) => { g.fillStyle = 'rgba(220,220,255,0.35)'; g.fillRect(0, 0, 8, 8); g.fillStyle = '#e8e8ff'; g.fillRect(0, 0, 8, 1); g.fillRect(0, 7, 8, 1); g.fillRect(0, 0, 1, 8); g.fillRect(7, 0, 1, 8); });
     // игрок: своя внешность (не как в оригинале) - бордовая рубаха, коричневые штаны
     TEX.pSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15));
     TEX.pFace = pixTex(8, 8, face(['#c89a78', '#d0a482'], [[1, 4, '#fff'], [2, 4, '#3a5a9a'], [5, 4, '#3a5a9a'], [6, 4, '#fff'], [3, 6, '#9a6a50'], [4, 6, '#9a6a50']], (g) => { g.fillStyle = '#4a2e1a'; g.fillRect(0, 0, 8, 2); g.fillRect(0, 2, 1, 2); g.fillRect(7, 2, 1, 2); }));
@@ -295,6 +303,33 @@
       for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 4; k++) {
         const rod = box(0.125, 0.5, 0.125, T.blazeRod); rod.userData.ring = ring; rod.userData.k = k; body.add(rod); extra.rods.push(rod);
       }
+    } else if (type === 'enderman') {
+      for (const x of [-0.1, 0.1]) { const l = limb(0.14, 1.55, 0.14, T.ender, x, 1.55, 0); body.add(l); legs.push(l); }
+      const torso = box(0.5, 0.75, 0.25, T.ender); torso.position.set(0, 1.92, 0); body.add(torso);
+      head = box(0.5, 0.5, 0.5, T.ender, T.enderFace); head.position.set(0, 2.55, 0); body.add(head);
+      for (const x of [-0.32, 0.32]) { const a = limb(0.14, 1.5, 0.14, T.ender, x, 2.25, 0); body.add(a); arms.push(a); }
+    } else if (type === 'ender_dragon') {
+      // тело, шея, голова, хвост из четырёх звеньев, крылья машут; хитбокс 5x3, модель длиннее
+      const torso = box(2.2, 1.6, 4.5, T.dragon); torso.position.set(0, 1.5, 0); body.add(torso);
+      const neck = box(0.9, 0.9, 2.2, T.dragon); neck.position.set(0, 1.9, 3.3); body.add(neck);
+      head = box(1.5, 1.1, 1.9, T.dragon, T.dragonFace); head.position.set(0, 2.0, 5.2); body.add(head);
+      const jaw = box(1.2, 0.35, 1.4, T.dragon); jaw.position.set(0, -0.6, 0.2); head.add(jaw);
+      for (const x of [-0.4, 0.4]) { const hn = box(0.2, 0.5, 0.2, T.bone); hn.position.set(x, 0.7, -0.6); head.add(hn); }
+      extra.tail = [];
+      [[0.9, -2.9], [0.75, -4.0], [0.6, -5.0], [0.45, -5.9]].forEach(([s, z]) => { const t = box(s, s, 1.1, T.dragon); t.position.set(0, 1.5, z); body.add(t); extra.tail.push(t); });
+      extra.wings = [];
+      for (const side of [-1, 1]) {
+        const j = new THREE.Group(); j.position.set(side * 1.1, 2.2, 0.6);
+        const wm = box(6, 0.12, 3, T.dragonWing); wm.position.x = side * 3; j.add(wm);
+        body.add(j); extra.wings.push(j);
+      }
+      for (const [x, z] of [[-0.8, 1.4], [0.8, 1.4], [-0.8, -1.4], [0.8, -1.4]]) { const l = limb(0.4, 0.9, 0.4, T.dragon, x, 0.8, z); body.add(l); legs.push(l); }
+      extra.dragon = true;
+    } else if (type === 'end_crystal') {
+      const core = box(0.55, 0.55, 0.55, T.crystal); core.position.set(0, 1, 0); body.add(core);
+      const cage = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), new THREE.MeshLambertMaterial({ map: T.cage, transparent: true, depthWrite: false }));
+      cage.position.set(0, 1, 0); body.add(cage);
+      head = core; extra.crystal = [core, cage];
     } else if (type === 'creeper') {
       const torso = box(0.5, 0.75, 0.25, T.creeper); torso.position.set(0, 0.75, 0); body.add(torso);
       head = box(0.5, 0.5, 0.5, T.creeper, T.creeperFace); head.position.set(0, 1.375, 0); body.add(head);
@@ -350,16 +385,19 @@
   function hurtMob(m, n, fromX, fromZ, cause) {
     if (m.deadT > 0 || m.hp <= 0) return false;
     if (m.hurtT > 0 && cause !== 'creative') return false;
+    if (m.def.blastImmune && cause === 'explosion') return false;
     m.hp -= n;
     m.hurtT = 0.45;
     const dx = m.x - fromX, dz = m.z - fromZ, d = Math.hypot(dx, dz) || 1;
-    if (cause !== 'burn' && cause !== 'cactus') { m.vx = dx / d * 6; m.vz = dz / d * 6; m.vy = 5; }
+    if (cause !== 'burn' && cause !== 'cactus' && !m.def.custom) { m.vx = dx / d * 6; m.vz = dz / d * 6; m.vy = 5; }
     if (!m.def.hostile && !m.def.neutral) m.panic = 4;
-    if (m.def.neutral && (cause === 'player' || cause === 'arrow')) for (const o of mobs) if (o.type === m.type && Math.hypot(o.x - m.x, o.z - m.z) < 32) o.angry = 20 + rnd() * 20;
+    if (m.def.lookAnger && cause === 'player') m.angry = 30;
+    else if (m.def.neutral && (cause === 'player' || cause === 'arrow')) for (const o of mobs) if (o.type === m.type && Math.hypot(o.x - m.x, o.z - m.z) < 32) o.angry = 20 + rnd() * 20;
     VX.audio.play('mobhurt');
     if (m.hp <= 0) {
       m.deadT = 0.001;
-      poof(m);
+      if (!m.def.boss) poof(m);
+      if (m.def.custom && VX.endgame) VX.endgame.died(m, cause);
       if (m.type === 'slime' && (m.size || 2) > 1) {
         for (let k = 0, n = 2 + ((rnd() * 2) | 0); k < n; k++) { const s = spawnMob('slime', m.x + (rnd() - 0.5), m.y + 0.2, m.z + (rnd() - 0.5)); s.size = 1; s.w = s.h = 0.5; s.hp = 1; }
       }
@@ -394,8 +432,10 @@
 
   function updateMob(m, dt) {
     const p = G.player;
-    if (m.deadT > 0) { m.deadT += dt; return; }
+    if (m.deadT > 0) { m.deadT += dt; if (m.def.custom && VX.endgame) VX.endgame.dying(m, dt); return; }
+    if (m.def.custom) { m.hurtT = Math.max(0, m.hurtT - dt); if (VX.endgame) VX.endgame.updateMob(m, dt); return; }
     if (m.def.flying) return updateGhast(m, dt);
+    if (m.def.lookAnger) endermanTick(m, dt);
     if (m.def.jumper) return updateSlime(m, dt);
     if (m.def.hover) return updateBlaze(m, dt);
     if (m.angry > 0) m.angry -= dt;
@@ -494,6 +534,45 @@
     if (m.sheared && (m.regrow -= dt) <= 0) m.sheared = false;
     m.noiseT -= dt;
     if (m.noiseT <= 0) { m.noiseT = 6 + rnd() * 10; if (distP < 16) VX.audio.play(m.def.sound); }
+  }
+
+  // ---------- Эндермен ----------
+  // Герой смотрит ему в лицо (скалярное произведение взгляда и направления на голову больше
+  // 1 - 0.025/расстояние, как в оригинале, и голову видно) - злится. В воде ранится и прыгает прочь;
+  // злой и далеко от героя - переносится к нему.
+  function lookedAt(m, p) {
+    const ex = m.x - p.pos.x, ey = m.y + 2.6 - p.eye(), ez = m.z - p.pos.z, d = Math.hypot(ex, ey, ez);
+    if (d > 64 || d < 0.5) return false;
+    const f = p.forward(), dot = (ex * f.x + ey * f.y + ez * f.z) / d;
+    return dot > 1 - 0.025 / d && sees(m, p);
+  }
+  function endermanTick(m, dt) {
+    const p = G.player;
+    if (G.mode === 'survival' && !p.dead && !(m.angry > 0) && lookedAt(m, p)) { m.angry = 30; VX.audio.play('enderman_scream'); G.emit('stare', {}); }
+    if (inWater(m)) { m.wetT = (m.wetT || 0) + dt; if (m.wetT >= 0.5) { m.wetT = 0; m.hurtT = 0; hurtMob(m, 1, m.x, m.z, 'water'); teleportMob(m, m.x, m.z, 16); } }
+    if (m.angry > 0 && G.mode === 'survival' && !p.dead) {
+      m.tpT = (m.tpT || 0) + dt;
+      if (m.tpT > 2 && Math.hypot(p.pos.x - m.x, p.pos.z - m.z) > 12) { m.tpT = 0; teleportMob(m, p.pos.x, p.pos.z, 6); }
+    }
+  }
+  // Перенос на свободное место (твёрдый пол, 3 блока воздуха) в квадрате r около (cx, cz)
+  function teleportMob(m, cx, cz, r) {
+    const w = G.world;
+    for (let k = 0; k < 32; k++) {
+      const x = Math.floor(cx + (rnd() * 2 - 1) * r), z = Math.floor(cz + (rnd() * 2 - 1) * r);
+      if (!w.isLoaded(x, z)) continue;
+      let y = Math.floor(m.y + (rnd() * 2 - 1) * r);
+      for (let s = 0; s < 2 * r + 8 && y > 1; s++, y--) {
+        const g0 = w.getBlock(x, y - 1, z);
+        if (g0 > 0 && C.SOLID[g0] && !C.FLUID[g0] && C.RENDER[g0] === 1 && w.getBlock(x, y, z) === 0 && w.getBlock(x, y + 1, z) === 0 && w.getBlock(x, y + 2, z) === 0) {
+          poof(m);
+          m.x = x + 0.5; m.y = y; m.z = z + 0.5; m.vx = m.vy = m.vz = 0;
+          VX.audio.play('teleport');
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ---------- Гаст и ифрит, огненные шары ----------
@@ -681,8 +760,21 @@
       }
     }
   }
+  // В Краю - эндермены на камне Края вокруг героя (до 10)
+  function trySpawnEnd() {
+    const p = G.player, w = G.world;
+    if (mobs.filter((m) => m.type === 'enderman' && m.deadT === 0).length >= 10) return;
+    const a = rnd() * Math.PI * 2, r = 16 + rnd() * 32;
+    const x = Math.floor(p.pos.x + Math.cos(a) * r), z = Math.floor(p.pos.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    const top = w.skyTop(x, z);
+    if (top < 1 || w.getBlock(x, top, z) !== C.END_STONE) return;
+    if (w.getBlock(x, top + 1, z) || w.getBlock(x, top + 2, z) || w.getBlock(x, top + 3, z)) return;
+    spawnMob('enderman', x + 0.5, top + 1, z + 0.5);
+  }
   function trySpawn() {
     if (G.dim === 'nether') return trySpawnNether();
+    if (G.dim === 'end') return trySpawnEnd();
     const p = G.player, w = G.world;
     const near = (hostile) => mobs.filter((m) => !m.home && !!m.def.hostile === hostile && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) < 96).length;
     const night = (G.dayLight || 0) < 0.35;
@@ -698,7 +790,7 @@
     if (!hostile && ground !== B.grass) return;
     if (hostile && (!C.SOLID[ground] || C.RENDER[ground] !== 1)) return;
     if (w.getBlock(x, top + 1, z) !== 0 || w.getBlock(x, top + 2, z) !== 0) return;
-    if (hostile) { const q = rnd(); spawnMob(q < 0.32 ? 'zombie' : q < 0.55 ? 'skeleton' : q < 0.72 ? 'spider' : q < 0.9 ? 'creeper' : 'slime', x + 0.5, top + 1, z + 0.5); }
+    if (hostile) { const q = rnd(); spawnMob(q < 0.3 ? 'zombie' : q < 0.52 ? 'skeleton' : q < 0.68 ? 'spider' : q < 0.85 ? 'creeper' : q < 0.94 || w.getBlock(x, top + 3, z) !== 0 ? 'slime' : 'enderman', x + 0.5, top + 1, z + 0.5); }
     else {
       const t = ['pig', 'sheep', 'cow', 'chicken'][(rnd() * 4) | 0];
       const n = 2 + ((rnd() * 2) | 0);
@@ -737,6 +829,7 @@
         // в существо
         if (a.owner === 'player') {
           const m = mobs.find((mm) => mm.deadT === 0 && hitBox(a, [mm.x - mm.w / 2, mm.y, mm.z - mm.w / 2, mm.x + mm.w / 2, mm.y + mm.h, mm.z + mm.w / 2], nx, ny, nz));
+          if (m && m.def.dodge) { teleportMob(m, m.x, m.z, 16); dropArrow(i); a.stuck = 'gone'; break; }
           if (m) { hurtMob(m, a.dmg, a.x - a.vx, a.z - a.vz, 'arrow'); VX.audio.play('arrow_hit'); dropArrow(i); a.stuck = 'gone'; break; }
         } else if (!p.dead && hitBox(a, p.box(), nx, ny, nz)) {
           if (G.mode === 'survival') { p.damage(a.dmg, 'arrow', playerEv, false, { x: a.x - a.vx, z: a.z - a.vz }); p.vel.x += a.vx * 0.05; p.vel.z += a.vz * 0.05; }
@@ -797,9 +890,12 @@
     const p = G.player;
     for (let i = mobs.length - 1; i >= 0; i--) {
       const m = mobs[i];
-      if (!G.world.isLoaded(m.x, m.z)) continue;               // кусок ещё не загружен - ждём
+      if (!m.def.persist && !G.world.isLoaded(m.x, m.z)) continue;               // кусок ещё не загружен - ждём
       updateMob(m, dt);
-      if (m.deadT > 0.6 || m.y < -64 || (!m.home && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) > 128)) removeMob(i);
+      if (m.deadT > (m.def.deathTime || 0.6) || m.y < -64 || (!m.home && !m.def.persist && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) > 128)) {
+        if (m.deadT > 0 && m.def.custom && VX.endgame) VX.endgame.gone(m);
+        removeMob(i);
+      }
     }
     spawnT -= dt;
     if (spawnT <= 0 && G.autoSpawn !== false) { spawnT = 1; trySpawn(); }
@@ -961,14 +1057,20 @@
       if (md.spiderLegs) md.legs.forEach((l, k) => { l.rotation.x = (k % 2 ? sw : -sw) * 0.5; });
       else md.legs.forEach((l, k) => { l.rotation.x = (md.legs.length === 4 ? (k === 0 || k === 3) : k === 0) ? sw : -sw; });
       if (m.type === 'zombie' || m.type === 'skeleton') md.arms.forEach((a, k) => { a.rotation.x = -Math.PI / 2 + (k ? sw : -sw) * 0.2 - (m.swingT > 0 ? 0.5 : 0); });
-      if (md.wings) md.wings.forEach((wg, k) => { wg.rotation.z = (k ? 1 : -1) * (m.onGround ? 0 : Math.abs(Math.sin(m.phase * 6)) * 0.8); });
+      if (md.dragon) {
+        md.wings.forEach((wg, k) => { wg.rotation.z = (k ? 1 : -1) * Math.sin(m.phase * 1.3) * 0.6; });
+        md.tail.forEach((t, k) => { t.position.x = Math.sin(m.phase * 0.8 - k * 0.7) * 0.3 * (k + 1); });
+        md.body.rotation.x = m.pitch || 0;
+      } else if (md.wings) md.wings.forEach((wg, k) => { wg.rotation.z = (k ? 1 : -1) * (m.onGround ? 0 : Math.abs(Math.sin(m.phase * 6)) * 0.8); });
+      if (md.crystal) { md.crystal[0].rotation.set(m.phase * 2, m.phase * 3, 0); md.crystal[1].rotation.set(-m.phase, m.phase * 1.5, m.phase); md.body.position.y = Math.sin(m.phase * 2) * 0.2; }
+      if (m.type === 'enderman') md.head.position.y = 2.55 + (m.angry > 0 ? 0.08 : 0);
       if (md.wool) md.wool.visible = !m.sheared;
       if (md.slimeBody) { const s = (m.size || 2) === 1 ? 0.5 : 1, sq = m.onGround ? 1 : 1.12; md.root.scale.set(s / Math.sqrt(sq), s * sq, s / Math.sqrt(sq)); }
       if (md.tentacles) md.tentacles.forEach((tn, k) => { tn.rotation.x = Math.sin(G.frameNo * 0.05 + k) * 0.3; tn.rotation.z = Math.cos(G.frameNo * 0.04 + k * 1.7) * 0.2; });
       if (md.ghastBody) { const angry = (m.charge || 0) > 2.2 || m.shotT > 0; if (md.angry !== angry) { md.angry = angry; md.ghastBody.material[4].map = angry ? textures().ghastAngry : textures().ghastFace; } }
       if (md.rods) md.rods.forEach((rod) => { const ring = rod.userData.ring, k = rod.userData.k, a = m.phase * (ring === 1 ? -1 : 1) + k * Math.PI / 2 + ring * 0.4, rad = [0.6, 0.5, 0.35][ring]; rod.position.set(Math.cos(a) * rad, 1.15 - ring * 0.42 + Math.sin(m.phase * 2 + k) * 0.05, Math.sin(a) * rad); });
       if (m.swingT > 0) m.swingT -= 0.016;
-      md.body.rotation.z = m.deadT > 0 ? Math.min(Math.PI / 2, m.deadT * 4) : 0;
+      if (!m.def.custom) md.body.rotation.z = m.deadT > 0 ? Math.min(Math.PI / 2, m.deadT * 4) : 0;
       md.fire.visible = m.fireT > 0 && m.deadT === 0;
       const swell = m.fuse ? Math.min(1, m.fuse / m.def.fuse) : 0;
       md.root.scale.set(1 + swell * 0.25, 1 + swell * 0.12, 1 + swell * 0.25);
@@ -977,7 +1079,8 @@
       // освещение у моба и красная вспышка после удара
       m.lightT = (m.lightT || 0) - 1;
       if (m.lightT <= 0) { m.lightT = 15; m.light = G.lightAt(m.x, m.y + 1, m.z); }
-      const red = m.hurtT > 0 || m.deadT > 0;
+      const red = (m.hurtT > 0 || m.deadT > 0) && !(m.def.boss && m.deadT > 0);
+      if (m.def.boss && m.deadT > 0) { const gl = 1.4 + Math.sin(m.deadT * 12) * 0.5; md.root.traverse((o) => { if (o.userData.mats) for (const mt of o.userData.mats) mt.color.setRGB(gl, gl * 0.8, gl * 1.3); }); continue; }
       const l = (m.light || 1) / Math.max(0.15, L), wk = m.flash ? 2.2 : 1;
       md.root.traverse((o) => { if (o.userData.mats && o !== md.fire) for (const mt of o.userData.mats) mt.color.setRGB(Math.min(2.4, l * wk) * (red ? 1.4 : 1), Math.min(2.4, l * wk) * (red ? 0.45 : 1), Math.min(2.4, l * wk) * (red ? 0.45 : 1)); });
     }
@@ -1013,5 +1116,5 @@
     };
   }
 
-  VX.entities = { fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { teleportMob, lookedAt, playerEv, fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

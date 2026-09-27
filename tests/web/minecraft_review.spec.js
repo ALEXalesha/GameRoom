@@ -88,13 +88,9 @@ test.describe('minecraft_clone_3d_1: находки ревьюера', () => {
   test('финал без тестового режима: если сразу уйти в паузу, экран победы покажется при возврате в игру', async ({ page }) => {
     await world(page, 'survival');
     await page.evaluate(() => {
-      const v = __voxel, I = v.data.I, VX = v.VX;
+      const v = __voxel;
       v.game.testMode = false;
-      v.openContainer('table', { x: 0, y: 0, z: 0 });
-      const view = v.container;
-      const G_ = { id: I.gold_ingot, count: 1, dmg: 0 }, Dm = { id: I.diamond, count: 1, dmg: 0 }, A = { id: I.apple, count: 1, dmg: 0 };
-      [G_, Dm, G_, Dm, A, Dm, G_, Dm, G_].forEach((s, i) => { view.grid[i] = Object.assign({}, s); });
-      VX.inv.click(v.inv, view, 200, 0, false);
+      v.VX.ach.on('credits', {});                  // вышли из Края после победы над драконом - титры
       v.game.pause();                              // Esc сразу после
     });
     await page.waitForTimeout(2200);

@@ -147,6 +147,8 @@
     }
   }
   item(427, 'enchanted_book', 'Зачарованная книга', { stack: 1, draw: 'book', group: 'tools' });
+  item(434, 'eye_of_ender', 'Око Края');
+  item(435, 'egg_enderman', 'Яйцо призыва: эндермен', { draw: 'egg:enderman', egg: 'enderman', creativeOnly: true });
   item(426, 'egg_villager', 'Яйцо призыва: житель', { draw: 'egg:villager', egg: 'villager', creativeOnly: true });
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
   [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
@@ -278,6 +280,7 @@
   RECIPES.push({ out: ['glistering_melon', 1], shape: ['NNN', 'NMN', 'NNN'], keys: { N: 'gold_nugget', M: 'melon_slice' } });
   RECIPES.push({ out: ['golden_carrot', 1], shape: ['NNN', 'NCN', 'NNN'], keys: { N: 'gold_nugget', C: 'carrot' } });
   RECIPES.push({ out: ['magma_cream', 1], shapeless: ['slimeball', 'blaze_powder'] });
+  RECIPES.push({ out: ['eye_of_ender', 1], shapeless: ['ender_pearl', 'blaze_powder'] });
   RECIPES.push({ out: [C.ENCH_TABLE, 1], shape: [' B ', 'DOD', 'OOO'], keys: { B: 'book', D: 'diamond', O: 'obsidian' } });
   RECIPES.push({ out: [C.IRON_BLOCK, 1], shape: ['III', 'III', 'III'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: ['iron_ingot', 9], shapeless: [C.IRON_BLOCK] });
@@ -389,7 +392,7 @@
     { key: 'search', name: 'Поиск', icon: null },
     { key: 'inv', name: 'Инвентарь', icon: B.crafting_table },
   ];
-  const MATERIAL_KEYS = ['ender_pearl', 'lapis', 'sugar', 'paper', 'book', 'compass', 'clock', 'empty_map', 'emerald', 'stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
+  const MATERIAL_KEYS = ['eye_of_ender', 'ender_pearl', 'lapis', 'sugar', 'paper', 'book', 'compass', 'clock', 'empty_map', 'emerald', 'stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
   const groupOf = (it) => (it.group || (it.tool || it.armor || MATERIAL_KEYS.includes(it.key) ? 'tools' : 'food'));
   // во «Строительство» - ещё и то, из чего строят чаще всего (как во вкладке оригинала)
   const BUILD_EXTRA = ['stone', 'oak_log', 'birch_log', 'spruce_log', 'wool_white', 'wool_red', 'glowstone', 'clay', 'snow', 'sand', 'gravel', 'pumpkin'];
@@ -419,6 +422,11 @@
     villager: { name: 'Житель', hp: 20, speed: 1.3, w: 0.6, h: 1.95, drops: [], sound: 'villager', villager: true },
     slime: { name: 'Слизень', hp: 4, speed: 1.6, w: 1.0, h: 1.0, drops: [['slimeball', 0, 2]], hostile: true, dmg: 2, jumper: true, sound: 'slime' },
     creeper: { name: 'Крипер', hp: 20, speed: 2.4, w: 0.6, h: 1.7, drops: [['gunpowder', 0, 2]], hostile: true, dmg: 0, explodes: true, fuse: 1.5, power: 3, sound: 'creeper' },
+    // Край: эндермен злится, если посмотреть ему в лицо (или ударить), уходит от стрел телепортом;
+    // дракон и кристаллы - только на главном острове Края, опыт дракона выпадает во время гибели
+    enderman: { name: 'Эндермен', hp: 40, speed: 3.4, w: 0.6, h: 2.9, drops: [['ender_pearl', 0, 1]], neutral: true, lookAnger: true, dodge: true, dmg: 7, sound: 'enderman' },
+    ender_dragon: { name: 'Эндер-дракон', hp: 200, speed: 12, w: 5, h: 3, drops: [], hostile: true, dmg: 10, boss: true, custom: 'dragon', persist: true, fireImmune: true, blastImmune: true, xp: 0, deathTime: 10, sound: 'dragon' },
+    end_crystal: { name: 'Кристалл Края', hp: 1, speed: 0, w: 2, h: 2, drops: [], custom: 'crystal', persist: true, fireImmune: true, xp: 0, sound: 'none' },
     spider: { name: 'Паук', hp: 16, speed: 2.8, w: 1.4, h: 0.9, drops: [['string', 0, 2]], hostile: true, dmg: 2, climber: true, sound: 'spider' },
   };
   for (const k in MOBS) MOBS[k].drops = MOBS[k].drops.map(([n, a, b]) => [idOf(n), a, b]);
@@ -472,7 +480,13 @@
     { id: 'map', parent: 'root', name: 'Картограф', desc: 'Нарисовать карту местности', on: 'map', icon: I.filled_map },
     { id: 'redstone', parent: 'iron_pick', name: 'Красная пыль', desc: 'Добыть красную пыль из руды', on: 'pickup', items: [C.WIRE], icon: C.WIRE },
     { id: 'piston', parent: 'redstone', name: 'Толкай!', desc: 'Сделать поршень', on: 'craft', items: [C.PISTON, C.PISTON + 1], icon: C.PISTON },
-    { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart, final: true },
+    { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart },
+    // вкладка «Край»: финал игры - победа над драконом и выход через портал (титры)
+    { id: 'stronghold', tab: 'end', name: 'Всевидящее око', desc: 'Найти зал портала в крепости Края', on: 'stronghold', icon: C.END_FRAME + 1 },
+    { id: 'the_end', tab: 'end', parent: 'stronghold', name: 'Конец?', desc: 'Войти в портал Края', on: 'dimension', dim: 'end', icon: C.END_STONE },
+    { id: 'free_end', tab: 'end', parent: 'the_end', name: 'Освобождение Края', desc: 'Победить эндер-дракона', on: 'dragon', icon: C.DRAGON_EGG },
+    { id: 'egg', tab: 'end', parent: 'free_end', name: 'Следующее поколение', desc: 'Взять яйцо дракона', on: 'pickup', items: [C.DRAGON_EGG], icon: C.DRAGON_EGG },
+    { id: 'the_end2', tab: 'end', parent: 'free_end', name: 'Конец.', desc: 'Вернуться домой через выходной портал - титры', on: 'credits', icon: C.END_PORTAL, final: true },
   ];
   for (const a of ACH) {
     if (a.items) a.set = typeof a.items === 'string' ? TAGS[a.items.slice(1)].slice() : a.items.map(idOf);

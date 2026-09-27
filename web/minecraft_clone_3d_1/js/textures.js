@@ -526,6 +526,22 @@
     ench_side(t, r) { DRAW.obsidian(t, r); for (let y = 0; y < 5; y++) for (let x = 0; x < 16; x++) t.px(x, y, y === 4 ? '#6a1010' : ['#9a1a1a', '#8a1414'][(r() * 2) | 0]); for (let x = 1; x < 16; x += 4) t.px(x, 6, '#40e8e0'); },
     anvil_top(t, r) { t.noise(['#4a4a4a', '#444444', '#525252'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#2a2a2a'); t.px(k, 15, '#2a2a2a'); } for (let y = 3; y < 13; y++) t.px(7, y, '#5a5a5a'); },
     anvil_side(t, r) { t.noise(['#444444', '#3c3c3c', '#4c4c4c'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#5a5a5a'); t.px(0, k, '#2a2a2a'); } },
+    // Край: камень Края, рамка портала, портал, яйцо дракона; кирпичи крепости
+    end_stone(t, r) { t.noise(['#dedea0', '#e8e8b2', '#d2d292', '#eeeec0'], r); blob(t, r, 5, ['#c4c486', '#cfcf90'], [1, 3]); for (let k = 0; k < 5; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#b8b87a'); },
+    end_frame_top(t, r) {
+      t.noise(['#3e7a66', '#35705c', '#4a8a74'], r);
+      for (let k = 0; k < 16; k++) { t.px(k, 0, '#d8d89a'); t.px(k, 15, '#d8d89a'); t.px(0, k, '#d8d89a'); t.px(15, k, '#d8d89a'); t.px(k, 1, '#c4c486'); t.px(1, k, '#c4c486'); }
+      for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++) t.px(x, y, (x === 4 || x === 11 || y === 4 || y === 11) ? '#1e4a3c' : '#12302a');
+    },
+    end_frame_side(t, r) { DRAW.end_stone(t, r); for (let y = 0; y < 4; y++) for (let x = 0; x < 16; x++) t.px(x, y, y === 3 ? '#2a5a4a' : ['#3e7a66', '#35705c', '#4a8a74'][(r() * 3) | 0]); for (let x = 2; x < 16; x += 5) t.px(x, 4, '#2a5a4a'); },
+    end_frame_eye(t, r) { t.noise(['#2a8a5a', '#1e7a4c', '#34a06a'], r); for (let y = 5; y < 11; y++) for (let x = 6; x < 10; x++) t.px(x, y, '#0a1a12'); t.px(5, 5, '#8ae8b0'); t.px(6, 4, '#8ae8b0'); },
+    end_portal(t, r) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) t.px(x, y, ['#06060e', '#0a0a16', '#0c0a1a'][(r() * 3) | 0]);
+      for (let k = 0; k < 14; k++) t.px((r() * 16) | 0, (r() * 16) | 0, ['#3ae0c0', '#e0f0ff', '#7a5ad0', '#2a8ab0'][(r() * 4) | 0]);
+    },
+    dragon_egg(t, r) { t.noise(['#0c0812', '#140c1c', '#100a18', '#08060c'], r); blob(t, r, 6, ['#2a1440', '#3a1a5a'], [1, 3]); for (let k = 0; k < 4; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#6a3aa0'); },
+    mossy_stone_bricks(t, r) { DRAW.stone_bricks(t, r); blob(t, r, 6, ['#5b7a36', '#4d6b2d', '#6a8c3f'], [2, 5]); },
+    cracked_stone_bricks(t, r) { DRAW.stone_bricks(t, r); let x = 3, y = 1; for (let k = 0; k < 14; k++) { t.px(x, y, '#3e3e3e'); y++; x += ((r() * 3) | 0) - 1; } x = 11; y = 9; for (let k = 0; k < 6; k++) { t.px(x, y, '#3e3e3e'); x++; y += (r() * 2) | 0; } },
     iron_block(t, r) { t.noise(['#d8d8d8', '#e0e0e0', '#cfcfcf'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#f4f4f4'); t.px(0, k, '#f4f4f4'); t.px(k, 15, '#9a9a9a'); t.px(15, k, '#9a9a9a'); } for (let x = 2; x < 14; x += 4) for (let y = 2; y < 14; y++) t.px(x, y, '#c4c4c4'); },
     lapis_ore(t, r) { ore(t, r, ['#2a50c8', '#1a3aa0', '#4a70e8'], '#0a2070'); },
     path_top(t, r) { t.noise(['#9a7a48', '#8a6a3a', '#a8885a', '#94743f'], r, [4, 3, 2, 3]); for (let k = 0; k < 10; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#b8986a'); },
@@ -744,7 +760,7 @@
     },
     bed(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '...wwwwrrrrrrr..', '..#wwwwrrrrrrr#.', '..#############.', '..#p#.......#p#.', '..###.......###.'], { w: '#f0f0f0', r: '#b02828', '#': '#5a3a14', p: '#a8834f' }); },
     egg(t, r, mob) {
-      const c = { villager: ['#6a4a3a', '#b08a6a'], slime: ['#6ab84a', '#3a7a2a'], zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
+      const c = { villager: ['#6a4a3a', '#b08a6a'], enderman: ['#161616', '#000000'], slime: ['#6ab84a', '#3a7a2a'], zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
       for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.6, (y - 8.8) / 6.2); if (d < 1) t.px(x, y, d > 0.85 ? shadeHex(c[0], 0.65) : c[0]); }
       for (const [x, y] of [[6, 5], [9, 8], [5, 10], [8, 12], [10, 5]]) { t.px(x, y, c[1]); t.px(x + 1, y, c[1]); }
     },
@@ -782,6 +798,11 @@
     ender_pearl(t) {
       for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 5) t.px(x, y, d > 4.2 ? '#0a3a3a' : d < 2 ? '#2a8a7a' : (x + y) % 3 ? '#135a52' : '#1a6a60'); }
       t.px(6, 5, '#8ae8d8'); t.px(5, 6, '#6ad0c0');
+    },
+    eye_of_ender(t) {
+      for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 5) t.px(x, y, d > 4.2 ? '#0a3a2a' : (x + y) % 3 ? '#2a9a6a' : '#3ab07a'); }
+      for (let y = 5; y < 11; y++) { t.px(7, y, '#0a140e'); t.px(8, y, '#0a140e'); }
+      t.px(5, 5, '#b8f8d8'); t.px(6, 4, '#8ae8b0');
     },
     lapis(t, r) { ITEM_DRAW.tpl(t, ['', '', '', '....##.##......', '...#bb#bb#.....', '..#bBbbbBb#....', '..#bbbbbbbb#...', '...#bBbbbb#....', '....#bbbbB#....', '.....#bb##.....', '......##.......'], { b: '#2a50c8', B: '#8aa8ff', '#': '#0a2070' }, 1, 1); },
     emerald(t) { ITEM_DRAW.tpl(t, ['', '', '......###......', '.....#ggg#.....', '....#gwggg#....', '...#gwgggGg#...', '...#ggggggg#...', '...#gggggGg#...', '....#gggGg#....', '.....#gGg#.....', '......###......'], { g: '#3ae070', w: '#c8ffd8', G: '#17a84a', '#': '#0a6a2a' }, 1, 1); },

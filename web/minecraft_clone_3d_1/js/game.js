@@ -290,6 +290,7 @@
     if (VX.xp) VX.xp.clear();
     if (VX.villages) VX.villages.reset();
     if (VX.brewing) VX.brewing.reset();
+    if (VX.endgame) VX.endgame.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -354,6 +355,7 @@
     if (VX.fluids) VX.fluids.reset(slot);
     if (VX.redstone) VX.redstone.reset();
     if (VX.xp) VX.xp.clear();
+    if (VX.endgame) VX.endgame.reset();
     G.mining = null; G.sleeping = null; G.portalT = 0; G.portalWait = true;
     player.pos.set(pos.x, pos.y, pos.z); player.vel.set(0, 0, 0); player.fallTop = null;
     G.afterLoad = after || null;
@@ -592,6 +594,7 @@
     if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
     if (up >= C.NETHER_WART && up <= C.NETHER_WART + 3 && here !== C.SOUL_SAND) popBlock(x, y + 1, z);
     if (VX.nether) VX.nether.after(x, y, z);
+    if (VX.endgame) VX.endgame.after(x, y, z);
     if (VX.redstone) VX.redstone.after(x, y, z);
     if (VX.items) VX.items.after(x, y, z);
     const walls = [[0, 0, -1, 2], [1, 0, 0, 3], [0, 0, 1, 0], [-1, 0, 0, 1]];
@@ -758,6 +761,7 @@
     if (hi && hi.key === 'shield') return 'shield';
     if (hi && hi.potion && VX.brewing) { if (hi.potion.splash) return VX.brewing.throwSplash(); G.eating = 0; return 'drink'; }
     if (hi && hi.key === 'glass_bottle' && VX.brewing) { const fr = VX.brewing.fill(); if (fr) return fr; }
+    if (hi && VX.endgame) { const eu = VX.endgame.use(held, hi); if (eu !== undefined) return eu; }
     if (hi && VX.items) { const iu = VX.items.use(held); if (iu !== undefined) return iu; }
     if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
     const t = G.target();
@@ -1113,6 +1117,7 @@
     if (ev === 'death' && G.state !== 'dead') { G.onDeath(d); }
     if (ev === 'jump' && G.mode === 'survival') player.exhaust(player.sprinting ? 0.2 : 0.05);
   }
+  G.playerEvent = playerEvent;
   G.onDeath = function () {
     G.meta.stats && G.meta.stats.deaths++;
     // окно (верстак, печь) закрываем первым: вещи из сетки и с курсора тоже выпадают
@@ -1196,6 +1201,7 @@
     if (VX.xp) VX.xp.update(dt);
     if (VX.villages) VX.villages.tick(dt);
     if (VX.brewing && G.state !== 'dead') VX.brewing.tick(dt);
+    if (VX.endgame) VX.endgame.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
@@ -1327,12 +1333,18 @@
       sky.group.visible = false; if (sky.clouds) sky.clouds.visible = false;
       sk.day = 0; sk.fog = new THREE.Color(0x330808);
     }
+    const endDim = G.dim === 'end';
+    if (endDim) {
+      // Край: вечная сумеречная тьма с лиловым отливом, неба и солнца нет
+      sky.group.visible = false; if (sky.clouds) sky.clouds.visible = false;
+      sk.day = 0; sk.fog = new THREE.Color(0x120c1c);
+    }
     // ночное зрение: всё видно как днём
-    mats.uniforms.uAmb.value = VX.brewing && VX.brewing.level('night_vision') ? 1 : nether ? 0.55 : 0;
+    mats.uniforms.uAmb.value = VX.brewing && VX.brewing.level('night_vision') ? 1 : nether ? 0.55 : endDim ? 0.85 : 0;
     mats.uniforms.uDay.value = sk.day;
     mats.uniforms.uFogColor.value.copy(sk.fog);
-    mats.uniforms.uFogNear.value = under ? 2 : nether ? far * 0.3 : far * 0.62;
-    mats.uniforms.uFogFar.value = under ? 22 : nether ? far * 0.95 : far - 4;
+    mats.uniforms.uFogNear.value = under ? 2 : nether ? far * 0.3 : endDim ? far * 0.45 : far * 0.62;
+    mats.uniforms.uFogFar.value = under ? 22 : nether ? far * 0.95 : endDim ? far * 0.98 : far - 4;
     scene.fog = scene.fog || new THREE.Fog(0xffffff, 10, 100);
     scene.fog.color.copy(sk.fog); scene.fog.near = mats.uniforms.uFogNear.value; scene.fog.far = mats.uniforms.uFogFar.value;
     G.dayLight = sk.day;
@@ -1359,6 +1371,7 @@
     if (VX.entities && G.meta && !G.panorama) VX.entities.render(dt, camera);
     if (VX.xp && G.meta && !G.panorama) VX.xp.render();
     if (VX.brewing && G.meta && !G.panorama) VX.brewing.render();
+    if (VX.endgame && G.meta && !G.panorama) VX.endgame.render();
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем
@@ -1415,6 +1428,7 @@
     const day = G.dayLight === undefined ? 1 : G.dayLight;
     if (VX.brewing && VX.brewing.level('night_vision')) return 1;
     if (G.dim === 'nether') return Math.max(blk, 0.45);          // неба нет, но и полной тьмы тоже
+    if (G.dim === 'end') return Math.max(blk, 0.75);
     return Math.max(skyL * (0.25 + 0.75 * day), blk, 0.12);
   };
   let llT = 0, llV = 1;

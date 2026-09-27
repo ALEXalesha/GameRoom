@@ -32,6 +32,7 @@ function VoxelCore() {
     'sugar_cane', 'emerald_ore', 'lapis_ore', 'path_top', 'path_side',
     'ench_top', 'ench_side', 'anvil_top', 'anvil_side', 'iron_block',
     'melon_side', 'melon_top', 'carrots_0', 'carrots_1', 'carrots_2', 'carrots_3', 'brewing_stand', 'brewing_base',
+    'end_stone', 'end_frame_top', 'end_frame_side', 'end_frame_eye', 'end_portal', 'dragon_egg', 'mossy_stone_bricks', 'cracked_stone_bricks',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -310,6 +311,18 @@ function VoxelCore() {
   def(MELON, 'melon', 'Арбуз', { tex: { top: 'melon_top', bottom: 'melon_top', side: 'melon_side' }, hardness: 1, tool: 'axe', sound: 'wood', drop: ITEM_MELON, dropCount: 5, group: 'nature' });
   for (let st = 0; st < 4; st++) def(CARROTS + st, 'carrots_' + st, 'Морковь', { render: 'crop', tex: 'carrots_' + st, solid: false, hardness: 0, sound: 'grass', creative: false, carrot: st, drop: 0 });
   def(BREWING_STAND, 'brewing_stand', 'Варочная стойка', { render: 'box', shape: [[1, 0, 1, 15, 2, 15, 'brewing_base'], [7, 2, 7, 9, 14, 9, 'brewing_stand'], [2, 8, 7, 7, 9, 9, 'brewing_stand'], [9, 8, 7, 14, 9, 9, 'brewing_stand']], tex: 'brewing_base', solid: true, hardness: 0.5, tool: 'pickaxe', sound: 'stone', light: 1, group: 'tools' });
+  // ---- Край (id с 1323)
+  const END_STONE = 1323, END_FRAME = 1324, END_PORTAL = 1332, DRAGON_EGG = 1333, MOSSY_BRICKS = 1334, CRACKED_BRICKS = 1335;
+  def(END_STONE, 'end_stone', 'Камень Края', { tex: 'end_stone', hardness: 3, tool: 'pickaxe', level: 0, group: 'nature' });
+  for (let d = 0; d < 4; d++) for (let eye = 0; eye < 2; eye++) {
+    const shape = [[0, 0, 0, 16, 13, 16]];
+    if (eye) shape.push([4, 13, 4, 12, 16, 12, 'end_frame_eye']);
+    def(END_FRAME + d * 2 + eye, 'end_portal_frame' + (d || eye ? '_' + d + eye : ''), 'Рамка портала Края', { render: 'box', shape, tex: { top: 'end_frame_top', bottom: 'end_stone', side: 'end_frame_side' }, hardness: -1, sound: 'stone', creative: !d && !eye, item: END_FRAME, drop: 0, light: eye ? 1 : 0, endFrame: d, eye: !!eye });
+  }
+  def(END_PORTAL, 'end_portal', 'Портал Края', { render: 'box', shape: [[0, 0, 0, 16, 12, 16]], tex: 'end_portal', solid: false, hardness: -1, light: 15, drop: 0, creative: false, endPortal: true, transBox: true });
+  def(DRAGON_EGG, 'dragon_egg', 'Яйцо дракона', { render: 'box', shape: [[3, 0, 3, 13, 2, 13], [2, 2, 2, 14, 7, 14], [3, 7, 3, 13, 11, 13], [5, 11, 5, 11, 15, 11]], tex: 'dragon_egg', hardness: 3, sound: 'stone', light: 1, group: 'nature' });
+  def(MOSSY_BRICKS, 'mossy_stone_bricks', 'Замшелые каменные кирпичи', { tex: 'mossy_stone_bricks', hardness: 1.5, tool: 'pickaxe', level: 0 });
+  def(CRACKED_BRICKS, 'cracked_stone_bricks', 'Потрескавшиеся каменные кирпичи', { tex: 'cracked_stone_bricks', hardness: 1.5, tool: 'pickaxe', level: 0 });
   def(IRON_BLOCK, 'iron_block', 'Железный блок', { tex: 'iron_block', hardness: 5, tool: 'pickaxe', level: 1 });
   def(EMERALD_ORE, 'emerald_ore', 'Изумрудная руда', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: ITEM_EMERALD, group: 'nature' });
 
@@ -902,8 +915,111 @@ function VoxelCore() {
     }
   }
 
+  // ---------- Край ----------
+  // Главный остров из камня Края (радиус около 100 блоков, поверхность у высоты 60), 10 обсидиановых
+  // колонн по кругу радиусом 43 (высота 76..103, на вершинах - кристаллы), в центре - выходной портал из
+  // бедрока (включается, когда побеждён дракон). Площадка прибытия - обсидиан 5x5 у (100, 48, 0).
+  const END_Y = 60;
+  function endPillars(seed) {
+    const out = [];
+    for (let k = 0; k < 10; k++) {
+      const a = k / 10 * Math.PI * 2;
+      out.push({ x: Math.round(Math.cos(a) * 43), z: Math.round(Math.sin(a) * 43), r: 2 + (k % 3), h: 76 + ((hash3(k, 17, 3, seed) * 10) | 0) * 3 });
+    }
+    return out;
+  }
+  function generateEnd(seed, cx, cz) {
+    const w = worldOf(seed, 'end');
+    const data = new Uint16Array(CVOL);
+    const X0 = cx * CS, Z0 = cz * CS;
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z, r = Math.hypot(wx, wz);
+      const edge = 96 + w.det.fbm2(wx / 60, wz / 60, 3) * 18;
+      if (r > edge) continue;
+      const k = 1 - r / edge;
+      const top = END_Y + Math.round(w.cont.fbm2(wx / 40, wz / 40, 3) * 3 * k);
+      const bottom = END_Y - Math.round(4 + 38 * Math.pow(k, 1.5) + w.big.n2(wx / 25, wz / 25) * 3);
+      for (let y = Math.max(1, bottom); y <= top; y++) data[cidx(x, y, z)] = END_STONE;
+    }
+    // колонны
+    for (const p of endPillars(seed)) for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z;
+      if (Math.hypot(wx - p.x, wz - p.z) > p.r + 0.5) continue;
+      for (let y = END_Y - 10; y < p.h; y++) data[cidx(x, y, z)] = B.obsidian;
+      if (wx === p.x && wz === p.z) data[cidx(x, p.h, z)] = B.bedrock;
+    }
+    // выходной портал: бедроковая чаша с колонной в центре (портал внутри - после победы)
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z, d = Math.hypot(wx, wz);
+      if (d > 3.6) continue;
+      for (let y = END_Y + 1; y < END_Y + 6; y++) data[cidx(x, y, z)] = 0;
+      data[cidx(x, END_Y, z)] = B.bedrock;
+      if (d > 2.6) data[cidx(x, END_Y + 1, z)] = B.bedrock;
+      if (wx === 0 && wz === 0) for (let y = END_Y + 1; y <= END_Y + 4; y++) data[cidx(x, y, z)] = B.bedrock;
+    }
+    for (const [tx, tz, r] of [[0, -1, 0], [1, 0, 1], [0, 1, 2], [-1, 0, 3]]) if (tx >= X0 && tx < X0 + CS && tz >= Z0 && tz < Z0 + CS) data[cidx(tx - X0, END_Y + 3, tz - Z0)] = WALL_TORCH + r;
+    // площадка прибытия
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z;
+      if (Math.abs(wx - 100) > 2 || Math.abs(wz) > 2) continue;
+      data[cidx(x, 48, z)] = B.obsidian;
+      for (let y = 49; y < 53; y++) data[cidx(x, y, z)] = 0;
+    }
+    return data;
+  }
+  // ---------- Крепости Края в обычном мире: три на кольце 500-900 блоков ----------
+  function strongholds(seed) {
+    const out = [], a0 = hash3(1, 2, 3, seed ^ 0x0e5d) * Math.PI * 2;
+    for (let k = 0; k < 3; k++) {
+      const a = a0 + k * Math.PI * 2 / 3, r = 500 + hash3(k, 7, 9, seed) * 400;
+      out.push({ x: Math.round(Math.cos(a) * r), z: Math.round(Math.sin(a) * r), y: 24 });
+    }
+    return out;
+  }
+  // зал портала: каменные кирпичи 11x16, лава под рамкой, рамка 3x3 из 12 блоков (глаз с шансом 10%),
+  // коридор с лестницей к поверхности
+  function buildStronghold(data, X0, Z0, s, seed, colAt) {
+    const inC = (x, z) => x >= X0 && x < X0 + CS && z >= Z0 && z < Z0 + CS;
+    const put = (x, y, z, id) => { if (inC(x, z) && y > 0 && y < CH) data[cidx(x - X0, y, z - Z0)] = id; };
+    const brick = (x, y, z) => { const h = hash3(x, y, z, seed ^ 99); return h < 0.18 ? MOSSY_BRICKS : h < 0.3 ? CRACKED_BRICKS : B.stone_bricks; };
+    const Y = s.y;
+    for (let x = s.x - 5; x <= s.x + 5; x++) for (let z = s.z - 8; z <= s.z + 8; z++) for (let y = Y - 2; y <= Y + 7; y++) {
+      const edge = x === s.x - 5 || x === s.x + 5 || z === s.z - 8 || z === s.z + 8 || y === Y - 2 || y === Y + 7;
+      put(x, y, z, edge ? brick(x, y, z) : 0);
+    }
+    // лава под рамкой и рамка
+    for (let x = s.x - 2; x <= s.x + 2; x++) for (let z = s.z - 2; z <= s.z + 2; z++) put(x, Y - 1, z, Math.abs(x - s.x) < 2 && Math.abs(z - s.z) < 2 ? LAVA : B.stone_bricks);
+    for (let i = -1; i <= 1; i++) {
+      const eye = (k) => (hash3(s.x + i * 3 + k, Y, s.z, seed ^ 0x3e) < 0.1 ? 1 : 0);
+      put(s.x + i, Y, s.z - 2, END_FRAME + 2 * 2 + eye(0));     // смотрят внутрь рамки
+      put(s.x + i, Y, s.z + 2, END_FRAME + 0 * 2 + eye(1));
+      put(s.x - 2, Y, s.z + i, END_FRAME + 3 * 2 + eye(2));
+      put(s.x + 2, Y, s.z + i, END_FRAME + 1 * 2 + eye(3));
+    }
+    for (let z = s.z - 7; z <= s.z - 4; z++) for (let x = s.x - 1; x <= s.x + 1; x++) put(x, Y - 1, z, B.stone_bricks);    // ступени к рамке
+    for (const [x, z] of [[s.x - 4, s.z - 7], [s.x + 4, s.z - 7], [s.x - 4, s.z + 7], [s.x + 4, s.z + 7]]) put(x, Y + 3, z, B.torch);
+    // коридор на север и лестница вверх до поверхности
+    for (let z = s.z - 20; z < s.z - 8; z++) for (let x = s.x - 2; x <= s.x + 2; x++) for (let y = Y - 2; y <= Y + 3; y++) {
+      const edge = x === s.x - 2 || x === s.x + 2 || y === Y - 2 || y === Y + 3;
+      put(x, y, z, edge ? brick(x, y, z) : 0);
+    }
+    for (let x = s.x - 1; x <= s.x + 1; x++) for (let y = Y - 1; y <= Y + 2; y++) put(x, y, s.z - 8, 0);       // проём в зал
+    const sx = s.x, sz = s.z - 21;
+    if (inC(sx, sz) || inC(sx + 1, sz)) {
+      const top = colAt(sx - X0, sz - Z0) ? colAt(sx - X0, sz - Z0).h : Y + 30;
+      for (let y = Y - 2; y <= top + 1; y++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
+        put(sx + dx, y, sz + dz, edge && y <= top - 1 ? brick(sx + dx, y, sz + dz) : 0);
+      }
+      for (let y = Y - 1; y <= top; y++) put(sx, y, sz - 1, LADDER_ID + 2);          // лестница на северной стене шахты
+      for (let y = Y - 1; y <= top; y++) put(sx, y, sz - 2, B.stone_bricks);
+    }
+  }
+  const LADDER_ID = 1154;
+
   function generate(seed, cx, cz, gen) {
     if (gen === 'nether') return generateNether(seed, cx, cz);
+    if (gen === 'end') return generateEnd(seed, cx, cz);
     const w = worldOf(seed, gen);
     const data = new Uint16Array(CVOL);
     const X0 = cx * CS, Z0 = cz * CS;
@@ -1079,6 +1195,7 @@ function VoxelCore() {
       }
     }
     if (!w.legacy) buildVillages(w, data, X0, Z0, colAt);
+    if (!w.legacy) for (const s of strongholds(seed)) if (Math.abs(s.x - (X0 + 8)) < 40 && Math.abs(s.z - (Z0 + 8)) < 50) buildStronghold(data, X0, Z0, s, seed, (lx, lz) => (lx >= -M && lx < CS + M && lz >= -M && lz < CS + M ? colAt(lx, lz) : null));
     return data;
   }
 
@@ -1477,7 +1594,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, MELON, CARROTS, BREWING_STAND, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, END_STONE, END_FRAME, END_PORTAL, DRAGON_EGG, END_Y, endPillars, strongholds, MELON, CARROTS, BREWING_STAND, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

@@ -242,6 +242,8 @@ test.describe('minecraft_clone_3d_1: Нижний мир', () => {
       let i2 = 0; while (E.fireballs.length && i2++ < 60) { v.step(0.05); }
       const hurt = hp0 - p.health;
       // второй шар отбиваем
+      // взрыв мог отбросить героя: второй шар - с той же точки, гаст напротив
+      p.pos.set(x0 + 0.5, 70, z0 + 0.5); p.vel.set(0, 0, 0); g.x = p.pos.x; g.z = p.pos.z - 14; g.y = 71; g.vx = g.vy = g.vz = 0;
       p.health = 20; p.hurtCool = 0; g.charge = 2.99;
       v.step(0.05, 2);
       const f2 = E.fireballs[0];

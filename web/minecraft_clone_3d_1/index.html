@@ -113,6 +113,10 @@
   #lavaTint { position: absolute; inset: 0; background: rgba(230, 90, 10, .75); display: none; }
   #fireTint { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; background: linear-gradient(transparent, rgba(255, 110, 10, .55)); display: none; }
   #armorbar { position: absolute; left: 0; bottom: 19px; display: flex; }
+  #bossbar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 364px; text-align: center; display: none; font-size: 16px; color: #f0e0ff; text-shadow: var(--shadow); }
+  #bossbar .bb { height: 8px; margin-top: 3px; background: #2a0a3a; border: 1px solid #000; }
+  #bossbar .fill { height: 100%; background: linear-gradient(#f070ff, #a020c0); }
+  body.dim #bossbar { display: none !important; }
   #actionBar { position: absolute; left: 50%; bottom: 130px; transform: translateX(-50%); font-size: 16px; text-shadow: var(--shadow); white-space: nowrap; opacity: 0; }
   #sleepFade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .1s; }
   .armorcol { display: flex; flex-direction: column; margin-right: 18px; }
@@ -245,6 +249,7 @@
 <script src="js/villages.js"></script>
 <script src="js/enchant.js"></script>
 <script src="js/brewing.js"></script>
+<script src="js/endgame.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/ui.js"></script>

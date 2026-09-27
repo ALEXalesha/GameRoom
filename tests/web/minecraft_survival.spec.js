@@ -373,7 +373,7 @@ test.describe('minecraft_clone_3d_1: достижения', () => {
     });
     expect(r.n).toBeGreaterThanOrEqual(15);
     expect(r.n).toBeLessThanOrEqual(70);      // 30 прежних и новые к Нижнему миру, Краю, чарам и зельям
-    expect(r.final).toEqual(['heart']);
+    expect(r.final).toEqual(['the_end2']);            // финал - выход из Края после победы над драконом
     for (const a of r.res) {
       expect(a.ok, a.id).toBe(true);
       expect(a.wrong, a.id).toEqual([]);
@@ -425,7 +425,7 @@ test.describe('minecraft_clone_3d_1: достижения', () => {
     await expect(page.locator('#scr-ach .hint')).toContainText(/Получено: \d+ из \d+/);
   });
 
-  test('финал: «Сердце мира» (золото, алмазы, яблоко) на верстаке открывает экран победы с титрами, играть можно дальше', async ({ page }) => {
+  test('«Сердце мира» (золото, алмазы, яблоко) на верстаке - достижение-ступень, а не второй конец: экрана победы нет', async ({ page }) => {
     await survival(page);
     const r = await page.evaluate(() => {
       const v = __voxel, p = v.player, B = v.core.B, I = v.data.I, VX = v.VX;
@@ -443,13 +443,12 @@ test.describe('minecraft_clone_3d_1: достижения', () => {
     });
     expect(r.shown).toBe(r.heart);
     expect(r.cursor).toBe(r.heart);
-    await expect(page.locator('#scr-victory')).toBeVisible();
-    await expect(page.locator('#scr-victory')).toContainText('Победа!');
-    await expect(page.locator('#scr-victory')).toContainText('Вы собрали Сердце мира');
-    const st = await page.evaluate(() => ({ s: __voxel.state, won: __voxel.meta.won, t: __voxel.ticks }));
-    expect(st.s).toBe('victory');
-    expect(st.won).toBe(true);
-    await page.locator('#scr-victory').getByText('Продолжить игру').click();
-    expect(await page.evaluate(() => __voxel.state)).toBe('play');
+    await page.waitForTimeout(300);
+    const st = await page.evaluate(() => ({ s: __voxel.state, won: !!__voxel.meta.won, got: !!__voxel.ach.got.heart, pending: !!__voxel.game.victoryPending }));
+    expect(st.got).toBe(true);
+    expect(st.s).not.toBe('victory');
+    expect(st.won).toBe(false);
+    expect(st.pending).toBe(false);
+    await expect(page.locator('#scr-victory')).toBeHidden();
   });
 });
