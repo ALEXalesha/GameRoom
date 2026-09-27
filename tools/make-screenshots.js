@@ -57,7 +57,7 @@ const key = (app, id, type, keyCode) => app.evaluate((_e, [gid, t, k]) => {
   const { app, shell } = ctx;
   const save = (name, buf) => { fs.writeFileSync(path.join(OUT, name), buf); console.log('docs/screens/' + name); };
   try {
-    await app.evaluate(() => { const w = globalThis.__igroteka.win; w.unmaximize(); w.setContentSize(1280, 800); w.center(); });
+    await app.evaluate(() => { const w = globalThis.__igroteka.win; w.setContentSize(1280, 800); });
     await sleep(800);
 
     save('app-home.png', await shell.screenshot());

@@ -26,6 +26,9 @@ async function launch(opts = {}) {
     executablePath: require('electron'),
     args: [ROOT, '--user-data-dir=' + dataDir],
     cwd: ROOT,
+    // Режим проверок: окно за пределами экранов, без фокуса и без захвата мыши - прогон
+    // не мешает человеку за этим компьютером (см. TEST в app/main.js).
+    env: { ...process.env, IGROTEKA_TEST: '1' },
   });
   // Внешние ссылки записываются, а не открываются.
   await app.evaluate(({ shell }) => {

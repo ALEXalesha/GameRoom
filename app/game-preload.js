@@ -18,12 +18,30 @@ const KEY = 'igroteka.volume';
 // Текущая громкость спрашивается у main при КАЖДОЙ загрузке страницы: после F5 или
 // перезапуска после сбоя она должна быть сегодняшней, а не той, что была при создании
 // вкладки (раньше приходила один раз через аргументы процесса).
+let setup = { volume: 1, test: false };
+try {
+  setup = ipcRenderer.sendSync('igroteka:page-setup') || setup;
+} catch {
+  /* main не ответил - громкость по умолчанию */
+}
+
 function initialVolume() {
+  const v = Number(setup.volume);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
+
+// Режим проверок: игра не может захватить мышь человека за компьютером, даже если
+// разрешение почему-то пройдёт - requestPointerLock ничего не делает.
+if (setup.test) {
   try {
-    const v = Number(ipcRenderer.sendSync('igroteka:volume-now'));
-    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+    contextBridge.executeInMainWorld({
+      func: () => {
+        const noop = function () { return Promise.resolve(); };
+        Object.defineProperty(Element.prototype, 'requestPointerLock', { configurable: true, writable: true, value: noop });
+      },
+    });
   } catch {
-    return 1;
+    /* см. ниже */
   }
 }
 

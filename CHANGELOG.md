@@ -19,7 +19,7 @@
   clearing one game's data, About.
 - Own icon drawn by code (`app/assets/logo.svg` -> `icon.ico` 16-256 px).
 - Windows builds: NSIS installer (per-user, Russian) and portable.
-- Tests: 35 unit laws, 57 checks of the real app; CI on Gitea and GitHub.
+- Tests: 35 unit laws, 60 checks of the real app; CI on Gitea and GitHub.
 
 **RU**
 
@@ -36,7 +36,7 @@
   звука», тёмная и светлая тема, очистка данных одной игры, «О программе».
 - Свой значок, нарисованный кодом (`app/assets/logo.svg` -> `icon.ico` 16-256 px).
 - Сборки для Windows: установщик NSIS (для одного пользователя, на русском) и portable.
-- Проверки: 35 законов модулей, 57 проверок настоящего приложения; CI на Gitea и GitHub.
+- Проверки: 35 законов модулей, 60 проверок настоящего приложения; CI на Gitea и GitHub.
 
 ## 0.1.0
 

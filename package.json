@@ -3,7 +3,7 @@
   "productName": "Игротека",
   "version": "1.0.0",
   "private": true,
-  "description": "Сборник небольших проектов, приведённых в порядок, и приложение «Игротека»: восемь игр во вкладках одного окна",
+  "description": "Сборник небольших проектов, приведённых в порядок, и приложение «Игротека»: десять игр во вкладках одного окна",
   "author": "ALEXalesha",
   "license": "MIT",
   "homepage": "https://github.com/ALEXalesha/MixOfProject",
@@ -47,6 +47,8 @@
       "web/horizon_drift_offline/**/*",
       "web/jungle-strike/**/*",
       "web/space_shooter/**/*",
+      "web/tetris/**/*",
+      "web/sudoku/**/*",
       "!**/desktop.ini",
       "!app/assets/icon.png"
     ],

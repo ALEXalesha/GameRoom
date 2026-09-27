@@ -71,6 +71,7 @@ function renderTabs() {
 // --- домашний экран ------------------------------------------------------------------
 
 function renderGrid() {
+  $('#grid').style.setProperty('--cols', String(Math.min(5, Math.max(4, Math.ceil(info.games.length / 2)))));
   $('#grid').replaceChildren(...info.games.map((g) => {
     const play = el('button', { class: 'btn primary play', text: 'Играть' });
     // Три части карточки - строки общей сетки (subgrid): имена и описания карточек

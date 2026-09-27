@@ -79,8 +79,8 @@ test('переходы: своя папка остаётся, http(s) - нару
 
 // --- каталог игр ---
 
-test('восемь игр владельца, у каждой есть страница, описание и картинка карточки', () => {
-  assert.deepEqual(Games.IDS, ['minecraft_clone_3d_1', 'roblox-mini', 'fps_1', 'dino', 'mario', 'horizon_drift_offline', 'jungle-strike', 'space_shooter']);
+test('десять игр владельца, у каждой есть страница, описание и картинка карточки', () => {
+  assert.deepEqual(Games.IDS, ['minecraft_clone_3d_1', 'roblox-mini', 'fps_1', 'dino', 'mario', 'horizon_drift_offline', 'jungle-strike', 'space_shooter', 'tetris', 'sudoku']);
   for (const g of Games.catalog(ROOT)) {
     assert.ok(fs.existsSync(g.page), g.page);
     assert.ok(g.name && g.desc, g.id);
@@ -100,7 +100,7 @@ test('имя из заголовка: без пометки о фан-верси
 
 // --- сборка ---
 
-test('в сборку попадают только app/ и папки восьми игр', () => {
+test('в сборку попадают только app/ и папки игр каталога', () => {
   const files = pkg.build.files.filter((f) => !f.startsWith('!'));
   const expected = ['package.json', 'app/**/*', ...Games.IDS.map((id) => `web/${id}/**/*`)];
   assert.deepEqual([...files].sort(), [...expected].sort());

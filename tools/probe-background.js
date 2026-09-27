@@ -21,6 +21,8 @@ const path = require('path');
 if (!process.argv.some((a) => a.startsWith('--user-data-dir='))) {
   app.commandLine.appendSwitch('user-data-dir', fs.mkdtempSync(path.join(os.tmpdir(), 'igroteka-probe-')));
 }
+// Окно за экраном, без фокуса и без захвата мыши (режим проверок, см. TEST в main.js).
+process.env.IGROTEKA_TEST = '1';
 require('../app/main.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -10,9 +10,9 @@ test.afterEach(async () => { await H.close(ctx); H.rmData(ctx.dataDir); });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test('запуск: домашний экран, восемь карточек с картинкой, именем, описанием и «Играть»', async () => {
+test('запуск: домашний экран, карточка на каждую игру каталога - картинка, имя, описание, «Играть»', async () => {
   const { app, shell } = ctx;
-  await expect(shell.locator('.card')).toHaveCount(8);
+  await expect(shell.locator('.card')).toHaveCount(require('../app/games').IDS.length);
   for (const card of await shell.locator('.card').all()) {
     await expect(card.locator('h2')).not.toBeEmpty();
     await expect(card.locator('p')).not.toBeEmpty();
@@ -24,6 +24,20 @@ test('запуск: домашний экран, восемь карточек �
   await expect(shell.locator('.tab.home')).toHaveClass(/active/);
   expect(await H.tabs(app)).toEqual({ open: [], active: 'home' });
   expect(await shell.title()).toBe(require('../package.json').productName);
+});
+
+test('режим проверок: окно не на экране, без фокуса и не в панели задач', async () => {
+  const { app } = ctx;
+  const r = await app.evaluate(({ screen }) => {
+    const w = globalThis.__igroteka.win;
+    const b = w.getBounds();
+    const onScreen = screen.getAllDisplays().some((d) => {
+      const a = d.bounds;
+      return b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y;
+    });
+    return { onScreen, focused: w.isFocused(), focusable: w.isFocusable(), test: globalThis.__igroteka.TEST };
+  });
+  expect(r).toEqual({ onScreen: false, focused: false, focusable: false, test: true });
 });
 
 test('повторный щелчок по карточке не открывает вторую вкладку, а переключает на открытую', async () => {
@@ -159,11 +173,11 @@ test('F11 - игра на весь экран без полосы, Esc возв�
   await H.press(app, 'dino', 'F11');
   await expect.poll(() => app.evaluate(() => globalThis.__igroteka.fullscreen)).toBe(true);
   await expect.poll(() => app.evaluate(() => globalThis.__igroteka.views.get('dino').getBounds().y)).toBe(0);
-  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.win.isFullScreen())).toBe(true);
+  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.windowFullScreen)).toBe(true);
   await H.press(app, 'dino', 'Escape');
   await expect.poll(() => app.evaluate(() => globalThis.__igroteka.fullscreen)).toBe(false);
   await expect.poll(() => app.evaluate(() => globalThis.__igroteka.views.get('dino').getBounds().y)).toBe(40);
-  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.win.isFullScreen())).toBe(false);
+  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.windowFullScreen)).toBe(false);
 });
 
 test('F5 перезапускает игру только после «да»', async () => {
@@ -200,7 +214,7 @@ test('тема оболочки переключается и запоминае
   expect(JSON.parse(fs.readFileSync(path.join(ctx.dataDir, 'settings.json'), 'utf8')).theme).toBe('light');
   await expect(shell.locator('.about')).toContainText('фан-концепты, не связаны с правообладателями');
   await expect(shell.locator('#version')).toContainText(require('../package.json').version);
-  await expect(shell.locator('#about-games li')).toHaveCount(8);
+  await expect(shell.locator('#about-games li')).toHaveCount(require('../app/games').IDS.length);
 });
 
 test('снимка игры нет - под вопросом сплошной фон, а не домашнее меню', async () => {

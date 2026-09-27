@@ -75,7 +75,7 @@ eight game folders go into the build.
 ```
 npm test                  # web/ pages in Chromium (284 checks)
 npm run test:unit         # laws of the app modules and the icon (35)
-npm run test:app          # the real app through Playwright (57, opens windows)
+npm run test:app          # the real app through Playwright (60, windows off-screen)
 pip install -r requirements-py.txt
 python -m pytest tests/py # py/ programs (183)
 ```

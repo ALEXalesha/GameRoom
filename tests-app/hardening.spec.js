@@ -258,18 +258,29 @@ test('значки вкладок с обводкой: на чёрном и бе
   expect(ring.alpha).toBeGreaterThanOrEqual(0.6);
 });
 
-test('главная при 1280x720 без прокрутки, имена карточек одного ряда на одной высоте', async () => {
+test('главная при 1280x720: все игры в два ряда без прокрутки, имена одного ряда на одной высоте', async () => {
   const { app, shell } = ctx;
   await app.evaluate(() => globalThis.__igroteka.win.setContentSize(1280, 720));
   await sleep(500);
   const r = await shell.evaluate(() => {
     const home = document.getElementById('home');
-    const names = [...document.querySelectorAll('.card h2')].map((h) => Math.round(h.getBoundingClientRect().top));
-    return { overflow: home.scrollHeight - home.clientHeight, row1: names.slice(0, 4), row2: names.slice(4) };
+    const cards = [...document.querySelectorAll('.card')].map((c) => ({
+      top: Math.round(c.getBoundingClientRect().top),
+      name: Math.round(c.querySelector('h2').getBoundingClientRect().top),
+      width: c.getBoundingClientRect().width,
+    }));
+    const rows = [...new Set(cards.map((c) => c.top))];
+    return {
+      overflow: home.scrollHeight - home.clientHeight,
+      rows: rows.length,
+      namesPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.name)).size),
+      minWidth: Math.min(...cards.map((c) => c.width)),
+    };
   });
   expect(r.overflow).toBeLessThanOrEqual(0);
-  expect(new Set(r.row1).size).toBe(1);
-  expect(new Set(r.row2).size).toBe(1);
+  expect(r.rows).toBe(2);
+  expect(r.namesPerRow).toEqual([1, 1]);
+  expect(r.minWidth).toBeGreaterThanOrEqual(210);
 });
 
 test('при 1920x1080 сетка стоит по центру, без большой пустоты снизу', async () => {

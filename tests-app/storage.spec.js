@@ -50,7 +50,9 @@ test('localStorage и IndexedDB одной игры не видны другой
 test('после перезапуска: данные игры на месте, вкладки открыты заново, окно там же', async () => {
   let ctx = await H.launch();
   const dataDir = ctx.dataDir;
-  const bounds = { x: 140, y: 90, width: 1010, height: 690 };
+  // Окно проверок стоит в своей области за экраном (TEST_AREA в main.js).
+  const area = await ctx.app.evaluate(() => globalThis.__igroteka.TEST_AREA);
+  const bounds = { x: area.x + 140, y: area.y + 90, width: 1010, height: 690 };
   try {
     await open(ctx, 'dino');
     await H.inGame(ctx.app, 'dino', `localStorage.setItem('dino_hi', '4242'); 1`);
@@ -82,11 +84,13 @@ test('развёрнутое окно открывается развёрнут�
   let ctx = await H.launch();
   const dataDir = ctx.dataDir;
   try {
-    await ctx.app.evaluate(() => globalThis.__igroteka.win.maximize());
-    await expect.poll(() => ctx.app.evaluate(() => globalThis.__igroteka.win.isMaximized())).toBe(true);
+    // В режиме проверок окно не растягивается на настоящий монитор: «развёрнуто» -
+    // отметка, которая так же пишется в файл и читается при запуске.
+    await ctx.app.evaluate(() => globalThis.__igroteka.setMaximized(true));
+    await expect.poll(() => ctx.app.evaluate(() => globalThis.__igroteka.maximized)).toBe(true);
     await H.close(ctx);
     ctx = await H.launch({ dataDir });
-    await expect.poll(() => ctx.app.evaluate(() => globalThis.__igroteka.win.isMaximized())).toBe(true);
+    await expect.poll(() => ctx.app.evaluate(() => globalThis.__igroteka.maximized)).toBe(true);
   } finally {
     await H.close(ctx);
     H.rmData(dataDir);
@@ -96,9 +100,9 @@ test('развёрнутое окно открывается развёрнут�
 test('окно с отключённого монитора открывается на видимом экране', async () => {
   const ctx = await H.launch({ files: { 'window-state.json': { x: -30000, y: -30000, width: 1000, height: 700, maximized: false } } });
   try {
-    const { b, areas } = await ctx.app.evaluate(({ screen }) => ({
+    const { b, areas } = await ctx.app.evaluate(() => ({
       b: globalThis.__igroteka.win.getBounds(),
-      areas: screen.getAllDisplays().map((d) => d.workArea),
+      areas: [globalThis.__igroteka.TEST_AREA],
     }));
     expect(b.width).toBe(1000);
     const onScreen = areas.some((a) => b.x >= a.x && b.y >= a.y && b.x < a.x + a.width && b.y + 40 <= a.y + a.height);
@@ -124,7 +128,7 @@ test('испорченные файлы настроек и вкладок не 
   const ctx = await H.launch({ files: { 'settings.json': '{"theme": "li', 'tabs.json': '[[[', 'window-state.json': 'мусор' } });
   try {
     expect(await H.tabs(ctx.app)).toEqual({ open: [], active: 'home' });
-    await expect(ctx.shell.locator('.card')).toHaveCount(8);
+    await expect(ctx.shell.locator('.card')).toHaveCount(require('../app/games').IDS.length);
   } finally {
     await H.close(ctx);
     H.rmData(ctx.dataDir);

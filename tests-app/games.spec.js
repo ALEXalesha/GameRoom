@@ -23,6 +23,15 @@ for (const id of IDS) {
     await new Promise((r) => setTimeout(r, 1500));
     expect(await H.errorsOf(app, id)).toEqual([]);
     expect(await app.evaluate(() => globalThis.__igroteka.blocked)).toEqual([]);
+    // Захват мыши в режиме проверок запрещён: щелчок по игре его не включает, и курсор
+    // человека за компьютером остаётся свободным.
+    await app.evaluate((_e, gid) => {
+      const wc = globalThis.__igroteka.views.get(gid).webContents;
+      for (const type of ['mouseDown', 'mouseUp']) wc.sendInputEvent({ type, x: 400, y: 300, button: 'left', clickCount: 1 });
+    }, id);
+    await H.inGame(app, id, `(() => { const c = document.querySelector('canvas'); try { c && c.requestPointerLock && c.requestPointerLock(); } catch (e) {} return 1; })()`);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(await H.inGame(app, id, 'document.pointerLockElement')).toBeNull();
     const title = await H.inGame(app, id, 'document.title');
     expect(title.length).toBeGreaterThan(0);
     await expect(shell.locator(`.tab.game[data-id="${id}"]`)).toHaveClass(/active/);

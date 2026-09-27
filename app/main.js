@@ -30,8 +30,19 @@ const THEMES = {
   dark: { bg: '#110e20', symbol: '#f4f4f8' },
   light: { bg: '#eceaf6', symbol: '#1d1b2e' },
 };
+// Режим проверок (IGROTEKA_TEST=1: его ставят tests-app и скрипты tools/). Окно не должно
+// мешать человеку за этим компьютером: оно стоит за пределами экранов, не берёт фокус и
+// не видно в панели задач, игры не могут захватить мышь, а «развернуть» и «на весь
+// экран» только отмечаются, но не растягивают окно на настоящий монитор. Чтобы окно за
+// экраном всё равно рисовалось, Windows не должна считать его перекрытым.
+const TEST = process.env.IGROTEKA_TEST === '1';
+const TEST_AREA = { x: -6000, y: 0, width: 1920, height: 1080 };
+if (TEST) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+let testMaximized = false;
+let testFullScreen = false;
+
 // Что странице игры можно спросить у приложения: захват мыши и полный экран.
-const GAME_PERMISSIONS = new Set(['pointerLock', 'fullscreen']);
+const GAME_PERMISSIONS = new Set(TEST ? ['fullscreen'] : ['pointerLock', 'fullscreen']);
 
 // Папка данных не зависит от имени приложения (см. product.js). Проверки и кадры для
 // README запускают приложение со своей папкой через --user-data-dir.
@@ -309,7 +320,7 @@ function setFullscreen(on) {
   if (on && tabs.active === Tabs.HOME) return;
   if (!win || fullscreen === on) return;
   fullscreen = on;
-  win.setFullScreen(on);
+  if (TEST) testFullScreen = on; else win.setFullScreen(on);
   if (!on) {
     const view = views.get(tabs.active);
     if (view) view.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
@@ -404,7 +415,11 @@ const fromGame = (e) => !!e && [...views.values()].some((v) => v.webContents ===
 // Громкость для предзагрузки страницы игры: спрашивается синхронно при каждой загрузке,
 // так что и после F5 или перезапуска после сбоя страница получает текущую, а не ту, что
 // была при создании вкладки.
-ipcMain.on('igroteka:volume-now', (e) => { e.returnValue = fromGame(e) ? settings.volume / 100 : 1; });
+// Заодно предзагрузка узнаёт, не режим ли это проверок: тогда захват мыши выключен и в
+// самой странице (requestPointerLock ничего не делает).
+ipcMain.on('igroteka:page-setup', (e) => {
+  e.returnValue = fromGame(e) ? { volume: settings.volume / 100, test: TEST } : { volume: 1, test: TEST };
+});
 
 ipcMain.handle('shell:init', (e) => (!fromShell(e) ? null : {
   product: { name: PRODUCT.name, version: PRODUCT.version },
@@ -457,8 +472,12 @@ ipcMain.handle('games:clear', async (e, id) => {
 
 function createWindow() {
   const primary = screen.getPrimaryDisplay();
-  const areas = [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)].map((d) => d.workArea);
+  const areas = TEST ? [TEST_AREA] : [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)].map((d) => d.workArea);
   const placed = WindowState.restore(WindowState.load(file('window-state.json')), areas, SIZE);
+  if (TEST && placed.x === undefined) {
+    placed.x = TEST_AREA.x + Math.round((TEST_AREA.width - placed.width) / 2);
+    placed.y = TEST_AREA.y + Math.round((TEST_AREA.height - placed.height) / 2);
+  }
   const t = THEMES[settings.theme];
 
   win = new BrowserWindow({
@@ -470,6 +489,7 @@ function createWindow() {
     show: false,
     title: PRODUCT.name,
     icon: path.join(APP_DIR, 'assets', 'icon.ico'),
+    ...(TEST ? { focusable: false, skipTaskbar: true } : {}),
     backgroundColor: t.bg,
     // Свой заголовок: вкладки стоят прямо в нём, кнопки окна - системные поверх полосы.
     titleBarStyle: 'hidden',
@@ -483,18 +503,20 @@ function createWindow() {
       devTools: !app.isPackaged,
     },
   });
-  if (placed.maximized) win.maximize();
+  if (placed.maximized) { if (TEST) testMaximized = true; else win.maximize(); }
 
   guardSession(win.webContents.session, APP_DIR);
   guardContents(win.webContents, path.join(APP_DIR, 'renderer'));
   win.webContents.on('before-input-event', onKey);
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => (TEST ? win.showInactive() : win.show()));
   // Место окна пишется и по ходу (после перетаскивания), а не только при закрытии:
   // если приложение упадёт или его снимут, окно всё равно откроется там, где было.
   // Полноэкранный режим и свёрнутое окно не запоминаются.
   const remember = () => {
     if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
-      WindowState.save(file('window-state.json'), WindowState.capture(win));
+      const state = WindowState.capture(win);
+      if (TEST) state.maximized = testMaximized;
+      WindowState.save(file('window-state.json'), state);
     }
   };
   for (const ev of ['resized', 'moved', 'maximize', 'unmaximize']) win.on(ev, remember);
@@ -547,5 +569,10 @@ globalThis.__igroteka = {
   get modalOpen() { return !!modal; },
   get crashed() { return [...crashed]; },
   get lastMenu() { return lastMenu; },
+  // Режим проверок: окно за экраном, «развёрнуто» и «весь экран» - только отметки.
+  TEST, TEST_AREA,
+  get maximized() { return TEST ? testMaximized : !!win && win.isMaximized(); },
+  setMaximized(on) { if (TEST) { testMaximized = !!on; if (win) win.emit('maximize'); } else if (win) { if (on) win.maximize(); else win.unmaximize(); } },
+  get windowFullScreen() { return TEST ? testFullScreen : !!win && win.isFullScreen(); },
   views, errors, blocked, games, BAR_H,
 };

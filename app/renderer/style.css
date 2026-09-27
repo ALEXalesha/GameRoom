@@ -215,8 +215,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 #grid {
   display: grid;
-  /* не больше четырёх в ряд: восемь игр ложатся ровно в два ряда и на широком экране */
-  grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 60px) / 4)), 1fr));
+  /* Все игры - в два ряда: колонок --cols (renderer.js считает от числа игр, 4 или 5).
+     На узком окне колонок меньше, и главная прокручивается. */
+  --cols: 4;
+  grid-template-columns: repeat(auto-fill, minmax(max(210px, calc((100% - (var(--cols) - 1) * 18px) / var(--cols))), 1fr));
   gap: 18px;
   width: 100%;
   max-width: 1600px;
@@ -249,7 +251,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* Имя и «Играть» в одну строку, описание под ними: длинное имя переносится, а не
    обрезается многоточием. Открытая игра - точка перед именем и рамка, картинку ничто не
    закрывает. */
-.card .head { display: flex; align-items: center; gap: 10px; padding: 11px 14px 4px; }
+.card .head { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px 4px; }
+/* Имя с первой строки: у соседних карточек имена начинаются на одной высоте. */
+.card h2 { padding-top: 4px; }
 .card h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 650; line-height: 1.25; min-width: 0; }
 .card .desc { margin: 0; padding: 0 14px 13px; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
 .card .play { flex: none; padding: 6px 16px; }
