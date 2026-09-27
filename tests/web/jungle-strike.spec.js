@@ -415,9 +415,9 @@ test.describe('jungle-strike: тряска', () => {
 });
 
 test.describe('jungle-strike: по второму ревью', () => {
-  test('трудная сложность проходится честно: 5 миссий без неуязвимости, не больше одной потерянной жизни на миссию', async ({ page }) => {
+  for (const seed of [1, 4, 19]) test(`трудная сложность проходится честно (зерно ${seed}): 5 миссий без неуязвимости, не больше одной потерянной жизни на миссию`, async ({ page }) => {
     test.setTimeout(300_000);
-    await openGame(page, 'jungle-strike', 'seed=4&fast');
+    await openGame(page, 'jungle-strike', `seed=${seed}&fast`);
     await page.evaluate(() => { localStorage.clear(); __game.kit.set('difficulty', 'hard'); });
     for (let m = 0; m < 5; m++) {
       await page.evaluate((i) => { __game.kit.closeAll(); __game.startMission(i, false); }, m);
@@ -445,5 +445,40 @@ test.describe('jungle-strike: по второму ревью', () => {
       return { leftAlive, shotFromOff, shotOnScreen: g.ebullets.length > 0 };
     });
     expect(r).toEqual({ leftAlive: false, shotFromOff: 0, shotOnScreen: true });
+  });
+});
+
+test.describe('jungle-strike: состав врагов', () => {
+  test('не больше двух летающих врагов и одной танкетки одновременно (иначе на трудной не уйти)', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=3&fast');
+    const r = await page.evaluate(() => {
+      const g = __game; g.kit.set('difficulty', 'hard'); g.startMission(4, false); g.setAutopilot(true);
+      let flyers = 0, tank = 0, jet = 0;
+      for (let i = 0; i < 6000 && g.G.phase === 'run'; i++) {
+        g.player.invuln = 5; g.step(1, false);
+        flyers = Math.max(flyers, g.enemies.filter((e) => e.type === 'jetpack' || e.type === 'drone').length);
+        tank = Math.max(tank, g.enemies.filter((e) => e.type === 'tankette').length);
+        jet = Math.max(jet, g.enemies.filter((e) => e.type === 'jetpack').length);
+      }
+      return { flyers, tank, jet };
+    });
+    expect(r.flyers).toBeLessThanOrEqual(2);
+    expect(r.tank).toBeLessThanOrEqual(1);
+    expect(r.flyers).toBeGreaterThanOrEqual(1);
+  });
+});
+
+test.describe('jungle-strike: повторяемость', () => {
+  test('заставка в меню не сдвигает случайности миссии: с тем же зерном те же враги', async ({ page }) => {
+    const run = () => page.evaluate(() => {
+      const g = __game; g.startMission(0, false); const seen = [];
+      for (let i = 0; i < 900; i++) { g.player.invuln = 5; g.step(1, false); for (const e of g.enemies) if (!e.__seen) { e.__seen = 1; seen.push(e.type + Math.round(e.x)); } }
+      g.kit.toMenu(); return seen.join(' ');
+    });
+    await openGame(page, 'jungle-strike', 'seed=9&fast');
+    const fresh = await run();
+    await openGame(page, 'jungle-strike', 'seed=9&fast');
+    await page.evaluate(() => __game.step(2000, false));      // заставка сыграла
+    expect(await run()).toBe(fresh);
   });
 });

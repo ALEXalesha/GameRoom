@@ -42,7 +42,10 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-let rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+// ?seed=N - повторяемость. Зерно задаётся заново в начале миссии: заставка в меню не сдвигает случайности партии
+const SEED = params.has('seed') ? Number(params.get('seed')) || 1 : null;
+const freshRnd = (k = 0) => (SEED !== null ? mulberry32(SEED * 31 + k) : Math.random);
+let rnd = freshRnd();
 const pick = (a) => a[Math.floor(rnd() * a.length)];
 
 // ================= Палитры миссий =================
@@ -73,6 +76,7 @@ const ETYPES = {
   jetpack: { hp: 2, w: 12, h: 20, score: 250, fly: true },
   tankette: { hp: 8, w: 30, h: 18, score: 500 },
 };
+const ENEMY_CAP = { jetpack: 2, tankette: 1 }, MAX_FLYERS = 2;
 const BOSSES = {
   fort: { name: 'Лесной форт', hp: 55, w: 60, h: 90 },
   boat: { name: 'Катер «Щука»', hp: 65, w: 72, h: 30 },
@@ -158,6 +162,7 @@ function resetPlayer(x) {
   Object.assign(player, { x, y: GROUND, vx: 0, vy: 0, dir: 1, onGround: true, plat: null, drop: 0, prone: false, aimUp: false, cd: 0, invuln: 120, shield: 0, walk: 0, alive: true });
 }
 function startMission(mi, fromCheckpoint) {
+  rnd = freshRnd(mi + 1);
   clearArena();
   G.mode = 'mission'; G.mission = mi; G.level = buildLevel(mi);
   G.phase = 'run'; G.t = 0; G.bossSpawned = false; G.clearT = 0; G.flash = 0; G.shake = 0;
@@ -210,7 +215,8 @@ function pilot() {
   for (const pl of plans) {
     const r = pilotSim(pl[0], pl[1], pl[2], horizon);
     const goal = pilotGoal();
-    const value = (r.hit ? -10000 + r.hit * 100 : 0) - Math.abs(goal - r.x) * 0.6 - (pl[2] ? (lowTarget ? -40 : 4) : 0) - (pl[1] && !r.needJump ? 2 : 0);
+    // яма - верная потеря жизни; предсказание пуль и гранат бывает неточным, поэтому яма хуже любой из них
+    const value = (r.pit ? -30000 : r.hit ? -10000 + r.hit * 100 : 0) - Math.abs(goal - r.x) * 0.6 - (pl[2] ? (lowTarget && pilotState.still < 240 ? -40 : 4) : 0) - (pl[1] && !r.needJump ? 2 : 0);
     if (!best || value > best.value) best = { value, pl };
   }
   const [mv, jump, prone] = best.pl;
@@ -221,8 +227,9 @@ function pilot() {
   // смотреть и стрелять в сторону ближайшего наземного врага (если стоим на месте)
   if (!mv) {
     const near = enemies.filter((e) => !ETYPES[e.type].fly).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
-    if (near && Math.abs(near.x - p.x) < 150) p.dir = near.x < p.x ? -1 : 1;
+    if (near && Math.abs(near.x - p.x) < 260) p.dir = near.x < p.x ? -1 : 1;
     else if (boss) p.dir = boss.x < p.x ? -1 : 1;
+    else p.dir = 1;                                    // никого рядом - лицом вперёд (раньше мог застыть, стреляя назад)
   }
 }
 // Куда стремиться: вперёд по уровню; у босса - на удобное для стрельбы расстояние
@@ -235,7 +242,9 @@ function pilotGoal() {
   return Math.max(G.cam + 20, boss.x - boss.w / 2 - 120);
 }
 // Проиграть вариант: ход mv, прыжок (1 - держать до верхней точки, 2 - короткий), лечь; вернуть момент первого попадания
-function pilotSim(mv, jump, prone, frames) {
+function pilotSim(mv, jump, prone, frames, onlyMove) {
+  // сначала - только движение: ведёт ли вариант в яму (пуля может «попасть» раньше, но яма - хуже)
+  if (!onlyMove) { const m = pilotSim(mv, jump, prone, frames, true); if (m.pit) return m; }
   const p = player;
   const o = { x: p.x, y: p.y, vy: p.vy, onGround: p.onGround, drop: p.drop };
   let cam = G.cam, needJump = false;
@@ -262,7 +271,8 @@ function pilotSim(mv, jump, prone, frames) {
     o.onGround = false;
     if (o.vy >= 0 && !o.drop) for (const pl of G.level.plats) if (o.x >= pl.x - 3 && o.x <= pl.x + pl.w + 3 && prevY <= pl.y + 0.5 && o.y >= pl.y) { o.y = pl.y; o.vy = 0; o.onGround = true; break; }
     if (!o.onGround && o.y >= GROUND && !pitAt(o.x) && prevY <= GROUND + 2) { o.y = GROUND; o.vy = 0; o.onGround = true; }
-    if (o.y > H + 20) return { hit: k, x: o.x };
+    if (o.y > H + 20) return { hit: k, x: o.x, pit: true };
+    if (onlyMove) continue;
     const box = hitBox(o.x, o.y, prone && o.onGround);
     // пули и гранаты
     for (const b of eb) {
@@ -275,6 +285,8 @@ function pilotSim(mv, jump, prone, frames) {
     }
     // враги: касание, мины, снайперский выстрел
     for (const e of en) {
+      if (e.type === 'drone') e.y = e.base + Math.sin((e.t + k) * 0.08) * 8;                  // дрон качается вверх-вниз
+      if (e.type === 'crawler' && (e.t + k) % 50 === 0) e.vx = (o.x < e.x ? -1 : 1) * 1.3;     // паук раз в 50 кадров поворачивает к герою
       if (e.type === 'soldier' || e.type === 'crawler' || e.type === 'tankette' || e.type === 'drone') e.x += e.vx;
       if (e.type === 'jetpack') { e.x += Math.sign(o.x + 30 * Math.sin((e.t + k) / 60) - e.x) * 0.9; e.y = e.base + Math.sin((e.t + k) * 0.05) * 10; }
       if (e.type === 'mine') {
@@ -643,9 +655,12 @@ function update() {
   if (G.phase !== 'run') return;
   if (!G.bossSpawned && --G.spawnT <= 0 && enemies.length < MISSIONS[G.mission].max) {
     G.spawnT = Math.round((MISSIONS[G.mission].spawnEvery + rnd() * 50) * kit.diff({ easy: 1.35, normal: 1, hard: 0.8 }));
+    // не больше двух летающих (ракетчики и дроны вместе) и одной танкетки сразу: иначе на трудной их стая не оставляла выхода
     const mix = MISSIONS[G.mission].mix, bag = [];
-    for (const t in mix) for (let i = 0; i < mix[t]; i++) bag.push(t);
-    spawnEnemy(pick(bag));
+    const count = (t) => enemies.filter((e) => e.type === t).length;
+    const flyers = enemies.filter((e) => ETYPES[e.type].fly).length;
+    for (const t in mix) if (count(t) < (ENEMY_CAP[t] || 99) && !(ETYPES[t].fly && flyers >= MAX_FLYERS)) for (let i = 0; i < mix[t]; i++) bag.push(t);
+    if (bag.length) spawnEnemy(pick(bag));
   }
   updateBullets();
   updateEnemies();
