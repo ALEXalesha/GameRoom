@@ -195,4 +195,26 @@ test.describe('horizon_drift_offline: устойчивость', () => {
     const h = await page.locator('#qTracks .card').first().evaluate((e) => e.getBoundingClientRect().height);
     expect(h).toBeLessThan(260);
   });
+
+  test('оболочка ОС: postMessage pause останавливает время заезда и мира, resume паузу не снимает; meta application-name', async ({ page }) => {
+    await openDrift(page);
+    expect(await page.locator('meta[name="application-name"]').getAttribute('content')).toBe('Horizon Drift');
+    await startQuick(page, { track: 'port', mode: 'time' });
+    await page.evaluate(() => { __drift.step(400, { thr: 1 }); __drift.manual = false; });
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await expect(page.locator('#scrPause')).toBeVisible();
+    const t = await page.evaluate(() => __drift.race.t);
+    await page.waitForTimeout(400);
+    await page.evaluate(() => window.postMessage({ mix: 'resume' }, '*'));
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => [__drift.race.t, __drift.paused])).toEqual([t, true]);
+    await page.evaluate(() => __drift.toMenu());
+    await page.evaluate(async () => { await __drift.startWorld('coast', { fest: true }); });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await expect(page.locator('#scrPause')).toBeVisible();
+    const wt = await page.evaluate(() => __drift.world.t);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => __drift.world.t)).toBe(wt);
+  });
 });
