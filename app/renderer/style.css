@@ -25,6 +25,8 @@
   --danger-bg: rgba(255, 91, 110, 0.14);
   --danger-border: rgba(255, 91, 110, 0.45);
   --scrim: rgba(5, 4, 12, 0.35);
+  --modal-scrim: rgba(5, 4, 12, 0.55);
+  --shot-filter: blur(6px) brightness(0.55);
   --app-bg:
     radial-gradient(80% 60% at 12% -10%, rgba(120, 90, 255, 0.45), transparent 60%),
     radial-gradient(65% 50% at 95% 8%, rgba(255, 100, 180, 0.28), transparent 55%),
@@ -51,6 +53,9 @@
   --danger-border: rgba(176, 30, 52, 0.45);
   /* Под настройками светлой темы - светлая дымка, а не серое затемнение. */
   --scrim: rgba(236, 234, 246, 0.55);
+  /* Под вопросом в светлой теме - светлая дымка над размытым снимком, а не серое пятно. */
+  --modal-scrim: rgba(236, 234, 246, 0.5);
+  --shot-filter: blur(6px) brightness(1.05) saturate(0.8);
   --app-bg:
     radial-gradient(80% 60% at 12% -10%, rgba(140, 120, 255, 0.35), transparent 60%),
     radial-gradient(65% 50% at 95% 8%, rgba(255, 140, 200, 0.28), transparent 55%),
@@ -107,6 +112,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   scrollbar-width: none;
   position: relative; /* offsetLeft вкладок - от начала полосы */
 }
+/* Полоса прокручена: края вкладок, ушедших за край, растворяются, а не обрезаются
+   на полуслове. */
+#tabs.scrolled-left { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px); }
+#tabs.scrolled-right { -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px); }
+#tabs.scrolled-left.scrolled-right { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%); }
 #bar.crowded .tab.home .product { display: none; }
 #bar.crowded .tab.home { padding-right: 8px; }
 #tabs::-webkit-scrollbar { display: none; }
@@ -137,7 +147,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   color: var(--text);
   box-shadow: inset 0 2px 0 var(--accent);
 }
-.tab.home { flex: 0 0 auto; max-width: none; padding-right: 12px; font-weight: 600; }
+.tab.home { flex: 0 0 auto; min-width: 0; max-width: none; padding-right: 12px; font-weight: 600; }
 .tab .logo { width: 20px; height: 20px; }
 .tab .icon {
   width: 18px;
@@ -226,10 +236,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 }
 
 .card {
-  /* Картинка, строка имени, описание - строки общей сетки: у карточек одного ряда имена и
+  /* Картинка, имя, описание, кнопка - строки общей сетки: у карточек одного ряда имена и
      описания на одной высоте, даже если одно имя переносится. */
   display: grid;
-  grid-row: span 3;
+  grid-row: span 4;
   grid-template-rows: subgrid;
   row-gap: 0;
   border-radius: var(--radius);
@@ -251,12 +261,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* Имя и «Играть» в одну строку, описание под ними: длинное имя переносится, а не
    обрезается многоточием. Открытая игра - точка перед именем и рамка, картинку ничто не
    закрывает. */
-.card .head { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px 4px; }
+/* Имя во всю ширину карточки (кнопка под описанием), чтобы при пяти карточках в ряд
+   имя не рвалось посередине слова. */
+.card .head { padding: 11px 14px 4px; }
 /* Имя с первой строки: у соседних карточек имена начинаются на одной высоте. */
-.card h2 { padding-top: 4px; }
-.card h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 650; line-height: 1.25; min-width: 0; }
-.card .desc { margin: 0; padding: 0 14px 13px; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
-.card .play { flex: none; padding: 6px 16px; }
+.card h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.25; min-width: 0; }
+.card .desc { margin: 0; padding: 0 14px 8px; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+.card .actions { padding: 0 14px 13px; }
+.card .play { padding: 6px 18px; }
 .card .open-mark {
   display: inline-block;
   width: 8px;
@@ -402,7 +414,7 @@ kbd {
   display: grid;
   place-items: center;
   overflow: hidden; /* размытый снимок игры не заходит на полосу вкладок */
-  background: rgba(5, 4, 12, 0.55);
+  background: var(--modal-scrim);
   z-index: 30;
 }
 #modal.fullscreen { inset: 0; }
@@ -417,7 +429,7 @@ kbd {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: blur(6px) brightness(0.55);
+  filter: var(--shot-filter);
   transform: scale(1.02);
 }
 #modal-shot[hidden] { display: none; }

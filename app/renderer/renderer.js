@@ -64,8 +64,16 @@ function renderTabs() {
     if (act.offsetLeft < box.scrollLeft) box.scrollLeft = act.offsetLeft;
     else if (act.offsetLeft + act.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = act.offsetLeft + act.offsetWidth - box.clientWidth;
   }
+  edges();
   // Много вкладок - у домашней остаётся только значок, имя игр важнее.
   $('#bar').classList.toggle('crowded', state.tabs.open.length >= 6);
+}
+
+// Какие края полосы вкладок сейчас за краем (для растворения краёв в CSS).
+function edges() {
+  const box = $('#tabs');
+  box.classList.toggle('scrolled-left', box.scrollLeft > 1);
+  box.classList.toggle('scrolled-right', box.scrollLeft + box.clientWidth < box.scrollWidth - 1);
 }
 
 // --- домашний экран ------------------------------------------------------------------
@@ -79,9 +87,9 @@ function renderGrid() {
     const card = el('article', { class: 'card', 'data-id': g.id, tabindex: '0' },
       el('div', { class: 'shot' }, img(thumb(g.id))),
       el('div', { class: 'head' },
-        el('h2', {}, el('span', { class: 'open-mark', title: 'Игра открыта во вкладке', hidden: '' }), g.name),
-        play),
-      el('p', { class: 'desc', text: g.desc }));
+        el('h2', {}, el('span', { class: 'open-mark', title: 'Игра открыта во вкладке', hidden: '' }), g.name)),
+      el('p', { class: 'desc', text: g.desc }),
+      el('div', { class: 'actions' }, play));
     card.addEventListener('click', () => api.open(g.id));
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.open(g.id); } });
     return card;
@@ -239,6 +247,8 @@ function apply(s) {
   $('.tab.home').addEventListener('click', () => api.activate('home'));
   $('#crashed .btn').addEventListener('click', () => api.revive(state.tabs.active));
   // Колесо мыши над полосой вкладок прокручивает её вбок.
+  $('#tabs').addEventListener('scroll', edges);
+  window.addEventListener('resize', edges);
   $('#tabs').addEventListener('wheel', (e) => { if (e.deltaY) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
   renderGrid();
   wireSettings();
