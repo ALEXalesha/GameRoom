@@ -509,6 +509,14 @@
     sugar_cane(t) {
       plant(t, () => { for (const x of [3, 8, 12]) for (let y = 0; y < 16; y++) { t.px(x, y, y % 5 === 0 ? '#6a9a3a' : '#9ad060'); t.px(x + 1, y, y % 5 === 0 ? '#5a8a2a' : '#7ab848'); } for (const [x, y] of [[5, 4], [6, 3], [10, 9], [11, 8], [1, 12], [2, 11]]) t.px(x, y, '#8ac050'); });
     },
+    melon_side(t, r) { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) t.px(x, y, (x + ((y / 4) | 0)) % 4 < 2 ? '#5a8a2a' : '#8ab83a'); },
+    melon_top(t, r) { t.noise(['#6a9a2a', '#5a8a24', '#7aaa34'], r); for (let k = 0; k < 4; k++) t.px(7 + (k % 2), 7 + ((k / 2) | 0), '#3a5a1a'); },
+    carrots_0(t) { plant(t, () => { for (const x of [3, 8, 12]) { t.px(x, 15, '#3a8a2a'); t.px(x, 14, '#5aa83a'); } }); },
+    carrots_1(t) { plant(t, () => { for (const x of [2, 7, 11]) for (let y = 11; y < 16; y++) { t.px(x + (y < 13 ? 1 : 0), y, '#4a9a30'); } }); },
+    carrots_2(t) { plant(t, () => { for (const x of [2, 7, 11]) for (let y = 8; y < 16; y++) { t.px(x + (y < 11 ? 1 : 0), y, '#4a9a30'); if (y < 11) t.px(x + 2, y, '#5aa83a'); } }); },
+    carrots_3(t) { plant(t, () => { for (const x of [2, 7, 11]) { for (let y = 6; y < 13; y++) { t.px(x + (y < 9 ? 1 : 0), y, '#4a9a30'); t.px(x + 2, y, '#5aa83a'); } t.px(x + 1, 13, '#f08a20'); t.px(x + 1, 14, '#e07a10'); t.px(x + 1, 15, '#f09a30'); } }); },
+    brewing_base(t, r) { t.noise(['#7a7a7a', '#6a6a6a', '#848484'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#4a4a4a'); t.px(0, k, '#4a4a4a'); } },
+    brewing_stand(t, r) { t.noise(['#f8c820', '#e89a10', '#fff080'], r); },
     ench_top(t, r) {
       t.noise(['#9a1a1a', '#8a1414', '#aa2020'], r);
       for (let k = 0; k < 16; k++) { t.px(k, 0, '#1a1428'); t.px(k, 15, '#1a1428'); t.px(0, k, '#1a1428'); t.px(15, k, '#1a1428'); }
@@ -777,6 +785,17 @@
     },
     lapis(t, r) { ITEM_DRAW.tpl(t, ['', '', '', '....##.##......', '...#bb#bb#.....', '..#bBbbbBb#....', '..#bbbbbbbb#...', '...#bBbbbb#....', '....#bbbbB#....', '.....#bb##.....', '......##.......'], { b: '#2a50c8', B: '#8aa8ff', '#': '#0a2070' }, 1, 1); },
     emerald(t) { ITEM_DRAW.tpl(t, ['', '', '......###......', '.....#ggg#.....', '....#gwggg#....', '...#gwgggGg#...', '...#ggggggg#...', '...#gggggGg#...', '....#gggGg#....', '.....#gGg#.....', '......###......'], { g: '#3ae070', w: '#c8ffd8', G: '#17a84a', '#': '#0a6a2a' }, 1, 1); },
+    potion(t, r, spec) {
+      const [c, splash] = (spec || '#3a74d0').split(',');
+      const isSplash = splash === 's';
+      ITEM_DRAW.tpl(t, ['', '......##......', '......gg......', '.....#gg#.....', '....#gggg#....', isSplash ? '...#lllll#....' : '...#gggggg#...', '..#llllllll#..', '..#lLllllll#..', '..#llllllll#..', '..#llllllll#..', '...#llllll#...', '....######....'], { g: '#c8e0f0', l: c, L: '#ffffff', '#': '#50607a' }, 1, 2);
+    },
+    glass_bottle(t) { ITEM_DRAW.tpl(t, ['', '......##......', '......gg......', '.....#gg#.....', '....#gggg#....', '...#gggggg#...', '..#gggggggg#..', '..#gLgggggg#..', '..#gggggggg#..', '..#gggggggg#..', '...#gggggg#...', '....######....'], { g: '#dfeef5', L: '#ffffff', '#': '#6a7a8a' }, 1, 2); },
+    melon_slice(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '..#..........#..', '..g#........#g..', '..grr#....#rrg..', '...grrr##rrrg...', '....grrrrrrg....', '.....ggggggg....', '......gggg......'], { g: '#5a9a2a', r: '#e83a3a', '#': '#2a1a1a' }); },
+    glistering_melon(t) { ITEM_DRAW.melon_slice(t); for (const [x, y] of [[4, 5], [9, 7], [12, 4], [7, 9]]) t.px(x, y, '#ffe060'); },
+    carrot(t) { for (let k = 0; k < 9; k++) { t.px(4 + k, 12 - k, '#f08a20'); t.px(5 + k, 12 - k, '#e07a10'); } for (const [x, y] of [[12, 2], [13, 1], [14, 3], [11, 1]]) t.px(x, y, '#4a9a30'); },
+    golden_carrot(t) { for (let k = 0; k < 9; k++) { t.px(4 + k, 12 - k, '#f8d040'); t.px(5 + k, 12 - k, '#d8a820'); } for (const [x, y] of [[12, 2], [13, 1], [14, 3], [11, 1]]) t.px(x, y, '#f0e080'); },
+    magma_cream(t, r) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....####......', '....#oyoo#.....', '...#oooyoo#....', '...#ooyoooo#...', '...#ooooyo#....', '....#oooo#.....', '.....####......'], { o: '#e05a10', y: '#f8c820', '#': '#6a2a08' }, 1, 1); },
     slimeball(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....####......', '....#gggg#.....', '...#gGggggg#...', '...#gggggGg#...', '...#ggGgggg#...', '....#gggggg#...', '.....######....'], { g: '#6ab84a', G: '#b8f09a', '#': '#3a7a2a' }); },
     flint_and_steel(t) {
       ITEM_DRAW.tpl(t, ['', '', '..####..........', '.#iiii#.........', '.#i##i#.........', '.#i#.#i#........', '..#..#ii#.......', '......#ii#......', '.......###......', '.........##.....', '........#ff#....', '.......#ffff#...', '.......#fbff#...', '........#ff#....', '.........##.....'], { i: '#b8b8b8', '#': '#3a3a3a', f: '#4a4a4a', b: '#7a7a7a' });

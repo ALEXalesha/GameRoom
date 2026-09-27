@@ -24,7 +24,7 @@
     this.health = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 15; this.hurtCool = 0; this.hurtFlash = 0; this.regenT = 0; this.starveT = 0; this.drownT = 0;
     this.fallTop = null; this.dead = false; this.lastDamage = null; this.fireT = 0; this.burnT = 0;
-    this.level = 0; this.xpPoints = 0; this.xpTotal = 0;
+    this.level = 0; this.xpPoints = 0; this.xpTotal = 0; this.effects = {};
     this.vel.set(0, 0, 0);
   };
   Player.prototype.eye = function () { return this.pos.y + (this.sneaking && !this.flying ? EYE_SNEAK : EYE); };
@@ -183,6 +183,7 @@
     else if (this.inWater) speed = SPEED.swim * (this.sprinting ? 1.3 : 1);
     else if (this.sneaking || this.blocking) speed = SPEED.sneak;
     else speed = this.sprinting ? SPEED.sprint : SPEED.walk;
+    if (VX.brewing) speed *= 1 + 0.2 * VX.brewing.level('speed');           // стремительность: +20% за уровень
     // песок душ вязкий: идёшь в 2.5 раза медленнее
     if (!this.flying && world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y - 0.05), Math.floor(this.pos.z)) === C.SOUL_SAND) speed *= 0.4;
     // разгон: на земле быстрый, в воздухе - по инерции
@@ -337,6 +338,7 @@
   const BLOCKABLE = new Set(['slime', 'zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob', 'fireball', 'zombie_pigman', 'blaze']);
   Player.prototype.damage = function (n, cause, ev, ignoreCool, from) {
     if (this.dead || n <= 0) return false;
+    if ((cause === 'lava' || cause === 'fire' || cause === 'burn' || cause === 'fireball') && VX.brewing && VX.brewing.level('fire_resistance')) return false;   // огнестойкость
     if (this.hurtCool > 0 && !ignoreCool && cause !== 'fall') return false;
     if (from && this.blocking && BLOCKABLE.has(cause)) {
       const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), dx = from.x - this.pos.x, dz = from.z - this.pos.z;
@@ -385,7 +387,7 @@
   };
   Player.prototype.toJSON = function () {
     const r = (v) => Math.round(v * 1000) / 1000;
-    return { pos: [r(this.pos.x), r(this.pos.y), r(this.pos.z)], yaw: r(this.yaw), pitch: r(this.pitch), flying: this.flying, health: this.health, food: this.food, saturation: this.saturation, air: this.air, level: this.level || 0, xp: this.xpPoints || 0, score: this.xpTotal || 0 };
+    return { pos: [r(this.pos.x), r(this.pos.y), r(this.pos.z)], yaw: r(this.yaw), pitch: r(this.pitch), flying: this.flying, health: this.health, food: this.food, saturation: this.saturation, air: this.air, effects: this.effects && Object.keys(this.effects).length ? this.effects : undefined, level: this.level || 0, xp: this.xpPoints || 0, score: this.xpTotal || 0 };
   };
   Player.prototype.load = function (o) {
     this.reset();
@@ -396,6 +398,7 @@
     if (typeof o.food === 'number') this.food = o.food;
     if (typeof o.saturation === 'number') this.saturation = o.saturation;
     if (typeof o.air === 'number') this.air = o.air;
+    if (o.effects) this.effects = JSON.parse(JSON.stringify(o.effects));
     if (typeof o.level === 'number') { this.level = o.level; this.xpPoints = o.xp || 0; this.xpTotal = o.score || 0; }
   };
 

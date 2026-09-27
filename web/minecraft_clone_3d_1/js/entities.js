@@ -837,7 +837,7 @@
     const p = G.player;
     // творческий режим: любой моб с одного удара и без выпадения
     if (G.mode === 'creative') { hurtMob(hit.mob, 1e6, p.pos.x, p.pos.z, 'creative'); G.swing = 1; return true; }
-    const dmg = (tool ? tool.dmg : 1) + (VX.enchant ? VX.enchant.bonusDamage(held, hit.mob) : 0);
+    const dmg = (tool ? tool.dmg : 1) + (VX.enchant ? VX.enchant.bonusDamage(held, hit.mob) : 0) + (VX.brewing ? 3 * VX.brewing.level('strength') : 0);
     hurtMob(hit.mob, dmg, p.pos.x, p.pos.z, 'player');
     if (tool) { G.inv.wearHeld(); if (tool.type !== 'sword') G.inv.wearHeld(); }
     G.swing = 1;

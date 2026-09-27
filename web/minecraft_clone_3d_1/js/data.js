@@ -119,6 +119,33 @@
   item(423, 'emerald', 'Изумруд');
   item(424, 'ender_pearl', 'Жемчуг Края', { stack: 16 });
   item(425, 'lapis', 'Лазурит');
+  item(428, 'melon_slice', 'Долька арбуза', { food: { h: 2, sat: 1.2 } });
+  item(429, 'carrot', 'Морковь', { food: { h: 3, sat: 3.6 }, plant: C.CARROTS });
+  item(430, 'golden_carrot', 'Золотая морковь', { food: { h: 6, sat: 14.4 } });
+  item(431, 'glistering_melon', 'Сверкающий арбуз');
+  item(432, 'magma_cream', 'Огненная слизь');
+  item(433, 'glass_bottle', 'Бутылочка', { stack: 16 });
+  // зелья: вид, сила (II), долгое (красный камень), взрывное (порох). Длительности - как в оригинале.
+  const POTION_TYPES = [
+    ['water_bottle', 'Бутылочка воды', null, '#3a74d0'], ['awkward', 'Грубое зелье', null, '#3a74d0'],
+    ['healing', 'Зелье исцеления', 'heal', '#f82423'], ['swiftness', 'Зелье стремительности', 'speed', '#7cafc6'],
+    ['fire_resistance', 'Зелье огнестойкости', 'fire_resistance', '#e49a3a'], ['night_vision', 'Зелье ночного зрения', 'night_vision', '#1f1fa1'],
+    ['strength', 'Зелье силы', 'strength', '#932423'],
+  ];
+  const POTIONS = [];
+  let pid = 440;
+  for (const [key, name, eff, color] of POTION_TYPES) {
+    const variants = eff ? [['', 1, 180]] : [['', 0, 0]];
+    if (eff && eff !== 'heal') variants.push(['_long', 1, 480]);
+    if (eff === 'heal' || eff === 'speed' || eff === 'strength') variants.push(['_strong', 2, 90]);
+    for (const [suf, lvl, dur] of variants) for (const splash of eff ? [false, true] : [false]) {
+      const k = (splash ? 'splash_' : '') + key + suf;
+      const nm = (splash ? 'Взрывное ' + name[0].toLowerCase() + name.slice(1) : name) + (suf === '_strong' ? ' II' : suf === '_long' ? ' (долгое)' : '');
+      const p = { base: key, eff, lvl, dur: eff === 'heal' ? 0 : dur, splash, color, suf };
+      item(pid++, k, nm, { stack: 1, draw: 'potion:' + color + (splash ? ',s' : ''), potion: p, drink: !splash, group: 'food' });
+      POTIONS.push(k);
+    }
+  }
   item(427, 'enchanted_book', 'Зачарованная книга', { stack: 1, draw: 'book', group: 'tools' });
   item(426, 'egg_villager', 'Яйцо призыва: житель', { draw: 'egg:villager', egg: 'villager', creativeOnly: true });
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
@@ -172,6 +199,7 @@
     if (b.key === 'oak_leaves' && rnd() < 0.06) return [[I.apple, 1]];
     if (b.key === 'tall_grass') return rnd() < 0.125 ? [[I.seeds, 1]] : [];
     if (b.key === 'gravel' && rnd() < 0.1) return [[I.flint, 1]];
+    if (b.carrot !== undefined) return [[I.carrot, b.carrot === 3 ? 1 + ((rnd() * 4) | 0) : 1]];
     if (b.wart !== undefined) return [[I.nether_wart, b.wart === 3 ? 2 + ((rnd() * 3) | 0) : 1]];
     if (b.crop !== undefined) return b.crop === 7 ? [[I.wheat, 1], [I.seeds, (rnd() * 4) | 0]].filter((d) => d[1] > 0) : [[I.seeds, 1]];
     const d = b.drop === undefined ? b.item : b.drop;
@@ -245,6 +273,11 @@
   RECIPES.push({ out: [C.PISTON + 1, 1], shapeless: [C.PISTON, 'slimeball'] });
   RECIPES.push({ out: [C.REDSTONE_BLOCK, 1], shape: ['RRR', 'RRR', 'RRR'], keys: { R: C.WIRE } });
   RECIPES.push({ out: [C.WIRE, 9], shapeless: [C.REDSTONE_BLOCK] });
+  RECIPES.push({ out: ['glass_bottle', 3], shape: ['G G', ' G '], keys: { G: 'glass' } });
+  RECIPES.push({ out: [C.BREWING_STAND, 1], shape: [' B ', 'CCC'], keys: { B: 'blaze_rod', C: 'cobblestone' } });
+  RECIPES.push({ out: ['glistering_melon', 1], shape: ['NNN', 'NMN', 'NNN'], keys: { N: 'gold_nugget', M: 'melon_slice' } });
+  RECIPES.push({ out: ['golden_carrot', 1], shape: ['NNN', 'NCN', 'NNN'], keys: { N: 'gold_nugget', C: 'carrot' } });
+  RECIPES.push({ out: ['magma_cream', 1], shapeless: ['slimeball', 'blaze_powder'] });
   RECIPES.push({ out: [C.ENCH_TABLE, 1], shape: [' B ', 'DOD', 'OOO'], keys: { B: 'book', D: 'diamond', O: 'obsidian' } });
   RECIPES.push({ out: [C.IRON_BLOCK, 1], shape: ['III', 'III', 'III'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: ['iron_ingot', 9], shapeless: [C.IRON_BLOCK] });
@@ -423,6 +456,9 @@
     { id: 'bread', parent: 'root', name: 'Хлеб насущный', desc: 'Вырастить пшеницу и сделать хлеб', on: 'craft', items: ['bread'], icon: I.bread },
     { id: 'archer', parent: 'sword', name: 'Меткий стрелок', desc: 'Победить скелета стрелой из лука', on: 'kill', mob: 'skeleton', cause: 'arrow', icon: I.bow },
     // вкладка «Чары и зелья»
+    { id: 'brew', tab: 'magic', name: 'Местная пивоварня', desc: 'Сварить зелье на варочной стойке', on: 'brew', icon: C.BREWING_STAND },
+    { id: 'drink', tab: 'magic', parent: 'brew', name: 'Бодрящий глоток', desc: 'Выпить зелье с действием', on: 'drink', icon: I.healing },
+    { id: 'strong', tab: 'magic', parent: 'brew', name: 'Сильнее прежнего', desc: 'Сварить зелье II светокаменной пылью', on: 'brew_strong', icon: B.glowstone },
     { id: 'enchanter', tab: 'magic', name: 'Зачарователь', desc: 'Зачаровать предмет на столе зачарований', on: 'enchant', icon: C.ENCH_TABLE },
     { id: 'anvil', tab: 'magic', parent: 'enchanter', name: 'Кузнечное дело', desc: 'Починить или улучшить вещь на наковальне', on: 'anvil', icon: C.ANVIL },
     // вкладка «Нижний мир»
@@ -461,5 +497,5 @@
     return out;
   }
 
-  VX.data = { TIERS, ALL_TIERS, ARMOR_MATS, WOOL_OF, armorOf, ITEMS, I, info, maxStack, toolOf, canHarvest, breakTime, dropsOf, TAGS, RECIPES, matchRecipe, SMELT, SMELT_TIME, smeltOf, fuelOf, TABS, tabItems, MOBS, ACH, achieveOn, idOf };
+  VX.data = { POTIONS, TIERS, ALL_TIERS, ARMOR_MATS, WOOL_OF, armorOf, ITEMS, I, info, maxStack, toolOf, canHarvest, breakTime, dropsOf, TAGS, RECIPES, matchRecipe, SMELT, SMELT_TIME, smeltOf, fuelOf, TABS, tabItems, MOBS, ACH, achieveOn, idOf };
 })();

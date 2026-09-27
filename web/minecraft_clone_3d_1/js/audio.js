@@ -116,6 +116,8 @@
     villager_no(t) { tone(t, 0.25, 'sawtooth', 200, 140, 0.08); },
     enchant(t) { [880, 1320, 990, 1480].forEach((f, k) => tone(t + k * 0.07, 0.4, 'sine', f, f * 1.02, 0.08, 0.02)); },
     anvil(t) { tone(t, 0.3, 'square', 1200, 900, 0.12); noise(t, 0.2, 'highpass', 3000, 1, 0.3); },
+    drink(t) { for (let k = 0; k < 3; k++) noise(t + k * 0.12, 0.08, 'lowpass', 600 + k * 100, 2, 0.3); },
+    glass_break(t) { for (let k = 0; k < 4; k++) tone(t + k * 0.02, 0.15, 'sine', 2600 + Math.random() * 1600, 1800, 0.08); noise(t, 0.2, 'highpass', 4000, 1, 0.2); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };

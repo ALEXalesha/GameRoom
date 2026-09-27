@@ -289,6 +289,7 @@
     if (VX.items) VX.items.reset();
     if (VX.xp) VX.xp.clear();
     if (VX.villages) VX.villages.reset();
+    if (VX.brewing) VX.brewing.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -470,6 +471,8 @@
       if (!G.furnaces[k]) G.furnaces[k] = VX.inv.newFurnace();
       view = new VX.inv.FurnaceView(inv, G.furnaces[k]);
       view.pos = pos;
+    } else if (kind === 'brew') {
+      view = new VX.brewing.BrewView(inv, VX.brewing.standAt(pos), pos);
     } else if (kind === 'enchant') {
       view = new VX.enchant.EnchantView(inv, pos);
     } else if (kind === 'anvil') {
@@ -585,7 +588,7 @@
     const up = world.getBlock(x, y + 1, z);
     const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131 || C.BLOCKS[id].wire !== undefined || C.BLOCKS[id].repeater || C.BLOCKS[id].plate || (C.BLOCKS[id].rsTorch !== undefined && C.BLOCKS[id].wall === undefined) || (C.BLOCKS[id].button && C.BLOCKS[id].face === 4));
     if (needsFloor(up) && !C.SOLID[here]) popBlock(x, y + 1, z);
-    if (up >= 64 && up <= 71 && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
+    if (((up >= 64 && up <= 71) || (up >= C.CARROTS && up <= C.CARROTS + 3)) && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
     if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
     if (up >= C.NETHER_WART && up <= C.NETHER_WART + 3 && here !== C.SOUL_SAND) popBlock(x, y + 1, z);
     if (VX.nether) VX.nether.after(x, y, z);
@@ -731,6 +734,7 @@
       const id = world.getBlock(x, y, z);
       if (id < 0) continue;
       if (id === C.SUGAR_CANE) { if (Math.random() < 1 / 20 && VX.items) VX.items.growCane(x, y, z); continue; }
+      if (id >= C.CARROTS && id <= C.CARROTS + 3) { if (id < C.CARROTS + 3 && Math.random() < 1 / 15) world.setBlock(x, y, z, id + 1); continue; }
       if (id >= C.NETHER_WART && id <= C.NETHER_WART + 3) { if (id < C.NETHER_WART + 3 && Math.random() < 1 / 20) world.setBlock(x, y, z, id + 1); continue; }
       if (id < 64 || id > 71) { delete G.crops[k]; continue; }
       if (id < 71 && Math.random() < 1 / 15) world.setBlock(x, y, z, id + 1);
@@ -752,6 +756,8 @@
     if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
     if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
     if (hi && hi.key === 'shield') return 'shield';
+    if (hi && hi.potion && VX.brewing) { if (hi.potion.splash) return VX.brewing.throwSplash(); G.eating = 0; return 'drink'; }
+    if (hi && hi.key === 'glass_bottle' && VX.brewing) { const fr = VX.brewing.fill(); if (fr) return fr; }
     if (hi && VX.items) { const iu = VX.items.use(held); if (iu !== undefined) return iu; }
     if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
     const t = G.target();
@@ -763,6 +769,7 @@
       if ((t.id >= B.furnace && t.id <= B.furnace + 3) || (t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
       if (t.id >= B.chest && t.id <= B.chest + 3) { G.openContainer('chest', t); return 'chest'; }
       if (t.id === C.ENCH_TABLE) { G.openContainer('enchant', t); return 'enchant'; }
+      if (t.id === C.BREWING_STAND) { G.openContainer('brew', t); return 'brew'; }
       if (tb.anvil !== undefined) { G.openContainer('anvil', t); return 'anvil'; }
       if (tb.door === 'wood') { setDoorOpen(t.x, t.y, t.z, !tb.open); return 'door'; }
       if (t.id === 130 || t.id === 131) { toggleLever(t.x, t.y, t.z); return 'lever'; }
@@ -954,6 +961,7 @@
   };
   G.eatHeld = function () {
     const held = inv.held();
+    if (held && D.info(held.id).drink && VX.brewing) return VX.brewing.drink();
     const f = held && D.info(held.id).food;
     if (!f || player.food >= 20) return null;
     player.eat(f);
@@ -1175,7 +1183,7 @@
       G.blockT = shieldUp ? (G.blockT || 0) + dt : 0;
       player.blocking = G.blockT >= 0.25;
       if (G.bowT > 0 && G.mouse.r) G.bowT += dt;
-      if (G.mouse.r && G.eating !== undefined && hf && D.info(hf.id).food) {
+      if (G.mouse.r && G.eating !== undefined && hf && (D.info(hf.id).food || D.info(hf.id).drink)) {
         G.eating += dt; G.swing = Math.max(G.swing, 0.3);
         if (G.eating >= 1.6) { G.eatHeld(); G.eating = undefined; }
       } else if (G.mouse.r && !(G.bowT > 0)) { G.eating = undefined; G.placeCool -= dt; if (G.placeCool <= 0) { G.placeCool = 0.2; G.useTarget(); } }
@@ -1187,6 +1195,7 @@
     if (VX.items) VX.items.tick(dt);
     if (VX.xp) VX.xp.update(dt);
     if (VX.villages) VX.villages.tick(dt);
+    if (VX.brewing && G.state !== 'dead') VX.brewing.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
@@ -1318,7 +1327,8 @@
       sky.group.visible = false; if (sky.clouds) sky.clouds.visible = false;
       sk.day = 0; sk.fog = new THREE.Color(0x330808);
     }
-    mats.uniforms.uAmb.value = nether ? 0.55 : 0;
+    // ночное зрение: всё видно как днём
+    mats.uniforms.uAmb.value = VX.brewing && VX.brewing.level('night_vision') ? 1 : nether ? 0.55 : 0;
     mats.uniforms.uDay.value = sk.day;
     mats.uniforms.uFogColor.value.copy(sk.fog);
     mats.uniforms.uFogNear.value = under ? 2 : nether ? far * 0.3 : far * 0.62;
@@ -1348,6 +1358,7 @@
     sceneAmb.intensity = 0.65 * LL; sceneSun.intensity = 0.45 * LL;
     if (VX.entities && G.meta && !G.panorama) VX.entities.render(dt, camera);
     if (VX.xp && G.meta && !G.panorama) VX.xp.render();
+    if (VX.brewing && G.meta && !G.panorama) VX.brewing.render();
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем
@@ -1402,6 +1413,7 @@
       if (id > 0 && C.EMIT[id]) blk = Math.max(blk, (C.EMIT[id] - Math.abs(dx) - Math.abs(dz) - Math.abs(dy)) / 15);
     }
     const day = G.dayLight === undefined ? 1 : G.dayLight;
+    if (VX.brewing && VX.brewing.level('night_vision')) return 1;
     if (G.dim === 'nether') return Math.max(blk, 0.45);          // неба нет, но и полной тьмы тоже
     return Math.max(skyL * (0.25 + 0.75 * day), blk, 0.12);
   };

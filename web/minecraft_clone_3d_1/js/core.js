@@ -31,6 +31,7 @@ function VoxelCore() {
     'piston_top', 'piston_top_sticky', 'piston_side', 'piston_bottom', 'piston_inner', 'redstone_ore', 'redstone_block',
     'sugar_cane', 'emerald_ore', 'lapis_ore', 'path_top', 'path_side',
     'ench_top', 'ench_side', 'anvil_top', 'anvil_side', 'iron_block',
+    'melon_side', 'melon_top', 'carrots_0', 'carrots_1', 'carrots_2', 'carrots_3', 'brewing_stand', 'brewing_base',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -304,6 +305,11 @@ function VoxelCore() {
     if (d % 2) shape = shape.map(swapXZ);
     def(ANVIL + d, 'anvil' + (d ? '_' + d : ''), 'Наковальня', { render: 'box', shape, tex: { top: 'anvil_top', bottom: 'anvil_side', side: 'anvil_side' }, hardness: 5, tool: 'pickaxe', level: 0, sound: 'stone', creative: !d, item: ANVIL, drop: ANVIL, group: 'tools', anvil: d });
   }
+  // арбуз, морковь (4 стадии), варочная стойка
+  const MELON = 1317, CARROTS = 1318, BREWING_STAND = 1322, ITEM_MELON = 428, ITEM_CARROT = 429;
+  def(MELON, 'melon', 'Арбуз', { tex: { top: 'melon_top', bottom: 'melon_top', side: 'melon_side' }, hardness: 1, tool: 'axe', sound: 'wood', drop: ITEM_MELON, dropCount: 5, group: 'nature' });
+  for (let st = 0; st < 4; st++) def(CARROTS + st, 'carrots_' + st, 'Морковь', { render: 'crop', tex: 'carrots_' + st, solid: false, hardness: 0, sound: 'grass', creative: false, carrot: st, drop: 0 });
+  def(BREWING_STAND, 'brewing_stand', 'Варочная стойка', { render: 'box', shape: [[1, 0, 1, 15, 2, 15, 'brewing_base'], [7, 2, 7, 9, 14, 9, 'brewing_stand'], [2, 8, 7, 7, 9, 9, 'brewing_stand'], [9, 8, 7, 14, 9, 9, 'brewing_stand']], tex: 'brewing_base', solid: true, hardness: 0.5, tool: 'pickaxe', sound: 'stone', light: 1, group: 'tools' });
   def(IRON_BLOCK, 'iron_block', 'Железный блок', { tex: 'iron_block', hardness: 5, tool: 'pickaxe', level: 1 });
   def(EMERALD_ORE, 'emerald_ore', 'Изумрудная руда', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: ITEM_EMERALD, group: 'nature' });
 
@@ -699,7 +705,7 @@ function VoxelCore() {
           for (let y = y0 - 3; y < y0 - 1; y++) if (at(x, y, z) === 0 || at(x, y, z) === B.water) put(x, y, z, B.dirt);
           put(x, y0 - 1, z, edge ? B.oak_log : mid ? B.water : B.farmland);
           for (let y = y0; y < y0 + 4; y++) put(x, y, z, 0);
-          if (!edge && !mid) put(x, y0, z, 64 + 3 + Math.floor(hash3(x, y0, z, w.seed) * 5));
+          if (!edge && !mid) put(x, y0, z, (hs.x + hs.z) % 2 ? CARROTS + 1 + Math.floor(hash3(x, y0, z, w.seed) * 3) : 64 + 3 + Math.floor(hash3(x, y0, z, w.seed) * 5));
         }
         continue;
       }
@@ -1015,6 +1021,7 @@ function VoxelCore() {
         else if (r < pg + 0.022) data[cidx(x, h + 1, z)] = B.poppy;
         else if (r < pg + 0.026) data[cidx(x, h + 1, z)] = B.blue_flower;
         else if (bi === PLAINS && r > 0.9993) data[cidx(x, h + 1, z)] = B.pumpkin;
+        else if ((bi === FOREST || bi === PLAINS) && r > 0.9986 && r <= 0.9993) data[cidx(x, h + 1, z)] = MELON;
       } else if (topId === B.sand && col.biome === DESERT && r < 0.012) data[cidx(x, h + 1, z)] = B.dead_bush;
 
     }
@@ -1470,7 +1477,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, MELON, CARROTS, BREWING_STAND, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

@@ -42,7 +42,7 @@ test.describe('minecraft_clone_3d_1: деревни и жители', () => {
         if (h === lib && id === C.B.bookshelf) shelves++;
         if (b && b.door && !b.upper) doors.add((h.x + dx) + ',' + y + ',' + (h.z + dz));
         if (h === farm && id === C.B.farmland) farmland++;
-        if (h === farm && id >= 64 && id <= 71) wheat++;
+        if (h === farm && ((id >= 64 && id <= 71) || (id >= C.CARROTS && id <= C.CARROTS + 3))) wheat++;
       }
       for (let dx = -20; dx <= 20; dx++) for (let dz = -20; dz <= 20; dz++) for (let y = vil.h; y < vil.h + 12; y++) if (at(vil.x + dx, y, vil.z + dz) === C.B.oak_leaves) logs++;
       const well = at(vil.x - 1, vil.h, vil.z - 1) === C.B.water;

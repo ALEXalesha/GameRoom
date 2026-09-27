@@ -236,7 +236,7 @@
     now += dt;
     for (let n = 0; n < 200; n++) {
       let i = -1, t = Infinity;
-      for (let j = 0; j < queue.length; j++) if (queue[j].t <= now && queue[j].t < t) { t = queue[j].t; i = j; }
+      for (let j = 0; j < queue.length; j++) if (queue[j].t <= now + 1e-6 && queue[j].t < t) { t = queue[j].t; i = j; }     // допуск: шаги 0.05 копят ошибку округления
       if (i < 0) break;
       const e = queue.splice(i, 1)[0];
       fire(e);

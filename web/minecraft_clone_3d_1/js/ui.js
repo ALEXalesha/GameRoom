@@ -465,7 +465,18 @@
         for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(magIcon()); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
         invPanel.append(tabs);
       }
-      if (v.kind === 'enchant') {
+      if (v.kind === 'brew') {
+        invPanel.append(el('div', 'ptitle', 'Варочная стойка'));
+        const st = v.st, top = el('div', 'brewbox');
+        const fuel = el('div', 'bfuel'); const ff = el('div'); ff.style.width = (st.fuel / 20 * 100) + '%'; fuel.append(ff);
+        const prog = el('div', 'bprog'); const pf = el('div'); pf.style.height = (st.t / VX.brewing.BREW_TIME * 100) + '%'; prog.append(pf);
+        const left = el('div', 'fcol'); left.append(slotEl(724, v.get(724), 'fuelslot'), fuel);
+        const mid = el('div', 'fcol'); mid.append(slotEl(723, v.get(723)), prog);
+        const bottles = el('div', 'bottles'); for (let k = 0; k < 3; k++) bottles.append(slotEl(720 + k, v.get(720 + k)));
+        mid.append(bottles);
+        top.append(left, mid);
+        invPanel.append(top, el('div', 'ptitle', 'Инвентарь'), mainGrid());
+      } else if (v.kind === 'enchant') {
         invPanel.append(el('div', 'ptitle', 'Зачаровать' + (v.shelves ? ' (полок: ' + v.shelves + ')' : '')));
         const top = el('div', 'enchbox');
         const left = el('div', 'fcol'); left.append(slotEl(700, v.get(700)), slotEl(701, v.get(701), 'lapis'));
@@ -682,7 +693,7 @@
     hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните, чтобы играть</div>
       <div id="hurt"></div><div id="waterTint"></div><div id="lavaTint"></div><div id="fireTint"></div><div id="bars"><div id="armorbar"></div><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
       <div id="actionBar"></div><div id="sleepFade"></div>
-      <div id="itemName"></div><div id="xpbar"><div class="fill"></div><span></span></div><div id="hotbar"></div><div id="toasts"></div>`;
+      <div id="effects"></div><div id="itemName"></div><div id="xpbar"><div class="fill"></div><span></span></div><div id="hotbar"></div><div id="toasts"></div>`;
     root.appendChild(hud);
     const hb = $('#hotbar', hud);
     for (let i = 0; i < 9; i++) { const s = el('div', 'hslot'); s.dataset.i = i; hb.append(s); }
@@ -718,6 +729,10 @@
     const xb = $('#xpbar', hud);
     xb.style.display = surv ? '' : 'none';
     if (surv && VX.xp) { xb.firstChild.style.width = (VX.xp.progress(p) * 100).toFixed(1) + '%'; const lv = p.level || 0; xb.lastChild.textContent = lv > 0 ? String(lv) : ''; }
+    if (VX.brewing) {
+      const lines = VX.brewing.hudLines(), es = lines.map((l) => l.text).join('|');
+      if (es !== UI.effSig) { UI.effSig = es; $('#effects', hud).innerHTML = lines.map((l) => `<div class="eff ${l.key}">${esc(l.text)}</div>`).join(''); }
+    }
     const nm = $('#itemName', hud);
     const held = inv.held();
     nm.textContent = held ? D.info(held.id).name : '';
@@ -819,7 +834,7 @@
     if (UI.current === 'inv' && G.container && G.container.size === 2) VX.entities.renderPreview();
     if (UI.current === 'inv' && G.container) {
       UI.slotT = (UI.slotT || 0) - dt;
-      if (G.container.f && UI.slotT <= 0) { UI.slotT = 0.2; refreshSlots(); }
+      if ((G.container.f || G.container.st) && UI.slotT <= 0) { UI.slotT = 0.2; if (G.container.st) renderInv(); else refreshSlots(); }
     }
     if (UI.current === 'loading') {
       const p = G.player, w = G.world;

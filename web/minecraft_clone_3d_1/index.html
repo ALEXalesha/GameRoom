@@ -134,6 +134,14 @@
   .anvilbox .plus { font-size: 24px; color: #404040; }
   .anvilname { width: 280px; height: 28px; }
   .acost { color: #1a7a1a; min-height: 18px; font-size: 16px; }
+  #effects { position: absolute; right: 8px; top: 150px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  #effects .eff { background: rgba(0,0,0,.55); border: 2px solid #111; padding: 3px 8px; font-size: 16px; color: #e8e8e8; text-shadow: var(--shadow); }
+  #effects .eff.speed { color: #9ad8f0; } #effects .eff.strength { color: #f07070; } #effects .eff.fire_resistance { color: #f0b060; } #effects .eff.night_vision { color: #9a9aff; }
+  body.dim #effects { display: none; }
+  .brewbox { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 6px; }
+  .bfuel { width: 36px; height: 8px; background: #555; margin-top: 4px; } .bfuel div { height: 100%; background: #f0a020; }
+  .bprog { width: 8px; height: 30px; background: #555; margin: 4px auto; display: flex; align-items: flex-end; } .bprog div { width: 100%; background: #ffffff; }
+  .bottles { display: flex; gap: 10px; }
   .trades { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
   .tr-row { display: flex; align-items: center; gap: 6px; }
   .tr-row .arrow { width: 28px; height: 20px; }
@@ -236,6 +244,7 @@
 <script src="js/xp.js"></script>
 <script src="js/villages.js"></script>
 <script src="js/enchant.js"></script>
+<script src="js/brewing.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/ui.js"></script>
