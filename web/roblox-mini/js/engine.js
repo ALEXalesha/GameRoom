@@ -471,6 +471,7 @@
     const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), mat);
     sky.renderOrder = -1; sky.frustumCulled = false;
     scene.add(sky);
+    scene.background = hor.clone();          // запасной цвет неба вместо чёрного
     // облака: несколько плоских кубиков, одна сетка
     const rnd = B.rng(opt.seed || 5), boxes = [];
     for (let i = 0; i < (opt.clouds == null ? 22 : opt.clouds); i++) {

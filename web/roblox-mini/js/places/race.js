@@ -83,7 +83,7 @@
     },
     step(game, dt) {
       const st = game.state, x = game.player.pos.x;
-      if (!st.running && !st.done && x > START_X && x < START_X + 6 && !game.dead) { st.running = true; st.t = 0; st.cp = 0; B.sound.play('speed'); }
+      if (!st.running && !st.done && x > START_X && x < START_X + 6 && !game.dead) { st.running = true; st.t = 0; st.cp = 0; B.sound.play('speed'); game.centerMsg(B.lang() === 'en' ? 'Go!' : 'Вперёд!', 900); }
       if (st.running) {
         st.t += dt;
         if (x >= FINISH_X && !game.dead) P.finish(game);

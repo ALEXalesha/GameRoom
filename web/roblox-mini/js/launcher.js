@@ -80,9 +80,13 @@
     thumbQueue = B.data.PLACES.map((p) => p.id).filter((id) => !L.thumbs[id]);
     pumpThumbs();
   }
+  let pumping = false;                   // один насос на очередь: иначе два таймера делят одну картинку
   function pumpThumbs() {
-    if (!thumbQueue.length) return;
+    if (pumping || !thumbQueue.length) return;
+    pumping = true;
     setTimeout(() => {
+      pumping = false;
+      if (!thumbQueue.length) return;
       if (B.game.cur || B.game.loading) { setTimeout(pumpThumbs, 500); return; }
       const id = thumbQueue.shift();
       try { makeThumb(id); } catch (e) { console.warn('кадр', id, e); }

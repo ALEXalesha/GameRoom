@@ -41,7 +41,7 @@
       w.add({ top: [-30, -2, 30], size: [26, 1, 26], color: '#c98d5e', mat: 'smooth', solid: false });
       path.push(lobby);
       K.decal(game, B.lang() === 'en' ? 'START' : 'СТАРТ', -30, 1, 30, 6, 3, '#2f74d0', '#fff');
-      K.tree(game, -39, 1, 39, 0.9); K.pine(game, -39, 1, 21, 0.8);
+      K.tree(game, -24, 1, 39, 0.9); K.pine(game, -27, 1, 19.5, 0.8);
       // башня
       w.add({ top: [0, H(8), 0], size: [24, H(8) + 2, 24], color: '#8a8d93', mat: 'plastic', tag: 'core' });
       for (let i = 1; i < 8; i++) w.add({ top: [0, H(i) - 2, 0], size: [24.4, 0.8, 24.4], color: '#6d7078', mat: 'smooth', solid: false });

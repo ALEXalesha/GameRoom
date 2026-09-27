@@ -118,6 +118,8 @@
       this.world.scene.fog.near = prof.drawDistance * 0.35;
       this.world.scene.fog.far = prof.drawDistance;
       this.camera.far = prof.drawDistance + 400; this.camera.updateProjectionMatrix();
+      // небо всегда внутри дальней плоскости камеры (иначе на низкой графике вместо неба - чёрный купол)
+      this.skyObj.sky.scale.setScalar(this.camera.far * 0.9 / 1000);
       if (this.skyObj.clouds) this.skyObj.clouds.visible = prof.clouds;
       // камера
       if (gs.view === 'first') { this.rig.want = 0.5; }
@@ -362,6 +364,7 @@
     // Итоги: { title, sub, medal, reward, record, rows: [[k, v]] }
     showResult(r) {
       this.result = r;
+      this.centerMsg('');
       const el = $('g-result');
       el.innerHTML = `<div class="res-card">
         <div class="res-medal">${r.medal ? B.ui.medal(r.medal, 72) : B.ui.icon('trophy', 64)}</div>

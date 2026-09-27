@@ -143,13 +143,13 @@
       if (h >= 10 || won) res = K.finishRun(game, h, { complete: won, win: won });
       else {
         let record = false;
-        B.acct.updatePlace('lava', (s) => { if (s.best == null || h > s.best) { s.best = h; record = true; } });
+        B.acct.updatePlace('lava', (s) => { if (h > 0 && (s.best == null || h > s.best)) { s.best = h; record = true; } });
         res = { medal: null, reward: 0, record };
         B.sound.play('lose');
       }
       game.showResult({
         title: won ? (B.lang() === 'en' ? 'You escaped the lava!' : 'Ты спасся от лавы!') : (B.lang() === 'en' ? 'The lava got you' : 'Лава догнала'),
-        sub: won ? (B.lang() === 'en' ? 'Summit reached - place completed' : 'Вершина покорена - место пройдено') : (B.lang() === 'en' ? 'Next round in a few seconds' : 'Новый раунд через несколько секунд'),
+        sub: won ? (B.lang() === 'en' ? 'Summit reached - place completed' : 'Вершина покорена - место пройдено') : h < 10 ? (B.lang() === 'en' ? 'Climb above 10 to earn cubes. Next round soon' : 'Поднимись выше 10 - будут кубы. Новый раунд скоро') : (B.lang() === 'en' ? 'Next round in a few seconds' : 'Новый раунд через несколько секунд'),
         medal: res.medal, reward: res.reward, record: res.record,
         rows: [[B.lang() === 'en' ? 'Height' : 'Высота', h.toFixed(1)], [B.t('your_best'), (B.acct.placeStats('lava').best || 0).toFixed(1)]],
       });
