@@ -108,7 +108,7 @@ function collides(p, dx = 0, dy = 0, shape = p.shape) {
 }
 // Появление: в скрытых рядах, по центру; если можно - сразу на ряд ниже (как в серии)
 function spawn(type) {
-  const p = makePiece(type, type === 'O' ? 4 : 3, type === 'I' ? -1 : 0);
+  const p = makePiece(type, type === 'O' ? 4 : 3, 0);          // длинная строка любой фигуры - во втором скрытом ряду
   current = p;
   pieceId++;
   gravAcc = 0; lockT = 0; lockResets = 0; lastRotate = false; lastKick = 0;
@@ -144,7 +144,8 @@ function rotate(dir) {
     if (!collides(c, kx, -ky, shape)) {
       c.shape = shape; c.rot = to; c.x += kx; c.y -= ky;
       lastRotate = true; lastKick = i;
-      onGroundMove();
+      if (c.y > lowestY) { lowestY = c.y; lockResets = 0; lockT = 0; }   // отскок вниз - новая глубина
+      else onGroundMove();
       if (state.mode !== 'demo' && !planning) SFX.rotate();
       return true;
     }
@@ -277,7 +278,7 @@ function update() {
   if (state.label && --state.label.t <= 0) state.label = null;
   if (state.banner && --state.banner.t <= 0) state.banner = null;
   if (state.phase !== 'play') return;
-  if (state.ready > 0) { state.ready--; if (state.ready === 45) SFX.go(false); if (state.ready === 0) SFX.go(true); return; }
+  if (state.ready > 0) { if (!autopilot) chargeDas(); state.ready--; if (state.ready === 45) SFX.go(false); if (state.ready === 0) SFX.go(true); return; }
   state.frames++;
   if (state.mode === 'ultra' && state.frames >= ULTRA_FRAMES) { finish(true); return; }
   if (!current) return;
@@ -298,6 +299,16 @@ function update() {
     if (lockT >= LOCK_FRAMES || lockResets >= MAX_RESETS) lockPiece();
   } else lockT = 0;
 }
+// Задержка и повтор - целыми кадрами (1/60 с) с округлением: 167 мс по умолчанию - ровно 10 кадров
+const dasFrames = () => Math.max(1, Math.round(kit.settings.das / STEP_MS));
+const arrFrames = () => Math.round(kit.settings.arr / STEP_MS);
+// Клавиша, зажатая во время «Приготовьтесь», заряжает DAS: после старта фигура сразу бежит
+function chargeDas() {
+  const L = kit.isDown('left'), R = kit.isDown('right');
+  const dir = L && !R ? -1 : R && !L ? 1 : 0;
+  if (dir !== das.dir) das = { dir, t: 0, arr: 0, charged: false };
+  if (dir) das.t = Math.min(das.t + 1, dasFrames());
+}
 function handleInput() {
   if (kit.wasPressed('hold')) holdPiece();
   if (kit.wasPressed('cw')) rotate(1);
@@ -309,12 +320,12 @@ function handleInput() {
   else if (das.dir === -1 && !L && R) das = { dir: 1, t: 0, arr: 0, charged: false };
   else if (das.dir === 1 && !R && L) das = { dir: -1, t: 0, arr: 0, charged: false };
   else if (das.dir !== 0 && ((das.dir < 0 && L) || (das.dir > 0 && R))) {
-    das.t += STEP_MS;
-    const D = kit.settings.das, A = kit.settings.arr;
-    if (das.t >= D) {
-      if (A <= 0) { while (move(das.dir)); }
+    das.t++;
+    if (das.t >= dasFrames()) {
+      const A = arrFrames();
+      if (A === 0) { while (move(das.dir)); }
       else if (!das.charged) { das.charged = true; das.arr = 0; move(das.dir); }
-      else { das.arr += STEP_MS; while (das.arr >= A - 0.001) { das.arr -= A; if (!move(das.dir)) { das.arr = 0; break; } } }
+      else if (++das.arr >= A) { das.arr = 0; move(das.dir); }
     }
   } else if (!L && !R) das.dir = 0;
   if (kit.wasPressed('hard')) hardDrop();
@@ -344,7 +355,7 @@ function placements(type) {
   const saved = current;
   for (let r = 0; r < 4; r++) {
     for (let dx = -5; dx <= 5; dx++) {
-      const p = makePiece(type, type === 'O' ? 4 : 3, type === 'I' ? -1 : 0);
+      const p = makePiece(type, type === 'O' ? 4 : 3, 0);
       if (!collides(p, 0, 1)) p.y++;
       current = p;
       const moves = [];
@@ -403,6 +414,7 @@ function resetBoard() {
   das = { dir: 0, t: 0, arr: 0, charged: false };
 }
 function startMode(mode) {
+  if (state.phase === 'play' && state.mode !== 'demo' && !state.over && state.stats && state.stats.pieces) saveResult(false);
   resetBoard();
   state.mode = mode;
   state.startLevel = mode === 'marathon' ? kit.settings.startLevel : 1;
@@ -441,6 +453,7 @@ function saveResult(completed) {
 }
 function finish(completed) {
   state.phase = 'done';
+  if (state.mode === 'sprint') state.lines = Math.min(state.lines, SPRINT_LINES);
   current = null;
   saveResult(completed);
   if (state.mode === 'marathon') { kit.unlock('marathon'); if (state.startLevel === 1 && state.score >= 300000) kit.unlock('marathon300k'); }
@@ -462,10 +475,11 @@ function resultTable() {
     <tr><td>Четыре линии · T-вращения</td><td>${s.quads} · ${s.tspins}</td></tr>
     <tr><td>Лучшее комбо · чистое поле</td><td>${Math.max(0, s.maxCombo)} · ${s.pcs}</td></tr></table>`;
 }
+function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
 function bestLine(mode) {
   const r = records[mode][0];
   if (!r) return 'ещё нет';
-  return mode === 'sprint' ? fmtTime(r.time) : mode === 'zen' ? r.lines + ' линий' : r.score.toLocaleString('ru') + ' очков';
+  return mode === 'sprint' ? fmtTime(r.time) : mode === 'zen' ? r.lines + ' ' + plural(r.lines, 'линия', 'линии', 'линий') : r.score.toLocaleString('ru') + ' очков';
 }
 const again = () => ({ label: 'Ещё раз', primary: true, id: 'again', onClick: () => startMode(state.mode) });
 const toMenuBtn = () => ({ label: 'В меню', id: 'menu', onClick: () => kit.toMenu() });
@@ -588,15 +602,16 @@ function render() {
     ctx.stroke();
   }
   const gy = (y) => BY + (y - HIDDEN) * CELL;
-  for (let y = HIDDEN; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x]) cell(BX + x * CELL, gy(y), COLORS[grid[y][x]], CELL);
-  for (const f of flashes) { ctx.fillStyle = `rgba(255,255,255,${f.t / 14 * 0.8})`; ctx.fillRect(BX, gy(f.y) + CELL / 2 - (f.t / 14) * CELL / 2, COLS * CELL, (f.t / 14) * CELL); }
+  const hide = kit.mode === 'paused';               // на паузе поле не подсмотреть
+  if (!hide) for (let y = HIDDEN; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x]) cell(BX + x * CELL, gy(y), COLORS[grid[y][x]], CELL);
+  if (!hide) for (const f of flashes) { ctx.fillStyle = `rgba(255,255,255,${f.t / 14 * 0.8})`; ctx.fillRect(BX, gy(f.y) + CELL / 2 - (f.t / 14) * CELL / 2, COLS * CELL, (f.t / 14) * CELL); }
   for (const t of trails) {
     const grd = ctx.createLinearGradient(0, gy(t.y0), 0, gy(t.piece.y));
     grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(1, `rgba(255,255,255,${t.t / 8 * 0.18})`);
     ctx.fillStyle = grd;
     t.piece.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v && (yy === r.length - 1 || !t.piece.shape[yy + 1] || !t.piece.shape[yy + 1][xx])) ctx.fillRect(BX + (t.piece.x + xx) * CELL + 8, gy(t.y0 + yy), CELL - 16, (t.piece.y - t.y0) * CELL); }));
   }
-  if (current && state.phase === 'play') {
+  if (current && state.phase === 'play' && !hide) {
     if (kit.settings.ghost) {
       const g = ghostY();
       ctx.strokeStyle = COLORS[current.type]; ctx.lineWidth = 2;
@@ -609,11 +624,11 @@ function render() {
     const lockFade = collides(current, 0, 1) ? 1 - 0.35 * (lockT / LOCK_FRAMES) : 1;
     current.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v && current.y + yy >= HIDDEN - 1) cell(BX + (current.x + xx) * CELL, gy(current.y + yy), COLORS[current.type], CELL, (current.y + yy < HIDDEN ? 0.55 : 1) * lockFade); }));
   }
-  for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / 40); ctx.fillStyle = q.color; ctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
+  if (!hide) for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / 40); ctx.fillStyle = q.color; ctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
   ctx.globalAlpha = 1;
   // левая колонка: запас и счёт
   panel(56, BY - 8, 232, 150, 'ЗАПАС');
-  mini(hold, 172, BY + 78, 28, canHold ? 1 : 0.35);
+  if (!hide) mini(hold, 172, BY + 78, 28, canHold ? 1 : 0.35);
   panel(56, BY + 160, 232, 300, MODES[state.mode] ? MODES[state.mode].name.toUpperCase() : 'ЗАСТАВКА');
   const rows = [];
   rows.push(['ОЧКИ', state.score.toLocaleString('ru')]);
@@ -632,7 +647,7 @@ function render() {
   }
   // правая колонка: следующие 5
   panel(672, BY - 8, 232, 480, 'ДАЛЕЕ');
-  for (let i = 0; i < 5; i++) mini(queue[i], 788, BY + (i === 0 ? 86 : 110 + i * 78), i === 0 ? 30 : 22, i === 0 ? 1 : 0.85);
+  if (!hide) for (let i = 0; i < 5; i++) mini(queue[i], 788, BY + (i === 0 ? 86 : 110 + i * 78), i === 0 ? 30 : 22, i === 0 ? 1 : 0.85);
   // баннер (уровень, начало, поле очищено) - только в игре, под окнами его нет
   bannerRect = null;
   if (kit.mode === 'play' || state.mode === 'demo') {
@@ -640,7 +655,7 @@ function render() {
     if (state.ready > 0) t = state.ready > 45 ? 'ПРИГОТОВЬТЕСЬ' : 'ВПЕРЁД!';
     else if (state.banner) t = state.banner.text;
     if (t && kit.mode === 'play') {
-      const y = BY + VISIBLE * CELL * 0.72;
+      const y = BY + 70;                              // вверху стакана: место приземления внизу не закрыто
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(BX, y - 34, COLS * CELL, 48);
       text(t, BX + COLS * CELL / 2, y, 26, `hsl(${hu + 40},95%,72%)`, 'center', 800);
       bannerRect = { x: BX, y: y - 34, w: COLS * CELL, h: 48 };
@@ -786,7 +801,8 @@ window.__game = {
   get pieceId() { return pieceId; }, get lastLock() { return lastLock; }, get records() { return records; }, get stats() { return stats; },
   get autopilot() { return autopilot; }, setAutopilot(v) { autopilot = v; plan = null; },
   step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
-  startMode, startDemo, move, rotate, hardDrop, holdPiece, ghostY, gravityMs, collides,
+  startMode, startDemo, move, rotate, hardDrop, holdPiece, ghostY, gravityMs, collides, tSpinKind, spawnPiece: (t) => spawn(t), KICKS, KICKS_I, BX, BY, CELL, VISIBLE, plural, bestLine,
+  get lockResets() { return lockResets; }, setLockResets(n) { lockResets = n; },
   // Поле из строк (последняя - нижний ряд), X - занято
   setGrid(rows) {
     grid = newGrid();

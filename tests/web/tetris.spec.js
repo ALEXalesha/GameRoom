@@ -390,3 +390,149 @@ test.describe('Блоки: пауза и окно', () => {
     });
   }
 });
+
+test.describe('Блоки: по второму ревью', () => {
+  test('таблицы отскоков SRS - как в описании системы (JLSTZ и I), T отскакивает от левой стены', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('zen'); g.setGrid([]);
+      g.setPiece('T', -1, 5, 1); const ok = g.rotate(1);
+      return { K: g.KICKS, KI: g.KICKS_I, ok, x: g.current.x, rot: g.current.rot };
+    });
+    expect(r.K).toEqual({
+      '0>1': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], '1>0': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+      '1>2': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], '2>1': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+      '2>3': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], '3>2': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+      '3>0': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], '0>3': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+    });
+    expect(r.KI).toEqual({
+      '0>1': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], '1>0': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+      '1>2': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], '2>1': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+      '2>3': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], '3>2': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+      '3>0': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], '0>3': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+    });
+    expect([r.ok, r.x, r.rot]).toEqual([true, 0, 2]);
+  });
+
+  test('мини T-вращение: надпись «МИНИ» и счёт мини, а не полного', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('marathon');
+      g.setGrid(['.XX..X..X.', 'XX.XXXX...', '.X.XX.X.XX', '......XXX.', 'XX.X..XX.X']);
+      g.setPiece('T', 0, 15, 0); const rot = g.rotate(1); const kind = g.tSpinKind();
+      const s0 = g.state.score; g.hardDrop();
+      return { rot, kind, pts: g.state.score - s0, label: g.state.label ? g.state.label.lines.join(' ') : '', lines: g.state.lines };
+    });
+    expect(r.rot).toBe(true);
+    expect(r.kind).toBe(1);
+    expect(r.label).toMatch(/МИНИ T-ВРАЩЕНИЕ/);
+    expect(r.pts).toBe([100, 200, 400][r.lines]);
+  });
+
+  test('отскок поворота вниз - новая глубина: счётчик 15 продлений начинается заново', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('zen');
+      g.setGrid(['XX.XXXX.X.', '....XXXX.X', '..X.X..XX.', '..XXXXX..X', '.XX....X.X']);
+      g.setPiece('T', 0, 17, 2); g.setLockResets(15);
+      const ok = g.rotate(-1);
+      return { ok, y: g.current.y, resets: g.lockResets };
+    });
+    expect(r).toEqual({ ok: true, y: 19, resets: 0 });
+  });
+
+  test('DAS по умолчанию 167 мс - ровно 10 кадров до повтора', async ({ page }) => {
+    await open(page);
+    const xs = await page.evaluate(() => {
+      const g = __game; localStorage.clear(); g.kit.set('das', 167); g.kit.set('arr', 33);
+      g.startMode('zen'); g.setGrid([]); g.setPiece('O', 6, 5, 0);
+      const k = g.kit, xs = []; k.held.add('ArrowLeft'); k.pressed.add('left');
+      for (let i = 0; i < 14; i++) { g.step(1, false); xs.push(g.current.x); }
+      k.held.delete('ArrowLeft'); return xs;
+    });
+    expect(xs[0]).toBe(5);           // нажатие - шаг сразу
+    expect(xs[9]).toBe(5);           // 10-й кадр (150 мс) - ещё ждёт
+    expect(xs[10]).toBe(4);          // 11-й кадр: прошло 10 кадров = 167 мс - повтор
+    expect(xs[12]).toBe(3);          // дальше - раз в 2 кадра (33 мс)
+  });
+
+  test('клавиша, зажатая во время «Приготовьтесь», заряжает DAS: фигура бежит сразу после старта', async ({ page }) => {
+    await open(page, 'seed=1');
+    const r = await page.evaluate(() => {
+      const g = __game; g.kit.set('das', 167); g.kit.set('arr', 33); g.startMode('zen');
+      const k = g.kit; k.held.add('ArrowLeft');
+      const x0 = g.current.x; let n = 0;
+      while (g.state.ready > 0 && n++ < 200) g.step(1, false);
+      const atStart = g.current.x; g.step(1, false); const first = g.current.x; g.step(4, false);
+      k.held.delete('ArrowLeft');
+      return { x0, atStart, first, after: g.current.x };
+    });
+    expect(r.atStart).toBe(r.x0);
+    expect(r.first).toBe(r.x0 - 1);
+    expect(r.after).toBeLessThanOrEqual(r.x0 - 3);
+  });
+
+  test('надпись уровня - вверху стакана, место приземления внизу не закрыто', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('marathon'); g.step(1);
+      const b = g.bannerCss(), c = document.getElementById('game').getBoundingClientRect(), k = c.width / g.W;
+      return { bottom: (b.bottom - c.top) / k, limit: g.BY + g.VISIBLE * g.CELL * 0.3 };
+    });
+    expect(r.bottom).toBeLessThanOrEqual(r.limit);
+  });
+
+  test('палка I появляется в том же ряду, что и остальные фигуры', async ({ page }) => {
+    await open(page);
+    const rows = await page.evaluate(() => {
+      const g = __game, out = {};
+      for (const t of ['I', 'T', 'J']) {
+        g.startMode('zen'); g.setGrid([]); g.spawnPiece(t);
+        const c = g.current, ys = [];
+        c.shape.forEach((row, y) => { if (row.filter(Boolean).length >= 3) ys.push(c.y + y); });
+        out[t] = ys[0];
+      }
+      return out;
+    });
+    expect(rows).toEqual({ I: 2, T: 2, J: 2 });
+  });
+
+  test('«Заново» не теряет брошенную партию: линии и фигуры идут в статистику', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => {
+      localStorage.clear(); const g = __game; g.stats.games = 0; g.stats.lines = 0; g.stats.pieces = 0;
+      g.startMode('marathon'); g.setGrid(['XXXXXXXX..', 'X.........']); g.setPiece('O', 8, 10, 0); g.hardDrop();
+      g.kit.pause();
+    });
+    await page.click('[data-screen=pause] [data-id=restart]');
+    const st = await page.evaluate(() => ({ games: __game.stats.games, lines: __game.stats.lines, pieces: __game.stats.pieces }));
+    expect(st.games).toBe(2);
+    expect(st.lines).toBe(1);
+    expect(st.pieces).toBeGreaterThanOrEqual(1);
+  });
+
+  test('на паузе поле, запас и очередь скрыты', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('marathon');
+      g.setGrid(['XXXXXXXXX.', 'XXXX.XXXXX']); g.step(1);
+      const colored = () => {
+        const c = document.getElementById('game'), k = c.width / g.W, x = c.getContext('2d');
+        const d = x.getImageData(Math.round((g.BX + 6) * k), Math.round((g.BY + 6) * k), Math.round((g.CELL * 10 - 12) * k), Math.round((g.CELL * 20 - 12) * k)).data;
+        let n = 0; for (let i = 0; i < d.length; i += 16) { const m = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); if (m > 60) n++; }
+        return n;
+      };
+      const before = colored(); g.kit.pause(); g.step(1); return { before, paused: colored() };
+    });
+    expect(r.before).toBeGreaterThan(100);
+    expect(r.paused).toBe(0);
+  });
+
+  test('склонение: 1 линия, 3 линии, 11 линий; в итоге Спринта ровно 40 линий', async ({ page }) => {
+    await open(page);
+    const w = await page.evaluate(() => { const g = __game; return [1, 3, 11, 21].map((n) => { g.records.zen = [{ score: 0, lines: n, level: 1, time: 0, done: false, date: 0 }]; return g.bestLine('zen'); }); });
+    expect(w).toEqual(['1 линия', '3 линии', '11 линий', '21 линия']);
+    await page.evaluate(() => { const g = __game; g.startMode('sprint'); g.state.lines = 39; g.setGrid(['XXXXXXXX..', 'XXXXXXXX..']); g.setPiece('O', 8, 10, 0); g.hardDrop(); });
+    await expect(page.locator('[data-screen=finish] tr:has-text("Линии") td').nth(1)).toHaveText('40');
+  });
+});
