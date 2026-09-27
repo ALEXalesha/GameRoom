@@ -381,7 +381,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
   });
 
   test('выбор карты: превью, размер, точки и собранное; большая карта и мир влезают в окно', async ({ page }) => {
-    for (const size of [{ width: 1024, height: 700 }, { width: 1920, height: 1080 }]) {
+    for (const size of [{ width: 1024, height: 700 }, { width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
       await page.setViewportSize(size);
       await openDrift(page);
       await page.locator('.mainnav button[data-go="roam"]').click();
@@ -395,6 +395,9 @@ test.describe('horizon_drift_offline: открытый мир', () => {
         return out;
       }, sel);
       expect(await fits('#rGo, #rCar, .head')).toEqual([]);
+      // значения в карточках карт - в одну строку, без переносов
+      const wrapped = await page.evaluate(() => [...document.querySelectorAll('#mapsGrid .mapcard .kv b')].filter((b) => b.getBoundingClientRect().height > parseFloat(getComputedStyle(b).fontSize) * 1.8).map((b) => b.textContent));
+      expect(wrapped, size.width + 'x' + size.height).toEqual([]);
       await page.locator('#rGo').click();
       await page.waitForFunction(() => __drift.screen === 'world');
       expect(await fits('#wInfo, #hMap, #hSpeedo, #hNitro, #hKeys, #hPauseBtn')).toEqual([]);
