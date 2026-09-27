@@ -368,4 +368,57 @@ test.describe('fps_1: статистика, звания, кампания', () 
     expect(r.dmRank).toBe(125);
     expect(r.dmMatches).toBe(1);
   });
+
+  test('присесть - Ctrl: зажат - боец сидит (ниже, медленнее, точнее), отпустил - встал; переназначение работает', async ({ page }) => {
+    test.setTimeout(90000);
+    await openTactical(page);
+    const probe = (code) => page.evaluate((c) => {
+      __tactical.start({ mode: 'dm', map: 'quarry', ai: false });
+      const m = __tactical.match, p = __tactical.player;
+      __tactical.stepPlayer(100);
+      const stand = { h: p.height(), speed: p.maxSpeed(), inacc: TAC.inaccuracy(p, p.weaponDef()) };
+      const ev = new KeyboardEvent('keydown', { code: c, key: c === 'ControlLeft' ? 'Control' : 'c', ctrlKey: c === 'ControlLeft', bubbles: true, cancelable: true });
+      document.dispatchEvent(ev);
+      __tactical.stepPlayer(32);
+      const sit = { h: p.height(), speed: p.maxSpeed(), inacc: TAC.inaccuracy(p, p.weaponDef()), prevented: ev.defaultPrevented };
+      __tactical.keyup(c); __tactical.stepPlayer(32);
+      return { stand, sit, after: p.height(), key: TAC.settings.input.keys.crouch };
+    }, code);
+    const a = await probe('ControlLeft');
+    expect(a.key).toBe('ControlLeft');
+    expect(a.sit.h).toBeLessThan(a.stand.h - 0.4);
+    expect(a.sit.speed).toBeLessThan(a.stand.speed * 0.5);
+    expect(a.sit.inacc).toBeLessThan(a.stand.inacc);
+    expect(a.sit.prevented).toBe(true);
+    expect(a.after).toBeCloseTo(a.stand.h, 5);
+    const c0 = await probe('KeyC');
+    expect(c0.sit.h).toBeCloseTo(c0.stand.h, 5);                       // C свободна
+    await page.evaluate(() => { TAC.bindKey('crouch', 'KeyC'); __tactical.app.quitToMenu(false); });
+    const c1 = await probe('KeyC');
+    expect(c1.sit.h).toBeLessThan(c1.stand.h - 0.4);
+    const ctrl = await probe('ControlLeft');
+    expect(ctrl.sit.h).toBeCloseTo(ctrl.stand.h, 5);
+  });
+
+  test('в бою сочетания браузера с Ctrl гасятся, а уход со страницы спрашивает подтверждение', async ({ page }) => {
+    await openTactical(page);
+    await startMatch(page, { mode: 'dm', map: 'quarry', ai: false });
+    const r = await page.evaluate(() => {
+      __tactical.app.manual = false; __tactical.app.paused = false;
+      const out = {};
+      for (const code of ['KeyD', 'Digit1', 'KeyS', 'KeyF']) {
+        const ev = new KeyboardEvent('keydown', { code, ctrlKey: true, bubbles: true, cancelable: true });
+        document.dispatchEvent(ev); out[code] = ev.defaultPrevented;
+      }
+      const bu = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(bu);
+      out.unload = bu.defaultPrevented;
+      __tactical.app.quitToMenu(false);
+      const bu2 = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(bu2);
+      out.unloadMenu = bu2.defaultPrevented;
+      return out;
+    });
+    expect(r).toEqual({ KeyD: true, Digit1: true, KeyS: true, KeyF: true, unload: true, unloadMenu: false });
+  });
 });
