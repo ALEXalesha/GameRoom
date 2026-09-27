@@ -37,7 +37,14 @@
     },
     sky: { top: '#3f8fe6', horizon: '#e7f2ff' },
 
-    load() { const s = B.store.get('sandbox', { blocks: [], placed: 0 }); if (!Array.isArray(s.blocks)) s.blocks = []; return s; },
+    load() {
+      const s = B.store.get('sandbox', { blocks: [], placed: 0 });
+      // только целые блоки [i, j, k, цвет] в пределах плиты
+      const ok = (b) => Array.isArray(b) && b.length === 4 && b.every((v) => Number.isInteger(v)) && Math.abs(b[0]) <= HALF && Math.abs(b[2]) <= HALF && b[1] >= 0 && b[1] <= 60;
+      s.blocks = Array.isArray(s.blocks) ? s.blocks.filter(ok) : [];
+      s.placed = Number.isFinite(s.placed) ? s.placed : 0;
+      return s;
+    },
     // сохраняются только блоки игрока (и оставленные им постройки ботов)
     save(game) {
       const st = game.state;
@@ -195,11 +202,12 @@
       return { cell, block };
     },
     onMouseMove(game, cx, cy) { game.state.mouse = { x: cx, y: cy }; },
+    onPointerLock(game) { if (!game.state.mouse) game.state.mouse = { x: innerWidth / 2, y: innerHeight / 2 }; },
     render(game) {
       const st = game.state, gm = st.ghost;
       if (!gm) return;
       if (!st.tool || !st.mouse || game.menuOpen || game.dead) { gm.visible = false; return; }
-      const t = P.target(game, st.mouse.x, st.mouse.y);
+      const a = B.game.aim(st.mouse.x, st.mouse.y), t = P.target(game, a.x, a.y);
       if (!t) { gm.visible = false; return; }
       const c = st.tool === 'build' ? t.cell : t.block;
       if (!c) { gm.visible = false; return; }

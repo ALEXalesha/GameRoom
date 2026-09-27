@@ -6,21 +6,23 @@
   const matCache = {};
   function lambert(color, opt = {}) {
     const key = color + JSON.stringify(opt);
-    if (!matCache[key]) matCache[key] = new THREE.MeshLambertMaterial(Object.assign({ color }, opt));
+    if (!matCache[key]) { matCache[key] = new THREE.MeshLambertMaterial(Object.assign({ color }, opt)); matCache[key].userData.shared = true; }
     return matCache[key];
   }
   function phong(color, opt = {}) {
     const key = 'p' + color + JSON.stringify(opt);
-    if (!matCache[key]) matCache[key] = new THREE.MeshPhongMaterial(Object.assign({ color, shininess: 40, specular: 0x333333 }, opt));
+    if (!matCache[key]) { matCache[key] = new THREE.MeshPhongMaterial(Object.assign({ color, shininess: 40, specular: 0x333333 }, opt)); matCache[key].userData.shared = true; }
     return matCache[key];
   }
   const geoCache = {};
-  function box(w, h, d) { const k = 'b' + w + ',' + h + ',' + d; return geoCache[k] || (geoCache[k] = new THREE.BoxGeometry(w, h, d)); }
-  function cyl(rt, rb, h, seg = 20, open = false) { const k = 'c' + [rt, rb, h, seg, open]; return geoCache[k] || (geoCache[k] = new THREE.CylinderGeometry(rt, rb, h, seg, 1, open)); }
+  const keep = (g) => { g.userData.shared = true; return g; };
+  function box(w, h, d) { const k = 'b' + w + ',' + h + ',' + d; return geoCache[k] || (geoCache[k] = keep(new THREE.BoxGeometry(w, h, d))); }
+  function cyl(rt, rb, h, seg = 20, open = false) { const k = 'c' + [rt, rb, h, seg, open]; return geoCache[k] || (geoCache[k] = keep(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open))); }
   function mesh(geo, mat, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; return m; }
 
   const HEAD_R = 0.62, HEAD_H = 1.2;
   const HEAD_GEO = new THREE.CylinderGeometry(HEAD_R, HEAD_R, HEAD_H, 28, 1, false, Math.PI, Math.PI * 2);
+  HEAD_GEO.userData.shared = true;
 
   function clothMats(part, color, shirt, pants) {
     const t = (f) => new THREE.MeshLambertMaterial({ map: B.tex.clothing(part, f, color, shirt, pants) });

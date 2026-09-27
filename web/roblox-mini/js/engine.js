@@ -22,6 +22,7 @@
       glass: [phong({ transparent: true, opacity: 0.45, shininess: 90, specular: 0x666666 }), phong({ transparent: true, opacity: 0.45 })],
     };
     MATS.lava.uvScale = 1 / 10; MATS.snow.uvScale = 1 / 4;
+    for (const k in MATS) for (const m of MATS[k]) m.userData.shared = true;     // общие для всех мест
     return MATS;
   };
   const UVSCALE = { lava: 1 / 10, snow: 1 / 4 };
@@ -138,7 +139,7 @@
       const geo = boxesGeometry([{ cx: 0, cy: 0, cz: 0, sx: p.sx, sy: p.sy, sz: p.sz, color: p.color }], { x: 0, y: 0, z: 0 }, UVSCALE[p.mat] || 1);
       let mats = M[p.mat] || M.plastic;
       if (p.conveyor) {
-        const t = B.tex.conveyor().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        const t = B.tex.conveyor().clone(); t.userData.shared = false; t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.center.set(0.5, 0.5);
         t.rotation = Math.atan2(p.conveyor.x, -p.conveyor.z) * -1;   // стрелка по направлению ленты
         const top = new THREE.MeshPhongMaterial({ map: t, aoMap: B.tex.edges(), aoMapIntensity: 0.5 });
@@ -146,7 +147,7 @@
         p.convTex = t;
         this.animTex.push(p);
       }
-      if (p.fade) mats = mats.map((m) => { const c = m.clone(); c.transparent = true; return c; });
+      if (p.fade) mats = mats.map((m) => { const c = m.clone(); c.userData.shared = false; c.transparent = true; return c; });
       const mesh = new THREE.Mesh(geo, mats);
       mesh.position.set(p.cx, p.cy, p.cz);
       mesh.rotation.y = p.angle;
@@ -250,8 +251,20 @@
       }
       return hit ? { t: best, part: hit, normal: nrm } : null;
     }
+    // Освободить всё своё: геометрии, материалы, текстуры (общие - с пометкой userData.shared - остаются)
     dispose() {
-      this.scene.traverse((o) => { if (o.isMesh && o.geometry && !o.userData.shared) o.geometry.dispose(); });
+      const seen = new Set();
+      const tex = (t) => { if (t && t.isTexture && !t.userData.shared && !seen.has(t)) { seen.add(t); t.dispose(); } };
+      this.scene.traverse((o) => {
+        if (o.geometry && !o.userData.shared && !o.geometry.userData.shared && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+        if (!o.material) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (!m || m.userData.shared || seen.has(m)) continue;
+          seen.add(m);
+          for (const k of ['map', 'aoMap', 'alphaMap', 'emissiveMap', 'normalMap']) tex(m[k]);
+          m.dispose();
+        }
+      });
     }
   }
   E.World = World;

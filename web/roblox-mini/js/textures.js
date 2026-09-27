@@ -12,6 +12,7 @@
     if (opt.repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = opt.aniso || 4;
     if (opt.nearest) { t.magFilter = THREE.NearestFilter; }
+    t.userData.shared = true;                       // из общего запаса - не освобождать при выходе из места
     cache[key] = t;
     return t;
   }

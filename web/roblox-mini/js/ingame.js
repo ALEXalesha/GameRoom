@@ -239,11 +239,28 @@
         if (ev.includes('kill')) { this.killBot(b); continue; }
         B.bots.after(this, b, dt, P.botPath ? P.botPath(this, b) : this.path);
       }
+      this.separate();
       if (this.pieces.length) {
         E.stepPieces(w, this.pieces, dt);
         let gone = false;
         for (const pc of this.pieces) if (pc.ttl != null && (pc.ttl -= dt) <= 0) { w.scene.remove(pc.obj); gone = true; }
         if (gone) this.pieces = this.pieces.filter((pc) => pc.ttl == null || pc.ttl > 0);
+      }
+    }
+    // Тела не проходят друг сквозь друга: ближе 1.8 - мягко расталкиваются (через стены не выталкивает)
+    separate() {
+      const list = this.bots.filter((b) => !b.dead && !(this.place.controlsBot && this.place.controlsBot(this, b))).map((b) => b.body);
+      if (!this.dead && !(this.place.controlsPlayer && this.place.controlsPlayer(this))) list.push(this.player);
+      const MIN = 1.8;
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        const a = list[i].pos, c = list[j].pos;
+        if (Math.abs(a.y - c.y) > 4) continue;
+        let dx = c.x - a.x, dz = c.z - a.z, d = Math.hypot(dx, dz);
+        if (d >= MIN) continue;
+        if (d < 1e-3) { const ang = (i * 2.39 + j * 1.7); dx = Math.cos(ang); dz = Math.sin(ang); d = 1; } else { dx /= d; dz /= d; d = Math.hypot(c.x - a.x, c.z - a.z); }
+        const push = Math.min(0.12, (MIN - d) * 0.5);
+        list[i].sweep('x', -dx * push, false); list[i].sweep('z', -dz * push, false);
+        list[j].sweep('x', dx * push, false); list[j].sweep('z', dz * push, false);
       }
     }
     onPlayerEvent(e) {
@@ -477,9 +494,12 @@
     dispose() {
       B.sound.stopMusic();
       for (const pc of this.pieces) this.world.scene.remove(pc.obj);
-      this.ch.dispose();
+      if (this.ch) this.ch.dispose();
       for (const b of this.bots) b.ch.dispose();
+      for (const pc of this.pieces) this.world.scene.add(pc.obj);        // обломки - тоже освободить
       this.world.dispose();
+      const sm = this.lights && this.lights.sun.shadow.map;
+      if (sm) { sm.dispose(); this.lights.sun.shadow.map = null; }
       if (this.place.dispose) this.place.dispose(this);
     }
   }
@@ -512,6 +532,7 @@
     const minTime = opt.instant ? 0 : (B.params.fast ? 250 : 1600);
     const t0 = performance.now();
     const steps = game.buildSteps();
+    $('ld-error').hidden = true;
     const finish = () => {
       clearInterval(tipTimer);
       G.loading = null;
@@ -520,14 +541,25 @@
       if (load.cancelled) { game.dispose(); B.emit('screen', 'launcher'); return; }
       G.start(game);
     };
+    // сборка места упала: не виснуть - сообщение, «Отмена» возвращает в лаунчер, другие места открываются
+    const fail = (e) => {
+      clearInterval(tipTimer);
+      G.loading = null;
+      console.warn('место не собралось', id, e);
+      try { game.dispose(); } catch (e2) { /* собралось не до конца */ }
+      $('ld-error').textContent = (B.lang() === 'en' ? 'Could not load the place. ' : 'Место не загрузилось. ') + String((e && e.message) || e);
+      $('ld-error').hidden = false;
+      $('ld-cancel').onclick = () => { scr.hidden = true; $('ld-error').hidden = true; document.body.classList.remove('in-loading'); B.emit('screen', 'launcher'); };
+    };
     if (opt.instant) {
-      for (const p of steps) load.progress = p;
+      try { for (const p of steps) load.progress = p; } catch (e) { fail(e); scr.hidden = true; document.body.classList.remove('in-loading'); return null; }
       finish();
       return game;
     }
     const tick = () => {
       if (load.cancelled) { finish(); return; }
-      const r = steps.next();
+      let r;
+      try { r = steps.next(); } catch (e) { fail(e); return; }
       if (!r.done) load.progress = r.value;
       const shown = Math.min(load.progress, (performance.now() - t0) / minTime);
       $('ld-bar').style.width = Math.round(shown * 100) + '%';
@@ -542,6 +574,8 @@
 
   G.start = function (game) {
     G.cur = game;
+    const pauseNow = G.pausePending || document.hidden;
+    G.pausePending = false;
     $('game').hidden = false;
     document.body.classList.add('in-game');
     B.acct.updatePlace(game.id, (s) => { s.visits++; s.last = Date.now(); });
@@ -559,6 +593,7 @@
     B.sound.startMusic(game.id);
     B.emit('screen', 'place');
     G.acc = 0; G.last = performance.now();
+    if (pauseNow) { game.openMenu(); B.sound.suspend(); }       // пауза пришла во время загрузки
   };
 
   G.leave = function () {
@@ -708,10 +743,17 @@
     const pauseAll = () => {
       const g = G.cur;
       if (g) { for (const k in g.keys) g.keys[k] = false; g.rotating = false; g.lmbDown = null; if (!g.menuOpen) g.openMenu(); }
+      else if (G.loading) G.pausePending = true;              // место ещё грузится - открыть его на паузе
       if (document.pointerLockElement) document.exitPointerLock();
       B.sound.suspend();
     };
     document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAll(); });
+    // прицел в центре, пока мышь захвачена
+    document.addEventListener('pointerlockchange', () => {
+      const on = !!document.pointerLockElement && !!G.cur;
+      $('g-cross').hidden = !on;
+      if (on && G.cur.place.onPointerLock) G.cur.place.onPointerLock(G.cur);
+    });
     // Оболочка ОС (игра в iframe): {mix:'pause'} - как скрытая вкладка; {mix:'resume'} - пауза остаётся, её снимает игрок
     addEventListener('message', (e) => {
       const d = e.data;
@@ -751,7 +793,10 @@
     const d = v.sub(o).normalize();
     return { o: { x: o.x, y: o.y, z: o.z }, d: { x: d.x, y: d.y, z: d.z } };
   };
+  // При захвате мыши (Shift-лок, от первого лица) курсора нет - целимся в центр экрана, где прицел
+  G.aim = (cx, cy) => (document.pointerLockElement ? { x: innerWidth / 2, y: innerHeight / 2 } : { x: cx, y: cy });
   G.click = function (g, cx, cy) {
+    ({ x: cx, y: cy } = G.aim(cx, cy));
     if (g.place.onClick && g.place.onClick(g, cx, cy)) return;
     if (B.gameSettings.get('movementMode') !== 'click' || g.dead) return;
     const r = G.screenRay(g, cx, cy);

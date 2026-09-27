@@ -237,6 +237,11 @@
     },
     step(game, dt) {
       const st = game.state, pl = game.player;
+      // упал с верхней площадки на снег (наверх оттуда не забраться) - через полторы секунды снова наверху
+      if (!st.riding && !game.dead && pl.onGround && pl.ground && pl.ground.tag === 'ground') {
+        st.fallT = (st.fallT || 0) + dt;
+        if (st.fallT > 1.5) { st.fallT = 0; game.respawn(); }
+      } else st.fallT = 0;
       if (st.riding && !game.dead) {
         const k = game.keys, idle = game.menuOpen || game.chatFocused;
         const steer = idle ? 0 : (k.KeyA || k.ArrowLeft ? 1 : 0) - (k.KeyD || k.ArrowRight ? 1 : 0);

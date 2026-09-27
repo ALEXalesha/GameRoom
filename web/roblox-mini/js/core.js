@@ -60,7 +60,11 @@ window.Blox = window.Blox || {};
     get(key, def) {
       try {
         const v = localStorage.getItem(PREFIX + key);
-        return v == null ? clone(def) : JSON.parse(v);
+        if (v == null) return clone(def);
+        const x = JSON.parse(v);
+        // null и чужой тип (массив вместо объекта, строка вместо массива) - значение по умолчанию
+        if (def !== undefined && def !== null && (x === null || typeof x !== typeof def || Array.isArray(x) !== Array.isArray(def))) return clone(def);
+        return x;
       } catch (e) { return clone(def); }
     },
     set(key, val) { try { localStorage.setItem(PREFIX + key, JSON.stringify(val)); } catch (e) { /* хранилище недоступно */ } },
@@ -82,7 +86,10 @@ window.Blox = window.Blox || {};
   const acct = B.acct = {
     profile() {
       const p = B.store.get('profile', null);
-      if (p && p.nick) return p;
+      if (p && typeof p === 'object' && typeof p.nick === 'string' && p.nick) {
+        for (const k of ['display', 'about', 'created']) if (typeof p[k] !== 'string') p[k] = '';
+        return p;
+      }
       const fresh = { nick: defaultNick(), display: '', about: '', created: new Date().toISOString().slice(0, 10) };
       B.store.set('profile', fresh);
       return fresh;
@@ -116,7 +123,7 @@ window.Blox = window.Blox || {};
       return true;
     },
 
-    owned() { return B.store.get('owned', []); },
+    owned() { return B.store.get('owned', []).filter((x) => typeof x === 'string'); },
     owns(id) {
       const it = B.data.item(id);
       return !!it && (it.price === 0 || acct.owned().includes(id));
@@ -133,8 +140,18 @@ window.Blox = window.Blox || {};
     },
 
     avatar() {
-      const a = B.store.get('avatar', null);
-      return Object.assign(B.data.defaultAvatar(), a || {});
+      const a = B.store.get('avatar', null), d = B.data.defaultAvatar();
+      if (!a || typeof a !== 'object' || Array.isArray(a)) return d;
+      // проверка формы: цвета - строки #rrggbb, вещи - только те, что есть в каталоге этого слота
+      const out = Object.assign({}, d);
+      const cols = a.colors && typeof a.colors === 'object' ? a.colors : {};
+      for (const k in d.colors) out.colors[k] = typeof cols[k] === 'string' && /^#[0-9a-f]{6}$/i.test(cols[k]) ? cols[k] : d.colors[k];
+      for (const slot of ['face', 'shirt', 'pants', 'hat', 'hair', 'faceAcc', 'back']) {
+        const v = a[slot];
+        if (v === '' && !['face', 'shirt', 'pants'].includes(slot)) out[slot] = '';
+        else if (typeof v === 'string' && B.data.item(v) && B.data.item(v).slot === slot) out[slot] = v;
+      }
+      return out;
     },
     saveAvatar(a) {
       // надеть можно только то, что есть

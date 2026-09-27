@@ -60,6 +60,7 @@
   K.coin = function (game, x, y, z) {
     coinGeo = coinGeo || new THREE.CylinderGeometry(1, 1, 0.3, 24);
     coinMat = coinMat || new THREE.MeshPhongMaterial({ color: 0xffc21a, emissive: 0x6a4a00, shininess: 90, specular: 0xffffcc });
+    coinGeo.userData.shared = coinMat.userData.shared = true;
     const m = new THREE.Mesh(coinGeo, coinMat);
     m.rotation.x = Math.PI / 2; m.position.set(x, y, z); m.castShadow = true;
     m.userData.shared = true;

@@ -161,7 +161,7 @@
       const t = Math.round(st.t * 100) / 100;
       let r;
       if (win) { r = K.finishRun(game, t, { complete: true, win: true }); B.acct.completeBadge('coins'); }
-      else { r = K.finishRun(game, null, { medal: null, complete: false }); }
+      else { r = { medal: null, reward: 0, record: false }; B.sound.play('lose'); }   // проигрыш (и простой без дела) кубов не даёт
       game.showResult({
         title: win ? (B.lang() === 'en' ? 'You won!' : 'Ты победил!') : (B.lang() === 'en' ? bestBot.name + ' won' : 'Победил ' + bestBot.name),
         sub: B.lang() === 'en' ? 'All coins collected' : 'Все монеты собраны',
