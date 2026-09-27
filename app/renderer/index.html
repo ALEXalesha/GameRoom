@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'">
+  <title>Игротека</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Полоса вкладок. Она же заголовок окна: за пустое место окно таскается,
+       справа поверх неё системные кнопки окна. -->
+  <header id="bar">
+    <button class="tab home" data-id="home" title="Домашний экран (Ctrl+T)">
+      <img class="logo" src="../assets/logo-small.svg" alt="">
+      <span class="product"></span>
+    </button>
+    <div id="tabs" role="tablist"></div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <img class="hero-logo" src="../assets/logo.svg" alt="">
+      <div class="hero-text">
+        <h1 class="product"></h1>
+        <p id="subtitle"></p>
+      </div>
+      <button id="gear" class="icon-btn" title="Настройки" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+    </section>
+    <section id="grid"></section>
+    <footer class="note">Игры - фан-концепты, не связаны с правообладателями. Всё работает без интернета.</footer>
+  </main>
+
+  <!-- Настройки: выезжают поверх домашнего экрана. -->
+  <div id="settings" class="sheet" hidden>
+    <div class="panel" role="dialog" aria-labelledby="settings-title">
+      <div class="panel-head">
+        <h2 id="settings-title">Настройки</h2>
+        <button class="icon-btn close" data-close aria-label="Закрыть">&#x2715;</button>
+      </div>
+
+      <h3>Вкладки</h3>
+      <label class="row"><span>Открывать при запуске вкладки прошлого раза</span><input type="checkbox" id="set-reopen" class="switch"></label>
+      <label class="row"><span>Выключать звук у вкладок в фоне</span><input type="checkbox" id="set-mute-bg" class="switch"></label>
+
+      <h3>Звук</h3>
+      <div class="row">
+        <span>Громкость</span>
+        <div class="volume">
+          <button id="set-mute" class="icon-btn small" aria-label="Без звука" title="Без звука"></button>
+          <input type="range" id="set-volume" min="0" max="100" step="5">
+          <output id="volume-out"></output>
+        </div>
+      </div>
+
+      <h3>Оформление</h3>
+      <div class="row">
+        <span>Тема</span>
+        <div class="segmented" id="set-theme">
+          <button data-theme-value="dark">Тёмная</button>
+          <button data-theme-value="light">Светлая</button>
+        </div>
+      </div>
+
+      <h3>Клавиши</h3>
+      <table class="keys">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>домашний экран</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>закрыть вкладку</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd></td><td>следующая вкладка (с <kbd>Shift</kbd> - предыдущая)</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd></td><td>вкладка по номеру, <kbd>9</kbd> - последняя</td></tr>
+        <tr><td><kbd>F11</kbd></td><td>игра на весь экран, <kbd>Esc</kbd> - обратно</td></tr>
+        <tr><td><kbd>F5</kbd>, <kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>начать игру заново (после вопроса); ещё - правой кнопкой по вкладке</td></tr>
+      </table>
+      <p class="hint" id="keys-own"></p>
+
+      <h3>Данные игр</h3>
+      <div class="row">
+        <select id="clear-game" aria-label="Игра"></select>
+        <button id="clear-btn" class="btn danger">Очистить данные</button>
+      </div>
+      <p class="hint" id="clear-hint">Рекорды и сохранения выбранной игры будут стёрты. Остальные игры это не затронет.</p>
+
+      <h3>О программе</h3>
+      <div class="about">
+        <p><b class="product"></b> <span id="version"></span></p>
+        <p>Игры в одном окне: у каждой своя вкладка и своё хранилище. Всё работает без интернета.</p>
+        <ul id="about-games"></ul>
+        <p class="hint">Игры - фан-концепты, не связаны с правообладателями. Лицензия MIT.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Игра упала несколько раз подряд: вместо бесконечных перезапусков - этот экран. -->
+  <div id="crashed" hidden>
+    <div class="modal-card">
+      <h2>Игра остановилась</h2>
+      <p>«<span id="crashed-name"></span>» несколько раз подряд упала при запуске, поэтому приложение больше не перезапускает её само.</p>
+      <div class="modal-buttons"><button class="btn primary">Перезапустить</button></div>
+    </div>
+  </div>
+
+  <!-- Вопрос. Когда он про игру, под ним её снимок: сама игра на это время скрыта и стоит. -->
+  <div id="modal" hidden>
+    <img id="modal-shot" alt="">
+    <div class="modal-card" role="alertdialog" aria-labelledby="modal-title" aria-describedby="modal-text">
+      <h2 id="modal-title"></h2>
+      <p id="modal-text"></p>
+      <div class="modal-buttons">
+        <button class="btn cancel"></button>
+        <button class="btn primary ok"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

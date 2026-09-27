@@ -1,13 +1,99 @@
 {
   "name": "mix-of-projects",
-  "version": "0.1.0",
+  "productName": "Игротека",
+  "version": "1.0.0",
   "private": true,
-  "description": "Сборник небольших проектов: страницы HTML и скрипты Python, приведённые в порядок",
+  "description": "Сборник небольших проектов, приведённых в порядок, и приложение «Игротека»: десять игр во вкладках одного окна",
+  "author": "ALEXalesha",
   "license": "MIT",
+  "homepage": "https://github.com/ALEXalesha/MixOfProject",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ALEXalesha/MixOfProject.git"
+  },
+  "main": "app/main.js",
   "scripts": {
-    "test": "playwright test"
+    "start": "electron .",
+    "test": "playwright test",
+    "test:web": "playwright test",
+    "test:unit": "node --test \"tests-app/unit/*.test.js\"",
+    "test:app": "playwright test --config=playwright.app.config.js",
+    "thumbs": "node tools/make-thumbs.js",
+    "icon": "node tools/make-icon.js",
+    "screenshots": "node tools/make-screenshots.js",
+    "probe:background": "electron tools/probe-background.js",
+    "dist": "electron-builder --win nsis portable --x64"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1"
+    "@playwright/test": "1.62.1",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.alexalesha.mixofproject.games",
+    "copyright": "Copyright (c) 2026 ALEXalesha",
+    "directories": {
+      "output": "dist",
+      "buildResources": "app/assets"
+    },
+    "files": [
+      "package.json",
+      "app/**/*",
+      "web/minecraft_clone_3d_1/**/*",
+      "web/roblox-mini/**/*",
+      "web/fps_1/**/*",
+      "web/dino/**/*",
+      "web/mario/**/*",
+      "web/horizon_drift_offline/**/*",
+      "web/jungle-strike/**/*",
+      "web/space_shooter/**/*",
+      "web/tetris/**/*",
+      "web/sudoku/**/*",
+      "!**/desktop.ini",
+      "!app/assets/icon.png"
+    ],
+    "electronLanguages": [
+      "ru",
+      "en-US"
+    ],
+    "compression": "maximum",
+    "win": {
+      "icon": "app/assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "Igroteka-${version}-Setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerLanguages": [
+        "ru_RU"
+      ],
+      "language": "1049",
+      "multiLanguageInstaller": false,
+      "installerIcon": "app/assets/icon.ico",
+      "uninstallerIcon": "app/assets/icon.ico",
+      "installerHeaderIcon": "app/assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Igroteka-${version}-Portable.${ext}"
+    },
+    "publish": null
   }
 }
