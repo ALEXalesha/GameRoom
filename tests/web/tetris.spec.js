@@ -472,14 +472,15 @@ test.describe('Блоки: по второму ревью', () => {
     expect(r.after).toBeLessThanOrEqual(r.x0 - 3);
   });
 
-  test('надпись уровня - вверху стакана, место приземления внизу не закрыто', async ({ page }) => {
+  test('надпись уровня не закрывает стакан: ни место появления фигур, ни место приземления', async ({ page }) => {
     await open(page);
     const r = await page.evaluate(() => {
       const g = __game; g.startMode('marathon'); g.step(1);
       const b = g.bannerCss(), c = document.getElementById('game').getBoundingClientRect(), k = c.width / g.W;
-      return { bottom: (b.bottom - c.top) / k, limit: g.BY + g.VISIBLE * g.CELL * 0.3 };
+      const L = (b.left - c.left) / k, R = (b.right - c.left) / k;
+      return { overlapsBoard: R > g.BX && L < g.BX + g.CELL * 10 };
     });
-    expect(r.bottom).toBeLessThanOrEqual(r.limit);
+    expect(r.overlapsBoard).toBe(false);
   });
 
   test('палка I появляется в том же ряду, что и остальные фигуры', async ({ page }) => {

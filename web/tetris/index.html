@@ -449,7 +449,7 @@ function saveResult(completed) {
   if (stats.lines >= 1000) kit.unlock('lines1000');
   const e = { score: state.score, lines: state.mode === 'sprint' ? Math.min(state.lines, SPRINT_LINES) : state.lines, level: state.level, time: state.frames, done: completed, date: Date.now() };
   const list = records[state.mode];
-  if (list && (state.mode === 'marathon' || state.mode === 'zen' || completed)) {
+  if (list && (e.score > 0 || e.lines > 0) && (state.mode === 'marathon' || state.mode === 'zen' || completed)) {   // пустая партия - не рекорд
     list.push(e);
     if (state.mode === 'sprint') list.sort((a, b) => a.time - b.time); else list.sort((a, b) => b.score - a.score || b.lines - a.lines);
     list.length = Math.min(list.length, 5);
@@ -660,10 +660,11 @@ function render() {
     if (state.ready > 0) t = state.ready > 45 ? 'ПРИГОТОВЬТЕСЬ' : 'ВПЕРЁД!';
     else if (state.banner) t = state.banner.text;
     if (t && kit.mode === 'play') {
-      const y = BY + 70;                              // вверху стакана: место приземления внизу не закрыто
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(BX, y - 34, COLS * CELL, 48);
-      text(t, BX + COLS * CELL / 2, y, 26, `hsl(${hu + 40},95%,72%)`, 'center', 800);
-      bannerRect = { x: BX, y: y - 34, w: COLS * CELL, h: 48 };
+      // сбоку от стакана, под счётом: ни место появления фигур, ни место приземления не закрыто
+      const y = BY + 640, x0 = 56, w = 232;
+      rr(x0, y - 34, w, 48, 10); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
+      text(t, x0 + w / 2, y, t.length > 12 ? 18 : 24, `hsl(${hu + 40},95%,72%)`, 'center', 800);
+      bannerRect = { x: x0, y: y - 34, w, h: 48 };
     }
   }
 }
