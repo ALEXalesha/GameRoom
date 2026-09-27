@@ -25,6 +25,7 @@ function VoxelCore() {
     'lava', 'fire', 'farmland', 'wheat_0', 'wheat_1', 'wheat_2', 'wheat_3', 'wheat_4',
     'door_wood_lower', 'door_wood_upper', 'door_iron_lower', 'door_iron_upper', 'chest_top', 'chest_side', 'chest_front', 'bed_head_top',
     'bed_foot_top', 'bed_side_head', 'bed_side_foot', 'lever', 'water_flow',
+    'trapdoor', 'iron_trapdoor', 'ladder',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -135,6 +136,58 @@ function VoxelCore() {
   def(131, 'lever_on', 'Рычаг', { render: 'box', shape: [[5, 0, 4, 11, 2, 12, 'cobblestone'], [8, 2, 7, 10, 11, 9, 'lever']], tex: 'lever', solid: false, hardness: 0.5, sound: 'wood', creative: false, item: 130, drop: 130 });
   BLOCKS[29].render = 'box'; BLOCKS[29].shape = [[1, 0, 1, 15, 16, 15]];      // кактус чуть уже клетки: его можно коснуться
 
+  // ---- четвёртый заход: строительные формы (id от 1024). Порядок не менять: id хранятся в мирах
+  // стороны dir: 0 -Z, 1 -X, 2 +Z, 3 +X (куда смотрел игрок при установке)
+  const swapXZ = (b) => { const r = [b[2], b[1], b[0], b[5], b[4], b[3]]; if (b[6]) r.push(b[6]); return r; };
+  const flipY = (b) => { const r = [b[0], 16 - b[4], b[2], b[3], 16 - b[1], b[5]]; if (b[6]) r.push(b[6]); return r; };
+  const half = (d) => [[0, 0, 0, 16, 16, 8], [0, 0, 0, 8, 16, 16], [0, 0, 8, 16, 16, 16], [8, 0, 0, 16, 16, 16]][d];
+  const MATS = [
+    ['oak', 15, 'Дубовая плита', 'Дубовые ступени'], ['birch', 16, 'Берёзовая плита', 'Берёзовые ступени'],
+    ['spruce', 17, 'Еловая плита', 'Еловые ступени'], ['cobblestone', 4, 'Булыжная плита', 'Булыжные ступени'],
+    ['stone', 3, 'Каменная плита', 'Каменные ступени'], ['stone_brick', 20, 'Плита из каменных кирпичей', 'Ступени из каменных кирпичей'],
+    ['brick', 19, 'Кирпичная плита', 'Кирпичные ступени'], ['sandstone', 8, 'Песчаниковая плита', 'Песчаниковые ступени'],
+  ];
+  const SLAB = 1024, STAIRS = 1048;
+  const like = (src, o) => Object.assign({ tex: src.tex, hardness: src.hardness, tool: src.tool, level: src.level, sound: src.sound, group: 'build' }, o);
+  MATS.forEach(([k, src, slabName, stairsName], m) => {
+    const s = BLOCKS[src], id = SLAB + m * 3;
+    def(id, k + '_slab', slabName, like(s, { render: 'box', shape: [[0, 0, 0, 16, 8, 16]], slab: m, half: 0, mat: src }));
+    def(id + 1, k + '_slab_top', slabName, like(s, { render: 'box', shape: [[0, 8, 0, 16, 16, 16]], creative: false, item: id, slab: m, half: 1, mat: src }));
+    def(id + 2, k + '_slab_double', 'Двойная плита', like(s, { creative: false, item: id, drop: id, dropCount: 2, slab: m, half: 2, mat: src }));
+    for (let d = 0; d < 4; d++) for (let up = 0; up < 2; up++) {
+      const lo = [0, 0, 0, 16, 8, 16], hi = half(d).slice(); hi[1] = 8;
+      const shape = up ? [flipY(lo), flipY(hi)] : [lo, hi];
+      def(STAIRS + m * 8 + d * 2 + up, k + '_stairs' + (d || up ? '_' + d + up : ''), stairsName,
+        like(s, { render: 'box', shape, creative: !d && !up, item: STAIRS + m * 8, stairs: m, dir: d, up: !!up, mat: src }));
+    }
+  });
+  const FENCE = 1112, GATE = 1113, TRAPDOOR = 1121, IRON_TRAPDOOR = 1137, PANE = 1153, LADDER = 1154;
+  const wood = { hardness: 2, tool: 'axe', sound: 'wood' };
+  def(FENCE, 'oak_fence', 'Дубовый забор', Object.assign({ render: 'box', dyn: 1, tex: 'oak_planks', shape: [[6, 0, 6, 10, 16, 10], [0, 6, 7, 6, 9, 9], [10, 6, 7, 16, 9, 9], [0, 12, 7, 6, 15, 9], [10, 12, 7, 16, 15, 9]] }, wood));
+  for (let d = 0; d < 4; d++) for (let op = 0; op < 2; op++) {
+    const posts = [[0, 5, 7, 2, 16, 9], [14, 5, 7, 16, 16, 9]];
+    const toMinus = d === 0 || d === 1;           // открывается от игрока
+    const leaf = toMinus ? [1, 7] : [9, 15];
+    const body = op ? [[0, 6, leaf[0], 2, 15, leaf[1]], [14, 6, leaf[0], 16, 15, leaf[1]]]
+      : [[2, 6, 7, 14, 9, 9], [2, 12, 7, 14, 15, 9], [6, 9, 7, 7, 12, 9], [9, 9, 7, 10, 12, 9]];
+    let shape = posts.concat(body), coll = op ? [] : [[0, 0, 6, 16, 24, 10]];
+    if (d % 2) { shape = shape.map(swapXZ); coll = coll.map(swapXZ); }
+    def(GATE + d * 2 + op, 'oak_gate' + (d || op ? '_' + d + op : ''), 'Дубовая калитка', Object.assign({ render: 'box', tex: 'oak_planks', shape, collide: coll, creative: !d && !op, item: GATE, gate: true, dir: d, open: !!op }, wood));
+  }
+  for (const [base, kind, name, o] of [[TRAPDOOR, 'wood', 'Деревянный люк', wood], [IRON_TRAPDOOR, 'iron', 'Железный люк', { hardness: 5, tool: 'pickaxe', level: 0, sound: 'stone' }]]) {
+    for (let d = 0; d < 4; d++) for (let op = 0; op < 2; op++) for (let top = 0; top < 2; top++) {
+      const shape = [op ? [[0, 0, 0, 16, 16, 3], [0, 0, 0, 3, 16, 16], [0, 0, 13, 16, 16, 16], [13, 0, 0, 16, 16, 16]][d] : top ? [0, 13, 0, 16, 16, 16] : [0, 0, 0, 16, 3, 16]];
+      def(base + d * 4 + op * 2 + top, (kind === 'wood' ? 'trapdoor' : 'iron_trapdoor') + (d || op || top ? '_' + d + op + top : ''), name,
+        Object.assign({ render: 'box', tex: kind === 'wood' ? 'trapdoor' : 'iron_trapdoor', shape, creative: !d && !op && !top, item: base, trapdoor: kind, dir: d, open: !!op, top: !!top }, o));
+    }
+  }
+  def(PANE, 'glass_pane', 'Стеклянная панель', { render: 'box', dyn: 2, tex: 'glass', shape: [[7, 0, 0, 9, 16, 16]], hardness: 0.3, sound: 'glass', drop: 0 });
+  for (let w = 0; w < 4; w++) {
+    const plate = [[0, 0, 0, 16, 16, 1], [15, 0, 0, 16, 16, 16], [0, 0, 15, 16, 16, 16], [0, 0, 0, 1, 16, 16]][w];     // стена: 0 -Z, 1 +X, 2 +Z, 3 -X
+    const coll = [[0, 0, 0, 16, 16, 3], [13, 0, 0, 16, 16, 16], [0, 0, 13, 16, 16, 16], [0, 0, 0, 3, 16, 16]][w];
+    def(LADDER + w, 'ladder' + (w ? '_' + w : ''), 'Лестница', { render: 'box', tex: 'ladder', shape: [plate], collide: [coll], hardness: 0.4, tool: 'axe', sound: 'wood', creative: !w, item: LADDER, ladder: w, group: 'tools' });
+  }
+
   // повороты: копии с тем же видом и тем же предметом
   for (const [base, n] of [[31, 1], [35, 1], [118, 1]]) {
     for (let r = 1; r < 4; r++) {
@@ -148,21 +201,26 @@ function VoxelCore() {
   }
   const WALL_TORCH = 52;
 
-  // Быстрые таблицы свойств по id (Uint8Array на 256): мешер и свет читают только их
-  const RENDER = new Uint8Array(256);   // 0 нет, 1 куб, 2 листва, 3 стекло, 4 вода, 5 лёд, 6 крест, 7 факел, 8 коробки, 9 посев, 10 лава
+  // id блоков: 0..255 и 1024..4095 (256..1023 - предметы); клетка куска - 16 бит
+  const MAXID = 4096;
+  const isBlock = (id) => (id < 256 || (id >= 1024 && id < MAXID)) && !!BLOCKS[id];
+  // Быстрые таблицы свойств по id: мешер и свет читают только их
+  const RENDER = new Uint8Array(MAXID);   // 0 нет, 1 куб, 2 листва, 3 стекло, 4 вода, 5 лёд, 6 крест, 7 факел, 8 коробки, 9 посев, 10 лава
   const RCODE = { none: 0, cube: 1, leaves: 2, glass: 3, water: 4, ice: 5, cross: 6, torch: 7, box: 8, crop: 9, lava: 10 };
-  const FLUID = new Uint8Array(256);    // 1 вода, 2 лава
-  const FLEVEL = new Uint8Array(256);   // уровень течения (0 - источник или падающая)
-  const FFALL = new Uint8Array(256);
+  const FLUID = new Uint8Array(MAXID);    // 1 вода, 2 лава
+  const FLEVEL = new Uint8Array(MAXID);   // уровень течения (0 - источник или падающая)
+  const FFALL = new Uint8Array(MAXID);
   const SHAPE = [];                     // коробки не во всю клетку, в шестнадцатых: [x0, y0, z0, x1, y1, z1]
-  const SOLID = new Uint8Array(256);
-  const EMIT = new Uint8Array(256);
-  const FILTER = new Uint8Array(256);   // сколько света гасит клетка (15 - непрозрачная)
-  const TEXF = new Int16Array(256 * 6); // плитка грани: 0 -X,1 +X,2 -Y,3 +Y,4 -Z,5 +Z
-  const TEXFAST = new Int16Array(256 * 6);
+  const CSHAPE = [];                    // своя коробка столкновения (калитка, лестница), [] - проходим
+  const DYN = new Uint8Array(MAXID);    // форма зависит от соседей: 1 забор, 2 стеклянная панель
+  const SOLID = new Uint8Array(MAXID);
+  const EMIT = new Uint8Array(MAXID);
+  const FILTER = new Uint8Array(MAXID);   // сколько света гасит клетка (15 - непрозрачная)
+  const TEXF = new Int16Array(MAXID * 6); // плитка грани: 0 -X,1 +X,2 -Y,3 +Y,4 -Z,5 +Z
+  const TEXFAST = new Int16Array(MAXID * 6);
   // стороны света для поворота: 0 - смотрит на -Z (север), 1 - +X, 2 - +Z, 3 - -X
   const FACE_OF_ROT = [4, 1, 5, 0];
-  for (let id = 0; id < 256; id++) {
+  for (let id = 0; id < MAXID; id++) {
     const b = BLOCKS[id];
     if (!b) continue;
     RENDER[id] = RCODE[b.render];
@@ -171,6 +229,8 @@ function VoxelCore() {
     FILTER[id] = b.render === 'cube' ? 15 : (b.render === 'leaves' || b.render === 'water' || b.render === 'ice' || b.render === 'lava') ? 1 : 0;
     FLUID[id] = b.fluid || 0; FLEVEL[id] = b.level || 0; FFALL[id] = b.falling ? 1 : 0;
     if (b.shape) SHAPE[id] = b.shape;
+    if (b.collide) CSHAPE[id] = b.collide;
+    DYN[id] = b.dyn || 0;
     for (let f = 0; f < 6; f++) {
       const t = b.tex || {};
       let name = t.all || (f === 3 ? t.top : f === 2 ? t.bottom : t.side);
@@ -179,6 +239,36 @@ function VoxelCore() {
       TEXF[id * 6 + f] = name ? T[name] : 0;
       TEXFAST[id * 6 + f] = b.fast ? T[b.fast] : TEXF[id * 6 + f];
     }
+  }
+
+  // Форма блока с учётом соседей. nb(dx, dy, dz) - id соседа; mode: 'render' | 'collide' | 'outline'.
+  // Забор цепляется к заборам, калиткам и полным блокам, панель - к панелям, стеклу и полным блокам.
+  const ARMS = [[0, -1], [-1, 0], [0, 1], [1, 0]];
+  function shapeOf(id, nb, mode) {
+    const k = DYN[id];
+    if (!k) return mode === 'collide' && CSHAPE[id] ? CSHAPE[id] : (SHAPE[id] || null);
+    const full = (n) => n > 0 && RENDER[n] === 1 && SOLID[n] === 1;
+    const out = [];
+    if (k === 1) {
+      const top = mode === 'collide' ? 24 : 16;
+      out.push(mode === 'render' ? [6, 0, 6, 10, 16, 10] : [6, 0, 6, 10, top, 10]);
+      for (let a = 0; a < 4; a++) {
+        const n = nb(ARMS[a][0], 0, ARMS[a][1]);
+        if (!(full(n) || DYN[n] === 1 || (n > 0 && BLOCKS[n].gate))) continue;
+        const span = [[7, 0, 9, 6], [0, 7, 6, 9], [7, 10, 9, 16], [10, 7, 16, 9]][a];   // x0, z0, x1, z1
+        if (mode === 'render') { out.push([span[0], 6, span[1], span[2], 9, span[3]], [span[0], 12, span[1], span[2], 15, span[3]]); }
+        else out.push([span[0], 0, span[1], span[2], top, span[3]]);
+      }
+      return out;
+    }
+    // стеклянная панель: стойка и крылья к соседям; одиночная - крестом во всю клетку
+    const conn = [];
+    for (let a = 0; a < 4; a++) { const n = nb(ARMS[a][0], 0, ARMS[a][1]); conn.push(full(n) || DYN[n] === 2 || RENDER[n] === 3); }
+    if (!conn.some(Boolean)) return [[7, 0, 0, 9, 16, 16], [0, 0, 7, 16, 16, 9]];
+    out.push([7, 0, 7, 9, 16, 9]);
+    const span = [[7, 0, 9, 7], [0, 7, 7, 9], [7, 9, 9, 16], [9, 7, 16, 9]];
+    for (let a = 0; a < 4; a++) if (conn[a]) { const q = span[a]; out.push([q[0], 0, q[1], q[2], 16, q[3]]); }
+    return out;
   }
 
   // ---------- Случайность и шум ----------
@@ -385,7 +475,7 @@ function VoxelCore() {
   // ---------- Генерация куска ----------
   function generate(seed, cx, cz, gen) {
     const w = worldOf(seed, gen);
-    const data = new Uint8Array(CVOL);
+    const data = new Uint16Array(CVOL);
     const X0 = cx * CS, Z0 = cz * CS;
     const M = 3, W = CS + 2 * M;
     const cols = new Array(W * W);
@@ -635,7 +725,7 @@ function VoxelCore() {
     // chunks: 9 массивов (dx+1)+(dz+1)*3, центр - 4
     const fancy = !opt || opt.fancy !== false;
     const smoothL = !opt || opt.smooth !== false;
-    const R = new Uint8Array(RVOL);
+    const R = new Uint16Array(RVOL);
     for (let k = 0; k < 9; k++) {
       const src = chunks[k];
       if (!src) continue;
@@ -825,7 +915,8 @@ function VoxelCore() {
       }
       if (rc === 8) {      // коробки не во всю клетку: двери, кровать, сундук, грядка, кактус, рычаг
         const rot = BLOCKS[id].rot || 0;
-        for (const bx of SHAPE[id]) {
+        const shp = DYN[id] ? shapeOf(id, (dx, dy, dz) => R[ridx(x + dx, y + dy, z + dz)], 'render') : SHAPE[id];
+        for (const bx of shp) {
           const lo = [bx[0], bx[1], bx[2]], hi = [bx[3], bx[4], bx[5]];
           for (let f = 0; f < 6; f++) {
             const F = FACES[f];
@@ -907,27 +998,37 @@ function VoxelCore() {
   }
   const LAVA = 80;
 
-  // Упаковка куска для хранения: пары (длина, значение)
+  // Упаковка куска для хранения: пары (длина, значение) по 16 бит, в начале метка 0,0
+  // (старый формат - пары по байту, длина там не бывает нулём, поэтому метка их различает)
   function rleEncode(d) {
-    const out = [];
+    const out = [0];
     let i = 0;
     while (i < d.length) {
       const v = d[i]; let n = 1;
-      while (i + n < d.length && d[i + n] === v && n < 255) n++;
+      while (i + n < d.length && d[i + n] === v && n < 65535) n++;
       out.push(n, v); i += n;
     }
-    return Uint8Array.from(out);
+    const u16 = Uint16Array.from(out), u8 = new Uint8Array(u16.length * 2);
+    for (let k = 0; k < u16.length; k++) { u8[k * 2] = u16[k] & 255; u8[k * 2 + 1] = u16[k] >> 8; }
+    return u8;
   }
   function rleDecode(r) {
-    const d = new Uint8Array(CVOL);
+    const d = new Uint16Array(CVOL);
     let p = 0;
+    if (r.length >= 2 && r[0] === 0 && r[1] === 0) {
+      for (let i = 2; i + 3 < r.length; i += 4) {
+        const n = r[i] | (r[i + 1] << 8), v = r[i + 2] | (r[i + 3] << 8);
+        d.fill(v, p, Math.min(CVOL, p + n)); p += n;
+      }
+      return d;
+    }
     for (let i = 0; i < r.length; i += 2) { d.fill(r[i + 1], p, p + r[i]); p += r[i]; }
     return d;
   }
 
   return {
-    CS, CH, SEA, CVOL, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, shapeOf, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

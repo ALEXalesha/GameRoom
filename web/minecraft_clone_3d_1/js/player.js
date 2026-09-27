@@ -8,6 +8,7 @@
   const C = VX.core;
   const HALF = 0.3, HEIGHT = 1.8, EYE = 1.62, EYE_SNEAK = 1.32;
   const G = 28.2, JUMP = 8.4, TERMINAL = 78;
+  const CLIMB = 2.35, FLOW_ACC = 11;        // подъём по лестнице, м/с; снос течением, м/с²
   const SPEED = { walk: 4.317, sprint: 5.612, sneak: 1.31, fly: 10.9, flySprint: 21.8, swim: 2.2 };
   const EPS = 1e-6;
 
@@ -44,12 +45,13 @@
     const b = world.getBlock(x, y, z);
     if (b < 0) return FULL;
     if (C.SOLID[b] !== 1) return null;
-    return C.SHAPE[b] || FULL;
+    const s = C.shapeOf(b, (dx, dy, dz) => world.getBlock(x + dx, y + dy, z + dz), 'collide');
+    return s ? (s.length ? s : null) : FULL;
   }
   function solidAt(world, x, y, z) { return !!boxesAt(world, x, y, z); }
   function boxHits(world, b) {
     for (let x = Math.floor(b[0]); x <= Math.floor(b[3] - EPS); x++)
-      for (let y = Math.floor(b[1]); y <= Math.floor(b[4] - EPS); y++)
+      for (let y = Math.floor(b[1] - 0.5); y <= Math.floor(b[4] - EPS); y++)
         for (let z = Math.floor(b[2]); z <= Math.floor(b[5] - EPS); z++) {
           const bx = boxesAt(world, x, y, z);
           if (!bx) continue;
@@ -119,11 +121,36 @@
         for (let z = Math.floor(box[2] - pad); z <= Math.floor(box[5] + pad - EPS); z++) {
           const b = world.getBlock(x, y, z);
           if (b <= 0 || !ids(b)) continue;
-          const q = C.SHAPE[b] ? C.SHAPE[b][0] : FULL[0];
-          if (box[0] - pad < x + q[3] / 16 && box[3] + pad > x + q[0] / 16 && box[1] - pad < y + q[4] / 16 && box[4] + pad > y + q[1] / 16 && box[2] - pad < z + q[5] / 16 && box[5] + pad > z + q[2] / 16) return [x + 0.5, y, z + 0.5];
+          const qs = C.shapeOf(b, (dx, dy, dz) => world.getBlock(x + dx, y + dy, z + dz), 'outline') || FULL;
+          for (const q of qs) if (box[0] - pad < x + q[3] / 16 && box[3] + pad > x + q[0] / 16 && box[1] - pad < y + q[4] / 16 && box[4] + pad > y + q[1] / 16 && box[2] - pad < z + q[5] / 16 && box[5] + pad > z + q[2] / 16) return [x + 0.5, y, z + 0.5];
         }
     return null;
   }
+  // Течение воды в клетке: к соседям с меньшим уровнем (и туда, где вода падает вниз), как в оригинале.
+  // Возвращает единичный вектор [x, z] и признак падающей воды или null.
+  const FLEV = (id) => (C.FLUID[id] === 1 ? (C.FFALL[id] ? 0 : C.FLEVEL[id]) : -1);
+  function flowAt(world, x, y, z) {
+    const id = world.getBlock(x, y, z);
+    if (id <= 0 || C.FLUID[id] !== 1) return null;
+    const L = FLEV(id);
+    let fx = 0, fz = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const n = world.getBlock(x + dx, y, z + dz);
+      if (n < 0) continue;
+      let diff = 0;
+      if (C.FLUID[n] === 1) diff = FLEV(n) - L;
+      else if (n === 0 || !C.SOLID[n]) {
+        const below = world.getBlock(x + dx, y - 1, z + dz);
+        if (below === 0 || C.FLUID[below] === 1) diff = 8 - L;      // туда вода уходит вниз
+      }
+      if (diff > 0) { fx += dx * diff; fz += dz * diff; }
+    }
+    const len = Math.hypot(fx, fz);
+    const fall = !!C.FFALL[id];
+    if (len < 1e-6 && !fall) return null;
+    return { x: len ? fx / len : 0, z: len ? fz / len : 0, fall };
+  }
+  const isLadder = (b) => b > 0 && C.BLOCKS[b].ladder !== undefined;
   const isCactus = (b) => b === C.B.cactus;
   const isLava = (b) => C.FLUID[b] === 2;
   const isFire = (b) => b === C.B.fire;
@@ -160,6 +187,19 @@
     const k = 1 - Math.exp(-acc * dt);
     this.vel.x += (mx * speed - this.vel.x) * k;
     this.vel.z += (mz * speed - this.vel.z) * k;
+    // течение воды сносит (в полёте - нет)
+    this.current = null;
+    if (this.inWater && !this.flying && !this.inLava) {
+      const f = flowAt(world, Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z)) || flowAt(world, Math.floor(this.pos.x), Math.floor(this.pos.y + 1), Math.floor(this.pos.z));
+      if (f) {
+        this.current = f;
+        this.vel.x += f.x * FLOW_ACC * dt; this.vel.z += f.z * FLOW_ACC * dt;
+        if (f.fall) this.vel.y -= FLOW_ACC * 0.5 * dt;
+      }
+    }
+    // лестница: в клетке ног или головы
+    const lx = Math.floor(this.pos.x), lz = Math.floor(this.pos.z);
+    this.onLadder = !this.flying && (isLadder(world.getBlock(lx, Math.floor(this.pos.y + 0.05), lz)) || isLadder(world.getBlock(lx, Math.floor(this.pos.y + 1), lz)));
 
     const wasGround = this.onGround;
     if (this.flying) {
@@ -172,9 +212,16 @@
       this.vel.y = Math.max(-3.5, Math.min(3.2, this.vel.y));
     } else {
       this.vel.y = Math.max(-TERMINAL, this.vel.y - G * dt);
-      if (input.jump && this.onGround && this.jumpCool <= 0) {
+      if (input.jump && this.onGround && this.jumpCool <= 0 && !this.onLadder) {
         this.vel.y = JUMP; this.onGround = false; this.jumpCool = 0.1;
         if (ev) ev('jump');
+      }
+      if (this.onLadder) {
+        // по лестнице: вверх - упором в неё или прыжком, вниз - не быстрее 3 м/с, крадясь - висишь
+        this.vel.y = Math.max(this.vel.y, -3);
+        if (this.sneaking) this.vel.y = Math.max(this.vel.y, 0);
+        if (input.jump || this.pushWall) this.vel.y = CLIMB;
+        this.vel.x = Math.max(-3, Math.min(3, this.vel.x)); this.vel.z = Math.max(-3, Math.min(3, this.vel.z));
       }
     }
     this.jumpCool = Math.max(0, (this.jumpCool || 0) - dt);
@@ -196,6 +243,7 @@
     }
     const y0 = this.pos.y;
     const hit = moveBox(world, this, dx, dy, dz, (this.onGround || this.flying) && !this.inWater);
+    this.pushWall = (hit.cx || hit.cz) && len > 0;
     if (hit.cx) this.vel.x = 0;
     if (hit.cz) this.vel.z = 0;
     if (hit.cy) {
@@ -213,7 +261,7 @@
     }
 
     // падение: высшая точка в воздухе минус точка приземления
-    if (this.flying || this.inWater || creative) this.fallTop = null;
+    if (this.flying || this.inWater || creative || this.onLadder) this.fallTop = null;
     else if (!this.onGround) { if (this.fallTop === null || this.pos.y > this.fallTop) this.fallTop = Math.max(this.pos.y, y0); }
     if (this.onGround && !wasGround) {
       if (this.fallTop !== null && !creative) {
@@ -340,5 +388,5 @@
   };
 
   VX.Player = Player;
-  VX.phys = { boxHits, sweep, solidAt, boxesAt, touching, isCactus, isLava, isFire, HALF, HEIGHT, EYE, SPEED, fluidAt };
+  VX.phys = { boxHits, sweep, solidAt, boxesAt, touching, flowAt, isLadder, isCactus, isLava, isFire, HALF, HEIGHT, EYE, SPEED, fluidAt };
 })();

@@ -56,9 +56,13 @@
         it.vx += dx * k * dt; it.vy += dy * k * dt; it.vz += dz * k * dt;
         it.vx *= 0.8; it.vy *= 0.8; it.vz *= 0.8;
       } else {
-        it.vy -= (inWater(it) ? 4 : 20) * dt;
-        const f = it.onGround ? Math.pow(0.02, dt) : Math.pow(0.6, dt);
+        const wet = inWater(it);
+        it.vy -= (wet ? 4 : 20) * dt;
+        const f = wet ? Math.pow(0.05, dt) : it.onGround ? Math.pow(0.02, dt) : Math.pow(0.6, dt);
         it.vx *= f; it.vz *= f;
+        // течение уносит предмет
+        const fl = wet && P.flowAt(G.world, Math.floor(it.x), Math.floor(it.y + 0.1), Math.floor(it.z));
+        if (fl) { it.vx += fl.x * 6 * dt; it.vz += fl.z * 6 * dt; }
       }
       move(it, it.vx * dt, it.vy * dt, it.vz * dt);
       // кактус, лава и огонь уничтожают предметы
@@ -306,7 +310,7 @@
     const n = Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) * 3);
     for (let k = 1; k < n; k++) {
       const t = k / n, b = G.world.getBlock(Math.floor(ax + (bx - ax) * t), Math.floor(ay + (by - ay) * t), Math.floor(az + (bz - az) * t));
-      if (b !== 0 && (b < 0 || (C.SOLID[b] && !C.SHAPE[b]))) return false;
+      if (b !== 0 && (b < 0 || (C.SOLID[b] && C.RENDER[b] === 1))) return false;
     }
     return true;
   }
@@ -460,7 +464,8 @@
     }
   }
   function hitBlock(b, x, y, z) {
-    const s = C.SHAPE[b];
+    const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z);
+    const s = C.shapeOf(b, (dx, dy, dz) => G.world.getBlock(X + dx, Y + dy, Z + dz), 'collide');
     if (!s) return true;
     const fx = (x - Math.floor(x)) * 16, fy = (y - Math.floor(y)) * 16, fz = (z - Math.floor(z)) * 16;
     return s.some((q) => fx >= q[0] && fx <= q[3] && fy >= q[1] && fy <= q[4] && fz >= q[2] && fz <= q[5]);

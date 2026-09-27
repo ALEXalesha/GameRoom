@@ -102,7 +102,7 @@
   const BY = [];
   for (const it of ITEMS) BY[it.id] = it;
   function info(id) {
-    if (id < 256) {
+    if (C.isBlock(id)) {
       const b = C.BLOCKS[id];
       return b ? { id, key: b.key, name: b.name, stack: 64, block: true, fuel: BLOCK_FUEL[id] || 0 } : null;
     }
@@ -110,6 +110,8 @@
   }
   const BLOCK_FUEL = {};
   for (const k of ['oak_log', 'birch_log', 'spruce_log', 'oak_planks', 'birch_planks', 'spruce_planks', 'crafting_table', 'bookshelf']) BLOCK_FUEL[B[k]] = 15;
+  for (let m = 0; m < 3; m++) { BLOCK_FUEL[C.SLAB + m * 3] = 7.5; BLOCK_FUEL[C.STAIRS + m * 8] = 15; }
+  for (const id of [C.FENCE, C.GATE, C.TRAPDOOR, C.LADDER]) BLOCK_FUEL[id] = 15;
   const maxStack = (id) => (info(id) || { stack: 64 }).stack;
   const toolOf = (id) => { const it = BY[id]; return it && it.tool ? it.tool : null; };
   const armorOf = (id) => { const it = BY[id]; return it && it.armor ? it.armor : null; };
@@ -143,7 +145,7 @@
     if (b.key === 'gravel' && rnd() < 0.1) return [[I.flint, 1]];
     if (b.crop !== undefined) return b.crop === 7 ? [[I.wheat, 1], [I.seeds, (rnd() * 4) | 0]].filter((d) => d[1] > 0) : [[I.seeds, 1]];
     const d = b.drop === undefined ? b.item : b.drop;
-    return d ? [[d, 1]] : [];
+    return d ? [[d, b.dropCount || 1]] : [];
   }
 
   // ---------- Рецепты верстака ----------
@@ -191,6 +193,17 @@
   ];
   const MATS = { wood: '#planks', stone: 'cobblestone', iron: 'iron_ingot', gold: 'gold_ingot', diamond: 'diamond' };
   for (const t of ALL_TIERS) RECIPES.push({ out: [t.key + '_hoe', 1], shape: ['MM', ' S', ' S'], keys: { M: MATS[t.key], S: 'stick' } });
+  // строительные: плиты (3 в ряд - 6), ступени (лесенкой - 4), заборы, калитки, люки, панели, лестницы
+  C.MATS.forEach(([k, src], m) => {
+    RECIPES.push({ out: [C.SLAB + m * 3, 6], shape: ['MMM'], keys: { M: src } });
+    RECIPES.push({ out: [C.STAIRS + m * 8, 4], shape: ['M  ', 'MM ', 'MMM'], keys: { M: src } });
+  });
+  RECIPES.push({ out: [C.FENCE, 3], shape: ['PSP', 'PSP'], keys: { P: '#planks', S: 'stick' } });
+  RECIPES.push({ out: [C.GATE, 1], shape: ['SPS', 'SPS'], keys: { P: '#planks', S: 'stick' } });
+  RECIPES.push({ out: [C.TRAPDOOR, 2], shape: ['PPP', 'PPP'], keys: { P: '#planks' } });
+  RECIPES.push({ out: [C.IRON_TRAPDOOR, 1], shape: ['II', 'II'], keys: { I: 'iron_ingot' } });
+  RECIPES.push({ out: [C.PANE, 16], shape: ['GGG', 'GGG'], keys: { G: 'glass' } });
+  RECIPES.push({ out: [C.LADDER, 3], shape: ['S S', 'SSS', 'S S'], keys: { S: 'stick' } });
   const ARMOR_IN = { leather: 'leather', iron: 'iron_ingot', gold: 'gold_ingot', diamond: 'diamond' };
   const ARMOR_SHAPES = { helmet: ['MMM', 'M M'], chestplate: ['M M', 'MMM', 'MMM'], leggings: ['MMM', 'M M', 'M M'], boots: ['M M', 'M M'] };
   for (const m of ARMOR_MATS) for (const pc of PIECES) RECIPES.push({ out: [m.key + '_' + pc.key, 1], shape: ARMOR_SHAPES[pc.key], keys: { M: ARMOR_IN[m.key] } });

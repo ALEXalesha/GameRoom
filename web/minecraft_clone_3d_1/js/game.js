@@ -58,12 +58,13 @@
   G.icon = function (id) {
     let url = iconCache.get(id);
     if (url) return url;
-    if (!(id < 256 ? C.BLOCKS[id] : D.info(id))) id = B.stone;
+    if (!D.info(id)) id = B.stone;
     let c;
-    if (id < 256) {
+    if (C.isBlock(id)) {
       const b = C.BLOCKS[id];
-      const flat = b.render === 'cross' || b.render === 'torch' || id === 130 || id === 131;
-      if (flat) { const t = C.TEXF[id * 6]; c = VX.tex.flatIcon(atlas.canvas, (t % C.ATLAS_COLS) * 16, ((t / C.ATLAS_COLS) | 0) * 16); }
+      const flat = b.render === 'cross' || b.render === 'torch' || id === 130 || id === 131 || b.ladder !== undefined || b.trapdoor || id === C.PANE;
+      if (flat) { const t = C.TEXF[id * 6 + 3]; c = VX.tex.flatIcon(atlas.canvas, (t % C.ATLAS_COLS) * 16, ((t / C.ATLAS_COLS) | 0) * 16); }
+      else if (b.render === 'box' && C.SHAPE[id]) c = VX.tex.isoShapeIcon(atlas.canvas, id, C.SHAPE[id]);
       else c = VX.tex.isoIcon(atlas.canvas, id);
     } else {
       const it = D.info(id);
@@ -113,13 +114,42 @@
     return g;
   }
   G.cubeGeometry = cubeGeometry;
+  // Предмет-блок не во всю клетку: геометрия из его коробок с теми же развёртками, что у сетки мира
+  function shapeGeometry(id, size, shp) {
+    const pos = [], uv = [], nor = [], idx = [];
+    for (const bx of shp) {
+      const lo = [bx[0], bx[1], bx[2]], hi = [bx[3], bx[4], bx[5]];
+      for (let f = 0; f < 6; f++) {
+        const F = C.FACES[f], t = bx[6] ? C.T[bx[6]] : C.TEXF[id * 6 + f];
+        const col = t % C.ATLAS_COLS, row = (t / C.ATLAS_COLS) | 0;
+        const a1 = F.e1[0] ? 0 : F.e1[1] ? 1 : 2, s1 = F.e1[a1], a2 = F.e2[0] ? 0 : F.e2[1] ? 1 : 2, s2 = F.e2[a2];
+        const base = pos.length / 3;
+        for (let q = 0; q < 4; q++) {
+          const V = C.VERT[f][q];
+          const cc = [V.p[0] ? hi[0] : lo[0], V.p[1] ? hi[1] : lo[1], V.p[2] ? hi[2] : lo[2]];
+          pos.push((cc[0] / 16 - 0.5) * size, (cc[1] / 16 - 0.5) * size, (cc[2] / 16 - 0.5) * size);
+          const u = s1 > 0 ? cc[a1] / 16 : 1 - cc[a1] / 16, v = s2 > 0 ? cc[a2] / 16 : 1 - cc[a2] / 16;
+          uv.push((col + u) / C.ATLAS_COLS, 1 - (row + 1 - v) / C.ATLAS_ROWS);
+          nor.push(F.n[0], F.n[1], F.n[2]);
+        }
+        idx.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setIndex(idx);
+    return g;
+  }
+  G.shapeGeometry = shapeGeometry;
   const cubeMat = new THREE.MeshLambertMaterial({ map: atlasTex, alphaTest: 0.5 });
   const spriteMats = new Map();
   function spriteMaterial(id) {
     let m = spriteMats.get(id);
     if (m) return m;
     let tex, col, row;
-    if (id < 256) { const t = C.TEXF[id * 6]; tex = atlasTex.clone(); col = t % C.ATLAS_COLS; row = (t / C.ATLAS_COLS) | 0; tex.repeat.set(1 / C.ATLAS_COLS, 1 / C.ATLAS_ROWS); tex.offset.set(col / C.ATLAS_COLS, 1 - (row + 1) / C.ATLAS_ROWS); }
+    if (C.isBlock(id)) { const t = C.TEXF[id * 6]; tex = atlasTex.clone(); col = t % C.ATLAS_COLS; row = (t / C.ATLAS_COLS) | 0; tex.repeat.set(1 / C.ATLAS_COLS, 1 / C.ATLAS_ROWS); tex.offset.set(col / C.ATLAS_COLS, 1 - (row + 1) / C.ATLAS_ROWS); }
     else { const it = D.info(id); tex = itemTex.clone(); col = it.itile % 16; row = (it.itile / 16) | 0; const rows = itemCanvas.height / 16; tex.repeat.set(1 / 16, 1 / rows); tex.offset.set(col / 16, 1 - (row + 1) / rows); }
     tex.needsUpdate = true;
     tex.magFilter = tex.minFilter = THREE.NearestFilter;
@@ -134,12 +164,13 @@
   // (раньше каждый выпавший предмет создавал свою, и память видеокарты росла)
   const itemGeo = new Map();
   G.itemMesh = function (id, size) {
-    const b = id < 256 ? C.BLOCKS[id] : null;
+    const b = C.isBlock(id) ? C.BLOCKS[id] : null;
     const cube = b && (b.render === 'cube' || b.render === 'leaves' || b.render === 'glass' || b.render === 'ice' || b.render === 'box');
     const k = id + '|' + size;
     let g = itemGeo.get(k);
-    if (!g) { g = cube ? cubeGeometry(id, size) : new THREE.PlaneGeometry(size * 1.6, size * 1.6); itemGeo.set(k, g); }
-    const m = new THREE.Mesh(g, cube ? cubeMat : spriteMaterial(id));
+    const flatBlock = b && (b.ladder !== undefined || b.trapdoor || id === C.PANE);
+    if (!g) { g = flatBlock ? new THREE.PlaneGeometry(size * 1.6, size * 1.6) : b && b.render === 'box' && C.SHAPE[id] ? shapeGeometry(id, size, C.SHAPE[id]) : cube ? cubeGeometry(id, size) : new THREE.PlaneGeometry(size * 1.6, size * 1.6); itemGeo.set(k, g); }
+    const m = new THREE.Mesh(g, cube && !flatBlock ? cubeMat : spriteMaterial(id));
     m.userData.sharedGeo = true; m.userData.sharedMat = true;
     return m;
   };
@@ -493,6 +524,7 @@
       if (id === B.cactus && here > 0 && C.SOLID[here]) popBlock(x + dx, y, z + dz);
     }
     if (up === B.sand || up === B.gravel) fallBlocks(x, y + 1, z);
+    if (VX.build) VX.build.after(x, y, z, here);
     if (VX.fluids) VX.fluids.touch(x, y, z);
   }
   G.afterChange = afterChange;
@@ -649,6 +681,8 @@
       if (tb.door === 'wood') { setDoorOpen(t.x, t.y, t.z, !tb.open); return 'door'; }
       if (t.id === 130 || t.id === 131) { toggleLever(t.x, t.y, t.z); return 'lever'; }
       if (tb.bed) return G.useBed(t.x, t.y, t.z);
+      const u = VX.build && VX.build.use(t);
+      if (u !== undefined) return u;
     }
     if (!held) return null;
     // мотыга: трава и земля становятся грядкой
@@ -690,7 +724,9 @@
       return 'egg';
     }
     if (hi.places) return placeSpecial(t, held, hi);
-    if (held.id >= 256) return null;
+    if (!C.isBlock(held.id)) return null;
+    const built = VX.build && VX.build.place(t, held);
+    if (built !== undefined) return built;
     let { x, y, z } = t.place;
     if (tb.replaceable) { x = t.x; y = t.y; z = t.z; }
     if (y < 0 || y >= C.CH) return null;
@@ -1150,7 +1186,17 @@
     const t = (G.state === 'play' || G.state === 'inv') ? G.target() : null;
     G.lastTarget = t;
     selBox.visible = !!t && G.state === 'play';
-    if (t) selBox.position.set(t.x + 0.5, t.y + 0.5, t.z + 0.5);
+    if (t) {
+      // рамка по форме блока (плита, ступени, забор): общая коробка его частей
+      let lo = [0, 0, 0], hi = [16, 16, 16];
+      if (C.RENDER[t.id] === 8) {
+        const shp = C.shapeOf(t.id, (dx, dy, dz) => world.getBlock(t.x + dx, t.y + dy, t.z + dz), 'outline');
+        if (shp && shp.length) { lo = [16, 16, 16]; hi = [0, 0, 0]; for (const q of shp) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], q[k]); hi[k] = Math.max(hi[k], q[k + 3]); } }
+      }
+      selBox.scale.set((hi[0] - lo[0]) / 16 || 0.01, (hi[1] - lo[1]) / 16 || 0.01, (hi[2] - lo[2]) / 16 || 0.01);
+      selBox.position.set(t.x + (lo[0] + hi[0]) / 32, t.y + (lo[1] + hi[1]) / 32, t.z + (lo[2] + hi[2]) / 32);
+      G.selBounds = { lo, hi };
+    }
     const m = G.mining;
     crack.visible = !!(m && m.p > 0 && G.mode === 'survival');
     if (crack.visible) { crack.position.set(m.x + 0.5, m.y + 0.5, m.z + 0.5); crackTex.offset.x = Math.min(9, Math.floor(m.p * 10)) / 10; }

@@ -421,6 +421,24 @@
     bed_side_head(t, r) { planks(t, r, '#a8834f'); for (let y = 0; y < 6; y++) for (let x = 0; x < 16; x++) t.px(x, y, x < 7 ? '#f0f0f0' : '#b02828'); },
     bed_side_foot(t, r) { planks(t, r, '#a8834f'); for (let y = 0; y < 6; y++) for (let x = 0; x < 16; x++) t.px(x, y, '#b02828'); },
     lever(t, r) { plant(t, () => { for (let y = 5; y < 16; y++) { t.px(7, y, '#6b4f2a'); t.px(8, y, '#8a6a3a'); } t.px(7, 4, '#5a4020'); t.px(8, 4, '#5a4020'); }); },
+    trapdoor(t, r) {
+      planks(t, r, '#9a7646');
+      for (let k = 0; k < 16; k++) { t.px(k, 0, '#5a3f22'); t.px(k, 15, '#5a3f22'); t.px(0, k, '#5a3f22'); t.px(15, k, '#5a3f22'); }
+      // окошки: сквозь люк видно
+      for (const [x0, y0] of [[2, 2], [9, 2], [2, 9], [9, 9]]) for (let y = y0; y < y0 + 5; y++) for (let x = x0; x < x0 + 5; x++) if ((x - x0 + y - y0) % 4 !== 3) t.px(x, y, '#000000', 0);
+    },
+    iron_trapdoor(t, r) {
+      t.noise(['#d8d8d8', '#cccccc', '#e2e2e2'], r);
+      for (let k = 0; k < 16; k++) { t.px(k, 0, '#8a8a8a'); t.px(k, 15, '#8a8a8a'); t.px(0, k, '#8a8a8a'); t.px(15, k, '#8a8a8a'); }
+      for (let y = 3; y < 13; y += 3) for (let x = 3; x < 13; x++) t.px(x, y, '#9a9a9a');
+      for (const [x, y] of [[2, 2], [13, 2], [2, 13], [13, 13]]) t.px(x, y, '#6a6a6a');
+    },
+    ladder(t, r) {
+      plant(t, () => {
+        for (let y = 0; y < 16; y++) { t.px(2, y, '#6b4f2a'); t.px(3, y, '#8a6a3a'); t.px(12, y, '#6b4f2a'); t.px(13, y, '#8a6a3a'); }
+        for (const y of [1, 5, 9, 13]) for (let x = 4; x < 12; x++) { t.px(x, y, '#9a7646'); t.px(x, y + 1, '#6b4f2a'); }
+      });
+    },
     water_flow(t, r) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const w = Math.sin((x * 0.5 + y) * 0.9) + Math.sin(x * 0.3 - y * 0.2);
@@ -692,6 +710,32 @@
     faceTo(T[id * 6 + 3], [15 / 16, 7 / 16, -15 / 16, 7 / 16, 16, 1], 0); // верх
     return c;
   }
+  // Значок блока не во всю клетку (плита, ступени, забор, калитка, сундук): каждая коробка
+  // рисуется своими гранями в той же проекции, что и кубик; сзади наперёд, снизу вверх
+  function isoShapeIcon(atlas, id, shp) {
+    const S = 64, k = S / 32;
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    const tileOf = (bx, f) => (bx[6] ? C.T[bx[6]] : C.TEXF[id * 6 + f]);
+    const face = (tile, m, sx, sy, w, h, dark) => {
+      if (w <= 0 || h <= 0) return;
+      const tmp = document.createElement('canvas'); tmp.width = tmp.height = S;
+      const tg = tmp.getContext('2d'); tg.imageSmoothingEnabled = false;
+      tg.setTransform(m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4] * k, m[5] * k);
+      tg.drawImage(tileCanvas(atlas, tile), sx, sy, w, h, sx, sy, w, h);
+      if (dark) { tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalCompositeOperation = 'source-atop'; tg.fillStyle = `rgba(0,0,0,${dark})`; tg.fillRect(0, 0, S, S); }
+      g.drawImage(tmp, 0, 0);
+    };
+    const boxes = shp.slice().sort((a, b) => (a[1] - b[1]) || ((a[0] + a[2]) - (b[0] + b[2])));
+    for (const b of boxes) {
+      const [x0, y0, z0, x1, y1, z1] = b;
+      // экран: X = 16 + 15/16 (x - z), Y = 1 + 7/16 (x + z) + (16 - y)
+      face(tileOf(b, 5), [15 / 16, 7 / 16, 0, 1, 16 - 15 / 16 * z1, 1 + 7 / 16 * z1], x0, 16 - y1, x1 - x0, y1 - y0, 0.22);
+      face(tileOf(b, 1), [15 / 16, -7 / 16, 0, 1, 1 + 15 / 16 * x1, 8 + 7 / 16 * x1], 16 - z1, 16 - y1, z1 - z0, y1 - y0, 0.4);
+      face(tileOf(b, 3), [15 / 16, 7 / 16, -15 / 16, 7 / 16, 16, 1 + 16 - y1], x0, z0, x1 - x0, z1 - z0, 0);
+    }
+    return c;
+  }
   function flatIcon(src, sx, sy) {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -774,5 +818,5 @@
     rows.forEach((r, y) => { for (let x = 0; x < 13; x++) if (pal[r[x]]) { g.fillStyle = pal[r[x]]; g.fillRect(x, y, 1, 1); } });
     return c.toDataURL();
   }
-  VX.tex = { flameIcon, buildBlockAtlas, buildItemAtlas, isoIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
+  VX.tex = { flameIcon, buildBlockAtlas, buildItemAtlas, isoIcon, isoShapeIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
 })();

@@ -98,8 +98,8 @@
   }
 
   // Кусок с диска: неизвестные id блоков (другая версия, битая запись) становятся камнем
-  const KNOWN = new Uint8Array(256);
-  for (let i = 0; i < 256; i++) KNOWN[i] = C.BLOCKS[i] ? 1 : 0;
+  const KNOWN = new Uint8Array(C.MAXID);
+  for (let i = 0; i < C.MAXID; i++) KNOWN[i] = C.isBlock(i) ? 1 : 0;
   function sanitize(d) { for (let i = 0; i < d.length; i++) if (!KNOWN[d[i]]) d[i] = C.B.stone; return d; }
 
   // ---------- Мир ----------
@@ -412,6 +412,23 @@
   // ---------- Луч по клеткам ----------
   // Первая клетка, в которую можно целиться (не воздух и не вода), и грань входа
   // Луч до источника воды или лавы (для ведра); твёрдый блок раньше - промах
+  // Луч и коробка: расстояние входа и нормаль грани входа (или null)
+  function rayBox(o, d, b) {
+    const O = [o.x, o.y, o.z], D = [d.x, d.y, d.z];
+    let tmin = -Infinity, tmax = Infinity, ax = -1;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(D[k]) < 1e-12) { if (O[k] < b[k] || O[k] > b[k + 3]) return null; continue; }
+      let t1 = (b[k] - O[k]) / D[k], t2 = (b[k + 3] - O[k]) / D[k];
+      if (t1 > t2) { const s = t1; t1 = t2; t2 = s; }
+      if (t1 > tmin) { tmin = t1; ax = k; }
+      if (t2 < tmax) tmax = t2;
+      if (tmin > tmax) return null;
+    }
+    if (tmax < 0) return null;
+    const n = [0, 0, 0];
+    if (ax >= 0 && tmin >= 0) n[ax] = D[ax] > 0 ? -1 : 1;
+    return { t: Math.max(0, tmin), n };
+  }
   World.prototype.raycastFluid = function (o, d, maxDist) { return this.raycast(o, d, maxDist, true); };
   World.prototype.raycast = function (o, d, maxDist, fluids) {
     let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z);
@@ -423,7 +440,22 @@
     let n = [0, 0, 0], t = 0;
     for (let guard = 0; guard < 200 && t <= maxDist; guard++) {
       const b = this.getBlock(x, y, z);
-      if (b > 0 && (fluids ? C.FLUID[b] && (b === C.B.water || b === C.B.lava) : !C.FLUID[b])) return { x, y, z, id: b, n, dist: t, place: { x: x + n[0], y: y + n[1], z: z + n[2] } };
+      if (b > 0 && (fluids ? C.FLUID[b] && (b === C.B.water || b === C.B.lava) : !C.FLUID[b])) {
+        // блок не во всю клетку (плита, ступени, забор, дверь): луч проверяется по его коробкам
+        if (!fluids && (C.RENDER[b] === 8)) {
+          const X = x, Y = y, Z = z;
+          const shp = C.shapeOf(b, (dx, dy, dz) => this.getBlock(X + dx, Y + dy, Z + dz), 'outline') || [];
+          let best = null;
+          for (const q of shp) {
+            const r = rayBox(o, d, [x + q[0] / 16, y + q[1] / 16, z + q[2] / 16, x + q[3] / 16, y + q[4] / 16, z + q[5] / 16]);
+            if (r && (!best || r.t < best.t)) best = r;
+          }
+          if (best && best.t <= maxDist) {
+            const nn = best.t > t + 1e-7 || !n.some(Boolean) ? best.n : n;
+            return { x, y, z, id: b, n: nn, dist: best.t, hit: { x: o.x + d.x * best.t, y: o.y + d.y * best.t, z: o.z + d.z * best.t }, place: { x: x + nn[0], y: y + nn[1], z: z + nn[2] } };
+          }
+        } else return { x, y, z, id: b, n, dist: t, hit: { x: o.x + d.x * t, y: o.y + d.y * t, z: o.z + d.z * t }, place: { x: x + n[0], y: y + n[1], z: z + n[2] } };
+      }
       if (fluids && b > 0 && !C.FLUID[b] && C.SOLID[b]) return null;
       if (tmx < tmy && tmx < tmz) { x += sx; t = tmx; tmx += tdx; n = [-sx, 0, 0]; }
       else if (tmy < tmz) { y += sy; t = tmy; tmy += tdy; n = [0, -sy, 0]; }
