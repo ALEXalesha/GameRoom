@@ -310,6 +310,17 @@ test.describe('Блоки: режимы и итоги', () => {
     expect(await page.evaluate(() => [__game.state.mode, __game.state.phase, __game.state.lines])).toEqual(['marathon', 'play', 0]);
   });
 
+  test('фигура, зафиксированная целиком над видимым полем, - поражение, даже если место для новой есть', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate(() => {
+      const g = __game; g.startMode('marathon');
+      g.setGrid(Array.from({ length: 20 }, () => 'XXX.......'));
+      g.setPiece('O', 0, 0, 0); g.hardDrop();
+      return g.state.phase;
+    });
+    expect(r).toBe('over');
+  });
+
   test('статистика: партии, линии и фигуры копятся и видны в «Достижения и рекорды»', async ({ page }) => {
     await open(page);
     await page.evaluate(() => {
