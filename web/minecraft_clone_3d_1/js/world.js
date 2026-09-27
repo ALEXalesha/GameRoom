@@ -15,7 +15,7 @@
     self.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'gen') {
-        const data = Core.generate(m.seed, m.cx, m.cz);
+        const data = Core.generate(m.seed, m.cx, m.cz, m.gen);
         self.postMessage({ id: m.id, data }, [data.buffer]);
       } else if (m.type === 'mesh') {
         const r = Core.buildMesh(m.chunks, m.opt);
@@ -125,6 +125,7 @@
     this.close();
     this.meta = meta;
     this.seed = meta.seedNum;
+    this.gen = meta.gen || '';
     this.persist = persist;
     this.epoch = (this.epoch || 0) + 1;
   };
@@ -267,7 +268,7 @@
       }
       for (const [ch] of gens) {
         if (performance.now() - t0 > budget) break;
-        ch.data = C.generate(this.seed, ch.cx, ch.cz); ch.state = 2; this.stats.generated++;
+        ch.data = C.generate(this.seed, ch.cx, ch.cz, this.gen); ch.state = 2; this.stats.generated++;
         this.touchNeighbours(ch.cx, ch.cz);
       }
       return;
@@ -292,7 +293,7 @@
       const id = this.jobId++;
       this.jobs.set(id, { type: 'gen', ch, epoch: this.epoch, w });
       w.busy++;
-      w.postMessage({ id, type: 'gen', seed: this.seed, cx: ch.cx, cz: ch.cz });
+      w.postMessage({ id, type: 'gen', seed: this.seed, gen: this.gen, cx: ch.cx, cz: ch.cz });
     }
   };
   World.prototype.onResult = function (w, m) {
@@ -393,7 +394,9 @@
 
   // ---------- Луч по клеткам ----------
   // Первая клетка, в которую можно целиться (не воздух и не вода), и грань входа
-  World.prototype.raycast = function (o, d, maxDist) {
+  // Луч до источника воды или лавы (для ведра); твёрдый блок раньше - промах
+  World.prototype.raycastFluid = function (o, d, maxDist) { return this.raycast(o, d, maxDist, true); };
+  World.prototype.raycast = function (o, d, maxDist, fluids) {
     let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z);
     const sx = Math.sign(d.x), sy = Math.sign(d.y), sz = Math.sign(d.z);
     const tdx = sx ? Math.abs(1 / d.x) : Infinity, tdy = sy ? Math.abs(1 / d.y) : Infinity, tdz = sz ? Math.abs(1 / d.z) : Infinity;
@@ -403,7 +406,8 @@
     let n = [0, 0, 0], t = 0;
     for (let guard = 0; guard < 200 && t <= maxDist; guard++) {
       const b = this.getBlock(x, y, z);
-      if (b > 0 && b !== C.B.water) return { x, y, z, id: b, n, dist: t, place: { x: x + n[0], y: y + n[1], z: z + n[2] } };
+      if (b > 0 && (fluids ? C.FLUID[b] && (b === C.B.water || b === C.B.lava) : !C.FLUID[b])) return { x, y, z, id: b, n, dist: t, place: { x: x + n[0], y: y + n[1], z: z + n[2] } };
+      if (fluids && b > 0 && !C.FLUID[b] && C.SOLID[b]) return null;
       if (tmx < tmy && tmx < tmz) { x += sx; t = tmx; tmx += tdx; n = [-sx, 0, 0]; }
       else if (tmy < tmz) { y += sy; t = tmy; tmy += tdy; n = [0, -sy, 0]; }
       else { z += sz; t = tmz; tmz += tdz; n = [0, 0, -sz]; }
