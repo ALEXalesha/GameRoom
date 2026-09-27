@@ -1022,7 +1022,8 @@
   canvas.addEventListener('mousedown', (e) => {
     VX.audio.init();
     if (G.state !== 'play') return;
-    if (G.needClick || (canvas.requestPointerLock && document.pointerLockElement !== canvas && !G.testMode)) { lock(); G.needClick = false; return; }
+    // первый щелчок без захвата мыши - только захват (в проверках захвата нет, щелчок идёт в игру)
+    if (!G.testMode && (G.needClick || (canvas.requestPointerLock && document.pointerLockElement !== canvas))) { lock(); G.needClick = false; return; }
     if (e.button === 0) { G.mouse.l = true; G.mouse.lPressed = true; G.breakCool = 0; }
     else if (e.button === 2) { G.mouse.r = true; G.placeCool = 0.25; G.useTarget(); }
     else if (e.button === 1) { e.preventDefault(); G.pickTarget(); }

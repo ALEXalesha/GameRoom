@@ -23,6 +23,10 @@ async function world(page, mode = 'survival') {
     };
   });
 }
+// переход без портала (для проверок): на той стороне - площадка 9x9 из обсидиана и воздух над ней
+const DIM_PLATFORM = `(() => { const v = __voxel, p = v.player, x0 = Math.floor(p.pos.x), z0 = Math.floor(p.pos.z), y = 70;
+  for (let x = x0 - 4; x <= x0 + 4; x++) for (let z = z0 - 4; z <= z0 + 4; z++) { v.setBlock(x, y - 1, z, v.core.B.obsidian); for (let k = 0; k < 5; k++) v.setBlock(x, y + k, z, 0); }
+  p.pos.set(x0 + 0.5, y, z0 + 0.5); })`;
 // ждать, пока переход закончится (экран загрузки, потом игра)
 async function arrive(page) {
   await page.waitForFunction(() => __voxel.state === 'play', null, { timeout: 60000 });
@@ -149,7 +153,7 @@ test.describe('minecraft_clone_3d_1: Нижний мир', () => {
 
   test('правила Нижнего мира: вода испаряется, кровать взрывается, огонь на незераке вечный, песок душ замедляет, адский нарост растёт только на песке душ', async ({ page }) => {
     await world(page);
-    await page.evaluate(() => { const v = __voxel; v.game.changeDim('nether', { x: v.player.pos.x, y: 70, z: v.player.pos.z }); });
+    await page.evaluate((pf) => { const v = __voxel; v.game.changeDim('nether', { x: v.player.pos.x, y: 70, z: v.player.pos.z }, eval(pf)); }, DIM_PLATFORM);
     await arrive(page);
     const r = await page.evaluate(() => {
       const v = __voxel, C = v.core, B = C.B, I = v.data.I, p = v.player;
@@ -291,14 +295,14 @@ test.describe('minecraft_clone_3d_1: Нижний мир', () => {
 
   test('сундук в Нижнем мире хранится отдельно; мир открывается снова в Нижнем мире; смерть там - возрождение дома', async ({ page }) => {
     await world(page);
-    const r1 = await page.evaluate(async () => {
+    const r1 = await page.evaluate(async (pf) => {
       const v = __voxel, p = v.player, I = v.data.I, C = v.core;
       const { x0, z0 } = base();
       v.game.chestSlots(x0 + 2, 70, z0)[0] = { id: I.diamond, count: 3, dmg: 0 };
       v.setBlock(x0 + 2, 70, z0, C.B.chest);
-      v.game.changeDim('nether', { x: x0 + 0.5, y: 80, z: z0 + 0.5 });
+      v.game.changeDim('nether', { x: x0 + 0.5, y: 80, z: z0 + 0.5 }, eval(pf));
       return { x0, z0 };
-    });
+    }, DIM_PLATFORM);
     await arrive(page);
     const r2 = await page.evaluate(async ({ x0, z0 }) => {
       const v = __voxel, p = v.player, I = v.data.I, C = v.core;
