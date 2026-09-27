@@ -247,12 +247,18 @@ test.describe('minecraft_clone_3d_1: вода, лава, вёдра', () => {
       const cells = []; for (let d = 1; d <= 3; d++) cells.push(v.getBlock(x0 + d, 70, z0));
       v.setBlock(x0 + 6, 70, z0 + 6, B.water); v.setBlock(x0 + 6, 71, z0 + 6, B.lava); v.VX.fluids.touch(x0 + 6, 71, z0 + 6);
       run(4);
-      return { levels, atSource, cells, onWater: v.getBlock(x0 + 6, 70, z0 + 6), obs: B.obsidian, cob: B.cobblestone, stone: B.stone };
+      // лава рядом со стоячей водой сама застывает (обновляется только лава): источник - в обсидиан
+      v.setBlock(x0 - 3, 70, z0 + 3, B.water);
+      v.setBlock(x0 - 2, 70, z0 + 3, B.lava);
+      v.VX.fluids.update(x0 - 2, 70, z0 + 3);
+      const lavaSide = v.getBlock(x0 - 2, 70, z0 + 3);
+      return { levels, atSource, cells, lavaSide, onWater: v.getBlock(x0 + 6, 70, z0 + 6), obs: B.obsidian, cob: B.cobblestone, stone: B.stone };
     });
     expect(r.levels).toEqual([0, 2, 4, 6, -1]);
     expect(r.atSource).toBe(r.obs);
     expect(r.cells).toContain(r.cob);
     expect(r.onWater).toBe(r.stone);
+    expect(r.lavaSide).toBe(r.obs);
     const light = await page.evaluate(() => {
       const C = __voxel.core; const ch = []; for (let k = 0; k < 9; k++) ch.push(new Uint8Array(C.CVOL));
       for (let x = 2; x <= 12; x++) for (let z = 2; z <= 12; z++) ch[4][C.cidx(x, 59, z)] = C.B.stone;

@@ -16,7 +16,11 @@ async function world(page, mode = 'survival', seed = 8) {
 test.describe('minecraft_clone_3d_1: Esc и бой', () => {
   test('Esc открывает паузу, второй Esc закрывает её: игра идёт, затемнения и большой надписи нет', async ({ page }) => {
     await world(page, 'creative');
-    await page.evaluate(() => { __voxel.game.testMode = false; });
+    // захват мыши по Esc браузер не даёт (замер в Electron: WrongDocumentError) - так и моделируем
+    await page.evaluate(() => {
+      __voxel.game.testMode = false;
+      HTMLCanvasElement.prototype.requestPointerLock = function () { return Promise.reject(new DOMException('отказ', 'WrongDocumentError')); };
+    });
     await page.keyboard.press('Escape');
     await expect(page.locator('#scr-pause')).toBeVisible();
     expect(await page.evaluate(() => document.body.classList.contains('dim'))).toBe(true);
@@ -30,7 +34,8 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
     expect(r.dim).toBe(false);
     expect(r.menu).toBe(false);
     expect(r.screens).toEqual(['scr-hud']);
-    if (r.shown) { expect(r.font).toBeLessThanOrEqual(13); expect(r.hgt).toBeLessThan(24); expect(r.w).toBeLessThan(400); }
+    expect(r.shown).toBe(true);                      // маленькая подсказка у прицела вместо большой надписи
+    expect(r.font).toBeLessThanOrEqual(13); expect(r.hgt).toBeLessThan(24); expect(r.w).toBeLessThan(400);
     // подсказка сама исчезает через пару секунд, время в игре идёт
     const t0 = await page.evaluate(() => __voxel.ticks);
     await page.waitForTimeout(3000);
@@ -56,8 +61,9 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
       window.dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true }));
       hits++;
     }
-    v.step(0.05, 30);
+    v.step(0.05, 4);                                   // сразу после удара: выпавшее ещё лежит
     const drops = v.entities.items.map((i) => i.stack.id);
+    v.step(0.05, 26);
     return { hp0, hits, dead: m.hp <= 0, drops, block: v.getBlock(x, 70, z - 3), inv: v.inv.slots.filter(Boolean).map((s) => s.id) };
   }, { type, heldKey });
 
