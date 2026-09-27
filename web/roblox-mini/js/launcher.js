@@ -37,6 +37,7 @@
     place.build(fake);
     w.finalize();
     if (id !== 'tube') { try { place.setup(fake); } catch (e) { /* кадр обойдётся без этого */ } }
+    if (place.thumbDecor) { try { place.thumbDecor(fake); } catch (e) { /* без украшений */ } }
     if (id === 'lava') fake.state.lavaY = place.thumbLavaY || 6;
     w.step(0.5);
     w.sync(1);

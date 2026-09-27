@@ -393,7 +393,7 @@
     // смотрит и иногда болеет: машет и пишет
     const s = p.sight;
     m.goal = 'watch';
-    if (!p.cheered && r() < 0.004) { p.cheered = true; b.emote = 'wave'; p.waveT = 1.2; BT.say(game, b, s.name ? 'cheer' : 'watch', { name: s.name }); }
+    if (!p.cheered && r() < 0.004) { p.cheered = true; b.emote = 'wave'; p.waveT = 1.2; BT.say(game, b, s.name && opt.cheer ? 'cheer' : 'watch', { name: s.name }); }
     if (p.waveT > 0) { p.waveT -= STEP; b.emote = 'wave'; }
     return { mx: 0, mz: 0, jump: false, face: Math.atan2(s.x - pl.pos.x, s.z - pl.pos.z) };
   };

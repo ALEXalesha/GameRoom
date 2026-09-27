@@ -158,7 +158,7 @@
         if (b.finishT > b.finishLen - 5) { b.emote = 'dance'; b.mind.goal = 'dance'; return BT.hold(); }
         b.emote = null;
         // на крыше: смотрит, кто ещё лезет, болеет, танцует
-        return BT.pastime(game, b, { x: 0, z: 0, r: 7, sights: () => BT.others(game, b, (x) => !x.finished) });
+        return BT.pastime(game, b, { x: 0, z: 0, r: 7, cheer: true, sights: () => BT.others(game, b, (x) => !x.finished) });
       }
       // упал ниже своей контрольной точки (на нижний этап башни) - как живой игрок, жмёт «сброс»
       if (b.cp > 0 && b.mind.idx < b.cpIdx && b.body.onGround) {

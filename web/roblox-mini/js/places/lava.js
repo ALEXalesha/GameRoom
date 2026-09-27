@@ -51,6 +51,8 @@
       K.decal(game, B.lang() === 'en' ? 'LOBBY' : 'ЛОББИ', LOBBY.x, 0, LOBBY.z, 7, 3.5, '#2f74d0', '#fff', Math.PI / 2);
       K.tree(game, LOBBY.x + 6, 0, 6, 0.7); K.pine(game, LOBBY.x + 6, 0, -6, 0.7);
       w.add({ top: [LOBBY.x, -4, 0], size: [16, 4, 16], color: '#8e5a3a', mat: 'smooth', solid: false });
+      // тёмная застывшая лава вокруг котлована: лава не висит ящиком в пустоте
+      for (const [x, z, sx, sz] of [[0, -173, 600, 254], [0, 173, 600, 254], [-173, 0, 254, 92], [173, 0, 254, 92]]) w.add({ top: [x, -3.5, z], size: [sx, 2, sz], color: '#3b3036', mat: 'smooth', solid: false });
       // башня
       const rnd = B.rng(game.seed ^ 0x1a7a);
       const plats = genTower(rnd);
@@ -110,7 +112,7 @@
     botThink(game, b, dt) {
       const BT = B.bots, st = game.state, pl = b.body, m = b.mind;
       // сгорел - смотрит из лобби на тех, кто ещё лезет, и болеет за них
-      if (b.out) return BT.pastime(game, b, { x: LOBBY.x - 3, z: LOBBY.z, r: 5, sights: () => BT.others(game, b, (x) => !x.out && x.body.pos.y > 2) });
+      if (b.out) return BT.pastime(game, b, { x: LOBBY.x - 3, z: LOBBY.z, r: 5, cheer: true, sights: () => BT.others(game, b, (x) => !x.out && x.body.pos.y > 2) });
       if (st.phase === 'wait') {
         const f = game.path[1];
         return BT.roam(game, b, f.cx * 0.6, f.cz * 0.6, 7, 'round');

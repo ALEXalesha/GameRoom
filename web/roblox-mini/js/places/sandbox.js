@@ -520,6 +520,15 @@
       { cam: [-50, 12, 10], look: [-30, 4, 30] },
     ],
     thumbAvatar: { x: -22, y: 0, z: 40, facing: 0.9 },
+    // для картинки места: несколько построек по заготовкам (в игре плита пустая, пока не построишь)
+    thumbDecor(fake) {
+      const put = (id, i0, k0, main, accent) => {
+        const bp = B.data.BLUEPRINTS.find((x) => x.id === id);
+        for (const c of B.data.blueprintCells(bp, main, accent)) P.placeAt(fake, i0 + c.di, c.dj, k0 + c.dk, c.c, true);
+      };
+      put('house', -22, 7, 8, 3); put('tree', -25, 13, 11, 6); put('heart', -26, 20, 3, 0); put('tower', -7, 5, 4, 1); put('fence', -20, 23, 11, 0);
+      P.refresh(fake);
+    },
     thumb: { cam: [-4, 9, 56], look: [-30, 4, 30] },
     completeScript(game) {
       for (let n = 0; n < 25; n++) P.placeAt(game, 10 + (n % 5), Math.floor(n / 25), 10 + Math.floor(n / 5), n % 12);

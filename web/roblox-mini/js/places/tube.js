@@ -113,7 +113,7 @@
     bots: 3,
     statLabel: () => (B.lang() === 'en' ? 'Stars' : 'Звёзды'),
     stat: (g, b) => (b ? b.stat : g.state.lastStars),
-    sky: { top: '#5c9be6', horizon: '#eef6ff', sun: [0.2, 0.5, -0.6], cloudY: 230 },
+    sky: { top: '#3f86e0', horizon: '#b9d8f5', sun: [0.2, 0.5, -0.6], cloudY: 230 },
 
     build(game) {
       const w = game.world, st = game.state, rnd = B.rng(game.seed ^ 0x70be);
@@ -346,6 +346,7 @@
       { cam: [40, 30, 380], look: [60, 10, 300] },
     ],
     thumbAvatar: null,
+    thumb: { cam: [-22, 128, -30], look: [14, 104, 40] },
     // Проверка: съехать от старта до финиша с автоматическим рулём
     completeScript(game) {
       const st = game.state;
