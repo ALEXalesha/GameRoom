@@ -335,6 +335,10 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--stroke2
 
 /* ================= Приложения ================= */
 .cmdbar { display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--divider); flex-wrap: wrap; }
+.cmdbar .more { display: none; }
+.window.narrow .cmdbar .ov { display: none; }
+.window.narrow .cmdbar .more { display: inline-flex; }
+.window.narrow .ex-search { width: 130px; }
 .cmdbar .vsep { width: 1px; height: 20px; background: var(--divider); margin: 0 6px; }
 .addr { display: flex; align-items: center; gap: 4px; padding: 6px 8px; }
 .crumbs { flex: 1; height: 32px; display: flex; align-items: center; gap: 2px; padding: 0 8px; border-radius: 4px; background: var(--input); border: 1px solid var(--control-stroke); overflow: hidden; white-space: nowrap; }

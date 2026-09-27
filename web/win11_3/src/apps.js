@@ -5,7 +5,7 @@ const APPS = {
   notepad: { title: 'Блокнот', icon: ICON.notepad, w: 720, h: 500, minW: 360, minH: 240, multi: true, create: createNotepad },
   calc: { title: 'Калькулятор', icon: ICON.calc, w: 340, h: 540, minW: 300, minH: 460, create: createCalc },
   photos: { title: 'Фотографии', icon: ICON.photos, w: 900, h: 600, minW: 420, minH: 320, create: createPhotos },
-  media: { title: 'Медиаплеер', icon: ICON.media, w: 860, h: 560, minW: 520, minH: 360, create: createMedia },
+  media: { title: 'Медиаплеер', icon: ICON.media, icon16: ICON.media16, w: 860, h: 560, minW: 520, minH: 360, create: createMedia },
   settings: { title: 'Параметры', icon: ICON.settings, w: 1000, h: 660, minW: 560, minH: 380, create: createSettings },
   terminal: { title: 'Терминал', icon: ICON.terminal, w: 760, h: 460, minW: 400, minH: 240, multi: true, create: createTerminal },
   clock: { title: 'Часы', icon: ICON.clock, w: 820, h: 560, minW: 480, minH: 380, create: createClock },
@@ -35,8 +35,9 @@ function createExplorer(w, start) {
     '<button class="tbtn" data-x="cut" title="Вырезать (Ctrl+X)" aria-label="Вырезать">' + SI.cut + '</button><button class="tbtn" data-x="copy" title="Копировать (Ctrl+C)" aria-label="Копировать">' + SI.copy + '</button>' +
     '<button class="tbtn" data-x="paste" title="Вставить (Ctrl+V)" aria-label="Вставить">' + SI.paste + '</button><button class="tbtn" data-x="rename" title="Переименовать (F2)" aria-label="Переименовать">' + SI.rename + '</button>' +
     '<button class="tbtn" data-x="del" title="Удалить (Del)" aria-label="Удалить">' + SI.trash + '</button><span class="vsep"></span>' +
-    '<button class="tbtn" data-x="sort">' + SI.sort + ' Сортировка ' + SI.chevDown + '</button><button class="tbtn" data-x="view">' + SI.view + ' Вид ' + SI.chevDown + '</button><span class="vsep"></span>' +
-    '<button class="tbtn" data-x="import" title="Добавить файлы с диска">' + SI.import + ' Импорт</button><button class="tbtn" data-x="prev" title="Область просмотра">' + SI.preview + '</button></div>' +
+    '<button class="tbtn ov" data-x="sort">' + SI.sort + ' Сортировка ' + SI.chevDown + '</button><button class="tbtn ov" data-x="view">' + SI.view + ' Вид ' + SI.chevDown + '</button><span class="vsep ov"></span>' +
+    '<button class="tbtn ov" data-x="import" title="Добавить файлы с диска">' + SI.import + ' Импорт</button><button class="tbtn ov" data-x="prev" title="Область просмотра">' + SI.preview + '</button>' +
+    '<button class="tbtn more" data-x="more" title="Другие команды" aria-label="Другие команды">•••</button></div>' +
     '<div class="addr"><button class="tbtn" data-x="back" title="Назад" aria-label="Назад">' + SI.back + '</button><button class="tbtn" data-x="fwd" title="Вперёд" aria-label="Вперёд">' + SI.fwd + '</button>' +
     '<button class="tbtn" data-x="up" title="Вверх" aria-label="Вверх">' + SI.up + '</button><button class="tbtn" data-x="refresh" title="Обновить" aria-label="Обновить">' + SI.refresh + '</button>' +
     '<div class="crumbs"></div><input class="field ex-search" placeholder="Поиск" aria-label="Поиск в папке"></div>' +
@@ -106,7 +107,20 @@ function createExplorer(w, start) {
     if (CLIP.mode === 'cut') CLIP = null;
     render();
   }
+  // в узком окне (меньше 760 px) сортировка, вид, импорт и область просмотра прячутся в «…», как в системе
+  const ro = new ResizeObserver(() => w.el.classList.toggle('narrow', w.el.offsetWidth < 760));
+  ro.observe(w.el); w.cleanup.push(() => ro.disconnect());
   function act(x, btn) {
+    if (x === 'more') {
+      const r = btn.getBoundingClientRect();
+      showMenu(r.left, r.bottom + 4, [
+        { label: 'Сортировка', icon: SI.sort, sub: [['name', 'Имя'], ['date', 'Дата изменения'], ['type', 'Тип']].map(([k, n]) => ({ label: n, checked: sortBy === k, action: () => { sortBy = k; store.set('exSort', k); render(); } })) },
+        { label: 'Вид', icon: SI.view, sub: [['grid', 'Крупные значки'], ['details', 'Таблица']].map(([k, n]) => ({ label: n, checked: view === k, action: () => { view = k; store.set('exView', k); render(); } })) },
+        { label: 'Импорт с диска', icon: SI.import, disabled: path === '', action: () => finput.click() },
+        { label: 'Область просмотра', icon: SI.preview, checked: showPrev, action: () => { showPrev = !showPrev; store.set('exPrev', showPrev); render(); } },
+      ]);
+      return;
+    }
     if (x === 'back' && hist.length) { fwd.push(path); path = hist.pop(); sel.clear(); render(); }
     else if (x === 'fwd' && fwd.length) { hist.push(path); path = fwd.pop(); sel.clear(); render(); }
     else if (x === 'up') go(parentOf(path));
@@ -245,6 +259,8 @@ function createNotepad(w, path) {
   ta.value = file ? FS.get(file).text || '' : '';
   let saved = ta.value;
   const dirty = () => ta.value !== saved;
+  w.isDirty = dirty;
+  w.cleanup.push(on('moved', ({ from, to }) => { if (file && (file === from || file.startsWith(from + '/'))) { file = to + file.slice(from.length); w.arg = file; status(); } }));
   function status() {
     w.setTitle((dirty() ? '● ' : '') + (file ? baseName(file) : 'Безымянный') + ' - Блокнот');
     const before = ta.value.slice(0, ta.selectionStart).split('\n');
@@ -663,7 +679,7 @@ function createTerminal(w, startDir) {
       else if (e.key === 'ArrowUp') { e.preventDefault(); if (hi < hist.length - 1) hi++; inp.value = hist[hi] || ''; }
       else if (e.key === 'ArrowDown') { e.preventDefault(); if (hi > -1) hi--; inp.value = hi < 0 ? '' : hist[hi]; }
       else if (e.key === 'Tab') { e.preventDefault(); const parts = inp.value.split(' '), last = parts.pop(); const m = childrenOf(cwd).map(x => baseName(x.path)).find(n => n.toLowerCase().startsWith(last.toLowerCase())); if (m) inp.value = parts.concat(m.includes(' ') ? '"' + m + '"' : m).join(' '); }
-      else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); out.innerHTML = ''; prompt(); }
+      else if (e.code === 'KeyL' && e.ctrlKey) { e.preventDefault(); out.innerHTML = ''; prompt(); }
     });
   }
   const args = s => (s.match(/"[^"]*"|\S+/g) || []).map(x => x.replace(/^"|"$/g, ''));
@@ -705,6 +721,7 @@ function createTerminal(w, startDir) {
         if (!FS.has(from)) { print('Не удаётся найти указанный файл.', 'err'); break; }
         const dir = FS.has(to) && FS.get(to).type === 'dir' ? to : null;
         if (!dir) { print('Укажите существующую папку назначения.', 'err'); break; }
+        if (intoItself(from, dir)) { print('Нельзя ' + (c.startsWith('c') ? 'скопировать' : 'переместить') + ' папку в саму себя.', 'err'); break; }
         const r = c === 'copy' || c === 'cp' ? copyPath(from, dir) : movePath(from, dir);
         print(r ? (c.startsWith('c') ? 'Скопировано файлов: 1.' : 'Перемещено файлов: 1.') : 'Операция невозможна.', r ? 'ok' : 'err'); break;
       }

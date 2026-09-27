@@ -38,6 +38,8 @@ const ICON = {
   settings: G('set', '<path d="M24 4l4 5 6-1 1 6 5 4-3 5 3 5-5 4-1 6-6-1-4 5-4-5-6 1-1-6-5-4 3-5-3-5 5-4 1-6 6 1z" fill="url(#gGrey)"/><circle cx="24" cy="24" r="8" fill="none" stroke="#e6e6e6" stroke-width="3.5"/>'),
   browser: G('br', '<circle cx="24" cy="24" r="19" fill="url(#gTeal)"/><path d="M24 5a19 19 0 000 38M24 5a19 19 0 010 38M6 18h36M6 30h36M24 5c-7 6-7 32 0 38M24 5c7 6 7 32 0 38" fill="none" stroke="#fff" stroke-width="2" opacity=".85"/>'),
   photos: G('ph', '<rect x="4" y="7" width="40" height="34" rx="6" fill="url(#gSky)"/><circle cx="33" cy="17" r="4" fill="url(#gSun)"/><path d="M4 34l12-12 9 9 5-5 14 12v1a2 2 0 01-2 2H6a2 2 0 01-2-2z" fill="#fff" opacity=".9"/><path d="M4 36l12-12 9 9 5-5 14 12" fill="none" stroke="#0f5ca8" stroke-width="1" opacity=".3"/>'),
+  // вариант для 16 px (заголовок окна): квадрат почти во весь значок, головка и флажок толще, сплошной цвет без градиента
+  media16: G('md16', '<rect x="2" y="2" width="44" height="44" rx="8" fill="#e8612c"/><g data-glyph="note16"><ellipse cx="19" cy="32" rx="8" ry="6.4" transform="rotate(-22 19 32)" fill="#fff"/><rect x="23.2" y="9" width="4.8" height="23" rx="1.4" fill="#fff"/><path d="M25.6 10c0 5 4.4 7 7.4 9.6 2.2 1.9 2.6 4.8 1.2 7.2" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round"/></g>'),
   // нота собрана из головки, штиля и флажка; группа сдвинута так, что центр масс знака совпадает с центром значка (проверяется законом)
   media: G('md', '<rect x="5" y="5" width="38" height="38" rx="6" fill="url(#gOrange)"/><g data-glyph="note" transform="translate(-0.12 -0.74)"><ellipse cx="20" cy="30.5" rx="5.6" ry="4.3" transform="rotate(-22 20 30.5)" fill="#fff"/><rect x="23.6" y="11" width="2.8" height="19.5" rx="1" fill="#fff"/><path d="M25 11.4c0 4.5 3.4 6.4 6 8.5 2 1.7 2.4 4.2 1.2 6.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/></g>'),
   clock: G('ck', '<circle cx="24" cy="26" r="17" fill="url(#gBlue2)"/><circle cx="24" cy="26" r="13" fill="#fff"/><path d="M24 17v9l6 4" stroke="#0f5ca8" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M8 11l6-5M40 11l-6-5" stroke="url(#gBlue2)" stroke-width="4" stroke-linecap="round"/>'),
@@ -127,7 +129,7 @@ function bloomSVG(dark, hue = 220) {
     '<radialGradient id="p" cx="0.5" cy="0.15" r="0.95"><stop offset="0" stop-color="' + pet[0] + '"/><stop offset="0.55" stop-color="' + pet[1] + '"/><stop offset="1" stop-color="' + pet[2] + '"/></radialGradient>' +
     '<radialGradient id="q" cx="0.5" cy="0.1" r="0.9"><stop offset="0" stop-color="#fff" stop-opacity="0.95"/><stop offset="1" stop-color="' + pet[1] + '"/></radialGradient>' +
     '<radialGradient id="g" cx="0.5" cy="0.62" r="0.5"><stop offset="0" stop-color="' + pet[0] + '" stop-opacity="0.55"/><stop offset="1" stop-color="' + pet[0] + '" stop-opacity="0"/></radialGradient>' +
-    '<filter id="b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter></defs>' +
+    '<filter id="b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>' +
     '<rect width="1600" height="1000" fill="url(#bg)"/><rect width="1600" height="1000" fill="url(#g)"/><g transform="translate(800 760)" filter="url(#b)">' + petals + '</g></svg>';
 }
 function wavesSVG(dark) {
@@ -226,6 +228,10 @@ const TEXT_EXT = ['txt', 'md', 'log', 'csv', 'json', 'js', 'py', 'html', 'css', 
 const isImage = p => IMAGE_EXT.includes(extOf(p));
 const isText = p => TEXT_EXT.includes(extOf(p)) || !extOf(p);
 let dbPending = 0; // незавершённые записи: проверки ждут нуля перед перезагрузкой
+// Вторая вкладка с той же оболочкой: после каждой записи шлём ей весточку, она перечитывает базу
+const fsChannel = (() => { try { return new BroadcastChannel('win11_3-fs'); } catch (e) { return null; } })();
+let bcTimer = null;
+function announce() { if (!fsChannel) return; clearTimeout(bcTimer); bcTimer = setTimeout(() => fsChannel.postMessage('changed'), 60); }
 function idb(mode, fn) {
   return new Promise((res, rej) => {
     if (!db) { res(null); return; }
@@ -233,34 +239,59 @@ function idb(mode, fn) {
     dbPending++;
     let done = false;
     const fin = () => { if (!done) { done = true; dbPending--; } };
-    const r = fn(tx);
-    tx.oncomplete = () => { fin(); res(r && r.result); };
-    tx.onerror = tx.onabort = () => { fin(); rej(tx.error); };
+    let r;
+    try { r = fn(tx); } catch (e) { try { tx.abort(); } catch (e2) { /* уже прервана */ } }
+    tx.oncomplete = () => { fin(); announce(); res(r && r.result); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error || new Error('abort')); };
   });
 }
-function dbPut(entry) { if (db) idb('readwrite', tx => tx.objectStore('fs').put(entry)).catch(e => console.warn('FS', e)); }
-function dbDel(path) { if (db) idb('readwrite', tx => tx.objectStore('fs').delete(path)).catch(e => console.warn('FS', e)); }
-function dbTrash() { if (db) idb('readwrite', tx => { const s = tx.objectStore('trash'); s.clear(); TRASH.forEach(t => s.put(t)); }).catch(e => console.warn('FS', e)); }
+// Запись не удалась (чаще всего - мало места): говорим об этом и возвращаем память к тому, что лежит в базе
+let failShown = 0, dbFailing = false;
+function dbFail() {
+  if (Date.now() - failShown > 3000) { failShown = Date.now(); notify({ app: 'explorer', title: 'Не сохранено: мало места', body: 'Последнее изменение не записалось, файлы возвращены к сохранённым' }); }
+  if (!dbFailing) { dbFailing = true; setTimeout(() => { dbFailing = false; reloadFromDb(); }, 50); }
+}
+const dbWrite = fn => { if (db) idb('readwrite', fn).catch(dbFail); };
+function dbPut(entry) { dbWrite(tx => tx.objectStore('fs').put(entry)); }
+function dbDel(path) { dbWrite(tx => tx.objectStore('fs').delete(path)); }
+// корзина пишется по одной записи: две вкладки не стирают корзины друг друга
+function dbTrashPut(t) { dbWrite(tx => tx.objectStore('trash').put(t)); }
+function dbTrashDel(id) { dbWrite(tx => tx.objectStore('trash').delete(id)); }
+async function readDb() {
+  const all = st => new Promise(res => { const r = db.transaction(st).objectStore(st).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  return [await all('fs'), await all('trash')];
+}
+async function reloadFromDb() {
+  if (!db) return;
+  if (dbPending) { setTimeout(reloadFromDb, 80); return; }
+  const [rows, trash] = await readDb();
+  FS.clear(); rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  RECENT = RECENT.filter(r => FS.has(r));
+  fsChanged('');
+}
+if (fsChannel) fsChannel.onmessage = () => reloadFromDb();
 function openDB() {
   return new Promise(res => {
     let req;
     try { req = indexedDB.open('win11_3', 1); } catch (e) { dbOk = false; res(null); return; }
     req.onupgradeneeded = () => { const d = req.result; d.createObjectStore('fs', { keyPath: 'path' }); d.createObjectStore('trash', { keyPath: 'id' }); };
-    req.onsuccess = () => res(req.result);
+    req.onsuccess = () => { const d = req.result; d.onversionchange = () => { d.close(); db = null; }; res(d); };
     req.onerror = () => { dbOk = false; res(null); };
+    req.onblocked = () => notify({ app: 'explorer', title: 'Закройте другую вкладку', body: 'Оболочка открыта ещё в одной вкладке, база занята' });
   });
 }
 async function fsLoad() {
   db = await openDB();
   let rows = [], trash = [];
-  if (db) {
-    rows = await new Promise(res => { const r = db.transaction('fs').objectStore('fs').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-    trash = await new Promise(res => { const r = db.transaction('trash').objectStore('trash').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-  }
-  if (!rows.length) rows = defaultFiles();
+  if (db) [rows, trash] = await readDb();
+  // пустая база - первый запуск: кладём файлы-примеры (признак - сама база, а не флаг рядом)
+  const fresh = !rows.length;
+  if (fresh) rows = defaultFiles();
   rows.forEach(e => FS.set(e.path, e));
   ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
-  if (db && !store.get('seeded', false)) { rows.forEach(dbPut); store.set('seeded', true); }
+  if (db && fresh) rows.forEach(dbPut);
   TRASH = trash.sort((a, b) => a.deleted - b.deleted);
 }
 function defaultFiles() {
@@ -277,10 +308,13 @@ function defaultFiles() {
     img('Изображения/Свечение.svg', glowSVG(true)), img('Изображения/Волны.svg', wavesSVG(false)),
   ];
 }
+// Ссылки на картинки из памяти: старую освобождаем, когда файл изменился, удалён или переименован
 const urlCache = new Map();
+function dropUrl(path) { const c = urlCache.get(path); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(path); } }
 function fileUrl(f) {
   if (!f || f.type !== 'file') return null;
   if (urlCache.has(f.path) && urlCache.get(f.path).mtime === f.mtime) return urlCache.get(f.path).url;
+  dropUrl(f.path);
   let url;
   if (f.blob) url = URL.createObjectURL(f.blob);
   else if (f.mime === 'image/svg+xml' && f.text) url = URL.createObjectURL(new Blob([f.text], { type: 'image/svg+xml' }));
@@ -324,19 +358,35 @@ async function importFile(dir, file) {
   return path;
 }
 function subtree(path) { return [...FS.keys()].filter(p => p === path || p.startsWith(path + '/')); }
+// путь переехал: «Недавние», обои из файла и буфер обмена идут следом
+function remap(from, to) {
+  const m = p => p === from ? to : p.startsWith(from + '/') ? to + p.slice(from.length) : p;
+  RECENT = RECENT.map(m); store.set('recent', RECENT);
+  if (S.wallpaper && S.wallpaper.startsWith('fs:') && m(S.wallpaper.slice(3)) !== S.wallpaper.slice(3)) setS({ wallpaper: 'fs:' + m(S.wallpaper.slice(3)) });
+  if (typeof CLIP !== 'undefined' && CLIP) CLIP.paths = CLIP.paths.map(m);
+  emit('moved', { from, to });
+}
+// папку нельзя положить в саму себя или в свою подпапку
+function intoItself(from, toDir) { return toDir === from || toDir.startsWith(from + '/'); }
 function movePath(from, toDir) {
-  if (!FS.has(from) || ROOTS.includes(from) || parentOf(from) === toDir || toDir === from || toDir.startsWith(from + '/')) return null;
+  if (FS.has(from) && intoItself(from, toDir)) { notify({ app: 'explorer', title: 'Нельзя переместить', body: 'Папку «' + baseName(from) + '» нельзя положить в саму себя' }); return null; }
+  if (!FS.has(from) || ROOTS.includes(from) || parentOf(from) === toDir) return null;
   const b = baseName(from), dot = b.lastIndexOf('.');
   const target = uniquePath(toDir, dot > 0 && FS.get(from).type === 'file' ? b.slice(0, dot) : b, dot > 0 && FS.get(from).type === 'file' ? b.slice(dot) : '');
-  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dbDel(p); const np = target + p.slice(from.length); const ne = Object.assign({}, e, { path: np }); FS.set(np, ne); dbPut(ne); });
-  S.wallpaper === 'fs:' + from && setS({ wallpaper: 'fs:' + target });
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const np = target + p.slice(from.length); const ne = Object.assign({}, e, { path: np }); FS.set(np, ne); dbPut(ne); });
+  remap(from, target);
   fsChanged(target);
   return target;
 }
 function copyPath(from, toDir) {
   if (!FS.has(from)) return null;
+  if (intoItself(from, toDir)) { notify({ app: 'explorer', title: 'Нельзя скопировать', body: 'Папку «' + baseName(from) + '» нельзя скопировать в саму себя' }); return null; }
   const b = baseName(from), dot = b.lastIndexOf('.'), isF = FS.get(from).type === 'file';
-  const target = uniquePath(toDir, isF && dot > 0 ? b.slice(0, dot) : b, isF && dot > 0 ? b.slice(dot) : '');
+  const base = isF && dot > 0 ? b.slice(0, dot) : b, ext = isF && dot > 0 ? b.slice(dot) : '';
+  // копия рядом с оригиналом называется как в системе: «план - копия.txt», «план - копия (2).txt»
+  let target;
+  if (parentOf(from) === toDir) { const pre = toDir ? toDir + '/' : ''; let n = base + ' - копия' + ext, i = 2; while (FS.has(pre + n)) n = base + ' - копия (' + (i++) + ')' + ext; target = pre + n; }
+  else target = uniquePath(toDir, base, ext);
   subtree(from).forEach(p => { const ne = Object.assign({}, FS.get(p), { path: target + p.slice(from.length), mtime: Date.now() }); FS.set(ne.path, ne); dbPut(ne); });
   fsChanged(target);
   return target;
@@ -344,7 +394,8 @@ function copyPath(from, toDir) {
 function renamePath(from, newName) {
   const target = (parentOf(from) ? parentOf(from) + '/' : '') + newName;
   if (target === from) return from;
-  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  remap(from, target);
   fsChanged(target);
   return target;
 }
@@ -352,24 +403,27 @@ function renamePath(from, newName) {
 function trashPath(path) {
   if (!FS.has(path) || ROOTS.includes(path)) return;
   const items = subtree(path).map(p => FS.get(p));
-  items.forEach(e => { FS.delete(e.path); dbDel(e.path); });
-  TRASH.push({ id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() });
-  dbTrash(); RECENT = RECENT.filter(r => FS.has(r)); store.set('recent', RECENT);
+  items.forEach(e => { FS.delete(e.path); dropUrl(e.path); dbDel(e.path); });
+  const t = { id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() };
+  TRASH.push(t);
+  dbTrashPut(t); RECENT = RECENT.filter(r => FS.has(r)); store.set('recent', RECENT);
   fsChanged(path);
 }
 function restoreTrash(id) {
   const i = TRASH.findIndex(t => t.id === id); if (i < 0) return;
   const t = TRASH[i];
   let dir = parentOf(t.path);
+  // на месте одной из родительских папок теперь файл: возвращаем рядом с ним, а не внутрь файла
+  let a = dir; while (a) { if (FS.has(a) && FS.get(a).type !== 'dir') dir = parentOf(a); a = parentOf(a); }
   const missing = []; let d = dir; while (d && !FS.has(d)) { missing.unshift(d); d = parentOf(d); }
   missing.forEach(makeDir);
-  let target = t.path;
+  let target = (dir ? dir + '/' : '') + baseName(t.path);
   if (FS.has(target)) { const b = baseName(target), dot = b.lastIndexOf('.'); target = uniquePath(dir, dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
   t.items.forEach(e => { const ne = Object.assign({}, e, { path: target + e.path.slice(t.path.length) }); FS.set(ne.path, ne); dbPut(ne); });
-  TRASH.splice(i, 1); dbTrash(); fsChanged(target);
+  TRASH.splice(i, 1); dbTrashDel(t.id); fsChanged(target);
 }
-function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrash(); fsChanged(''); }
-function emptyTrash() { TRASH = []; dbTrash(); fsChanged(''); }
+function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrashDel(id); fsChanged(''); }
+function emptyTrash() { const ids = TRASH.map(t => t.id); TRASH = []; dbWrite(tx => ids.forEach(id => tx.objectStore('trash').delete(id))); fsChanged(''); }
 let RECENT = store.get('recent', []);
 function touchRecent(p) { RECENT = [p].concat(RECENT.filter(x => x !== p)).slice(0, 8); store.set('recent', RECENT); emit('recent'); }
 function fileIcon(path) {
@@ -397,7 +451,8 @@ function notify({ app, title, body }) {
   const n = { id: Date.now() + Math.random(), app, title, body, t: Date.now() };
   NOTES.unshift(n); NOTES = NOTES.slice(0, 30);
   renderNotifs();
-  if (S.focus) return n;       // «Фокусировка»: без всплывающих окон, только в центре уведомлений
+  // «Фокусировка» или открытый центр уведомлений: без всплывающих окон, запись сразу видна в центре
+  if (S.focus || $('notif-center').classList.contains('open')) return n;
   const el = document.createElement('div');
   el.className = 'toast';
   el.setAttribute('role', 'status');
@@ -451,6 +506,7 @@ function openApp(id, arg) {
   el.querySelector('[data-cap=close]').onclick = () => closeWin(w);
   bindSnapFlyout(w, el.querySelector('[data-cap=max]'));
   el.addEventListener('pointerdown', () => focusWin(w), true);
+  if (app.icon16) el.querySelector('.t-ic').innerHTML = app.icon16;
   const tb = el.querySelector('.titlebar');
   tb.addEventListener('dblclick', e => { if (!e.target.closest('.caption')) toggleMax(w); });
   enableDrag(w, tb);
@@ -473,6 +529,8 @@ function restack() {
   const top = [...wins].reverse().find(w => !w.min) || null;
   wins.forEach((w, i) => { w.el.style.zIndex = i + 1; w.el.classList.toggle('inactive', w !== top); });
   activeWin = top;
+  // игра в неактивном или свёрнутом окне стоит на паузе (протокол web/_os-shared/README.md)
+  wins.forEach(w => framePause(w, w.min || w !== top));
   updateTaskbar();
 }
 function focusWin(w) {
@@ -491,21 +549,27 @@ function animateTo(w, toTaskbar) {
   const frames = [{ transform: 'none', opacity: 1 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.2)', opacity: 0 }];
   return w.el.animate(toTaskbar ? frames : frames.reverse(), { duration: 220, easing: 'cubic-bezier(0.1,0.9,0.2,1)' }).finished.catch(() => { });
 }
-// Окно-рамка (игра, Paint) свёрнуто или закрывается: внутри страницы - как будто вкладку скрыли
+// Протокол паузы (web/_os-shared/README.md): окно-рамку свернули, закрывают или оно потеряло фокус -
+// игре уходит {mix:'pause'}, вернули - {mix:'resume'}. Если страница своя по источнику, ещё и
+// «скрываем вкладку» внутри неё; при возврате убираем подмену, чтобы работал настоящий document.hidden.
 function framePause(w, paused) {
-  if (!w.iframe) return;
+  if (!w.iframe || !!w.framePaused === paused) return;
+  w.framePaused = paused;
+  try { w.iframe.contentWindow.postMessage({ mix: paused ? 'pause' : 'resume' }, '*'); } catch (e) { /* рамка ещё не загрузилась */ }
   try {
     const d = w.iframe.contentDocument, cw = w.iframe.contentWindow;
-    Object.defineProperty(d, 'hidden', { value: paused, configurable: true });
-    Object.defineProperty(d, 'visibilityState', { value: paused ? 'hidden' : 'visible', configurable: true });
+    if (paused) {
+      Object.defineProperty(d, 'hidden', { value: true, configurable: true });
+      Object.defineProperty(d, 'visibilityState', { value: 'hidden', configurable: true });
+    } else { delete d.hidden; delete d.visibilityState; }
     d.dispatchEvent(new Event('visibilitychange'));
     cw.dispatchEvent(new Event(paused ? 'blur' : 'focus'));
     if (paused) d.querySelectorAll('audio, video').forEach(m => m.pause());
-  } catch (e) { /* страница из другого источника: остаётся обычная потеря фокуса */ }
+  } catch (e) { /* другой источник: хватает сообщения */ }
   if (paused && document.activeElement === w.iframe) w.iframe.blur();
 }
 function minimizeWin(w) { if (w.min) return; w.min = true; framePause(w, true); animateTo(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); restack(); }
-function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); framePause(w, false); animateTo(w, false); }
+function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); animateTo(w, false); }
 async function closeWin(w) {
   if (w.beforeClose && !(await w.beforeClose())) return;
   const i = wins.indexOf(w); if (i < 0) return;
@@ -514,7 +578,8 @@ async function closeWin(w) {
   wins.splice(i, 1);
   w.cleanup.forEach(f => { try { f(); } catch (e) { /* ничего */ } });
   const el = w.el;
-  if (S.animations) { el.classList.add('closing'); setTimeout(() => el.remove(), 150); } else el.remove();
+  // рамку убираем чуть позже: игра успевает получить {mix:'pause'} и сохраниться
+  if (S.animations || w.iframe) { el.classList.add('closing'); setTimeout(() => el.remove(), 150); } else el.remove();
   restack();
 }
 function rememberGeo(w) {
@@ -541,10 +606,21 @@ function zoneRect(z) {
     l66: [0, 0, 2 / 3, 1], r34: [2 / 3, 0, 1 / 3, 1], c1: [0, 0, 1 / 3, 1], c2: [1 / 3, 0, 1 / 3, 1], c3: [2 / 3, 0, 1 / 3, 1] }[z];
   return { x: Math.round(R[0] * a.w), y: Math.round(R[1] * a.h), w: Math.round(R[2] * a.w), h: Math.round(R[3] * a.h) };
 }
+// зона меньше минимального размера программы: четверть становится половиной той же стороны, треть - половиной
+function fitZone(w, z) {
+  const app = APPS[w.app], r = zoneRect(z);
+  if (r.h >= (app.minH || 200) && r.w >= (app.minW || 320)) return z;
+  const half = { tl: 'left', bl: 'left', tr: 'right', br: 'right', c1: 'left', l66: 'left', c2: 'left', c3: 'right', r34: 'right' }[z] || z;
+  const hr = zoneRect(half);
+  return hr.w >= (app.minW || 320) ? half : 'max';
+}
 function snapWin(w, z) {
+  z = z === 'max' ? z : fitZone(w, z);
   if (z === 'max') { if (!w.maxed) toggleMax(w); return; }
+  // обычный размер помним только у свободного окна: у развёрнутого или прикреплённого он уже сохранён
+  const free = !w.maxed && !w.snapped;
+  if (free) saveNormal(w);
   if (w.maxed) { w.maxed = false; w.el.classList.remove('maxed'); w.el.querySelector('[data-cap=max]').innerHTML = SI.max; }
-  saveNormal(w);
   w.snapped = z; w.el.classList.add('snapped');
   setRect(w, zoneRect(z));
   focusWin(w);
@@ -822,7 +898,7 @@ $('btn-start').addEventListener('click', () => togglePanel('start', $('btn-start
 $('btn-search').addEventListener('click', () => togglePanel('search', $('btn-search'), () => { $('search-q').value = ''; renderSearch(); $('search-q').focus(); }));
 $('btn-tv').addEventListener('click', () => { if ($('taskview').classList.contains('open')) hideTaskView(); else { closePanels(); showTaskView(); } });
 $('btn-tray').addEventListener('click', () => togglePanel('quick', $('btn-tray'), renderQuick));
-$('btn-clock').addEventListener('click', () => togglePanel('notif-center', $('btn-clock'), () => { calMonth = new Date(); calMonth.setDate(1); renderCal(); renderNotifs(); }));
+$('btn-clock').addEventListener('click', () => togglePanel('notif-center', $('btn-clock'), () => { document.querySelectorAll('#toasts .toast').forEach(t => t.remove()); calMonth = new Date(); calMonth.setDate(1); renderCal(); renderNotifs(); }));   // всплывшие уведомления уходят в центр
 $('show-desktop').addEventListener('click', () => { const vis = wins.filter(w => !w.min); if (vis.length) vis.forEach(minimizeWin); else wins.forEach(w => { if (w.min) restoreWin(w); }); restack(); });
 $('power-btn').addEventListener('click', e => { e.stopPropagation(); $('power-menu').classList.toggle('open'); });
 $('power-menu').addEventListener('click', e => { const b = e.target.closest('[data-power]'); if (!b) return; closePanels(); ({ lock: lockScreen, sleep: sleepScreen, restart: restartShell })[b.dataset.power](); });
@@ -913,6 +989,9 @@ document.addEventListener('keydown', e => {
   if (t !== document.body && !activeWin.el.contains(t)) return;
   activeWin.onKey(e);
 });
+
+// Закрытие вкладки при несохранённом тексте: браузер переспросит
+addEventListener('beforeunload', e => { if (wins.some(w => w.isDirty && w.isDirty())) { e.preventDefault(); e.returnValue = ''; } });
 
 // Вкладка скрыта - анимации и звук на паузе
 document.addEventListener('visibilitychange', () => { document.body.classList.toggle('paused', document.hidden); emit('visibility', document.hidden); });

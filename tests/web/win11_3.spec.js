@@ -153,9 +153,10 @@ test('макеты прикрепления у «Развернуть», дво�
   await expect(page.locator('#snap-flyout')).toHaveClass(/open/);
   await expectInside(page, page.locator('#snap-flyout'), 'макеты');
   await page.click('#snap-flyout [data-zone="c3"]');
+  // треть (427 px) уже минимальной ширины Проводника (460 px): окно встаёт в правую половину
   let b = await w.boundingBox();
-  expect(Math.round(b.x)).toBe(853);
-  expect(Math.round(b.width)).toBe(427);
+  expect(Math.round(b.x)).toBe(640);
+  expect(Math.round(b.width)).toBe(640);
   await w.locator('.t-text').dblclick();
   await expect(w).toHaveClass(/maxed/);
   b = await w.boundingBox();
@@ -631,6 +632,10 @@ for (const g of GAMES) {
     await expect(w.frameLocator('iframe').locator('body')).toBeAttached();
     await page.waitForTimeout(1500);
     expect(errors, 'ошибки на странице игры').toEqual([]);
+    // игра реально запустилась: в рамке виден холст или содержимое заметного размера
+    const frame = page.frames().find((f) => f.url().includes('/' + g.dir + '/'));
+    const shown = await frame.evaluate(() => [...document.querySelectorAll('canvas, body > *')].some((el) => { const r = el.getBoundingClientRect(); return r.width >= 200 && r.height >= 120 && getComputedStyle(el).visibility !== 'hidden'; }));
+    expect(shown, 'в окне игры ничего не видно').toBe(true);
     expect(requests, 'запросы в сеть').toEqual([]);
   });
 }
@@ -697,3 +702,196 @@ for (const dpr of [1, 1.25, 1.5]) {
     await ctx.close();
   });
 }
+
+// ===== Замечания ревьюера =====
+// Проверочная игра по протоколу паузы: окно-рамка с ../_os-shared/pause-stub.html
+async function openStub(page) {
+  await page.evaluate(() => { APPS.stub = { title: 'Заглушка паузы', icon: ICON.gamepad || ICON.start, w: 640, h: 420, minW: 320, minH: 240, iframe: '../_os-shared/pause-stub.html', game: true }; openApp('stub'); });
+  const w = await ready(win(page, 'stub'));
+  await expect.poll(() => page.frames().some((f) => f.url().includes('pause-stub.html'))).toBe(true);
+  const f = page.frames().find((x) => x.url().includes('pause-stub.html'));
+  await expect.poll(() => f.evaluate(() => window.stub && window.stub.frames)).toBeGreaterThan(5);
+  return [w, f];
+}
+const gameTime = (f) => f.evaluate(() => stub.time);
+
+test('пауза игры по протоколу: в свёрнутом и неактивном окне игровое время стоит, после возврата паузу снимает игрок', async ({ page }) => {
+  await page.evaluate(() => 0);
+  const acks = [];
+  await boot(page);
+  await page.exposeFunction('__ack', (m) => acks.push(m));
+  await page.evaluate(() => addEventListener('message', (e) => { if (e.data && e.data.mix === 'paused') window.__ack(e.data.mix); }));
+  const [w, f] = await openStub(page);
+  // окно свернули - время стоит
+  await w.locator('[data-cap=min]').click();
+  await page.waitForTimeout(150);
+  let t1 = await gameTime(f); await page.waitForTimeout(600);
+  expect(await gameTime(f), 'игровое время в свёрнутом окне').toBe(t1);
+  // вернули - пауза остаётся, пока игрок не щёлкнет
+  await page.click('#tb-apps .tb-btn[data-app="stub"]');
+  await page.waitForTimeout(150);
+  t1 = await gameTime(f); await page.waitForTimeout(400);
+  expect(await gameTime(f)).toBe(t1);
+  await w.locator('iframe').click({ position: { x: 100, y: 100 } });
+  await expect.poll(() => gameTime(f)).toBeGreaterThan(t1);
+  // окно потеряло фокус - время снова стоит
+  await openVia(page, 'notepad');
+  await page.waitForTimeout(150);
+  t1 = await gameTime(f); await page.waitForTimeout(500);
+  expect(await gameTime(f), 'игровое время в неактивном окне').toBe(t1);
+  // в документе игры не остаётся подменённого document.hidden
+  await page.click('#tb-apps .tb-btn[data-app="stub"]');
+  expect(await f.evaluate(() => Object.getOwnPropertyDescriptor(document, 'hidden'))).toBeUndefined();
+  expect(acks.length).toBeGreaterThanOrEqual(2);
+  // закрытие: игра успевает получить паузу
+  const before = acks.length;
+  await w.locator('[data-cap=close]').click();
+  await expect.poll(() => acks.length).toBeGreaterThan(before);
+});
+
+for (const g of GAMES) {
+  test(`игра «${g.title}» объявляет своё название <meta name="application-name">, и оно совпадает с таблицей`, async () => {
+    const html = fs.readFileSync(path.join(WEB, g.dir, 'index.html'), 'utf8');
+    const m = /<meta\s+name=["']application-name["']\s+content=["']([^"']+)["']/i.exec(html);
+    expect(m, `в web/${g.dir}/index.html нет <meta name="application-name" content="${g.title}">: автор игры должен добавить её, потом запустить node web/_os-shared/build-games.js`).not.toBeNull();
+    expect(m[1], 'название в web/_os-shared/games.js расходится с игрой - запустите node web/_os-shared/build-games.js').toBe(g.title);
+  });
+  test(`игра «${g.title}» слушает протокол паузы (web/_os-shared/README.md)`, async ({ page }) => {
+    const html = fs.readFileSync(path.join(WEB, g.dir, 'index.html'), 'utf8');
+    const declared = /<meta\s+name=["']mix-protocol["']\s+content=["'][^"']*pause/i.test(html);
+    test.fail(!declared, `игра ещё не объявила <meta name="mix-protocol" content="pause"> - ожидаемо красная до поддержки протокола`);
+    const acks = [];
+    await boot(page);
+    await page.exposeFunction('__ack', (m) => acks.push(m));
+    await page.evaluate(() => addEventListener('message', (e) => { if (e.data && e.data.mix === 'paused') window.__ack(e.data.mix); }));
+    const w = await openVia(page, 'game-' + g.id);
+    await page.waitForTimeout(1500);
+    await w.locator('[data-cap=min]').click();
+    await expect.poll(() => acks.length, { timeout: 2000 }).toBeGreaterThan(0);
+  });
+}
+
+test('значок «Медиаплеер» 16 px в заголовке: нота отделима от фона по контрасту', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const svg = ICON.media16.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"');
+    const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); await img.decode();
+    const c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d'); x.drawImage(img, 0, 0, 16, 16);
+    const d = x.getImageData(0, 0, 16, 16).data;
+    const lum = (i) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(d[i]) + 0.7152 * f(d[i + 1]) + 0.0722 * f(d[i + 2]); };
+    let note = 0, bg = 0, ln = 0, lb = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 200) continue; const l = lum(i); if (l > 0.6) { note++; ln += l; } else { bg++; lb += l; } }
+    return { note, bg, contrast: (ln / note + 0.05) / (lb / bg + 0.05) };
+  });
+  expect(r.note, 'белых точек ноты на 16 px').toBeGreaterThanOrEqual(18);
+  expect(r.bg, 'точек фона').toBeGreaterThanOrEqual(80);
+  expect(r.contrast, 'контраст ноты и фона').toBeGreaterThanOrEqual(2.5);
+  await openVia(page, 'media');
+  expect(await page.locator('.window[data-app="media"] .t-ic').innerHTML()).toContain('note16');
+});
+
+test('копировать или переместить папку в саму себя нельзя: Проводник и Терминал говорят об этом', async ({ page }) => {
+  await boot(page);
+  const ex = await openVia(page, 'explorer', 'Документы');
+  await ex.locator('[data-p="Документы/Проекты"]').click();
+  await page.keyboard.press('Control+c');
+  await ex.locator('[data-p="Документы/Проекты"]').dblclick();
+  const before = await page.evaluate(() => FS.size);
+  await page.keyboard.press('Control+v');
+  await expect(page.locator('.toast').last()).toContainText('нельзя скопировать в саму себя');
+  expect(await page.evaluate(() => FS.size)).toBe(before);
+  await openVia(page, 'terminal', 'Документы');
+  await term(page, 'copy Учёба Учёба');
+  await expect(win(page, 'terminal').locator('.term-out .err').last()).toContainText('в саму себя');
+  expect(await page.evaluate(() => [...FS.keys()].filter((k) => k.startsWith('Документы/Учёба/Учёба')).length)).toBe(0);
+});
+
+test('после «Развернуть» прикрепление помнит прежний размер окна, а не весь экран; четверть не меньше минимума программы', async ({ page }) => {
+  await boot(page);
+  const w = await openVia(page, 'notepad');
+  const normal = await w.boundingBox();
+  await w.locator('[data-cap=max]').click();
+  await page.evaluate(() => snapWin(wins.find((x) => x.app === 'notepad'), 'left'));
+  const t = await w.locator('.t-text').boundingBox();
+  await dragFrom(page, t.x + 20, t.y + 8, 300, 150);
+  const b = await w.boundingBox();
+  expect(Math.round(b.width)).toBe(Math.round(normal.width));
+  expect(Math.round(b.height)).toBe(Math.round(normal.height));
+  // при 1280x720 четверть экрана (336 px) ниже Медиаплеера (мин. 360): он встаёт в правую половину
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const m = await openVia(page, 'media');
+  await page.evaluate(() => snapWin(wins.find((x) => x.app === 'media'), 'br'));
+  const mb = await m.boundingBox();
+  expect(mb.height).toBeGreaterThanOrEqual(360);
+  expect(Math.round(mb.x)).toBe(640);
+});
+
+test('Ctrl+L в Терминале работает и в русской раскладке (по физической клавише)', async ({ page }) => {
+  await boot(page);
+  const t = await openVia(page, 'terminal');
+  await term(page, 'help');
+  const n = await t.locator('.term-out > div').count();
+  expect(n).toBeGreaterThan(5);
+  await t.locator('.term-line input').dispatchEvent('keydown', { key: 'д', code: 'KeyL', ctrlKey: true, bubbles: true });
+  await expect(t.locator('.term-out > div')).toHaveCount(1);
+});
+
+test('всплывающие уведомления не висят поверх открытого центра уведомлений', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => notify({ app: 'clock', title: 'Раз', body: 'один' }));
+  await expect(page.locator('#toasts .toast')).toHaveCount(1);
+  await page.click('#btn-clock');
+  await expect(page.locator('#toasts .toast')).toHaveCount(0);
+  await page.evaluate(() => notify({ app: 'clock', title: 'Два', body: 'два' }));
+  expect(await page.locator('#toasts .toast').count()).toBe(0);
+  await expect(page.locator('#nc-list .nc-item')).toHaveCount(2);
+});
+
+test('запись не удалась (мало места): уведомление «Не сохранено», память возвращается к сохранённому', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { IDBObjectStore.prototype.put = function () { throw new DOMException('Мало места', 'QuotaExceededError'); }; });
+  await page.evaluate(() => writeFile('Документы/большой.txt', 'x'.repeat(1000)));
+  await expect(page.locator('.toast').last()).toContainText('Не сохранено: мало места');
+  await expect.poll(() => page.evaluate(() => FS.has('Документы/большой.txt'))).toBe(false);
+});
+
+test('две вкладки: корзина одной не стирает корзину другой, изменения видны в соседней вкладке', async ({ page, context }) => {
+  await boot(page);
+  const p2 = await context.newPage();
+  await p2.goto(page.url());
+  await p2.waitForFunction(() => document.body.dataset.ready === '1');
+  await page.evaluate(() => trashPath('Документы/Отчёт.txt'));
+  await page.waitForFunction(() => dbPending === 0);
+  await expect.poll(() => p2.evaluate(() => TRASH.length)).toBe(1);
+  await p2.evaluate(() => trashPath('Загрузки/readme.txt'));
+  await p2.waitForFunction(() => dbPending === 0);
+  await expect.poll(() => page.evaluate(() => TRASH.map((t) => t.path).sort())).toEqual(['Документы/Отчёт.txt', 'Загрузки/readme.txt']);
+  await page.reload();
+  await page.waitForFunction(() => document.body.dataset.ready === '1');
+  expect(await page.evaluate(() => TRASH.length)).toBe(2);
+});
+
+test('переименование ведёт за собой «Недавние», открытый Блокнот и буфер обмена; копия рядом - «план - копия.txt»', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => openPath('Документы/Отчёт.txt'));
+  const np = await ready(win(page, 'notepad'));
+  await page.evaluate(() => { CLIP = { mode: 'copy', paths: ['Документы/Отчёт.txt'] }; renamePath('Документы/Отчёт.txt', 'Итог.txt'); });
+  expect(await page.evaluate(() => [RECENT[0], CLIP.paths[0]])).toEqual(['Документы/Итог.txt', 'Документы/Итог.txt']);
+  await np.locator('textarea').fill('новое');
+  await page.keyboard.press('Control+s');
+  expect(await page.evaluate(() => [FS.get('Документы/Итог.txt').text, FS.has('Документы/Отчёт.txt')])).toEqual(['новое', false]);
+  expect(await page.evaluate(() => copyPath('Документы/Проекты/план.txt', 'Документы/Проекты'))).toBe('Документы/Проекты/план - копия.txt');
+});
+
+test('Проводник в узком окне прячет редкие команды в «…»', async ({ page }) => {
+  await boot(page);
+  const ex = await openVia(page, 'explorer', 'Документы');
+  await page.evaluate(() => { const w = wins.find((x) => x.app === 'explorer'); w.el.style.width = '640px'; });
+  await expect(ex.locator('[data-x="more"]')).toBeVisible();
+  await expect(ex.locator('[data-x="sort"]')).toBeHidden();
+  await ex.locator('[data-x="more"]').click();
+  await expect(page.locator('.menu.ctx .mi', { hasText: 'Сортировка' })).toBeVisible();
+  const bar = await ex.locator('.cmdbar').boundingBox(), exb = await ex.boundingBox();
+  expect(bar.height).toBeLessThan(48);
+  expect(bar.x + bar.width).toBeLessThanOrEqual(exb.x + exb.width + 1);
+});
