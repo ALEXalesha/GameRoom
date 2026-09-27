@@ -489,7 +489,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
     }
   });
 
-  test('ночью фары заметно освещают свою полосу перед машиной', async ({ page }) => {
+  test('ночью фары заметно освещают свою полосу перед машиной, разметка не выгорает в белое', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 500 });
     await openDrift(page);
     await startWorld(page, 'mountains');
@@ -516,8 +516,10 @@ test.describe('horizon_drift_offline: открытый мир', () => {
         // настоящий свет прожектора ложится и на обочину у кромки, не только на полосу под конусом
         for (const d of [20, 24, 28]) edge.push(at(d, hw + 3), at(d, -hw - 3));
         edgeFar.push(at(70, hw + 3), at(70, -hw - 3));
-        const all = lit.concat(far, side, edge, edgeFar);
-        return { visible: all.every((v) => v !== null), road: avg(lit), far: avg(far), side: avg(side), edge: avg(edge), edgeFar: avg(edgeFar) };
+        // осевая разметка под конусом: светлее асфальта, но не выгорает в белое пятно
+        const dash = []; for (let d = 12; d <= 34; d += 0.5) dash.push(at(d, 0));
+        const all = lit.concat(far, side, edge, edgeFar, dash);
+        return { visible: all.every((v) => v !== null), road: avg(lit), far: avg(far), side: avg(side), edge: avg(edge), edgeFar: avg(edgeFar), dashMax: Math.max(...dash), dashWhite: dash.filter((v) => v > 0.97).length };
       };
       const night = measure(23.5), day = measure(13);
       return { night, day };
@@ -528,6 +530,8 @@ test.describe('horizon_drift_offline: открытый мир', () => {
     expect(r.night.road).toBeGreaterThan(r.night.side * 1.5);      // и ярче обочины рядом
     expect(r.day.road).toBeGreaterThan(r.night.far);               // днём дорога светлее ночной
     expect(r.night.edge).toBeGreaterThan(r.night.edgeFar * 1.3);   // кромка в свете фар светлее кромки вдали
+    expect(r.night.dashMax).toBeGreaterThan(r.night.road * 1.5);   // разметка в свете фар видна на асфальте
+    expect(r.night.dashWhite).toBe(0);                             // и не выгорает в белое
   });
 
   test('зона дрифта считается только по ходу зоны; призовые за дуэль с бродячим соперником раз в игровые сутки', async ({ page }) => {
