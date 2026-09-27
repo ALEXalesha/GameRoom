@@ -82,5 +82,7 @@ test('запись через временный файл, испорченны�
 // Соседний репозиторий калькуляторов лежит рядом только на машине автора.
 const CALC = path.join(__dirname, '..', '..', '..', 'Calculators', 'calcpro-glass', 'window-state.js');
 test('модуль совпадает с калькуляторным, если тот рядом', { skip: !fs.existsSync(CALC) }, () => {
-  assert.equal(fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'window-state.js'), 'utf8'), fs.readFileSync(CALC, 'utf8'));
+  // Концы строк не сравниваем: git на Windows выдаёт файл то с CRLF, то с LF.
+  const text = (f) => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(text(path.join(__dirname, '..', '..', 'app', 'window-state.js')), text(CALC));
 });
