@@ -1546,7 +1546,7 @@ function filesMenus(w) {
     'Файл': [{ label: 'Новая папка', key: 'Ctrl+Shift+N', disabled: !w.canWrite(), action: () => w.newFolder() }, { label: 'Открыть', key: 'Ctrl+O', disabled: !w.sel().length, action: () => w.openSel() },
       { label: 'Дублировать', key: 'Ctrl+D', disabled: !w.sel().length || !w.canWrite(), action: () => w.duplicate() }, { label: 'Переместить в Корзину', key: 'Ctrl+⌫', disabled: !w.sel().length || !w.canWrite(), action: () => w.del() }],
     'Правка': [{ label: 'Копировать', key: 'Ctrl+C', disabled: !w.sel().length, action: () => w.copy() }, { label: 'Вставить', key: 'Ctrl+V', disabled: !CLIP || !w.canWrite(), action: () => w.paste() }, { label: 'Выбрать все', key: 'Ctrl+A', action: () => w.selectAll() }],
-    'Вид': [{ label: 'Значки', checked: w.view() === 'grid', action: () => w.setView('grid') }, { label: 'Список', checked: w.view() === 'list', action: () => w.setView('list') }, { label: 'Просмотр', checked: w.prev(), action: () => w.togglePrev() }],
+    'Вид': [{ label: 'Значки', checked: w.view() === 'grid', action: () => w.setView('grid') }, { label: 'Список', checked: w.view() === 'list', action: () => w.setView('list') }, { label: 'Просмотр', checked: w.showsPreview(), action: () => w.togglePrev() }],
   };
 }
 const SIDE = () => [['Рабочий стол', SI.deskf], ['Документы', SI.doc], ['Загрузки', SI.down], ['Изображения', SI.photo], ['Музыка', SI.note]];
@@ -1565,7 +1565,7 @@ function createFiles(w, start) {
   w.body.innerHTML = '<div class="app-split"><div class="sidebar glass"></div><div class="app-main"><div class="f-main" tabindex="0"></div><div class="f-status"></div></div><div class="preview" hidden></div></div><input type="file" multiple hidden class="f-file">';
   const side = w.body.querySelector('.sidebar'), main = w.body.querySelector('.f-main'), prev = w.body.querySelector('.preview'), finput = w.body.querySelector('.f-file'), sq = w.tools.querySelector('input');
   const canWrite = () => path !== '' && path !== '__trash';
-  Object.assign(w, { canWrite, sel: () => [...sel], view: () => view, prev: () => showPrev,
+  Object.assign(w, { canWrite, sel: () => [...sel], view: () => view, showsPreview: () => showPrev,
     newFolder, openSel: () => sel.forEach(p => openItem(p)), duplicate: () => { [...sel].forEach(p => copyPath(p, path)); }, del: delSel,
     copy: () => { CLIP = { mode: 'copy', paths: [...sel] }; }, paste: doPaste, selectAll: () => { sel = new Set(items().map(e => e.path)); render(); },
     setView: v => { view = v; store.set('fView', v); render(); }, togglePrev: () => { showPrev = !showPrev; render(); } });

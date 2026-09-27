@@ -129,7 +129,7 @@ test('окно тащится, не уходит под строку меню и
 });
 
 test('зелёная кнопка: заполнить над Dock, меню раскладки, двойной щелчок по заголовку; размер не меньше минимума', async ({ page }) => {
-  await boot(page);
+  const errors = await boot(page);
   const w = await openVia(page, 'finder', 'Документы');
   await w.locator('[data-cap=zoom]').click();
   await expect(w).toHaveClass(/zoomed/);
@@ -154,6 +154,10 @@ test('зелёная кнопка: заполнить над Dock, меню ра
   b = await w.boundingBox();
   expect(b.width).toBeGreaterThanOrEqual(519);
   expect(b.height).toBeGreaterThanOrEqual(319);
+  // меню «Вид» у разложенного окна «Файлов» открывается (раньше имя свойства окна путалось с просмотром)
+  await page.click('#mb-menus [data-mb="Вид"]');
+  await expect(page.locator('.menu .mi', { hasText: 'Просмотр' })).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('свернуть в Dock и вернуть; строка меню и Dock выше окон; Ctrl+W и Ctrl+Q; меню «Окно» знает окна', async ({ page }) => {
