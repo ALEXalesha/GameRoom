@@ -1,6 +1,9 @@
 // Законы explorer_1: навигация, поиск не сбивает выбор, файлы и папки создаются, правятся
 // и переживают перезагрузку, режим настоящей папки работает (на поддельной папке), всё в экране.
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+const { WEB } = require('../helpers');
 const { openOs, expectInside, expectNoPageOverflow } = require('./_os-helpers');
 
 const NAME = 'explorer_1';
@@ -256,4 +259,103 @@ test('файлы с диска: кнопка «Добавить» и перет�
   expect(await page.evaluate(() => state.vfs.children['Изображения'].children['снимок.png'].blob instanceof Blob)).toBe(true);
   await row(page, 'закат.svg').dblclick();
   await expect(page.locator('.modal .preview-content img')).toBeVisible();
+});
+
+// ===== Замечания ревьюера =====
+const legacySeed = () => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('explorer_1.vfs', JSON.stringify({ name: '', type: 'folder', modified: '', children: { 'Старое': { name: 'Старое', type: 'folder', modified: '', children: { 'важное.txt': { name: 'важное.txt', type: 'file', modified: '', content: 'не потерять', size: 21 } } } } })); } };
+
+test('перенос старых данных без правки и с перезагрузкой сразу: файлы не теряются', async ({ page }) => {
+  await page.addInitScript(legacySeed);
+  // первая запись в IndexedDB не удаётся (как при закрытой вкладке посреди записи): старые данные должны остаться
+  await page.addInitScript(() => { if (!sessionStorage.getItem('putfail')) { sessionStorage.setItem('putfail', '1'); const put = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function () { IDBObjectStore.prototype.put = put; throw new DOMException('сорвалось', 'AbortError'); }; } });
+  await openOs(page, NAME);
+  await expect(row(page, 'Старое')).toBeVisible();
+  await page.reload();                      // сразу, не дожидаясь записи
+  await expect(row(page, 'Старое')).toBeVisible();
+  await page.waitForFunction(() => dbPending === 0);
+  await page.reload();
+  await row(page, 'Старое').dblclick();
+  await expect(row(page, 'важное.txt')).toBeVisible();
+  await page.waitForFunction(() => dbPending === 0);
+  expect(await page.evaluate(() => localStorage.getItem('explorer_1.vfs'))).toBeNull();
+});
+
+test('windows_4 хранит свои файлы под своим ключом и не затирает данные explorer_1', async () => {
+  const src = fs.readFileSync(path.join(WEB, 'windows_4', 'apps', 'explorer.html'), 'utf8');
+  expect(src).not.toContain("'explorer_1.vfs'");
+  expect(src).toContain("'windows_4.explorer'");
+});
+
+test('файл с диска в настоящую папку: одноимённый не перезаписывается молча', async ({ page }) => {
+  await page.addInitScript(fakeDisk);
+  await openOs(page, NAME);
+  await page.click('#btn-open-real');
+  await expect(row(page, 'todo.txt')).toBeVisible();
+  await page.locator('#file-input').setInputFiles({ name: 'todo.txt', mimeType: 'text/plain', buffer: Buffer.from('чужое') });
+  await expect(page.locator('.modal-text')).toContainText('уже есть');
+  await page.click('[data-cancel]');
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__fakeRoot.map.get('todo.txt').text)).toBe('дело');
+});
+
+test('запасной режим без IndexedDB: двоичный файл - предупреждение, переполнение - сообщение', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(window, 'indexedDB', { value: { open() { throw new Error('нет'); } } }); });
+  await openOs(page, NAME);
+  await page.locator('#file-input').setInputFiles({ name: 'снимок.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 1, 2, 3]) });
+  await expect(page.locator('.toast')).toContainText('двоичные файлы не сохранятся');
+  await page.evaluate(() => { Storage.prototype.setItem = function () { throw new DOMException('мало', 'QuotaExceededError'); }; });
+  await page.click('#btn-new-folder');
+  await page.fill('.modal-input', 'Ещё');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.toast')).toContainText('мало места');
+});
+
+test('возврат из корзины, когда на месте папки теперь файл: рядом с ним; «Удалить навсегда» переспрашивает', async ({ page }) => {
+  await openOs(page, NAME);
+  await row(page, 'Проекты').dblclick();
+  await row(page, 'game.py').click();
+  await page.keyboard.press('Delete'); await page.click('[data-ok]');
+  await page.click('#btn-up');
+  await row(page, 'Проекты').click();
+  await page.keyboard.press('Delete'); await page.click('[data-ok]');
+  await page.evaluate(() => { state.vfs.children['Проекты'] = { name: 'Проекты', type: 'file', modified: '', content: 'файл', size: 8 }; saveVFS(); });
+  await page.click('#trash-item');
+  await page.locator('.trash-row', { hasText: 'game.py' }).locator('[data-restore]').click();
+  expect(await page.evaluate(() => [state.vfs.children['Проекты'].type, !!state.vfs.children['game.py']])).toEqual(['file', true]);
+  await page.locator('.trash-row', { hasText: 'Проекты' }).locator('[data-kill]').click();
+  await expect(page.locator('.modal-title').last()).toHaveText('Удалить навсегда?');
+  await page.locator('[data-cancel]').last().click();
+  await expect(page.locator('.trash-row', { hasText: 'Проекты' })).toHaveCount(1);
+});
+
+test('расширение файла не вставляется в страницу как разметка; имена __proto__ и constructor работают', async ({ page }) => {
+  await openOs(page, NAME);
+  await page.locator('#file-input').setInputFiles({ name: 'x.<img src=x onerror=xss>', mimeType: 'application/octet-stream', buffer: Buffer.from('1') });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  expect(await page.locator('.file-row .meta img').count(), 'расширение превратилось в разметку').toBe(0);
+  for (const n of ['__proto__', 'constructor']) {
+    await page.click('#btn-new-folder');
+    await page.fill('.modal-input', n);
+    await page.keyboard.press('Enter');
+    await expect(row(page, n)).toBeVisible();
+  }
+  await row(page, '__proto__').dblclick();
+  await expect(page.locator('.empty-title')).toHaveText('Папка пуста');
+  await page.waitForFunction(() => dbPending === 0);
+  await page.reload();
+  await expect(row(page, '__proto__')).toBeVisible();
+  await expect(row(page, 'constructor')).toBeVisible();
+});
+
+test('перетаскивание на папку не затирает буфер обмена', async ({ page }) => {
+  await openOs(page, NAME);
+  await row(page, 'readme.txt').click();
+  await page.keyboard.press('Control+c');
+  await row(page, 'Документы').dblclick();
+  await row(page, 'заметки.txt').dragTo(row(page, 'Учёба'));
+  await expect(row(page, 'заметки.txt')).toHaveCount(0);
+  expect(await page.evaluate(() => state.clip && state.clip.names)).toEqual(['readme.txt']);
+  await page.keyboard.press('Control+v');
+  await expect(row(page, 'readme.txt')).toBeVisible();
 });

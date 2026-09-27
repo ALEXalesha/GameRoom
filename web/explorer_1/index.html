@@ -704,7 +704,7 @@ const BAD_NAME = /[\/\\:*?"<>|]/;
 
 function makeVFS() {
   const f = (name, content, size) => ({ name, type: 'file', modified: now(), content, size: content == null ? size : byteSize(content) });
-  const d = (name, list) => ({ name, type: 'folder', modified: now(), children: Object.fromEntries(list.map(n => [n.name, n])) });
+  const d = (name, list) => ({ name, type: 'folder', modified: now(), children: kids(list.map(n => [n.name, n])) });
   return d('', [
     d('Документы', [
       f('заметки.txt', 'Список дел:\n- купить хлеб\n- решить задачу по геометрии\n- позвонить маме'),
@@ -734,22 +734,41 @@ function idbOpen() {
   });
 }
 function idbGet(key) { return new Promise(res => { if (!xdb) { res(undefined); return; } const q = xdb.transaction('kv').objectStore('kv').get(key); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); }); }
-function saveVFS() {
-  if (!xdb) { try { localStorage.setItem(STORE_KEY, JSON.stringify(state.vfs)); } catch (e) { /* хранилище недоступно */ } return; }
+// папка хранит детей в объекте без прототипа: имена «__proto__» и «constructor» - обычные имена
+function kids(pairs) { const o = Object.create(null); for (const [k, v] of pairs) o[k] = v; return o; }
+function normalize(node) { if (node && node.type === 'folder') { node.children = kids(Object.keys(node.children || {}).map(k => [k, node.children[k]])); Object.values(node.children).forEach(normalize); } return node; }
+let fallbackWarned = false;
+function saveVFS(onDone) {
+  if (!xdb) {
+    // запасной режим без IndexedDB: двоичные файлы в localStorage не помещаются - предупреждаем; переполнение - тоже
+    let binary = false;
+    const json = JSON.stringify({ vfs: state.vfs, trash: state.trash }, (k, v) => { if (k === 'blob') { binary = true; return undefined; } return v; });
+    try { localStorage.setItem(STORE_KEY, json); } catch (e) { toast('Не сохранено: в памяти браузера мало места', true); return; }
+    if (binary && !fallbackWarned) { fallbackWarned = true; setTimeout(() => toast('Без IndexedDB двоичные файлы не сохранятся после перезагрузки', true), 60); }
+    if (onDone) onDone();
+    return;
+  }
   const tx = xdb.transaction('kv', 'readwrite');
   dbPending++;
   let done = false; const fin = () => { if (!done) { done = true; dbPending--; } };
-  tx.objectStore('kv').put(state.vfs, 'vfs'); tx.objectStore('kv').put(state.trash, 'trash');
-  tx.oncomplete = fin; tx.onerror = tx.onabort = () => { fin(); toast('Не удалось сохранить изменения', true); };
+  try { tx.objectStore('kv').put(state.vfs, 'vfs'); tx.objectStore('kv').put(state.trash, 'trash'); } catch (e) { try { tx.abort(); } catch (e2) { /* уже */ } }
+  tx.oncomplete = () => { fin(); if (onDone) onDone(); };
+  tx.onerror = tx.onabort = () => { fin(); toast('Не сохранено: мало места в памяти браузера', true); };
 }
 async function loadStored() {
   xdb = await idbOpen();
-  let v = await idbGet('vfs');
-  if (!v) { try { const old = JSON.parse(localStorage.getItem(STORE_KEY)); if (old && old.type === 'folder' && old.children) v = old; } catch (e) { /* пусто */ } }
-  state.vfs = v || makeVFS();
-  state.trash = (await idbGet('trash')) || [];
-  if (!v || !xdb) saveVFS();
-  if (xdb) try { localStorage.removeItem(STORE_KEY); } catch (e) { /* нет доступа */ }
+  let v = await idbGet('vfs'), trash = await idbGet('trash');
+  let legacy = null;
+  try { legacy = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { /* пусто */ }
+  if (legacy && legacy.vfs) { if (!xdb) { v = v || legacy.vfs; trash = trash || legacy.trash; } legacy = legacy.vfs; }
+  const migrate = !v && legacy && legacy.type === 'folder' && legacy.children;
+  if (migrate) v = legacy;
+  state.vfs = normalize(v || makeVFS());
+  state.trash = (trash || []).map(t => Object.assign(t, { node: normalize(t.node) }));
+  if (!xdb) { if (!v) saveVFS(); return; }
+  // старые данные из localStorage стираем, только когда запись в IndexedDB точно завершилась
+  if (migrate || !v) saveVFS(() => { try { localStorage.removeItem(STORE_KEY); } catch (e) { /* нет доступа */ } });
+  else if (legacy) try { localStorage.removeItem(STORE_KEY); } catch (e) { /* нет доступа */ }
 }
 
 // ============================================================
@@ -955,7 +974,7 @@ function renderFileList() {
     row.draggable = state.mode === 'virtual';
     row.innerHTML =
       '<div class="file-name-cell">' + iconFor(entry) + '<span class="file-name">' + escapeHtml(entry.name) + '</span></div>' +
-      '<div class="meta">' + formatSize(entry) + '</div><div class="meta">' + getType(entry) + '</div><div class="meta">' + formatDate(entry.modified) + '</div>';
+      '<div class="meta">' + formatSize(entry) + '</div><div class="meta">' + escapeHtml(getType(entry)) + '</div><div class="meta">' + formatDate(entry.modified) + '</div>';
     row.addEventListener('click', e => handleRowClick(e, entry.name));
     row.addEventListener('dblclick', () => openEntry(entry.name));
     row.addEventListener('contextmenu', e => {
@@ -1132,7 +1151,7 @@ async function createFolder() {
   if (!name) return;
   try {
     if (state.mode === 'real') await (await getRealHandleAtPath(state.currentPath)).getDirectoryHandle(name, { create: true });
-    else { vfsGetNode(state.currentPath).children[name] = { name, type: 'folder', modified: now(), children: {} }; saveVFS(); }
+    else { vfsGetNode(state.currentPath).children[name] = { name, type: 'folder', modified: now(), children: kids([]) }; saveVFS(); }
     state.selected = new Set([name]); state.cursor = name;
     await loadCurrent();
   } catch (e) { toast('Не удалось создать папку: ' + e.message, true); }
@@ -1330,7 +1349,11 @@ function restoreTrash(id) {
   const i = state.trash.findIndex(t => t.id === id); if (i < 0) return;
   const t = state.trash[i];
   let parent = state.vfs;
-  for (const seg of t.path) { if (!parent.children[seg]) parent.children[seg] = { name: seg, type: 'folder', modified: now(), children: {} }; parent = parent.children[seg]; }
+  for (const seg of t.path) {
+    if (!parent.children[seg]) parent.children[seg] = { name: seg, type: 'folder', modified: now(), children: kids([]) };
+    if (parent.children[seg].type !== 'folder') break;   // на месте папки теперь файл: возвращаем рядом с ним
+    parent = parent.children[seg];
+  }
   let name = t.node.name, k = 2;
   const dot = name.lastIndexOf('.'), base = t.node.type === 'file' && dot > 0 ? name.slice(0, dot) : name, ext = base === name ? '' : name.slice(dot);
   while (parent.children[name]) name = base + ' (' + (k++) + ')' + ext;
@@ -1350,7 +1373,8 @@ function showTrash() {
   document.addEventListener('keydown', onKey, true);
   modal.addEventListener('click', e => {
     const r = e.target.closest('[data-restore]'); if (r) { restoreTrash(r.dataset.restore); draw(); return; }
-    const k = e.target.closest('[data-kill]'); if (k) { state.trash = state.trash.filter(t => t.id !== k.dataset.kill); saveVFS(); draw(); return; }
+    const k = e.target.closest('[data-kill]');
+    if (k) { const t = state.trash.find(x => x.id === k.dataset.kill); confirm_('Удалить навсегда?', '«' + (t ? t.node.name : '') + '» нельзя будет вернуть.').then(ok => { if (!ok) return; state.trash = state.trash.filter(x => x.id !== k.dataset.kill); saveVFS(); draw(); }); return; }
     if (e.target.closest('[data-empty]')) { state.trash = []; saveVFS(); draw(); return; }
     if (e.target.closest('[data-close]') || e.target === modal) close();
   });
@@ -1360,7 +1384,7 @@ function showTrash() {
 // ============================================================
 // Копировать, вырезать, вставить (демо-файлы)
 // ============================================================
-const cloneNode = n => n.type === 'folder' ? Object.assign({}, n, { modified: now(), children: Object.fromEntries(Object.values(n.children).map(c => [c.name, cloneNode(c)])) }) : Object.assign({}, n, { modified: now() });
+const cloneNode = n => n.type === 'folder' ? Object.assign({}, n, { modified: now(), children: kids(Object.values(n.children).map(c => [c.name, cloneNode(c)])) }) : Object.assign({}, n, { modified: now() });
 function clipSelected(mode) {
   if (state.mode !== 'virtual') { toast('Копирование доступно в демо-файлах', true); return; }
   const names = selectedEntries().map(e => e.name); if (!names.length) return;
@@ -1371,14 +1395,19 @@ function clipSelected(mode) {
 async function paste() {
   if (!state.clip || state.mode !== 'virtual') return;
   const { mode, path, names } = state.clip;
-  const from = vfsGetNode(path), to = vfsGetNode(state.currentPath);
-  if (!from || !to) { state.clip = null; return; }
+  if (!vfsGetNode(path)) { state.clip = null; return; }
+  if (mode === 'cut') state.clip = null;
+  await transfer(mode, path, names, state.currentPath);
+}
+async function transfer(mode, path, names, destPath) {
+  const from = vfsGetNode(path), to = vfsGetNode(destPath);
+  if (!from || !to) return;
   const pasted = [];
   for (const name of names) {
     const node = from.children[name]; if (!node) continue;
-    const inside = node.type === 'folder' && state.currentPath.slice(0, path.length + 1).join('/') === [...path, name].join('/');
+    const inside = node.type === 'folder' && destPath.slice(0, path.length + 1).join('/') === [...path, name].join('/');
     if (inside) { toast('Нельзя вставить папку в саму себя', true); continue; }
-    if (mode === 'cut' && path.join('/') === state.currentPath.join('/')) { pasted.push(name); continue; }
+    if (mode === 'cut' && path.join('/') === destPath.join('/')) { pasted.push(name); continue; }
     let n = name, k = 2;
     const dot = name.lastIndexOf('.'), base = node.type === 'file' && dot > 0 ? name.slice(0, dot) : name, ext = base === name ? '' : name.slice(dot);
     while (to.children[n]) n = (k === 2 ? base + ' - копия' : base + ' - копия (' + k + ')') + ext, k++;
@@ -1387,9 +1416,8 @@ async function paste() {
     if (mode === 'cut') delete from.children[name];
     pasted.push(n);
   }
-  if (mode === 'cut') state.clip = null;
   saveVFS();
-  state.selected = new Set(pasted); state.cursor = pasted[0] || null;
+  if (destPath.join('/') === state.currentPath.join('/')) { state.selected = new Set(pasted); state.cursor = pasted[0] || null; } else state.selected.clear();
   await loadCurrent();
 }
 
@@ -1402,7 +1430,10 @@ async function importFiles(files) {
     const added = [];
     for (const f of files) {
       if (state.mode === 'real') {
-        const w = await (await (await getRealHandleAtPath(state.currentPath)).getFileHandle(f.name, { create: true })).createWritable();
+        const dirH = await getRealHandleAtPath(state.currentPath);
+        let exists = false; try { await dirH.getFileHandle(f.name); exists = true; } catch (e) { /* такого файла нет */ }
+        if (exists && !(await confirm_('Заменить файл?', '«' + f.name + '» уже есть в этой папке. Заменить его?'))) continue;
+        const w = await (await dirH.getFileHandle(f.name, { create: true })).createWritable();
         await w.write(f); await w.close(); added.push(f.name); continue;
       }
       const dot = f.name.lastIndexOf('.'), base = dot > 0 ? f.name.slice(0, dot) : f.name, ext = dot > 0 ? f.name.slice(dot) : '';
@@ -1444,8 +1475,7 @@ fileArea.addEventListener('drop', async e => {
   if (raw) {
     const r = e.target.closest('.file-row'); if (!r) return;
     const dest = [...state.currentPath, r.dataset.name];
-    state.clip = { mode: e.ctrlKey ? 'copy' : 'cut', path: [...state.currentPath], names: JSON.parse(raw) };
-    const back = [...state.currentPath]; state.currentPath = dest; await paste(); state.currentPath = back; state.selected.clear(); await loadCurrent();
+    await transfer(e.ctrlKey ? 'copy' : 'cut', [...state.currentPath], JSON.parse(raw), dest);
     return;
   }
   await importFiles([...e.dataTransfer.files]);
