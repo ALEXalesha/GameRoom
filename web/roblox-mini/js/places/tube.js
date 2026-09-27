@@ -332,7 +332,7 @@
     restart(game) { game.respawn(); },
     hud(game) {
       const st = game.state, r = st.riding;
-      if (!r) return `<div class="hud-pill"><span>${B.lang() === 'en' ? 'Best' : 'Рекорд'} <b>${B.acct.placeStats('tube').best ?? '-'}</b>★</span></div>`;
+      if (!r) return `<div class="hud-pill"><span>${B.lang() === 'en' ? 'Best' : 'Рекорд'} <b>${B.acct.placeStats('tube').best != null ? B.acct.placeStats('tube').best + '★' : '-'}</b></span></div>`;
       return `<div class="hud-pill"><span>★ <b>${r.stars}</b>/20</span><span class="hud-sep"></span><span><b>${Math.round(r.v * 3.6 / 2)}</b> ${B.lang() === 'en' ? 'km/h' : 'км/ч'}</span><span class="hud-sep"></span><span>${Math.round(r.s / st.len * 100)}%</span></div>`;
     },
     shots: [

@@ -17,6 +17,13 @@
     return s;
   }
 
+  // Цвет имени в чате: тёмные и слишком светлые цвета одежды сдвигаются к читаемым на тёмной плашке
+  const chatCol = new THREE.Color(), hsl = {};
+  function chatColor(c) {
+    chatCol.set(c || '#ffffff').getHSL(hsl);
+    return '#' + chatCol.setHSL(hsl.h, Math.min(hsl.s, 0.85), B.clamp(hsl.l, 0.62, 0.8)).getHexString();
+  }
+
   function randomAvatar(rnd) {
     const C = B.data.COLORS.map((c) => c[0]);
     const skin = rnd.pick(['#f6d7b0', '#eab98a', '#c98d5e', '#8e5a3a', '#ffd23f']);
@@ -323,9 +330,22 @@
       const hs = Math.hypot(pl.vel.x, pl.vel.z) / PH.WALK;
       this.ch.pose({ dt: frameDt, speed: hs, air: !pl.onGround && pl.airTime > 0.06, emote: this.emote });
       const first = this.rig.first;
-      if (!this.dead) { this.ch.setVisible(!first); this.np.visible = !first; }
+      // камера упёрлась почти в героя (стена за спиной) - свой персонаж прячется, чтобы не закрывать экран
+      const close = Math.hypot(this.camera.position.x - pp.x, this.camera.position.y - pp.y - 4.5, this.camera.position.z - pp.z) < 2.4;
+      if (!this.dead) { this.ch.setVisible(!first && !close); this.np.visible = !first; }
+      // имена над головой: вблизи камеры гаснут, вдали - не мельчают
+      const cam = this.camera.position;
+      const plate = (np, x, y, z, show) => {
+        const d = Math.hypot(x - cam.x, y + 6.4 - cam.y, z - cam.z);
+        const k = B.clamp(d / 20, 0.75, 2.4);
+        np.scale.set(4.4 * k, 4.4 * k * 96 / 512, 1);
+        np.material.opacity = B.clamp((d - 4) / 5, 0, 1);
+        np.visible = show && d > 4;
+      };
+      if (!this.dead) plate(this.np, pp.x, pp.y, pp.z, !first);
       for (const b of this.bots) {
         const bp = b.body.lerpPos(alpha);
+        if (!b.dead) plate(b.np, bp.x, bp.y, bp.z, true);
         b.ch.root.position.set(bp.x, bp.y, bp.z);
         b.ch.root.rotation.y = b.body.lerpFacing(alpha);
         b.ch.pose({ dt: frameDt, speed: Math.hypot(b.body.vel.x, b.body.vel.z) / PH.WALK, air: !b.body.onGround && b.body.airTime > 0.06, emote: b.emote });
@@ -351,7 +371,7 @@
       const log = $('g-chat-log');
       log.innerHTML = this.chatLog.slice(-40).map((m) => m.sys
         ? `<div class="msg sys">${B.esc(m.text)}</div>`
-        : `<div class="msg"><b style="color:${m.color}">${B.esc(m.name)}:</b> ${B.esc(m.text)}</div>`).join('');
+        : `<div class="msg"><b style="color:${chatColor(m.color)}">${B.esc(m.name)}:</b> ${B.esc(m.text)}</div>`).join('');
       log.scrollTop = log.scrollHeight;
       $('g-chat').classList.add('active');
       clearTimeout(this.chatFadeT);

@@ -244,7 +244,7 @@
     },
     hud(game) {
       const st = game.state;
-      return `<div class="hud-pill"><span>${B.lang() === 'en' ? 'Blocks' : 'Блоков'} <b>${st.cells.size}</b></span><span class="hud-sep"></span><span>${B.lang() === 'en' ? 'Placed total' : 'Поставлено всего'} <b>${st.placed}</b>${st.placed < 25 ? '/25' : ' ★'}</span></div>`;
+      return `<div class="hud-pill"><span>${B.lang() === 'en' ? 'Your blocks' : 'Твоих блоков'} <b>${st.cells.size - st.botBlocks}</b></span>${st.botBlocks ? `<span class="hud-sep"></span><span>${B.lang() === 'en' ? 'Bots' : 'У ботов'} <b>${st.botBlocks}</b></span>` : ''}<span class="hud-sep"></span><span>${B.lang() === 'en' ? 'Placed total' : 'Поставлено всего'} <b>${st.placed}</b>${st.placed < 25 ? '/25' : ' ★'}</span></div>`;
     },
     botSpawn: (g, i) => ({ x: 8 + (i % 3) * 4, y: 0, z: 8 + Math.floor(i / 3) * 4 }),
 
