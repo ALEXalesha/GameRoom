@@ -619,3 +619,186 @@ test('свёрнутое в Dock и закрытое окно игры став�
   await expect(page.locator(`.window[data-app="game-${g.id}"]`)).toHaveCount(0);
   expect(await page.evaluate(() => window.__gameLog.slice())).toEqual(expect.arrayContaining(['hidden:true', 'blur']));
 });
+
+// ===== Замечания ревьюера =====
+async function openStub(page) {
+  await page.evaluate(() => { APPS.stub = { title: 'Заглушка паузы', icon: 'launchpad', w: 640, h: 420, minW: 320, minH: 240, iframe: '../_os-shared/pause-stub.html', game: true }; openApp('stub'); });
+  const w = await ready(win(page, 'stub'));
+  await expect.poll(() => page.frames().some((f) => f.url().includes('pause-stub.html'))).toBe(true);
+  const f = page.frames().find((x) => x.url().includes('pause-stub.html'));
+  await expect.poll(() => f.evaluate(() => window.stub && window.stub.frames)).toBeGreaterThan(5);
+  return [w, f];
+}
+const gameTime = (f) => f.evaluate(() => stub.time);
+
+test('пауза игры по протоколу: свёрнутое в Dock и неактивное окно стоит, после возврата паузу снимает игрок', async ({ page }) => {
+  const acks = [];
+  await boot(page);
+  await page.exposeFunction('__ack', (m) => acks.push(m));
+  await page.evaluate(() => addEventListener('message', (e) => { if (e.data && e.data.mix === 'paused') window.__ack(e.data.mix); }));
+  const [w, f] = await openStub(page);
+  await w.locator('[data-cap=min]').click();
+  await page.waitForTimeout(150);
+  let t1 = await gameTime(f); await page.waitForTimeout(600);
+  expect(await gameTime(f), 'игровое время в свёрнутом окне').toBe(t1);
+  await page.click('#dock .d-mini');
+  await page.waitForTimeout(400);
+  t1 = await gameTime(f); await page.waitForTimeout(400);
+  expect(await gameTime(f)).toBe(t1);
+  await w.locator('iframe').click({ position: { x: 100, y: 100 } });
+  await expect.poll(() => gameTime(f)).toBeGreaterThan(t1);
+  await openVia(page, 'textedit');
+  await page.waitForTimeout(150);
+  t1 = await gameTime(f); await page.waitForTimeout(500);
+  expect(await gameTime(f), 'игровое время в неактивном окне').toBe(t1);
+  await page.click('#dock [data-app="stub"]');
+  expect(await f.evaluate(() => Object.getOwnPropertyDescriptor(document, 'hidden'))).toBeUndefined();
+  expect(acks.length).toBeGreaterThanOrEqual(2);
+  const before = acks.length;
+  await w.locator('[data-cap=close]').click();
+  await expect.poll(() => acks.length).toBeGreaterThan(before);
+});
+
+for (const g of GAMES) {
+  test(`игра «${g.title}» слушает протокол паузы (web/_os-shared/README.md)`, async ({ page }) => {
+    const html = fs.readFileSync(path.join(WEB, g.dir, 'index.html'), 'utf8');
+    test.fail(!/<meta\s+name=["']mix-protocol["']\s+content=["'][^"']*pause/i.test(html), 'игра ещё не объявила <meta name="mix-protocol" content="pause"> - ожидаемо красная до поддержки протокола');
+    const acks = [];
+    await boot(page);
+    await page.exposeFunction('__ack', (m) => acks.push(m));
+    await page.evaluate(() => addEventListener('message', (e) => { if (e.data && e.data.mix === 'paused') window.__ack(e.data.mix); }));
+    const w = await openVia(page, 'game-' + g.id);
+    await page.waitForTimeout(1500);
+    await w.locator('[data-cap=min]').click();
+    await expect.poll(() => acks.length, { timeout: 2000 }).toBeGreaterThan(0);
+  });
+}
+
+test('копировать или переместить папку в саму себя нельзя: «Файлы» и Терминал говорят об этом', async ({ page }) => {
+  await boot(page);
+  const before = await page.evaluate(() => FS.size);
+  expect(await page.evaluate(() => copyPath('Документы/Проекты', 'Документы/Проекты'))).toBeNull();
+  await expect(page.locator('#toasts .notif').last()).toContainText('нельзя скопировать в саму себя');
+  expect(await page.evaluate(() => FS.size)).toBe(before);
+  await openVia(page, 'terminal', 'Документы');
+  await term(page, 'cp Учёба Учёба');
+  await expect(win(page, 'terminal').locator('.err').last()).toContainText('в саму себя');
+});
+
+test('после «Заполнить» раскладка помнит прежний размер окна; новое окно при 1280x720 не заходит под Dock', async ({ page }) => {
+  await boot(page, { width: 1280, height: 720 });
+  const dock = await page.locator('#dock').boundingBox();
+  for (const id of ['browser', 'settings', 'photos']) {
+    const nb = await (await openVia(page, id)).boundingBox();
+    expect(nb.y + nb.height, id + ': низ нового окна над Dock').toBeLessThanOrEqual(dock.y);
+  }
+  const w = await openVia(page, 'textedit');
+  let b = await w.boundingBox();
+  const normal = b;
+  await w.locator('[data-cap=zoom]').click();
+  await page.evaluate(() => tileWin(wins.find((x) => x.app === 'textedit'), 'left'));
+  const t = await w.locator('.w-title').boundingBox();
+  await dragFrom(page, t.x + 20, t.y + 8, 300, 60);
+  b = await w.boundingBox();
+  expect(Math.round(b.width)).toBe(Math.round(normal.width));
+  expect(Math.round(b.height)).toBe(Math.round(normal.height));
+});
+
+test('Ctrl+L и Ctrl+K в Терминале работают и в русской раскладке', async ({ page }) => {
+  await boot(page);
+  const t = await openVia(page, 'terminal');
+  await term(page, 'help');
+  expect(await t.locator('.term > div').count()).toBeGreaterThan(5);
+  await t.locator('.term-line input').dispatchEvent('keydown', { key: 'д', code: 'KeyL', ctrlKey: true, bubbles: true });
+  await expect(t.locator('.term > div')).toHaveCount(1);
+});
+
+test('всплывающие уведомления не висят поверх открытого центра уведомлений', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => notify({ app: 'clock', title: 'Раз', body: 'один' }));
+  await page.click('#mb-clock');
+  await expect(page.locator('#toasts .notif')).toHaveCount(0);
+  expect(await page.evaluate(() => { notify({ app: 'clock', title: 'Два', body: 'два' }); return document.querySelectorAll('#toasts .notif').length; })).toBe(0);
+  await expect(page.locator('#nc-list .notif')).toHaveCount(2);
+});
+
+test('запись не удалась (мало места): уведомление «Не сохранено», память возвращается к сохранённому', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { IDBObjectStore.prototype.put = function () { throw new DOMException('Мало места', 'QuotaExceededError'); }; });
+  await page.evaluate(() => writeFile('Документы/большой.txt', 'x'.repeat(1000)));
+  await expect(page.locator('#toasts .notif').last()).toContainText('Не сохранено: мало места');
+  await expect.poll(() => page.evaluate(() => FS.has('Документы/большой.txt'))).toBe(false);
+});
+
+test('две вкладки: корзины не стирают друг друга; сброс при второй вкладке не виснет', async ({ page, context }) => {
+  await boot(page);
+  const p2 = await context.newPage();
+  await p2.goto(page.url());
+  await p2.waitForFunction(() => document.body.dataset.ready === '1');
+  await page.evaluate(() => trashPath('Документы/Список дел.txt'));
+  await expect.poll(() => p2.evaluate(() => TRASH.length)).toBe(1);
+  await p2.evaluate(() => trashPath('Загрузки/заметка.md'));
+  await expect.poll(() => page.evaluate(() => TRASH.map((t) => t.path).sort())).toEqual(['Документы/Список дел.txt', 'Загрузки/заметка.md']);
+  // «Сбросить всё» в первой вкладке: вторая отпускает базу, первая перезагружается с чистыми файлами
+  const s = await openVia(page, 'settings', 'about');
+  await s.locator('[data-reset]').click();
+  await Promise.all([page.waitForNavigation({ timeout: 8000 }), s.locator('.sheet .btn', { hasText: 'Сбросить' }).click()]);
+  await page.waitForFunction(() => document.body.dataset.ready === '1' && TRASH.length === 0, null, { timeout: 8000 });
+  expect(await page.evaluate(() => FS.has('Документы/Список дел.txt'))).toBe(true);
+});
+
+test('Терминал: echo в папку не превращает её в файл', async ({ page }) => {
+  await boot(page);
+  const t = await openVia(page, 'terminal');
+  await term(page, 'echo текст > Документы/Проекты');
+  await expect(t.locator('.err').last()).toContainText('это каталог');
+  expect(await page.evaluate(() => [FS.get('Документы/Проекты').type, FS.has('Документы/Проекты/план.txt')])).toEqual(['dir', true]);
+});
+
+test('Текстовый редактор сохраняет по новому пути после переименования и переноса; большой файл не открывается пустым', async ({ page }) => {
+  await boot(page);
+  const ed = await openVia(page, 'textedit', 'Документы/Список дел.txt');
+  await page.evaluate(() => { renamePath('Документы/Список дел.txt', 'Дела.txt'); movePath('Документы/Дела.txt', 'Загрузки'); });
+  await ed.locator('textarea').fill('новое');
+  await page.keyboard.press('Control+s');
+  expect(await page.evaluate(() => [FS.get('Загрузки/Дела.txt').text, FS.has('Документы/Список дел.txt'), FS.has('Документы/Дела.txt')])).toEqual(['новое', false, false]);
+  // файл больше 2 МБ лежит двоичным: редактор читает его текст, а не показывает пустоту
+  await page.evaluate(async () => { const f = new File(['а'.repeat(1100000)], 'большой.txt', { type: 'text/plain' }); await importFile('Документы', f); });
+  expect(await page.evaluate(() => FS.get('Документы/большой.txt').text == null)).toBe(true);
+  await page.evaluate(() => openApp('textedit', 'Документы/большой.txt'));
+  // очень большой текст: видно начало, правка отключена, сохранение не затирает файл
+  await expect.poll(() => page.evaluate(() => { const w = wins.find((x) => x.arg === 'Документы/большой.txt'); const t = w && w.body.querySelector('textarea'); return t ? [t.value.length, t.readOnly] : null; }), { timeout: 15000 }).toEqual([300000, true]);
+  await page.keyboard.press('Control+s');
+  expect(await page.evaluate(() => FS.get('Документы/большой.txt').size)).toBe(2200000);
+});
+
+test('рабочий стол: «Вырезать» и «Вставить» переносят, а не копируют', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { CLIP = { mode: 'cut', paths: ['Документы/Список дел.txt'] }; });
+  await page.mouse.click(500, 300, { button: 'right' });
+  await page.locator('.menu .mi', { hasText: 'Вставить' }).click();
+  expect(await page.evaluate(() => [FS.has('Рабочий стол/Список дел.txt'), FS.has('Документы/Список дел.txt')])).toEqual([true, false]);
+});
+
+test('возврат из Корзины, когда на месте папки теперь файл: рядом с файлом, а не внутрь него', async ({ page }) => {
+  await boot(page);
+  // удалили файл, потом его папку, а на месте папки завели файл с тем же именем
+  await page.evaluate(() => { trashPath('Документы/Проекты/план.txt'); trashPath('Документы/Проекты'); writeFile('Документы/Проекты', 'теперь файл'); restoreTrash(TRASH[0].id); });
+  expect(await page.evaluate(() => [FS.get('Документы/Проекты').type, FS.get('Документы/Проекты').text, FS.has('Документы/план.txt')])).toEqual(['file', 'теперь файл', true]);
+});
+
+test('«Файлы»: повторное открытие того же пути поднимает окно; обои из файла переживают переименование папки; тема доходит до Paint', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => openApp('finder', 'Документы'));
+  await page.locator('.window[data-app="finder"] [data-p="Документы/Проекты"]').dblclick();
+  await page.evaluate(() => openApp('finder', 'Документы/Проекты'));
+  await expect(page.locator('.window[data-app="finder"]')).toHaveCount(1);
+  await page.evaluate(() => { makeDir('Изображения/Альбом'); movePath('Изображения/Дюны.svg', 'Изображения/Альбом'); setS({ wallpaper: 'fs:Изображения/Альбом/Дюны.svg' }); renamePath('Изображения/Альбом', 'Лето'); });
+  expect(await page.evaluate(() => S.wallpaper)).toBe('fs:Изображения/Лето/Дюны.svg');
+  await openVia(page, 'paint');
+  const fr = page.frames().find((f) => f.url().includes('apps/paint.html'));
+  await expect.poll(() => fr.evaluate(() => document.readyState)).toBe('complete');
+  await expect.poll(() => fr.evaluate(() => document.documentElement.classList.contains('mix-light'))).toBe(true);
+  await page.evaluate(() => setS({ theme: 'dark' }));
+  await expect.poll(() => fr.evaluate(() => document.documentElement.classList.contains('mix-light'))).toBe(false);
+});

@@ -256,10 +256,20 @@ function createNotepad(w, path) {
   let file = path && FS.get(path) ? path : null, zoom = 100, wrap = store.get('npWrap', true);
   w.body.innerHTML = '<div class="np-menu"><button data-m="file">Файл</button><button data-m="edit">Правка</button><button data-m="view">Просмотр</button></div><textarea class="np-text" spellcheck="false" aria-label="Текст"></textarea><div class="np-status"><span class="np-pos"></span><span class="np-zoom"></span><span>Windows (CRLF)</span><span>UTF-8</span></div>';
   const ta = w.body.querySelector('textarea');
-  ta.value = file ? FS.get(file).text || '' : '';
+  const fe = file && FS.get(file);
+  ta.value = fe ? fe.text || '' : '';
   let saved = ta.value;
+  // большой файл хранится как двоичный: читаем его текст, пока не прочитан - править нельзя (иначе затрём пустым)
+  // очень большой текст показываем началом и только для чтения: и не зависнем, и не затрём файл обрезком
+  let bigOnly = false;
+  const BIG = 300000;
+  if (fe && fe.text == null && fe.blob) {
+    ta.readOnly = true; ta.value = 'Открывается…';
+    fe.blob.text().then(t => { if (t.length > BIG) { bigOnly = true; ta.value = t.slice(0, BIG); saved = ta.value; notify({ app: w.app, title: 'Большой файл открыт для чтения', body: 'Показано начало «' + baseName(file) + '», правка отключена' }); } else { ta.value = t; saved = t; ta.readOnly = false; } status(); });
+    saved = ta.value;
+  }
   const dirty = () => ta.value !== saved;
-  w.isDirty = dirty;
+  w.isDirty = () => !ta.readOnly && dirty();
   w.cleanup.push(on('moved', ({ from, to }) => { if (file && (file === from || file.startsWith(from + '/'))) { file = to + file.slice(from.length); w.arg = file; status(); } }));
   function status() {
     w.setTitle((dirty() ? '● ' : '') + (file ? baseName(file) : 'Безымянный') + ' - Блокнот');
@@ -278,7 +288,7 @@ function createNotepad(w, path) {
     if (FS.has(p) && p !== file && (await winDialog(w, { title: 'Заменить файл?', text: '«' + n + '» уже существует.', buttons: ['Заменить', 'Отмена'] })) !== 0) return false;
     file = p; return save();
   }
-  function save() { if (!file) return saveAs(); writeFile(file, ta.value); saved = ta.value; w.arg = file; status(); return true; }
+  function save() { if (bigOnly) return false; if (!file) return saveAs(); writeFile(file, ta.value); saved = ta.value; w.arg = file; status(); return true; }
   async function openDialog() {
     const files = [...FS.values()].filter(e => e.type === 'file' && isText(e.path) && !isImage(e.path));
     const back = document.createElement('div');
@@ -431,7 +441,10 @@ function createSettings(w, startPage) {
     const ac = t.closest('[data-accent]'); if (ac) { setS({ accent: +ac.dataset.accent }); return; }
     const ic = t.closest('[data-icons]'); if (ic) { setS({ icons: ic.dataset.icons }); renderDesktop(); return; }
     if (t.closest('[data-reset]') && (await winDialog(w, { title: 'Сбросить всё?', text: 'Настройки, файлы и корзина вернутся к исходным.', buttons: ['Сбросить', 'Отмена'] })) === 0) {
-      store.clear(); if (db) { db.close(); } try { indexedDB.deleteDatabase('win11_3'); } catch (er) { /* нет доступа */ } setTimeout(() => location.reload(), 150);
+      store.clear(); if (db) { db.close(); } db = null;
+      let req; try { req = indexedDB.deleteDatabase('win11_3'); } catch (er) { location.reload(); return; }
+      req.onsuccess = req.onerror = () => location.reload();
+      req.onblocked = () => notify({ app: 'settings', title: 'Сброс ждёт', body: 'Закройте другую вкладку с оболочкой' });
     }
   });
   w.body.addEventListener('input', e => {

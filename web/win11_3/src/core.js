@@ -524,7 +524,10 @@ function mountIframe(w, src) {
   f.style.cssText = 'flex:1;border:none;width:100%;background:#1e1e1e';
   w.body.appendChild(f);
   w.iframe = f;
+  // тема оболочки доходит и до страниц в рамках
+  f.addEventListener('load', () => { try { f.contentWindow.postMessage({ mix: 'theme', theme: S.theme }, '*'); } catch (e) { /* нет доступа */ } });
 }
+on('settings', () => wins.forEach(w => { if (w.iframe) try { w.iframe.contentWindow.postMessage({ mix: 'theme', theme: S.theme }, '*'); } catch (e) { /* нет доступа */ } }));
 function restack() {
   const top = [...wins].reverse().find(w => !w.min) || null;
   wins.forEach((w, i) => { w.el.style.zIndex = i + 1; w.el.classList.toggle('inactive', w !== top); });

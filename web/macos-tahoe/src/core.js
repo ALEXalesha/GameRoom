@@ -179,6 +179,10 @@ const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
 const TEXT_EXT = ['txt', 'md', 'log', 'csv', 'json', 'js', 'py', 'html', 'css', 'sh', 'rtf'];
 const isImage = p => IMAGE_EXT.includes(extOf(p));
 const isText = p => TEXT_EXT.includes(extOf(p)) || !extOf(p);
+// Вторая вкладка с «Тахо»: после каждой записи шлём ей весточку, она перечитывает базу
+const fsChannel = (() => { try { return new BroadcastChannel('macos-tahoe-fs'); } catch (e) { return null; } })();
+let bcTimer = null;
+function announce() { if (!fsChannel) return; clearTimeout(bcTimer); bcTimer = setTimeout(() => fsChannel.postMessage('changed'), 60); }
 function idb(mode, fn) {
   return new Promise((res, rej) => {
     if (!db) { res(null); return; }
@@ -186,30 +190,54 @@ function idb(mode, fn) {
     dbPending++;
     let done = false;
     const fin = () => { if (!done) { done = true; dbPending--; } };
-    const r = fn(tx);
-    tx.oncomplete = () => { fin(); res(r && r.result); };
-    tx.onerror = tx.onabort = () => { fin(); rej(tx.error); };
+    let r;
+    try { r = fn(tx); } catch (e) { try { tx.abort(); } catch (e2) { /* уже прервана */ } }
+    tx.oncomplete = () => { fin(); announce(); res(r && r.result); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error || new Error('abort')); };
   });
 }
-function dbPut(entry) { if (db) idb('readwrite', tx => tx.objectStore('fs').put(entry)).catch(e => console.warn('FS', e)); }
-function dbDel(path) { if (db) idb('readwrite', tx => tx.objectStore('fs').delete(path)).catch(e => console.warn('FS', e)); }
-function dbTrash() { if (db) idb('readwrite', tx => { const s = tx.objectStore('trash'); s.clear(); TRASH.forEach(t => s.put(t)); }).catch(e => console.warn('FS', e)); }
+// Запись не удалась (чаще всего - мало места): говорим об этом и возвращаем память к тому, что лежит в базе
+let failShown = 0, dbFailing = false;
+function dbFail() {
+  if (Date.now() - failShown > 3000) { failShown = Date.now(); notify({ app: 'finder', title: 'Не сохранено: мало места', body: 'Последнее изменение не записалось, файлы возвращены к сохранённым' }); }
+  if (!dbFailing) { dbFailing = true; setTimeout(() => { dbFailing = false; reloadFromDb(); }, 50); }
+}
+const dbWrite = fn => { if (db) idb('readwrite', fn).catch(dbFail); };
+function dbPut(entry) { dbWrite(tx => tx.objectStore('fs').put(entry)); }
+function dbDel(path) { dbWrite(tx => tx.objectStore('fs').delete(path)); }
+// корзина пишется по одной записи: две вкладки не стирают корзины друг друга
+function dbTrashPut(t) { dbWrite(tx => tx.objectStore('trash').put(t)); }
+function dbTrashDel(id) { dbWrite(tx => tx.objectStore('trash').delete(id)); }
+async function readDb() {
+  const all = st => new Promise(res => { const r = db.transaction(st).objectStore(st).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  return [await all('fs'), await all('trash')];
+}
+async function reloadFromDb() {
+  if (!db) return;
+  if (dbPending) { setTimeout(reloadFromDb, 80); return; }
+  const [rows, trash] = await readDb();
+  FS.clear(); rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  RECENT = RECENT.filter(r => FS.has(r));
+  fsChanged('');
+}
+if (fsChannel) fsChannel.onmessage = () => reloadFromDb();
 function openDB() {
   return new Promise(res => {
     let req;
     try { req = indexedDB.open('macos-tahoe', 1); } catch (e) { dbOk = false; res(null); return; }
     req.onupgradeneeded = () => { const d = req.result; d.createObjectStore('fs', { keyPath: 'path' }); d.createObjectStore('trash', { keyPath: 'id' }); };
-    req.onsuccess = () => res(req.result);
+    // другая вкладка сбрасывает базу: отпускаем её, иначе сброс там зависнет
+    req.onsuccess = () => { const d = req.result; d.onversionchange = () => { d.close(); db = null; notify({ app: 'settings', title: 'Данные сброшены в другой вкладке', body: 'Перезагрузите страницу' }); }; res(d); };
     req.onerror = () => { dbOk = false; res(null); };
+    req.onblocked = () => notify({ app: 'settings', title: 'Закройте другую вкладку', body: '«Тахо» открыт ещё в одной вкладке, база занята' });
   });
 }
 async function fsLoad() {
   db = await openDB();
   let rows = [], trash = [];
-  if (db) {
-    rows = await new Promise(res => { const r = db.transaction('fs').objectStore('fs').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-    trash = await new Promise(res => { const r = db.transaction('trash').objectStore('trash').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-  }
+  if (db) [rows, trash] = await readDb();
   if (!rows.length) { rows = defaultFiles(); if (db) rows.forEach(dbPut); }
   rows.forEach(e => FS.set(e.path, e));
   ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
@@ -229,10 +257,13 @@ function defaultFiles() {
     img('Изображения/Дюны.svg', dunesSVG(false)), img('Изображения/Волна.svg', swirlSVG(false, 215)),
   ];
 }
+// Ссылки на картинки из памяти: старую освобождаем, когда файл изменился, удалён или переименован
 const urlCache = new Map();
+function dropUrl(path) { const c = urlCache.get(path); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(path); } }
 function fileUrl(f) {
   if (!f || f.type !== 'file') return null;
   if (urlCache.has(f.path) && urlCache.get(f.path).mtime === f.mtime) return urlCache.get(f.path).url;
+  dropUrl(f.path);
   let url;
   if (f.blob) url = URL.createObjectURL(f.blob);
   else if (f.mime === 'image/svg+xml' && f.text) url = URL.createObjectURL(new Blob([f.text], { type: 'image/svg+xml' }));
@@ -277,17 +308,28 @@ async function importFile(dir, file) {
   return path;
 }
 function subtree(path) { return [...FS.keys()].filter(p => p === path || p.startsWith(path + '/')); }
+// путь переехал: «Недавние», обои из файла, буфер и открытые документы идут следом
+function remap(from, to) {
+  const m = p => p === from ? to : p.startsWith(from + '/') ? to + p.slice(from.length) : p;
+  RECENT = RECENT.map(m); store.set('recent', RECENT);
+  if (S.wallpaper && S.wallpaper.startsWith('fs:') && m(S.wallpaper.slice(3)) !== S.wallpaper.slice(3)) setS({ wallpaper: 'fs:' + m(S.wallpaper.slice(3)) });
+  if (typeof CLIP !== 'undefined' && CLIP) CLIP.paths = CLIP.paths.map(m);
+  emit('moved', { from, to });
+}
+function intoItself(from, toDir) { return toDir === from || toDir.startsWith(from + '/'); }
 function splitName(p) { const b = baseName(p), dot = b.lastIndexOf('.'), f = FS.get(p) && FS.get(p).type === 'file'; return f && dot > 0 ? [b.slice(0, dot), b.slice(dot)] : [b, '']; }
 function movePath(from, toDir) {
-  if (!FS.has(from) || ROOTS.includes(from) || parentOf(from) === toDir || toDir === from || toDir.startsWith(from + '/')) return null;
+  if (FS.has(from) && intoItself(from, toDir)) { notify({ app: 'finder', title: 'Нельзя переместить', body: 'Папку «' + baseName(from) + '» нельзя положить в саму себя' }); return null; }
+  if (!FS.has(from) || ROOTS.includes(from) || parentOf(from) === toDir) return null;
   const target = uniquePath(toDir, ...splitName(from));
-  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
-  if (S.wallpaper === 'fs:' + from) setS({ wallpaper: 'fs:' + target });
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  remap(from, target);
   fsChanged(target);
   return target;
 }
 function copyPath(from, toDir) {
   if (!FS.has(from)) return null;
+  if (intoItself(from, toDir)) { notify({ app: 'finder', title: 'Нельзя скопировать', body: 'Папку «' + baseName(from) + '» нельзя скопировать в саму себя' }); return null; }
   const [b, e] = splitName(from);
   const target = uniquePath(toDir, parentOf(from) === toDir ? b + ' копия' : b, e);
   subtree(from).forEach(p => { const ne = Object.assign({}, FS.get(p), { path: target + p.slice(from.length), mtime: Date.now() }); FS.set(ne.path, ne); dbPut(ne); });
@@ -297,30 +339,35 @@ function copyPath(from, toDir) {
 function renamePath(from, newName) {
   const target = (parentOf(from) ? parentOf(from) + '/' : '') + newName;
   if (target === from) return from;
-  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: target + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  remap(from, target);
   fsChanged(target);
   return target;
 }
 function trashPath(path) {
   if (!FS.has(path) || ROOTS.includes(path)) return;
   const items = subtree(path).map(p => FS.get(p));
-  items.forEach(e => { FS.delete(e.path); dbDel(e.path); });
-  TRASH.push({ id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() });
-  dbTrash(); RECENT = RECENT.filter(r => FS.has(r)); store.set('recent', RECENT);
+  items.forEach(e => { FS.delete(e.path); dropUrl(e.path); dbDel(e.path); });
+  const t = { id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() };
+  TRASH.push(t);
+  dbTrashPut(t); RECENT = RECENT.filter(r => FS.has(r)); store.set('recent', RECENT);
   fsChanged(path);
 }
 function restoreTrash(id) {
   const i = TRASH.findIndex(t => t.id === id); if (i < 0) return;
-  const t = TRASH[i], dir = parentOf(t.path);
+  const t = TRASH[i];
+  let dir = parentOf(t.path);
+  // на месте одной из родительских папок теперь файл: возвращаем рядом с ним, а не внутрь файла
+  let a = dir; while (a) { if (FS.has(a) && FS.get(a).type !== 'dir') dir = parentOf(a); a = parentOf(a); }
   const missing = []; let d = dir; while (d && !FS.has(d)) { missing.unshift(d); d = parentOf(d); }
   missing.forEach(makeDir);
-  let target = t.path;
+  let target = (dir ? dir + '/' : '') + baseName(t.path);
   if (FS.has(target)) { const b = baseName(target), dot = b.lastIndexOf('.'); target = uniquePath(dir, dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
   t.items.forEach(e => { const ne = Object.assign({}, e, { path: target + e.path.slice(t.path.length) }); FS.set(ne.path, ne); dbPut(ne); });
-  TRASH.splice(i, 1); dbTrash(); fsChanged(target);
+  TRASH.splice(i, 1); dbTrashDel(t.id); fsChanged(target);
 }
-function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrash(); fsChanged(''); }
-function emptyTrash() { TRASH = []; dbTrash(); fsChanged(''); }
+function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrashDel(id); fsChanged(''); }
+function emptyTrash() { const ids = TRASH.map(t => t.id); TRASH = []; dbWrite(tx => ids.forEach(id => tx.objectStore('trash').delete(id))); fsChanged(''); }
 let RECENT = store.get('recent', []);
 function touchRecent(p) { RECENT = [p].concat(RECENT.filter(x => x !== p)).slice(0, 8); store.set('recent', RECENT); }
 function fileIcon(path) {
@@ -352,7 +399,7 @@ function notify({ app, title, body }) {
   const n = { id: String(Date.now() + Math.random()), app, title, body, t: Date.now() };
   NOTES.unshift(n); NOTES = NOTES.slice(0, 30);
   renderNotifs();
-  if (S.focus) return n;       // «Не беспокоить»: без всплывания, только в центре уведомлений
+  if (S.focus || $('nc').classList.contains('open')) return n;       // «Не беспокоить» или открытый центр: без всплывания
   const el = document.createElement('div');
   el.className = 'notif glass glass-strong'; el.setAttribute('role', 'status');
   el.innerHTML = notifHTML(n) + '<button class="n-x" title="Закрыть" aria-label="Закрыть">' + SI.x + '</button>';
@@ -384,14 +431,14 @@ function openApp(id, arg) {
   if (!app.multi) { const ex = wins.find(w => w.app === id); if (ex) { if (arg !== undefined && ex.onArg) ex.onArg(arg); focusWin(ex); return ex; } }
   if (app.multi && arg !== undefined) { const ex = wins.find(w => w.app === id && w.arg === arg); if (ex) { focusWin(ex); return ex; } }
   const a = area(), saved = store.get('geo.' + id, null);
-  const width = Math.min(saved ? saved.w : app.w, a.w), height = Math.min(saved ? saved.h : app.h, a.h - dockReserve() + 20);
+  const width = Math.min(saved ? saved.w : app.w, a.w), height = Math.max(Math.min(app.minH || 200, a.h), Math.min(saved ? saved.h : app.h, a.h - dockReserve() - 20));
   const n = wins.length % 6;
   const w = { id: 'w' + (++winSeq), app: id, arg, zoomed: false, tiled: null, prev: null, cleanup: [] };
   const el = document.createElement('div');
   el.className = 'window' + (S.animations ? ' opening' : '');
   el.id = w.id; el.dataset.app = id; el.tabIndex = -1;
   Object.assign(el.style, { width: width + 'px', height: height + 'px',
-    left: (saved ? saved.x + n * 20 : (a.w - width) / 2 + (n - 2) * 26) + 'px', top: (saved ? saved.y + n * 20 : Math.max(10, (a.h - dockReserve() - height) / 2 + (n - 2) * 22)) + 'px' });
+    left: (saved ? saved.x + n * 20 : (a.w - width) / 2 + (n - 2) * 26) + 'px', top: Math.max(6, Math.min(saved ? saved.y + n * 20 : (a.h - dockReserve() - height) / 2 + (n - 2) * 22, a.h - dockReserve() - height - 6)) + 'px' });
   el.innerHTML = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(d => '<div class="rz rz-' + d + '" data-rz="' + d + '"></div>').join('') +
     '<div class="titlebar' + (app.slim ? ' slim' : '') + '"><div class="lights"><button class="l-close" data-cap="close" title="Закрыть" aria-label="Закрыть">' + SI.lx + '</button>' +
     '<button class="l-min" data-cap="min" title="Свернуть в Dock" aria-label="Свернуть">' + SI.lmin + '</button><button class="l-zoom" data-cap="zoom" title="Заполнить экран" aria-label="Заполнить">' + SI.lzoom + '</button></div>' +
@@ -425,11 +472,16 @@ function mountIframe(w, src) {
   f.style.cssText = 'flex:1;border:none;width:100%;background:#1e1e1e;border-radius:0 0 16px 16px';
   w.body.appendChild(f);
   w.iframe = f;
+  // тема оболочки доходит и до страниц в рамках
+  f.addEventListener('load', () => { try { f.contentWindow.postMessage({ mix: 'theme', theme: S.theme }, '*'); } catch (e) { /* нет доступа */ } });
 }
+on('settings', () => wins.forEach(w => { if (w.iframe) try { w.iframe.contentWindow.postMessage({ mix: 'theme', theme: S.theme }, '*'); } catch (e) { /* нет доступа */ } }));
 function restack() {
   const top = [...wins].reverse().find(w => !w.min) || null;
   wins.forEach((w, i) => { w.el.style.zIndex = i + 1; w.el.classList.toggle('inactive', w !== top); });
   activeWin = top;
+  // игра в неактивном или свёрнутом окне стоит на паузе (протокол web/_os-shared/README.md)
+  wins.forEach(w => framePause(w, w.min || w !== top));
   renderDock(); renderMenubar();
 }
 function focusWin(w) {
@@ -451,11 +503,15 @@ function animateDock(w, toDock) {
 }
 // Окно-рамка (игра, Paint) свёрнуто или закрывается: внутри страницы - как будто вкладку скрыли
 function framePause(w, paused) {
-  if (!w.iframe) return;
+  if (!w.iframe || !!w.framePaused === paused) return;
+  w.framePaused = paused;
+  try { w.iframe.contentWindow.postMessage({ mix: paused ? 'pause' : 'resume' }, '*'); } catch (e) { /* рамка ещё не загрузилась */ }
   try {
     const d = w.iframe.contentDocument, cw = w.iframe.contentWindow;
-    Object.defineProperty(d, 'hidden', { value: paused, configurable: true });
-    Object.defineProperty(d, 'visibilityState', { value: paused ? 'hidden' : 'visible', configurable: true });
+    if (paused) {
+      Object.defineProperty(d, 'hidden', { value: true, configurable: true });
+      Object.defineProperty(d, 'visibilityState', { value: 'hidden', configurable: true });
+    } else { delete d.hidden; delete d.visibilityState; }
     d.dispatchEvent(new Event('visibilitychange'));
     cw.dispatchEvent(new Event(paused ? 'blur' : 'focus'));
     if (paused) d.querySelectorAll('audio, video').forEach(m => m.pause());
@@ -463,7 +519,7 @@ function framePause(w, paused) {
   if (paused && document.activeElement === w.iframe) w.iframe.blur();
 }
 function minimizeWin(w) { if (w.min) return; w.min = true; framePause(w, true); restack(); animateDock(w, true).then(() => { if (w.min) w.el.classList.add('minimized'); }); }
-function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); framePause(w, false); animateDock(w, false); }
+function restoreWin(w) { w.min = false; w.el.classList.remove('minimized'); animateDock(w, false); }
 async function closeWin(w) {
   if (w.beforeClose && !(await w.beforeClose())) return false;
   const i = wins.indexOf(w); if (i < 0) return true;
@@ -472,7 +528,7 @@ async function closeWin(w) {
   wins.splice(i, 1);
   w.cleanup.forEach(f => { try { f(); } catch (e) { /* ничего */ } });
   const el = w.el;
-  if (S.animations) { el.classList.add('closing'); setTimeout(() => el.remove(), 170); } else el.remove();
+  if (S.animations || w.iframe) { el.classList.add('closing'); setTimeout(() => el.remove(), 170); } else el.remove();   // рамка успевает получить паузу
   restack();
   return true;
 }
@@ -499,8 +555,10 @@ function toggleZoom(w, force) {
 }
 function tileWin(w, z) {
   if (z === 'fill') { if (!w.zoomed) toggleZoom(w); return; }
+  // обычный размер помним только у свободного окна: у заполненного или разложенного он уже сохранён
+  const free = !w.zoomed && !w.tiled;
+  if (free) saveNormal(w);
   if (w.zoomed) { w.zoomed = false; w.el.classList.remove('zoomed'); }
-  saveNormal(w);
   w.tiled = z; w.el.classList.add('tiled');
   setRect(w, zoneRect(z));
   focusWin(w);
@@ -962,6 +1020,9 @@ document.addEventListener('keydown', e => {
   if (t !== document.body && !activeWin.el.contains(t)) return;
   activeWin.onKey(e);
 });
+
+// Закрытие вкладки при несохранённом документе: браузер переспросит
+addEventListener('beforeunload', e => { if (wins.some(w => w.isDirty && w.isDirty())) { e.preventDefault(); e.returnValue = ''; } });
 
 // Вкладка скрыта - анимации и звук на паузе
 document.addEventListener('visibilitychange', () => { document.body.classList.toggle('paused', document.hidden); emit('visibility', document.hidden); });

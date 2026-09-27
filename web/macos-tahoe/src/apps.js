@@ -11,7 +11,7 @@ const APPS = {
   terminal: { title: 'Терминал', icon: 'terminal', w: 720, h: 440, minW: 380, minH: 220, multi: true, slim: true, create: createTerminal, menus: w => ({ 'Правка': [{ label: 'Очистить экран', key: 'Ctrl+K', action: () => w.clear() }] }) },
   settings: { title: 'Системные настройки', icon: 'settings', w: 860, h: 600, minW: 640, minH: 420, create: createSettings },
   paint: { title: 'Paint', icon: 'paint', w: 960, h: 640, minW: 480, minH: 360, iframe: 'apps/paint.html' },
-  messenger: { title: 'Мессенджер', icon: 'notes', w: 900, h: 600, minW: 480, minH: 360, iframe: 'apps/messenger.html' },
+  messenger: { title: 'Мессенджер', icon: 'messenger', w: 900, h: 600, minW: 480, minH: 360, iframe: 'apps/messenger.html' },
 };
 // Игры «Игротеки»: полные версии из соседних папок репозитория (таблица - web/_os-shared/games.js)
 const GAMES = (window.OS_GAMES || []).map(g => 'game-' + g.id);
@@ -54,7 +54,7 @@ function createFiles(w, start) {
     setView: v => { view = v; store.set('fView', v); render(); }, togglePrev: () => { showPrev = !showPrev; render(); } });
   w.path = () => path;
   w.onArg = p => go(p);
-  function go(p, noHist) { if (p !== '' && p !== '__trash' && !FS.has(p)) p = ''; if (!noHist && p !== path) { hist.push(path); fwd.length = 0; } path = p; sel.clear(); q = ''; sq.value = ''; render(); }
+  function go(p, noHist) { if (p !== '' && p !== '__trash' && !FS.has(p)) p = ''; if (!noHist && p !== path) { hist.push(path); fwd.length = 0; } path = p; w.arg = p; sel.clear(); q = ''; sq.value = ''; render(); }
   function items() {
     if (path === '__trash') return [];
     let list = path === '' ? ROOTS.map(r => FS.get(r)).filter(Boolean) : childrenOf(path, sortBy);
@@ -224,8 +224,20 @@ function createTextEdit(w, path) {
   let file = path && FS.get(path) ? path : null;
   w.body.innerHTML = '<div class="app-main" style="margin-top:0"><div class="ed-bar"><span class="ed-name"></span><span class="sp"></span><span class="ed-count"></span></div><textarea class="editor" spellcheck="false" aria-label="Текст"></textarea></div>';
   const ta = w.body.querySelector('textarea');
-  ta.value = file ? FS.get(file).text || '' : '';
+  const fe = file && FS.get(file);
+  ta.value = fe ? fe.text || '' : '';
   let saved = ta.value;
+  // большой файл хранится как двоичный: читаем его текст, пока не прочитан - править нельзя (иначе затрём пустым)
+  // очень большой текст показываем началом и только для чтения: и не зависнем, и не затрём файл обрезком
+  let bigOnly = false;
+  const BIG = 300000;
+  if (fe && fe.text == null && fe.blob) {
+    ta.readOnly = true; ta.value = 'Открывается…';
+    fe.blob.text().then(t => { if (t.length > BIG) { bigOnly = true; ta.value = t.slice(0, BIG); saved = ta.value; notify({ app: w.app, title: 'Большой файл открыт для чтения', body: 'Показано начало «' + baseName(file) + '», правка отключена' }); } else { ta.value = t; saved = t; ta.readOnly = false; } status(); });
+    saved = ta.value;
+  }
+  w.isDirty = () => !ta.readOnly && ta.value !== saved;
+  w.cleanup.push(on('moved', ({ from, to }) => { if (file && (file === from || file.startsWith(from + '/'))) { file = to + file.slice(from.length); w.arg = file; status(); } }));
   const dirty = () => ta.value !== saved;
   function status() {
     w.setTitle((file ? baseName(file) : 'Без названия') + (dirty() ? ' - изменён' : ''));
@@ -242,7 +254,7 @@ function createTextEdit(w, path) {
     if (FS.has(p) && p !== file && (await sheet(w, { title: '«' + n + '» уже существует. Заменить?', text: 'Файл с таким именем будет перезаписан.', buttons: ['Заменить', 'Отменить'] })) !== 0) return false;
     file = p; return save();
   }
-  function save() { if (!file) return saveAs(); writeFile(file, ta.value); saved = ta.value; w.arg = file; status(); return true; }
+  function save() { if (bigOnly) return false; if (!file) return saveAs(); writeFile(file, ta.value); saved = ta.value; w.arg = file; status(); return true; }
   async function openDlg() {
     const files = [...FS.values()].filter(e => e.type === 'file' && isText(e.path) && !isImage(e.path));
     const back = document.createElement('div');
@@ -376,7 +388,11 @@ function createSettings(w, startPage) {
     const th = t.closest('[data-theme-set]'); if (th) { setS({ theme: th.dataset.themeSet }); return; }
     const ac = t.closest('[data-accent]'); if (ac) { setS({ accent: +ac.dataset.accent }); return; }
     if (t.closest('[data-reset]') && (await sheet(w, { title: 'Сбросить всё?', text: 'Настройки, файлы и Корзина вернутся к исходным.', buttons: ['Сбросить', 'Отменить'] })) === 0) {
-      store.clear(); if (db) db.close(); try { indexedDB.deleteDatabase('macos-tahoe'); } catch (er) { /* нет доступа */ } setTimeout(() => location.reload(), 150);
+      store.clear(); if (db) db.close(); db = null;
+      // ждём, пока база и правда удалится; другая вкладка отпустит её сама (onversionchange), иначе скажем, что мешает
+      let req; try { req = indexedDB.deleteDatabase('macos-tahoe'); } catch (er) { location.reload(); return; }
+      req.onsuccess = req.onerror = () => location.reload();
+      req.onblocked = () => notify({ app: 'settings', title: 'Сброс ждёт', body: 'Закройте другую вкладку с «Тахо»' });
     }
   });
   w.body.addEventListener('input', e => {
@@ -632,7 +648,7 @@ function createTerminal(w, startDir) {
       else if (e.key === 'ArrowUp') { e.preventDefault(); if (hi < hist.length - 1) hi++; inp.value = hist[hi] || ''; }
       else if (e.key === 'ArrowDown') { e.preventDefault(); if (hi > -1) hi--; inp.value = hi < 0 ? '' : hist[hi]; }
       else if (e.key === 'Tab') { e.preventDefault(); const parts = inp.value.split(' '), last = parts.pop(); const m = (cwd === '' ? ROOTS : childrenOf(cwd).map(x => baseName(x.path))).find(n => n.toLowerCase().startsWith(last.toLowerCase())); if (m) inp.value = parts.concat(m.includes(' ') ? '"' + m + '"' : m).join(' '); }
-      else if ((e.key === 'k' || e.key === 'l') && e.ctrlKey) { e.preventDefault(); w.clear(); }
+      else if ((e.code === 'KeyK' || e.code === 'KeyL') && e.ctrlKey) { e.preventDefault(); w.clear(); }   // по физической клавише: работает и в русской раскладке
     });
   }
   const args = s => (s.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(x => x.replace(/^["']|["']$/g, ''));
@@ -670,12 +686,14 @@ function createTerminal(w, startDir) {
         if (!redirect) { print(text); break; }
         const p = resolve(redirect.file), dir = parentOf(p);
         if (dir === '' || !isDir(dir)) { print('zsh: нельзя записать: ' + redirect.file, 'err'); break; }
+        if (isDir(p)) { print('zsh: это каталог: ' + redirect.file, 'err'); break; }
         const old = FS.get(p); writeFile(p, (redirect.append && old && old.text ? old.text + '\n' : '') + text); break;
       }
       case 'cp': case 'mv': {
         if (a.length < 2) { print(c + ': укажите откуда и куда', 'err'); break; }
         const from = resolve(a[0]), to = resolve(a[1]);
         if (!FS.has(from) || ROOTS.includes(from)) { print(c + ': ' + a[0] + ': Нет такого файла', 'err'); break; }
+        if (isDir(to) && to !== '' && intoItself(from, to)) { print(c + ': нельзя ' + (c === 'cp' ? 'скопировать' : 'переместить') + ' папку в саму себя', 'err'); break; }
         if (isDir(to) && to !== '') { const r = c === 'cp' ? copyPath(from, to) : movePath(from, to); if (!r) print(c + ': нельзя', 'err'); break; }
         if (c === 'mv' && parentOf(to) === parentOf(from)) { const err = nameError(parentOf(from), baseName(to), from); if (err) print('mv: ' + err, 'err'); else renamePath(from, baseName(to)); break; }
         print(c + ': ' + a[1] + ': нет такой папки', 'err'); break;
@@ -740,7 +758,7 @@ $('desktop').addEventListener('contextmenu', e => {
   if (d) {
     const p = d.dataset.p, en = FS.get(p);
     showMenu(e.clientX, e.clientY, [{ label: 'Открыть', action: () => openPath(p) }, { sep: true }, { label: 'Переместить в Корзину', action: () => trashPath(p) }, { sep: true },
-      { label: 'Переименовать', action: () => { deskRenaming = p; renderDesktop(); } }, { label: 'Дублировать', action: () => copyPath(p, 'Рабочий стол') }, { label: 'Скопировать', action: () => { CLIP = { mode: 'copy', paths: [p] }; } },
+      { label: 'Переименовать', action: () => { deskRenaming = p; renderDesktop(); } }, { label: 'Дублировать', action: () => copyPath(p, 'Рабочий стол') }, { label: 'Вырезать', action: () => { CLIP = { mode: 'cut', paths: [p] }; } }, { label: 'Скопировать', action: () => { CLIP = { mode: 'copy', paths: [p] }; } },
       ...(isImage(p) ? [{ sep: true }, { label: 'Сделать картинкой рабочего стола', action: () => setS({ wallpaper: 'fs:' + p }) }] : []),
       ...(en.type === 'dir' ? [{ sep: true }, { label: 'Открыть в Терминале', action: () => openApp('terminal', p) }] : [])]);
     return;
@@ -748,7 +766,7 @@ $('desktop').addEventListener('contextmenu', e => {
   showMenu(e.clientX, e.clientY, [
     { label: 'Новая папка', action: () => { const p = makeDir(uniquePath('Рабочий стол', 'Новая папка')).path; deskRenaming = p; renderDesktop(); } },
     { label: 'Новый текстовый файл', action: () => { const p = writeFile(uniquePath('Рабочий стол', 'Без названия', '.txt'), '').path; deskRenaming = p; renderDesktop(); } },
-    { sep: true }, { label: 'Вставить', disabled: !CLIP, action: () => { CLIP.paths.forEach(p => copyPath(p, 'Рабочий стол')); } }, { sep: true },
+    { sep: true }, { label: 'Вставить', disabled: !CLIP, action: () => { CLIP.paths.forEach(p => CLIP.mode === 'cut' ? movePath(p, 'Рабочий стол') : copyPath(p, 'Рабочий стол')); if (CLIP.mode === 'cut') CLIP = null; } }, { sep: true },
     { label: 'Сортировать по', sub: [['name', 'Имени'], ['kind', 'Типу'], ['date', 'Дате изменения']].map(([k, n]) => ({ label: n, checked: store.get('deskSort', 'name') === k, action: () => { store.set('deskSort', k); renderDesktop(); } })) },
     { sep: true }, { label: 'Изменить обои…', action: () => openApp('settings', 'wallpaper') }, { label: 'Открыть в Терминале', action: () => openApp('terminal', 'Рабочий стол') },
   ]);

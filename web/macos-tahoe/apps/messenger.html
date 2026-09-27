@@ -464,5 +464,13 @@ document.addEventListener('click', () => { const p = document.getElementById('em
 function render() { renderAccounts(); renderChats(); renderMain(); }
 render();
 </script>
+<script>
+// Тема оболочки (сообщение {mix:'theme'}): светлая - цвета интерфейса переворачиваются, рисунки и аватары остаются как есть
+addEventListener('message', (e) => { if (e.data && e.data.mix === 'theme') document.documentElement.classList.toggle('mix-light', e.data.theme === 'light'); });
+</script>
+<style>
+html.mix-light { filter: invert(0.9) hue-rotate(180deg); background: #111; }
+html.mix-light canvas, html.mix-light img, html.mix-light video, html.mix-light .avatar, html.mix-light [style*="background:"], html.mix-light [style*="background-color"] { filter: invert(1) hue-rotate(180deg); }
+</style>
 </body>
 </html>
