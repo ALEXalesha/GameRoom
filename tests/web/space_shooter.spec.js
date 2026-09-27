@@ -6,11 +6,12 @@ const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
 const { hideTab, showTab, blurWindow, focusWindow, pauseLayout } = require('./_kit-helpers');
 
-// Бой до мастерской или победы: автоприцел, огонь зажат, корабль неуязвим (проверяем путь, а не ловкость)
+// Бой до мастерской или победы автопилотом - честно, без неуязвимости: он уклоняется от пуль, лучей,
+// камикадзе и астероидов, предсказывая их полёт; гибель корабля - провал проверки
 const FIGHT = `(maxSteps) => {
-  const g = __game; let n = 0;
-  while (g.S.phase !== 'shop' && g.S.phase !== 'won' && g.S.phase !== 'over' && n < maxSteps) { g.P.invuln = 5; g.setHeld(true); g.step(1, false); n++; }
-  g.setHeld(false);
+  const g = __game; let n = 0; g.setAutopilot(true);
+  while (!['shop', 'won', 'over', 'dead'].includes(g.S.phase) && n < maxSteps) { g.step(1, false); n++; }
+  g.setAutopilot(false);
   return { phase: g.S.phase, sector: g.S.sector, steps: n };
 }`;
 
@@ -27,8 +28,8 @@ test.describe('space_shooter: кампания', () => {
     expect(errors).toEqual([]);
   });
 
-  test('все 8 секторов проходятся настоящей стрельбой, мастерская между ними, в конце - экран победы', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('все 8 секторов проходятся честно (без неуязвимости, обычная сложность), мастерская между ними, в конце - экран победы', async ({ page }) => {
+    test.setTimeout(300_000);
     await openGame(page, 'space_shooter', 'seed=2&fast');
     await page.evaluate(() => { localStorage.clear(); __game.kit.set('autoAim', true); });
     await page.click('[data-screen=main] .kit-btn:has-text("Кампания")');
@@ -39,9 +40,9 @@ test.describe('space_shooter: кампания', () => {
       expect(r).toMatchObject({ phase: 'shop', sector: sec });
       await expect(page.locator('[data-screen=shop]')).toBeVisible();
       // покупаем всё, на что хватает, кнопками мастерской
-      for (const key of ['weapon', 'damage', 'rate', 'shield']) {
+      for (const key of ['weapon', 'damage', 'rate', 'shield', 'speed', 'repair', 'repair']) {
         const b = page.locator(`[data-screen=shop] [data-buy=${key}]`);
-        if (await b.isEnabled()) await b.click();
+        if (await b.count() && await b.isEnabled()) await b.click();
       }
       bosses.push(await page.evaluate(() => Object.keys(__game.kit.unlocked).filter((k) => k.startsWith('boss_')).length));
       await page.click('[data-screen=shop] [data-id=next]');
@@ -164,7 +165,7 @@ test.describe('space_shooter: правила боя', () => {
     await openGame(page, 'space_shooter', 'seed=4&fast');
     await page.evaluate(() => { localStorage.clear(); __game.kit.set('autoAim', true); });
     await page.click('[data-screen=main] .kit-btn:has-text("Выживание")');
-    const w = await page.evaluate(() => { const g = __game; let n = 0; while (g.S.survivalWave < 3 && n < 20000) { g.P.invuln = 5; g.setHeld(true); g.step(1, false); n++; } return g.S.survivalWave; });
+    const w = await page.evaluate(() => { const g = __game; let n = 0; g.setAutopilot(true); while (g.S.survivalWave < 3 && g.S.phase !== 'dead' && g.S.phase !== 'over' && n < 20000) { g.step(1, false); n++; } g.setAutopilot(false); return g.S.survivalWave; });
     expect(w).toBe(3);
     await page.reload();
     await page.waitForFunction(() => window.__game && __game.ready);
@@ -276,5 +277,24 @@ test.describe('space_shooter: по ревью', () => {
       return { phase: g.S.phase, hard: !!g.kit.unlocked.campaignHard };
     });
     expect(r).toEqual({ phase: 'won', hard: false });
+  });
+});
+
+test.describe('space_shooter: враги на экране', () => {
+  test('влетевший враг не прячется за краем экрана (снайпер держит дистанцию, но остаётся досягаем)', async ({ page }) => {
+    await openGame(page, 'space_shooter', 'seed=1&fast');
+    const r = await page.evaluate(() => {
+      const g = __game; g.startCampaign(); g.enemies.length = 0; g.S.queue = []; g.asteroids.length = 0;
+      // как в игре: снайпер влетает слева из-за края, игрок жмётся к левому краю
+      g.spawnEnemy('sniper', -40, 150); g.spawnEnemy('sniper', 200, 200); g.spawnEnemy('fighter', g.W + 60, 200);
+      let out = 0;
+      for (let i = 0; i < 2000; i++) { g.P.x = 110; g.P.y = g.H - 150; g.P.invuln = 5; g.ebullets.length = 0; g.step(1, false); if (i > 900) for (const e of g.enemies) if (e.x < 0 || e.x > g.W) out++; }
+      // снайпер у левого края, игрок близко: отступая, он упирается в край, а не уходит за него
+      g.enemies.length = 0; g.spawnEnemy('sniper', 40, 300);
+      for (let i = 0; i < 600; i++) { g.P.x = 320; g.P.y = 300; g.P.invuln = 5; g.ebullets.length = 0; g.step(1, false); for (const e of g.enemies) if (e.x < 0) out++; }
+      return { out, n: 3 };
+    });
+    expect(r.n).toBe(3);
+    expect(r.out).toBe(0);
   });
 });

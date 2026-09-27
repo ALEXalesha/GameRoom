@@ -141,6 +141,7 @@ function saveCheckpoint(sector) {
 }
 function startSector(i, fromCheckpoint) {
   resetArena();
+  autopilot = false;
   S.mode = 'campaign';
   S.sector = i; S.wave = 0; S.sectorDamage = 0;
   if (fromCheckpoint && progress.up) {
@@ -160,6 +161,7 @@ function startCampaign(sector) {
 }
 function startSurvival() {
   resetArena();
+  autopilot = false;
   newCampaignState(); applyUpgrades(true);
   S.mode = 'survival'; S.sector = 0; S.survivalWave = 0; S.wave = 0;
   Object.assign(P, { x: W / 2, y: H * 0.72, vx: 0, vy: 0, invuln: 60, cd: 0, overdrive: 0 });
@@ -247,7 +249,7 @@ function aimAngle() {
   const pad = kit.pad();
   if (pad && Math.hypot(pad.axes[2] || 0, pad.axes[3] || 0) > 0.35) return Math.atan2(pad.axes[3], pad.axes[2]);
   const mouseActive = performance.now() - mouse.lastMove < 2500 && !kit.settings.autoAim;
-  if (S.mode === 'demo' || kit.settings.autoAim || !mouseActive && pad) {
+  if (S.mode === 'demo' || autopilot || kit.settings.autoAim || !mouseActive && pad) {
     const t = nearestTarget();
     if (t) return Math.atan2(t.y - P.y, t.x - P.x);
     return P.angle;
@@ -294,12 +296,63 @@ function damagePlayer(amount, color) {
   SFX.hurt();
 }
 
+// ================= Автопилот =================
+// Для заставки и честной проверки кампании (без неуязвимости). Каждый кадр пилот проигрывает в уме
+// 17 вариантов движения на 24 кадра вперёд по тем же законам разгона корабля, с полётом вражеских пуль,
+// лучами (с предупреждением), таранами камикадзе, астероидами и телом босса, и выбирает вариант, где
+// опасность меньше, а место удобнее: внизу экрана, под целью, не вплотную к врагам. Стреляет всегда
+// автоприцелом; если уйти не выходит - бомба.
+let autopilot = false;
+const PILOT_DIRS = [[0, 0]];
+for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; PILOT_DIRS.push([Math.cos(a), Math.sin(a)], [Math.cos(a) * 0.45, Math.sin(a) * 0.45]); }
+function pilotMove() {
+  const t = nearestTarget();
+  const ax = t ? clamp(t.x, 120, W - 120) : W / 2, ay = H * 0.8;
+  let best = null;
+  for (const [mx, my] of PILOT_DIRS) {
+    const r = pilotSim(mx, my, 24);
+    let v = -r.danger * 1000 - Math.hypot(r.x - ax, (r.y - ay) * 1.5) * 0.02 - r.near * 2;
+    if (!best || v > best.v) best = { v, mx, my, danger: r.danger };
+  }
+  if (best.danger >= 1 && best.danger < 5 && S.bombs > 0 && P.invuln === 0 && S.mode !== 'demo') useBomb();
+  return best;
+}
+function pilotSim(mx, my, frames) {
+  const acc = 0.55 * (1 + 0.12 * S.up.speed);
+  let x = P.x, y = P.y, vx = P.vx, vy = P.vy, danger = 0, near = 0;
+  const eb = ebullets.map((b) => [b.x, b.y, b.vx, b.vy, b.r]);
+  const en = enemies.map((e) => [e.x, e.y, e.vx, e.vy, e.r, e.type === 'kamikaze']);
+  const as = asteroids.map((a) => [a.x, a.y, a.vx, a.vy, a.size * 0.72]);
+  for (let k = 1; k <= frames; k++) {
+    vx = (vx + mx * acc) * 0.88; vy = (vy + my * acc) * 0.88;
+    x = clamp(x + vx, P.r, W - P.r); y = clamp(y + vy, HUD_BOTTOM + P.r, H - P.r);
+    const w = k < 12 ? 1 : 0.5;                       // дальнее предсказание менее надёжно
+    for (const b of eb) { b[0] += b[2]; b[1] += b[3]; const d = Math.hypot(b[0] - x, b[1] - y) - b[4] - P.r; if (d < 6) danger += w; else if (d < 30) near += (30 - d) / 30 * 0.05; }
+    for (const e of en) {
+      if (e[5]) { const dx = x - e[0], dy = y - e[1], dd = Math.hypot(dx, dy) || 1; e[2] += dx / dd * 0.14; e[3] += dy / dd * 0.14; const sp = Math.hypot(e[2], e[3]); if (sp > 6.5) { e[2] *= 6.5 / sp; e[3] *= 6.5 / sp; } }
+      e[0] += e[2]; e[1] += e[3];
+      const d = Math.hypot(e[0] - x, e[1] - y) - e[4] - P.r;
+      if (d < 8) danger += w; else if (d < 90) near += (90 - d) / 90 * 0.1;
+    }
+    for (const a of as) { a[0] += a[2]; a[1] += a[3]; if (Math.hypot(a[0] - x, a[1] - y) - a[4] - P.r < 6) danger += w; }
+    for (const bm of beams) {
+      const on = k >= bm.t && k < bm.t + bm.life;
+      if (on && segDist(x, y, bm) < bm.w / 2 + P.r + 4) danger += w;
+      else if (bm.t > 0 && segDist(x, y, bm) < bm.w / 2 + P.r + 10) near += 0.3;
+    }
+    if (boss && boss.y > -60) {
+      if (bossTouches(x, y, P.r + 10)) danger += w;
+      const d = Math.hypot(boss.x - x, boss.y - y);
+      if (d < 260) near += (260 - d) / 260 * 0.3;
+    }
+  }
+  return { x, y, danger, near };
+}
+
 function updatePlayer() {
   let mx = 0, my = 0;
-  if (S.mode === 'demo') {
-    const t = S.frame / 90;
-    const tx = W / 2 + Math.cos(t) * 360, ty = H * 0.62 + Math.sin(t * 2) * 110;
-    mx = clamp((tx - P.x) / 60, -1, 1); my = clamp((ty - P.y) / 60, -1, 1);
+  if (S.mode === 'demo' || autopilot) {
+    ({ mx, my } = pilotMove());
   } else {
     mx = (kit.isDown('right') ? 1 : 0) - (kit.isDown('left') ? 1 : 0);
     my = (kit.isDown('down') ? 1 : 0) - (kit.isDown('up') ? 1 : 0);
@@ -313,7 +366,7 @@ function updatePlayer() {
   if (P.cd > 0) P.cd--;
   if (P.invuln > 0) P.invuln--;
   if (P.overdrive > 0) P.overdrive--;
-  const firing = S.mode === 'demo' ? enemies.length > 0 || !!boss : kit.isDown('fire') || mouse.held;
+  const firing = S.mode === 'demo' || autopilot ? enemies.length > 0 || !!boss || asteroids.length > 0 : kit.isDown('fire') || mouse.held;
   if (firing && P.cd === 0) fire();
   if (S.mode !== 'demo' && kit.wasPressed('bomb')) useBomb();
   if (kit.settings.effects && S.frame % 2 === 0) particles.push({ x: P.x - Math.cos(P.angle) * 16, y: P.y - Math.sin(P.angle) * 16, vx: -Math.cos(P.angle) * 2 + (rnd() - 0.5), vy: -Math.sin(P.angle) * 2 + (rnd() - 0.5), life: 14, max: 14, color: '#ff9a3c', r: 2 });
@@ -345,6 +398,7 @@ function updateEnemies() {
       if (dist > d.keep + 40) { tvx = dx / dist * d.speed; tvy = dy / dist * d.speed; }
       else if (dist < d.keep - 40) { tvx = -dx / dist * d.speed; tvy = -dy / dist * d.speed; }
       else { tvx = -dy / dist * d.speed * e.strafe; tvy = dx / dist * d.speed * e.strafe; }
+      if (!e.entered) { const cx = W / 2 - e.x, cy = H * 0.3 - e.y, cd = Math.hypot(cx, cy) || 1; tvx = cx / cd * d.speed * 1.2; tvy = cy / cd * d.speed * 1.2; }   // сначала - на экран
       e.vx += (tvx - e.vx) * 0.05; e.vy += (tvy - e.vy) * 0.05;
       if (e.x < 40 || e.x > W - 40) e.strafe *= -1;
       if (e.type === 'sniper') {
@@ -358,7 +412,13 @@ function updateEnemies() {
       }
     }
     e.x += e.vx; e.y += e.vy;
-    if (e.type !== 'kamikaze') { e.x = clamp(e.x, -80, W + 80); e.y = clamp(e.y, -120, H - 60); }
+    if (e.type !== 'kamikaze') {
+      // Влетев на экран, враг с него больше не уходит: иначе снайпер, держа дистанцию, прятался за краем,
+      // его нельзя было подстрелить, и волна не кончалась
+      if (!e.entered && e.x > e.r && e.x < W - e.r && e.y > HUD_BOTTOM && e.y < H - 60) e.entered = true;
+      if (e.entered) { e.x = clamp(e.x, e.r + 4, W - e.r - 4); e.y = clamp(e.y, HUD_BOTTOM, H - 60); }
+      else { e.x = clamp(e.x, -80, W + 80); e.y = clamp(e.y, -120, H - 60); }
+    }
     if (dist < e.r + P.r) {
       damagePlayer(d.dmg, d.color);
       if (e.type === 'kamikaze') { e.hp = 0; burst(e.x, e.y, d.color, 20, 6); } else e.hp -= 30;
@@ -1013,6 +1073,7 @@ window.__game = {
   bannerCss() { return cssRect(bannerRect); },
   aimAt(x, y) { mouse.x = x; mouse.y = y; mouse.lastMove = performance.now(); },
   setHeld(v) { mouse.held = v; },
+  setAutopilot(v) { autopilot = v; }, get autopilot() { return autopilot; }, pilotSim,
 };
 </script>
 </body>

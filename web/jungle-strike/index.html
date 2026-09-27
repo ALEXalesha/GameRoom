@@ -167,6 +167,7 @@ function startMission(mi, fromCheckpoint) {
   G.banner = { text: `Миссия ${mi + 1}: ${MISSIONS[mi].name}`, t: 150 };
   mouseFire = false; fireQueued = false;
   autopilot = false;
+  pilotState.bestX = 0; pilotState.still = 0;
   kit.play();
 }
 function startDemo() {
@@ -184,23 +185,126 @@ function input(name) {
   return kit.isDown(name);
 }
 const pilotInput = {};
+const pilotState = { bestX: 0, still: 0 };
 function pilot() {
-  // «рука» для заставки и для проверки уровня: идёт вправо, прыгает через ямы и мины, стреляет
+  // «Рука» для заставки и для честной проверки проходимости (без неуязвимости): перед решением пилот
+  // проигрывает в уме несколько вариантов на 40 кадров вперёд - идти, стоять, отступить, прыгнуть, лечь - по тем же
+  // законам движения, с полётом вражеских пуль и гранат, врагами, минами, камнями, волнами и боссом, и выбирает
+  // вариант без попаданий, который больше продвигает к цели. Стреляет всегда, вверх - по летающим.
   const p = player;
-  Object.assign(pilotInput, { left: false, right: true, up: false, down: false, jump: false, fire: true });
-  const ahead = p.x + 10;
-  const pit = G.level.pits.find((q) => q.x > p.x && q.x - p.x < 10);
-  if (pit && p.onGround) pilotInput.jump = true;
-  if (p.onGround && p.plat && !p.plat.ground && p.plat.x + p.plat.w - p.x < 8 && G.level.pits.some((q) => q.x < p.x + 50 && q.x + q.w > p.x)) pilotInput.jump = true;   // с края платформы над ямой - прыжком
-  const low = enemies.find((e) => (e.type === 'mine' || e.type === 'crawler' || e.type === 'tankette') && e.x > p.x && e.x - p.x < 30);
-  if (low && p.onGround) pilotInput.jump = true;
-  if (hazards.some((h) => h.kind === 'wave' && Math.abs(h.x - p.x) < 26 && Math.sign(p.x - h.x) === Math.sign(h.vx))) pilotInput.jump = true;
-  const flyer = enemies.find((e) => ETYPES[e.type].fly && Math.abs(e.x - p.x) < 40 && e.y < p.y - 30) || (boss && boss.kind === 'heli' && Math.abs(boss.x - p.x) < 50 ? boss : null);
-  if (flyer) pilotInput.up = true;
-  if (G.bossSpawned && boss && p.x > boss.x - boss.w / 2 - 40) pilotInput.right = false;
-  if (G.bossSpawned && boss && (boss.kind === 'drill' || boss.kind === 'walker') && boss.charge && p.onGround && Math.abs(boss.x - p.x) < 60) pilotInput.jump = true;
-  if (!p.onGround && p.vy < 0) pilotInput.jump = true;          // держать прыжок до верхней точки
-  void ahead;
+  Object.assign(pilotInput, { left: false, right: false, up: false, down: false, jump: false, fire: true });
+  const flyer = enemies.find((e) => ETYPES[e.type].fly && Math.abs(e.x - p.x) < 40 && e.y < p.y - 30) || (boss && boss.kind === 'heli' && boss.state !== 'enter' && Math.abs(boss.x - p.x) < 34 ? boss : null);
+  const plans = p.onGround
+    ? [[1, 0, 0], [0, 0, 0], [-1, 0, 0], [1, 1, 0], [0, 1, 0], [-1, 1, 0], [0, 0, 1], [1, 2, 0], [0, 2, 0]]      // [ход, прыжок: 0/1 высокий/2 короткий/3 спрыгнуть вниз, лечь]
+    : [[1, 1, 0], [0, 1, 0], [-1, 1, 0], [1, 2, 0], [0, 2, 0], [-1, 2, 0]];
+  if (p.onGround && p.plat && !p.plat.ground) plans.push([0, 3, 0], [1, 3, 0]);
+  // застой: долго нет продвижения - дальние опасности не в счёт, сначала шаг вперёд (дальше пилот снова уклоняется)
+  if (p.x > pilotState.bestX + 2) { pilotState.bestX = p.x; pilotState.still = 0; } else pilotState.still++;
+  const horizon = pilotState.still > 240 ? 16 : 40;
+  // низкие цели (ползуны, мины) стоя не достать: пули идут над ними - надо лечь
+  const lowTarget = enemies.some((e) => (e.type === 'crawler' || e.type === 'mine') && Math.abs(e.x - p.x) < 220 && Math.abs(e.y - p.y) < 6);
+  let best = null;
+  for (const pl of plans) {
+    const r = pilotSim(pl[0], pl[1], pl[2], horizon);
+    const goal = pilotGoal();
+    const value = (r.hit ? -10000 + r.hit * 100 : 0) - Math.abs(goal - r.x) * 0.6 - (pl[2] ? (lowTarget ? -40 : 4) : 0) - (pl[1] && !r.needJump ? 2 : 0);
+    if (!best || value > best.value) best = { value, pl };
+  }
+  const [mv, jump, prone] = best.pl;
+  pilotInput.left = mv < 0; pilotInput.right = mv > 0;
+  pilotInput.jump = jump === 1 ? (p.onGround || p.vy < 0) : jump === 2 || jump === 3 ? p.onGround : false;
+  pilotInput.down = (!!prone && !flyer) || jump === 3;
+  pilotInput.up = !!flyer && !prone;
+  // смотреть и стрелять в сторону ближайшего наземного врага (если стоим на месте)
+  if (!mv) {
+    const near = enemies.filter((e) => !ETYPES[e.type].fly).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+    if (near && Math.abs(near.x - p.x) < 150) p.dir = near.x < p.x ? -1 : 1;
+    else if (boss) p.dir = boss.x < p.x ? -1 : 1;
+  }
+}
+// Куда стремиться: вперёд по уровню; у босса - на удобное для стрельбы расстояние
+function pilotGoal() {
+  const p = player;
+  if (!boss) return p.x + 200;
+  if (boss.kind === 'heli') return boss.state === 'enter' ? G.cam + 60 : boss.x - 12;
+  if (boss.kind === 'boat') return Math.min(G.level.water - 20, G.cam + W / 2);
+  if (boss.kind === 'drill') return G.cam + 12;           // бур таранит до края экрана и останавливается в 50 точках от него
+  return Math.max(G.cam + 20, boss.x - boss.w / 2 - 120);
+}
+// Проиграть вариант: ход mv, прыжок (1 - держать до верхней точки, 2 - короткий), лечь; вернуть момент первого попадания
+function pilotSim(mv, jump, prone, frames) {
+  const p = player;
+  const o = { x: p.x, y: p.y, vy: p.vy, onGround: p.onGround, drop: p.drop };
+  let cam = G.cam, needJump = false;
+  const eb = ebullets.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, grenade: b.grenade, missile: b.missile, bomb: b.bomb, dead: false }));
+  const en = enemies.map((e) => ({ type: e.type, x: e.x, y: e.y, vx: e.vx, w: e.w, h: e.h, armed: e.armed || 0, aim: e.aim || 0, lockX: e.lockX, lockY: e.lockY, base: e.base, t: e.t }));
+  const hz = hazards.map((h) => ({ kind: h.kind, x: h.x, y: h.y, vy: h.vy || 0, vx: h.vx || 0, warn: h.warn || 0 }));
+  const bs = boss && { x: boss.x, y: boss.y, vx: boss.kind === 'drill' && boss.state === 'charge' ? -3.4 : boss.state === 'jump' ? boss.vx : 0, vy: boss.state === 'jump' ? boss.vy : 0, w: boss.w, h: boss.h, kind: boss.kind, jump: boss.state === 'jump', rumble: boss.kind === 'drill' && boss.state === 'rumble' ? boss.timer : 0 };
+  const hitBox = (x, y, lying) => ({ l: x - 5, r: x + 5, t: y - (lying ? 8 : 22), b: y });
+  for (let k = 1; k <= frames; k++) {
+    // герой - по тем же законам, что в updatePlayer
+    const lying = prone && o.onGround;
+    const vx = lying ? 0 : mv * PHY.speed;
+    if (k === 1 && jump === 3 && o.onGround) { o.drop = 10; o.y += 2; o.onGround = false; }
+    else if (k === 1 && jump && o.onGround) { o.vy = PHY.jump; o.onGround = false; }
+    if (o.drop > 0) o.drop--;
+    const hold = jump === 1 && o.vy < 0;
+    if (!hold && o.vy < -3) o.vy = -3;
+    o.vy = Math.min(PHY.maxFall, o.vy + PHY.g);
+    const prevY = o.y;
+    o.x += vx; o.y += o.vy;
+    const target = o.x - W * 0.4; if (target > cam) cam = Math.min(target, G.level.arena);
+    o.x = Math.max(cam + 6, Math.min(o.x, G.level.len - 8, G.level.water - 8));
+    if (bs && bs.kind !== 'heli' && o.x > bs.x - bs.w / 2 - 4) o.x = bs.x - bs.w / 2 - 4;
+    o.onGround = false;
+    if (o.vy >= 0 && !o.drop) for (const pl of G.level.plats) if (o.x >= pl.x - 3 && o.x <= pl.x + pl.w + 3 && prevY <= pl.y + 0.5 && o.y >= pl.y) { o.y = pl.y; o.vy = 0; o.onGround = true; break; }
+    if (!o.onGround && o.y >= GROUND && !pitAt(o.x) && prevY <= GROUND + 2) { o.y = GROUND; o.vy = 0; o.onGround = true; }
+    if (o.y > H + 20) return { hit: k, x: o.x };
+    const box = hitBox(o.x, o.y, prone && o.onGround);
+    // пули и гранаты
+    for (const b of eb) {
+      if (b.dead) continue;
+      b.x += b.vx; b.y += b.vy;
+      if (b.grenade) b.vy += 0.15;
+      if (b.missile) { const d = Math.hypot(o.x - b.x, o.y - 12 - b.y) || 1; b.vx += (o.x - b.x) / d * 0.04; b.vy += (o.y - 12 - b.y) / d * 0.04; }
+      if (b.grenade && b.y >= GROUND && !pitAt(b.x)) { b.dead = true; if (Math.abs(o.x - b.x) < (b.bomb ? 22 : 19) && o.y > GROUND - 26) return { hit: k, x: o.x }; continue; }
+      if (b.x > box.l - 2 && b.x < box.r + 2 && b.y > box.t - 2 && b.y < box.b + 1) return { hit: k, x: o.x };
+    }
+    // враги: касание, мины, снайперский выстрел
+    for (const e of en) {
+      if (e.type === 'soldier' || e.type === 'crawler' || e.type === 'tankette' || e.type === 'drone') e.x += e.vx;
+      if (e.type === 'jetpack') { e.x += Math.sign(o.x + 30 * Math.sin((e.t + k) / 60) - e.x) * 0.9; e.y = e.base + Math.sin((e.t + k) * 0.05) * 10; }
+      if (e.type === 'mine') {
+        if (!e.armed && Math.abs(e.x - o.x) < 14 && Math.abs(e.y - o.y) < 20) e.armed = 24;
+        if (e.armed && --e.armed === 0) { e.type = 'gone'; if (Math.abs(e.x - o.x) < 25 && Math.abs(e.y - o.y) < 28) return { hit: k, x: o.x }; }
+        continue;
+      }
+      if (e.type === 'sniper' && e.aim > 0 && --e.aim === 0) {
+        const dx = e.lockX - e.x, dy = e.lockY - (e.y - 14), d = Math.hypot(dx, dy) || 1;
+        eb.push({ x: e.x, y: e.y - 14, vx: dx / d * 5.5, vy: dy / d * 5.5 });
+      }
+      if (e.type !== 'turret' && e.type !== 'sniper' && e.type !== 'gone' && Math.abs(e.x - o.x) < e.w / 2 + 7 && o.y > e.y - e.h - 3 && o.y - (prone && o.onGround ? 8 : 22) < e.y + 1) return { hit: k, x: o.x };
+    }
+    // камни и волны
+    for (const h of hz) {
+      if (h.kind === 'rock') {
+        if (h.warn > 0) { h.warn--; continue; }
+        h.vy += 0.3; h.y += h.vy;
+        if (h.y < GROUND + 10 && Math.abs(h.x - o.x) < 12 && Math.abs(h.y - (o.y - 12)) < 14) return { hit: k, x: o.x };
+      } else if (h.kind === 'wave') {
+        h.x += h.vx;
+        if (Math.abs(h.x - o.x) < 10 && o.y > GROUND - 10) { needJump = true; return { hit: k, x: o.x, needJump }; }
+      }
+    }
+    // босс: касание (катер не касается)
+    if (bs && bs.kind !== 'boat') {
+      if (bs.rumble && --bs.rumble === 0) bs.vx = -3.4;               // после дрожи бур идёт на таран
+      if (bs.vx < 0 && bs.kind === 'drill' && bs.x < cam + 50) bs.vx = 0;
+      if (bs.jump) { bs.vy += 0.3; bs.x += bs.vx; bs.y = Math.min(GROUND, bs.y + bs.vy); } else bs.x += bs.vx;
+      if (Math.abs(bs.x - o.x) < bs.w / 2 + 6 && o.y > bs.y - bs.h - 2 && o.y - 22 < bs.y) return { hit: k, x: o.x };
+    }
+  }
+  return { hit: 0, x: o.x, needJump };
 }
 
 function updatePlayer() {
@@ -387,9 +491,10 @@ function updateEnemies() {
   }
   enemies = enemies.filter((e) => {
     if (e.hp <= 0) {
-      if (e.type !== 'mine' || !e.exploded) { G.stats.kills++; G.score += ETYPES[e.type].score; }
+      const killed = e.type !== 'mine' || !e.exploded;          // мина, взорвавшаяся сама, - не победа: ни очков, ни трофея
+      if (killed) { G.stats.kills++; G.score += ETYPES[e.type].score; }
       explode(e.x, e.y - e.h / 2, e.type === 'tankette');
-      if (G.mode === 'mission' && rnd() < 0.12) dropPickup(e.x, e.y - e.h);
+      if (killed && G.mode === 'mission' && rnd() < 0.12) dropPickup(e.x, e.y - e.h);
       return false;
     }
     return e.x > G.cam - 60 && e.x < G.cam + W + 220;

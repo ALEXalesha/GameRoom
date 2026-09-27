@@ -6,12 +6,13 @@ const { test, expect } = require('@playwright/test');
 const { openGame, fitReport, expectFits, SIZES } = require('./_games-helpers');
 const { hideTab, showTab, blurWindow, focusWindow, pauseLayout } = require('./_kit-helpers');
 
-// Прогон миссии «рукой» (неуязвимой: проверяем путь и босса, а не ловкость)
+// Прогон миссии автопилотом - честно, без неуязвимости: он уклоняется от пуль, гранат, мин, камней
+// и босса, предсказывая их полёт по законам игры. Считаем и потерянные жизни.
 const RUN = `(maxSteps) => {
   const g = __game; g.setAutopilot(true); let n = 0;
-  while (g.G.phase === 'run' || g.G.phase === 'clear') { g.player.invuln = 5; g.step(1, false); if (++n > maxSteps) break; }
+  while (g.G.phase === 'run' || g.G.phase === 'clear') { g.step(1, false); if (++n > maxSteps) break; }
   g.setAutopilot(false);
-  return { phase: g.G.phase, steps: n, x: Math.round(g.player.x), boss: !!g.boss };
+  return { phase: g.G.phase, steps: n, x: Math.round(g.player.x), boss: !!g.boss, deaths: g.G.stats.deaths };
 }`;
 
 test.describe('jungle-strike: кампания', () => {
@@ -26,14 +27,15 @@ test.describe('jungle-strike: кампания', () => {
     expect(errors).toEqual([]);
   });
 
-  test('каждая из 5 миссий проходится до конца, босс повержен, открывается следующая', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('каждая из 5 миссий проходится честно (без неуязвимости, обычная сложность), босс повержен, открывается следующая', async ({ page }) => {
+    test.setTimeout(240_000);
     await openGame(page, 'jungle-strike', 'seed=2&fast');
     await page.evaluate(() => localStorage.clear());
     for (let m = 0; m < 5; m++) {
       await page.evaluate((i) => __game.startMission(i, false), m);
       const r = await page.evaluate(`(${RUN})(40000)`);
       expect(r.phase, 'миссия ' + (m + 1)).toBe('done');
+      expect(r.deaths, 'миссия ' + (m + 1) + ': потеряно жизней').toBeLessThanOrEqual(1);
       const id = m === 4 ? 'victory' : 'missionClear';
       await expect(page.locator(`[data-screen=${id}]`)).toBeVisible();
       expect(await page.evaluate(() => __game.progress.unlocked)).toBe(Math.min(m + 1, 4));
@@ -319,7 +321,7 @@ test.describe('jungle-strike: по ревью', () => {
       for (let i = 0; i < 60 && g.enemies.includes(m); i++) g.step(1, false);
       g.kit.held.delete('KeyS'); g.kit.held.delete('KeyJ');
       const shot = !g.enemies.includes(m);
-      g.enemies.length = 0; g.bullets.length = 0; g.step(1, false);
+      g.enemies.length = 0; g.bullets.length = 0; g.pickups.length = 0; g.step(1, false);
       const k0 = g.G.stats.kills, s0 = g.G.score;
       g.spawnEnemy('mine', g.player.x + 4, g.GROUND);
       g.step(60, false);
