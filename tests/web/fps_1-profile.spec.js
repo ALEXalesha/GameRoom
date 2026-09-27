@@ -300,6 +300,22 @@ test.describe('fps_1: статистика, звания, кампания', () 
     expect(r).toEqual({ canvases: 1, lost: false, aa: true });                       // 20-е переключение - «вкл»
   });
 
+  test('старое сохранение с «Присесть» на C получает Ctrl один раз; выбранное после этого C остаётся', async ({ page }) => {
+    await openTactical(page);
+    const load = async (settings) => {
+      await page.evaluate((v) => { localStorage.clear(); localStorage.setItem('mix.tactical.settings', v); }, JSON.stringify(settings));
+      await page.reload();
+      await page.waitForFunction(() => window.__tactical && __tactical.ready);
+      return page.evaluate(() => { TAC.saveSettings(); return [TAC.settings.input.keys.crouch, TAC.settings.input.keys.walk]; });
+    };
+    expect(await load({ input: { keys: { crouch: 'KeyC' } } })).toEqual(['ControlLeft', 'ShiftLeft']);
+    expect(await load({ input: { keys: { crouch: 'KeyC', walk: 'ControlLeft' } } })).toEqual(['KeyC', 'ControlLeft']);   // Ctrl занят - не трогаем
+    expect(await load({ input: { keysV: 2, keys: { crouch: 'KeyC' } } })).toEqual(['KeyC', 'ShiftLeft']);             // выбор игрока после переезда
+    await page.reload();
+    await page.waitForFunction(() => window.__tactical && __tactical.ready);
+    expect(await page.evaluate(() => TAC.settings.input.keys.crouch)).toBe('KeyC');
+  });
+
   test('испорченные и устаревшие данные в хранилище не ломают вкладки: числа зажаты, чужое выкинуто, звёзды 0..3', async ({ page }) => {
     test.setTimeout(120000);
     const errors = await openTactical(page);
