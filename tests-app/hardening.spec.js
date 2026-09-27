@@ -267,6 +267,7 @@ test('главная при 1280x720: все игры в два ряда без 
     const cards = [...document.querySelectorAll('.card')].map((c) => ({
       top: Math.round(c.getBoundingClientRect().top),
       name: Math.round(c.querySelector('h2').getBoundingClientRect().top),
+      play: Math.round(c.querySelector('.play').getBoundingClientRect().top),
       width: c.getBoundingClientRect().width,
     }));
     const rows = [...new Set(cards.map((c) => c.top))];
@@ -274,13 +275,33 @@ test('главная при 1280x720: все игры в два ряда без 
       overflow: home.scrollHeight - home.clientHeight,
       rows: rows.length,
       namesPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.name)).size),
+      playsPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.play)).size),
       minWidth: Math.min(...cards.map((c) => c.width)),
     };
   });
   expect(r.overflow).toBeLessThanOrEqual(0);
   expect(r.rows).toBe(2);
   expect(r.namesPerRow).toEqual([1, 1]);
+  // И кнопки «Играть» одного ряда на одной линии, хотя описания разной длины.
+  expect(r.playsPerRow).toEqual([1, 1]);
   expect(r.minWidth).toBeGreaterThanOrEqual(210);
+  // На широком экране описания разной длины (одна и две строки) - кнопки всё равно в линию.
+  await app.evaluate(() => globalThis.__igroteka.win.setContentSize(1920, 1080));
+  await sleep(500);
+  const wide = await shell.evaluate(() => {
+    const cards = [...document.querySelectorAll('.card')].map((c) => ({
+      top: Math.round(c.getBoundingClientRect().top),
+      play: Math.round(c.querySelector('.play').getBoundingClientRect().top),
+      desc: (() => { const r = document.createRange(); r.selectNodeContents(c.querySelector('.desc')); return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size; })(),
+    }));
+    const rows = [...new Set(cards.map((c) => c.top))];
+    return {
+      playsPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.play)).size),
+      descHeights: new Set(cards.map((c) => c.desc)).size,
+    };
+  });
+  expect(wide.descHeights).toBeGreaterThan(1); // строк в описаниях разное число, иначе закон ничего не проверяет
+  expect(wide.playsPerRow).toEqual([1, 1]);
 });
 
 test('при 1920x1080 сетка стоит по центру, без большой пустоты снизу', async () => {
