@@ -69,6 +69,7 @@
   #hintText b { color: var(--cell-hint); }
   #hintText .err { color: var(--err); font-weight: 600; }
   .grow { flex: 1; overflow: auto; }
+  #app .kit-grid.levels { grid-template-columns: repeat(4, 1fr); }
   @media (max-width: 860px) {
     .wrap { flex-direction: column; --bs: min(calc(100vw - 24px), calc(100vh - 380px)); align-items: center; }
     #side { width: var(--bs); }
@@ -593,7 +594,7 @@ function loadRecords() {
 }
 function showLevels() {
   const node = document.createElement('div');
-  const grid = document.createElement('div'); grid.className = 'kit-grid';
+  const grid = document.createElement('div'); grid.className = 'kit-grid levels';
   const desc = { easy: 'одиночки, много открытых', medium: 'одиночки, меньше открытых', hard: 'пересечения и пары', expert: 'тройки и «крест»' };
   for (const l of Object.keys(LEVEL_NAMES)) {
     const r = records.levels[l];

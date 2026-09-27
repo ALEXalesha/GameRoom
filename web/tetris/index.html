@@ -11,6 +11,7 @@
   #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
   #bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #game { position: relative; display: block; touch-action: none; }
+  #app .kit-grid.modes { grid-template-columns: repeat(4, 1fr); }
 </style>
 </head>
 <body>
@@ -161,7 +162,7 @@ function hardDrop() {
   let d = 0;
   const y0 = current.y;
   while (!collides(current, 0, 1)) { current.y++; d++; }
-  if (d > 0) { lastRotate = false; trails.push({ piece: { ...current, shape: current.shape }, y0, t: 10 }); }
+  if (d > 0) { lastRotate = false; if (!autopilot && kit.settings.effects) trails.push({ piece: { ...current, shape: current.shape }, y0: Math.max(y0, current.y - 5), t: 8 }); }
   state.score += d * 2;
   lockPiece();
 }
@@ -590,8 +591,10 @@ function render() {
   for (let y = HIDDEN; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x]) cell(BX + x * CELL, gy(y), COLORS[grid[y][x]], CELL);
   for (const f of flashes) { ctx.fillStyle = `rgba(255,255,255,${f.t / 14 * 0.8})`; ctx.fillRect(BX, gy(f.y) + CELL / 2 - (f.t / 14) * CELL / 2, COLS * CELL, (f.t / 14) * CELL); }
   for (const t of trails) {
-    ctx.fillStyle = `rgba(255,255,255,${t.t / 10 * 0.12})`;
-    t.piece.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v) ctx.fillRect(BX + (t.piece.x + xx) * CELL + 6, gy(t.y0 + yy), CELL - 12, (t.piece.y - t.y0) * CELL); }));
+    const grd = ctx.createLinearGradient(0, gy(t.y0), 0, gy(t.piece.y));
+    grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(1, `rgba(255,255,255,${t.t / 8 * 0.18})`);
+    ctx.fillStyle = grd;
+    t.piece.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v && (yy === r.length - 1 || !t.piece.shape[yy + 1] || !t.piece.shape[yy + 1][xx])) ctx.fillRect(BX + (t.piece.x + xx) * CELL + 8, gy(t.y0 + yy), CELL - 16, (t.piece.y - t.y0) * CELL); }));
   }
   if (current && state.phase === 'play') {
     if (kit.settings.ghost) {
