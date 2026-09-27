@@ -18,6 +18,8 @@ const GAMES = {
     nested: { progress: [{ best: { 0: null, 1: 'x' }, unlocked: 2 }, { unlocked: 9 }, { unlocked: 2.5, best: [] }] } },
   mario: { id: 'jumper', start: '[data-id=play]', keys: { progress: '__game.progress', totals: '__game.totals' },
     nested: { progress: [{ levels: { 0: { stars: null, best: 100 } } }, { levels: { 0: null, 3: { stars: [1, 'x'], best: 'x' } } }, { levels: [] }] } },
+  tetris: { id: 'blocks', start: '[data-id=play]', keys: { records: '__game.records', stats: '__game.stats' },
+    nested: { records: [{ marathon: [{ score: 'x', lines: null }], sprint: null }, { sprint: [{ time: -5 }, 7, null] }, { zen: {} }] } },
 };
 const BAD = [null, 'x', -1, 7, 999, 1.5, [], {}, true];
 
@@ -219,12 +221,14 @@ const DEFEAT = {
   space_shooter: { start: '[data-id=campaign]', die: '(() => { const g = __game; g.P.hp = 1; g.P.invuln = 0; g.damagePlayer(50); g.step(200, false); })()', demo: '__game.S.mode' },
   'jungle-strike': { start: '[data-id=campaign]', die: '(() => { const g = __game; g.G.lives = 1; g.player.invuln = 0; g.hurtPlayer(); g.step(200, false); })()', demo: '__game.G.mode' },
   mario: { start: '[data-id=play]', die: '(() => { const g = __game; for (let i = 0; i < 3; i++) { g.player.invuln = 0; g.hurt(); g.step(80, false); } })()', demo: '__game.state.mode' },
+  tetris: { start: '[data-id=play]', then: '[data-screen=modes] [data-mode=marathon]', die: "(() => { const g = __game; g.setGrid(Array.from({ length: 21 }, (_, i) => (i % 2 ? 'XXXX.XXXXX' : 'XXXXX.XXXX'))); for (let i = 0; i < 6 && g.state.phase === 'play'; i++) g.hardDrop(); g.step(100, false); })()", demo: '__game.state.mode' },
 };
 for (const game of Object.keys(DEFEAT)) {
   test(`${game}: «В меню» с экрана поражения возвращает живую заставку`, async ({ page }) => {
     await openGame(page, game, 'seed=1');
     const d = DEFEAT[game];
     await page.click('[data-screen=main] ' + d.start);
+    if (d.then) await page.click(d.then);
     await page.evaluate(d.die);
     await page.locator('[data-screen=over] [data-id=menu]').click({ timeout: 6000 });
     expect(await page.evaluate(d.demo)).toBe('demo');
@@ -238,12 +242,14 @@ const SHELL = {
   space_shooter: { start: '[data-id=campaign]', frame: '__game.S.frame', name: 'Космический стрелок' },
   'jungle-strike': { start: '[data-id=campaign]', frame: '__game.G.t', name: 'Огненные джунгли' },
   mario: { start: '[data-id=play]', frame: '__game.state.timer', name: 'Прыг-скок' },
+  tetris: { start: '[data-id=play]', then: '[data-screen=modes] [data-mode=zen]', frame: '__game.state.frame', name: 'Блоки' },
 };
 for (const game of Object.keys(SHELL)) {
   test(`${game}: сообщение оболочки {mix:'pause'} останавливает игру и звук, {mix:'resume'} паузу не снимает`, async ({ page }) => {
     await openGame(page, game, 'seed=1');
     const s = SHELL[game];
     await page.click('[data-screen=main] ' + s.start);
+    if (s.then) await page.click(s.then);
     await page.evaluate(() => { __game.kit.audioCtx(); return __game.kit.ctx.resume(); });
     const f0 = await page.evaluate(s.frame);
     await page.waitForTimeout(300);
