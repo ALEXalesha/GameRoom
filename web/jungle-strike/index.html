@@ -141,6 +141,9 @@ function explode(x, y, big) {
 }
 
 // ================= Геометрия уровня =================
+// Граница кадра для врагов и пуль одна: враг за краем не живёт дольше пули, которой его можно сбить
+const EDGE = 20;
+const onScreen = (x) => x > G.cam - 4 && x < G.cam + W + 4;
 function pitAt(x) { for (const p of G.level.pits) if (x > p.x && x < p.x + p.w) return p; return x > G.level.water ? { x: G.level.water, w: 1e6 } : null; }
 function groundUnder(x, y) {                // ближайшая опора под точкой (платформа или земля)
   let best = null;
@@ -439,7 +442,7 @@ function updateEnemies() {
   const p = player;
   for (const e of enemies) {
     e.t++; if (e.flash > 0) e.flash--;
-    const near = Math.abs(e.x - p.x) < W;
+    const near = onScreen(e.x);                     // стреляют только те, кого видно: из-за края кадра - нечестно
     switch (e.type) {
       case 'soldier':
       case 'crawler':
@@ -497,7 +500,7 @@ function updateEnemies() {
       if (killed && G.mode === 'mission' && rnd() < 0.12) dropPickup(e.x, e.y - e.h);
       return false;
     }
-    return e.x > G.cam - 60 && e.x < G.cam + W + 220;
+    return e.x > G.cam - EDGE && e.x < G.cam + W + 220;   // ушёл за левый край - исчез (там его и пуля не достанет)
   });
 }
 function dropPickup(x, y) { pickups.push({ x, y, vy: -2, kind: pick(['spread', 'rapid', 'laser', 'shield', 'spread', 'rapid']), t: 0 }); }
@@ -586,7 +589,7 @@ function updateBullets() {
   const p = player;
   for (const b of bullets) {
     b.x += b.vx; b.y += b.vy; b.life--;
-    if (b.x < G.cam - 10 || b.x > G.cam + W + 10 || b.y < 0 || b.y > H) b.life = 0;
+    if (b.x < G.cam - EDGE || b.x > G.cam + W + EDGE || b.y < 0 || b.y > H) b.life = 0;
     for (const e of enemies) {
       if (b.life <= 0 || (b.hitSet && b.hitSet.has(e))) continue;
       if (b.x > e.x - e.w / 2 && b.x < e.x + e.w / 2 && b.y >= e.y - e.h - 1 && b.y <= e.y) {     // включительно: пуля лёжа идёт ровно по верху мины

@@ -413,3 +413,37 @@ test.describe('jungle-strike: тряска', () => {
     expect(bad).toBe(0);
   });
 });
+
+test.describe('jungle-strike: по второму ревью', () => {
+  test('трудная сложность проходится честно: 5 миссий без неуязвимости, не больше одной потерянной жизни на миссию', async ({ page }) => {
+    test.setTimeout(300_000);
+    await openGame(page, 'jungle-strike', 'seed=4&fast');
+    await page.evaluate(() => { localStorage.clear(); __game.kit.set('difficulty', 'hard'); });
+    for (let m = 0; m < 5; m++) {
+      await page.evaluate((i) => { __game.kit.closeAll(); __game.startMission(i, false); }, m);
+      const r = await page.evaluate(`(${RUN})(60000)`);
+      expect(r.phase, 'миссия ' + (m + 1)).toBe('done');
+      expect(r.deaths, 'миссия ' + (m + 1)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('враги и пули живут в одних границах кадра; из-за края кадра враг не стреляет', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] [data-id=campaign]');
+    const r = await page.evaluate(() => {
+      const g = __game; g.enemies.length = 0; g.player.invuln = 1e9; g.player.x = g.G.cam + 100;     // камера стоит на месте
+      const left = g.spawnEnemy('crawler', g.G.cam - 30, g.GROUND); left.vx = 0;
+      g.step(1, false);
+      const leftAlive = g.enemies.includes(left);
+      g.enemies.length = 0; g.ebullets.length = 0;
+      const right = g.spawnEnemy('soldier', g.G.cam + g.W + 12, g.GROUND); right.vx = 0; right.cd = 1;   // чуть за правым краем
+      g.step(60, false);
+      const shotFromOff = g.ebullets.length;
+      g.enemies.length = 0; g.ebullets.length = 0;
+      const vis = g.spawnEnemy('soldier', g.G.cam + g.W - 60, g.GROUND); vis.vx = 0; vis.cd = 1;
+      for (let i = 0; i < 60 && !g.ebullets.length; i++) g.step(1, false);
+      return { leftAlive, shotFromOff, shotOnScreen: g.ebullets.length > 0 };
+    });
+    expect(r).toEqual({ leftAlive: false, shotFromOff: 0, shotOnScreen: true });
+  });
+});
