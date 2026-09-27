@@ -29,6 +29,7 @@ function VoxelCore() {
     'netherrack', 'soul_sand', 'nether_bricks', 'quartz_ore', 'portal', 'nether_wart_0', 'nether_wart_1', 'nether_wart_2', 'spawner',
     'dust_0', 'dust_1', 'dust_2', 'dust_3', 'redstone_torch_on', 'redstone_torch_off', 'repeater', 'lamp_off', 'lamp_on',
     'piston_top', 'piston_top_sticky', 'piston_side', 'piston_bottom', 'piston_inner', 'redstone_ore', 'redstone_block',
+    'sugar_cane', 'emerald_ore',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -287,6 +288,11 @@ function VoxelCore() {
   }
   def(REDSTONE_ORE, 'redstone_ore', 'Руда красного камня', { tex: 'redstone_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: WIRE, dropCount: 4, group: 'nature' });
   def(REDSTONE_BLOCK, 'redstone_block', 'Блок красного камня', { tex: 'redstone_block', hardness: 5, tool: 'pickaxe', level: 0, group: 'redstone', rsBlock: true });
+
+  // ---- тростник и изумрудная руда
+  const SUGAR_CANE = 1307, EMERALD_ORE = 1308, ITEM_EMERALD = 423;
+  def(SUGAR_CANE, 'sugar_cane', 'Сахарный тростник', { render: 'cross', tex: 'sugar_cane', solid: false, hardness: 0, sound: 'grass', group: 'nature', cane: true });
+  def(EMERALD_ORE, 'emerald_ore', 'Изумрудная руда', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: ITEM_EMERALD, group: 'nature' });
 
   // плиты и ступени по номеру материала (8 - незер-кирпич, у него свой диапазон id)
   const slabBase = (m) => (m < 8 ? SLAB + m * 3 : NB_SLAB);
@@ -810,6 +816,22 @@ function VoxelCore() {
         }
       }
     }
+    // тростник: на песке, траве и земле у самой воды (берег на уровне моря)
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const col = colAt(x, z), h = col.h;
+      if (col.legacy || h < SEA || h > SEA + 1) continue;
+      const top = get(x, h, z);
+      if ((top !== B.sand && top !== B.grass && top !== B.dirt) || get(x, h + 1, z) !== 0) continue;
+      let wet = false;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (colAt(x + dx, z + dz).h < SEA) wet = true;
+      const wx = X0 + x, wz = Z0 + z;
+      if (wet && hash3(wx, 5, wz, seed + 777) < 0.2) { const n = 1 + ((hash3(wx, 6, wz, seed) * 3) | 0); for (let k = 1; k <= n; k++) data[cidx(x, h + k, z)] = SUGAR_CANE; }
+    }
+    // изумруды: по одному в камне гор
+    for (let v = 0; v < 6; v++) {
+      const x = (orng() * CS) | 0, z = (orng() * CS) | 0, y = 4 + ((orng() * 28) | 0);
+      if (colAt(x, z).biome === MOUNTAINS && data[cidx(x, y, z)] === B.stone) data[cidx(x, y, z)] = EMERALD_ORE;
+    }
     // растения на поверхности
     for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
       const col = colAt(x, z), h = col.h;
@@ -827,6 +849,7 @@ function VoxelCore() {
         else if (r < pg + 0.026) data[cidx(x, h + 1, z)] = B.blue_flower;
         else if (bi === PLAINS && r > 0.9993) data[cidx(x, h + 1, z)] = B.pumpkin;
       } else if (topId === B.sand && col.biome === DESERT && r < 0.012) data[cidx(x, h + 1, z)] = B.dead_bush;
+
     }
     // деревья: свои и соседские, чья крона доходит до куска
     for (let dz = -M; dz < CS + M; dz++) for (let dx = -M; dx < CS + M; dx++) {
@@ -1279,7 +1302,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, SUGAR_CANE, EMERALD_ORE, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

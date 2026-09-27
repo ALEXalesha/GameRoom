@@ -506,6 +506,10 @@
     piston_inner(t, r) { cells(t, r, 9, ['#7c7c7c', '#6a6a6a', '#898989'], '#3f3f3f'); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) t.px(x, y, '#9a9a9a'); },
     redstone_ore(t, r) { ore(t, r, ['#ff2a1a', '#c01818', '#ff6a5a'], '#7a0c0c'); },
     redstone_block(t, r) { t.noise(['#c01818', '#b01414', '#d02020', '#a81010'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#8a0c0c'); t.px(0, k, '#8a0c0c'); t.px(k, 15, '#700808'); t.px(15, k, '#700808'); } for (let k = 3; k < 13; k += 3) { t.px(k, k, '#ff5a4a'); t.px(15 - k, k, '#ff5a4a'); } },
+    sugar_cane(t) {
+      plant(t, () => { for (const x of [3, 8, 12]) for (let y = 0; y < 16; y++) { t.px(x, y, y % 5 === 0 ? '#6a9a3a' : '#9ad060'); t.px(x + 1, y, y % 5 === 0 ? '#5a8a2a' : '#7ab848'); } for (const [x, y] of [[5, 4], [6, 3], [10, 9], [11, 8], [1, 12], [2, 11]]) t.px(x, y, '#8ac050'); });
+    },
+    emerald_ore(t, r) { ore(t, r, ['#3ae070', '#17a84a', '#8affb0'], '#0a6a2a'); },
     water_flow(t, r) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const w = Math.sin((x * 0.5 + y) * 0.9) + Math.sin(x * 0.3 - y * 0.2);
@@ -730,6 +734,31 @@
       t.px(12, 4, c[1]);
     },
     gunpowder(t, r) { for (let k = 0; k < 40; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#5a5a5a', '#3a3a3a', '#7a7a7a', '#2a2a2a'][(r() * 4) | 0]); } },
+    sugar(t, r) { for (let k = 0; k < 44; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#ffffff', '#e8e8f0', '#d8d8e0'][(r() * 3) | 0]); } },
+    paper(t) { ITEM_DRAW.tpl(t, ['', '', '...#########...', '...#wwwwwww#...', '...#wlllllw#...', '...#wwwwwww#...', '...#wlllllw#...', '...#wwwwwww#...', '...#wllllww#...', '...#wwwwwww#...', '...#########...'], { w: '#f4f4ec', l: '#c8c8c0', '#': '#9a9a90' }, 1, 1); },
+    book(t) { ITEM_DRAW.tpl(t, ['', '', '...##########..', '..#bbbbbbbbbw#.', '..#bggbbbbbbw#.', '..#bbbbbbbbbw#.', '..#bbbbbbbbbw#.', '..#bbbbbbbbbw#.', '..#bbbbbbbbbw#.', '..#bbbbbbbbbw#.', '...##########..'], { b: '#8a4a1a', g: '#e0c050', w: '#f0f0e8', '#': '#4a2a0a' }, 1, 1); },
+    compass(t, r, v) {
+      ITEM_DRAW.tpl(t, ['', '', '.....######.....', '...##ffffff##...', '..#ffffffffff#..', '..#ffffffffff#..', '.#ffffffffffff#.', '.#ffffffffffff#.', '.#ffffffffffff#.', '.#ffffffffffff#.', '..#ffffffffff#..', '..#ffffffffff#..', '...##ffffff##...', '.....######.....'], { f: '#c8c8c8', '#': '#6a6a6a' });
+      const a = (+v || 0) / 16 * Math.PI * 2;
+      for (let k = -4; k <= 4; k++) { const x = Math.round(7.5 + Math.sin(a) * k * 0.9), y = Math.round(7.5 - Math.cos(a) * k * 0.9); t.px(x, y, k > 0 ? '#e02020' : '#404040'); }
+    },
+    clock(t, r, v) {
+      const ph = (+v || 0) / 16;
+      for (let y = 2; y < 14; y++) for (let x = 2; x < 14; x++) {
+        const d = Math.hypot(x - 7.5, y - 7.5);
+        if (d > 6) continue;
+        if (d > 5.1) { t.px(x, y, '#b08a13'); continue; }
+        const a = Math.atan2(x - 7.5, -(y - 7.5)) / (Math.PI * 2) + 0.5;      // 0..1 по кругу
+        const day = ((a + ph) % 1) < 0.5;
+        t.px(x, y, day ? '#6ab8f0' : '#1a2450');
+      }
+      t.px(7, 3, '#f8e040'); t.px(8, 3, '#f8e040'); t.px(7, 4, '#f8e040'); t.px(8, 4, '#f8e040');
+    },
+    map(t, r, filled) {
+      ITEM_DRAW.tpl(t, ['', '..############..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..#pppppppppp#..', '..############..'], { p: '#e8dcb0', '#': '#9a8a5a' });
+      if (+filled) for (let k = 0; k < 30; k++) t.px(3 + ((r() * 10) | 0), 2 + ((r() * 10) | 0), ['#6a9a3a', '#3a6ab0', '#b8a868'][(r() * 3) | 0]);
+    },
+    emerald(t) { ITEM_DRAW.tpl(t, ['', '', '......###......', '.....#ggg#.....', '....#gwggg#....', '...#gwgggGg#...', '...#ggggggg#...', '...#gggggGg#...', '....#gggGg#....', '.....#gGg#.....', '......###......'], { g: '#3ae070', w: '#c8ffd8', G: '#17a84a', '#': '#0a6a2a' }, 1, 1); },
     slimeball(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....####......', '....#gggg#.....', '...#gGggggg#...', '...#gggggGg#...', '...#ggGgggg#...', '....#gggggg#...', '.....######....'], { g: '#6ab84a', G: '#b8f09a', '#': '#3a7a2a' }); },
     flint_and_steel(t) {
       ITEM_DRAW.tpl(t, ['', '', '..####..........', '.#iiii#.........', '.#i##i#.........', '.#i#.#i#........', '..#..#ii#.......', '......#ii#......', '.......###......', '.........##.....', '........#ff#....', '.......#ffff#...', '.......#fbff#...', '........#ff#....', '.........##.....'], { i: '#b8b8b8', '#': '#3a3a3a', f: '#4a4a4a', b: '#7a7a7a' });
@@ -900,5 +929,15 @@
     rows.forEach((r, y) => { for (let x = 0; x < 13; x++) if (pal[r[x]]) { g.fillStyle = pal[r[x]]; g.fillRect(x, y, 1, 1); } });
     return c.toDataURL();
   }
-  VX.tex = { flameIcon, buildBlockAtlas, buildItemAtlas, isoIcon, isoShapeIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
+  // отдельная картинка предмета (компас и часы рисуются заново по положению стрелки)
+  function itemTile(draw, seed) {
+    const t = new Tile();
+    for (let k = 0; k < 256; k++) t.d[k * 4 + 3] = 0;
+    const d = draw.split(':');
+    ITEM_DRAW[d[0]](t, rng(seed || 5), d[1]);
+    const c = document.createElement('canvas'); c.width = c.height = 16;
+    c.getContext('2d').putImageData(new ImageData(t.d, 16, 16), 0, 0);
+    return c;
+  }
+  VX.tex = { itemTile, flameIcon, buildBlockAtlas, buildItemAtlas, isoIcon, isoShapeIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
 })();

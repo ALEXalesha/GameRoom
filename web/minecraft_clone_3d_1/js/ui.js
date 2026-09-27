@@ -644,7 +644,7 @@
   }
   function renderHud(dt) {
     const inv = G.inv, p = G.player;
-    const sig = inv.selected + '|' + inv.slots.slice(0, 9).map((s) => (s ? s.id + ':' + s.count + ':' + (s.dmg || 0) : '-')).join(',');
+    const sig = inv.selected + '|' + inv.slots.slice(0, 9).map((s) => (s ? s.id + ':' + s.count + ':' + (s.dmg || 0) : '-')).join(',') + (VX.items ? VX.items.sig() : '');
     if (sig !== hotSig) {
       hotSig = sig;
       const cells = $('#hotbar', hud).children;

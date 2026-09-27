@@ -109,6 +109,14 @@
   item(409, 'gold_nugget', 'Золотой самородок');
   item(410, 'nether_brick', 'Незер-кирпич');
   item(414, 'slimeball', 'Слизь');
+  item(416, 'sugar', 'Сахар');
+  item(417, 'paper', 'Бумага');
+  item(418, 'book', 'Книга');
+  item(419, 'compass', 'Компас', { stack: 1, draw: 'compass:0', dynamic: 'compass' });
+  item(420, 'clock', 'Часы', { stack: 1, draw: 'clock:0', dynamic: 'clock' });
+  item(421, 'empty_map', 'Пустая карта', { draw: 'map:0' });
+  item(422, 'filled_map', 'Карта', { stack: 1, draw: 'map:1', group: 'tools' });
+  item(423, 'emerald', 'Изумруд');
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
   [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
   // цвет шерсти по красителю
@@ -184,7 +192,7 @@
     { out: ['torch', 4], shape: ['K', 'S'], keys: { K: '#coals', S: 'stick' } },
     { out: ['sandstone', 1], shape: ['SS', 'SS'], keys: { S: 'sand' } },
     { out: ['stone_bricks', 4], shape: ['SS', 'SS'], keys: { S: 'stone' } },
-    { out: ['bookshelf', 1], shape: ['PPP', 'SSS', 'PPP'], keys: { P: '#planks', S: 'stick' } },
+    { out: ['bookshelf', 1], shape: ['PPP', 'BBB', 'PPP'], keys: { P: '#planks', B: 'book' } },
     { out: ['red_dye', 1], shapeless: ['poppy'] },
     { out: ['yellow_dye', 1], shapeless: ['dandelion'] },
     { out: ['blue_dye', 1], shapeless: ['blue_flower'] },
@@ -232,6 +240,12 @@
   RECIPES.push({ out: [C.PISTON + 1, 1], shapeless: [C.PISTON, 'slimeball'] });
   RECIPES.push({ out: [C.REDSTONE_BLOCK, 1], shape: ['RRR', 'RRR', 'RRR'], keys: { R: C.WIRE } });
   RECIPES.push({ out: [C.WIRE, 9], shapeless: [C.REDSTONE_BLOCK] });
+  RECIPES.push({ out: ['paper', 3], shape: ['CCC'], keys: { C: C.SUGAR_CANE } });
+  RECIPES.push({ out: ['sugar', 1], shapeless: [C.SUGAR_CANE] });
+  RECIPES.push({ out: ['book', 1], shapeless: ['paper', 'paper', 'paper', 'leather'] });
+  RECIPES.push({ out: ['compass', 1], shape: [' I ', 'IRI', ' I '], keys: { I: 'iron_ingot', R: C.WIRE } });
+  RECIPES.push({ out: ['clock', 1], shape: [' G ', 'GRG', ' G '], keys: { G: 'gold_ingot', R: C.WIRE } });
+  RECIPES.push({ out: ['empty_map', 1], shape: ['PPP', 'PCP', 'PPP'], keys: { P: 'paper', C: 'compass' } });
   RECIPES.push({ out: ['flint_and_steel', 1], shapeless: ['iron_ingot', 'flint'] });
   RECIPES.push({ out: ['blaze_powder', 2], shapeless: ['blaze_rod'] });
   RECIPES.push({ out: [C.NETHER_BRICKS, 1], shape: ['NN', 'NN'], keys: { N: 'nether_brick' } });
@@ -331,7 +345,7 @@
     { key: 'search', name: 'Поиск', icon: null },
     { key: 'inv', name: 'Инвентарь', icon: B.crafting_table },
   ];
-  const MATERIAL_KEYS = ['stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
+  const MATERIAL_KEYS = ['sugar', 'paper', 'book', 'compass', 'clock', 'empty_map', 'emerald', 'stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
   const groupOf = (it) => (it.group || (it.tool || it.armor || MATERIAL_KEYS.includes(it.key) ? 'tools' : 'food'));
   // во «Строительство» - ещё и то, из чего строят чаще всего (как во вкладке оригинала)
   const BUILD_EXTRA = ['stone', 'oak_log', 'birch_log', 'spruce_log', 'wool_white', 'wool_red', 'glowstone', 'clay', 'snow', 'sand', 'gravel', 'pumpkin'];
@@ -402,6 +416,7 @@
     { id: 'blaze_rod', tab: 'nether', parent: 'fortress', name: 'В огонь', desc: 'Добыть огненный стержень', on: 'pickup', items: ['blaze_rod'], icon: I.blaze_rod },
     { id: 'return_sender', tab: 'nether', parent: 'nether', name: 'Возврат отправителю', desc: 'Сразить гаста его же огненным шаром', on: 'kill', mob: 'ghast', cause: 'fireball', icon: I.ghast_tear },
     { id: 'wart', tab: 'nether', parent: 'fortress', name: 'Адский урожай', desc: 'Собрать адский нарост', on: 'pickup', items: ['nether_wart'], icon: I.nether_wart },
+    { id: 'map', parent: 'root', name: 'Картограф', desc: 'Нарисовать карту местности', on: 'map', icon: I.filled_map },
     { id: 'redstone', parent: 'iron_pick', name: 'Красная пыль', desc: 'Добыть красную пыль из руды', on: 'pickup', items: [C.WIRE], icon: C.WIRE },
     { id: 'piston', parent: 'redstone', name: 'Толкай!', desc: 'Сделать поршень', on: 'craft', items: [C.PISTON, C.PISTON + 1], icon: C.PISTON },
     { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart, final: true },

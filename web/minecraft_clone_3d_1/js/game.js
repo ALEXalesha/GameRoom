@@ -56,9 +56,17 @@
   // значки предметов для интерфейса (изометрические кубики и плоские)
   const iconCache = new Map();
   G.icon = function (id) {
+    const inf = D.info(id);
+    // компас и часы: картинка своя для каждого положения стрелки
+    if (inf && inf.dynamic && VX.items) {
+      const v = VX.items.variant(id), key = id + '|' + v;
+      let u = iconCache.get(key);
+      if (!u) { u = VX.tex.flatIcon(VX.tex.itemTile(inf.dynamic + ':' + v), 0, 0).toDataURL(); iconCache.set(key, u); }
+      return u;
+    }
     let url = iconCache.get(id);
     if (url) return url;
-    if (!D.info(id)) id = B.stone;
+    if (!inf) id = B.stone;
     let c;
     if (C.isBlock(id)) {
       const b = C.BLOCKS[id];
@@ -278,6 +286,7 @@
     G.sleeping = null; G.bowT = 0; G.afterLoad = null; G.portalT = 0;
     if (VX.fluids) VX.fluids.reset(slot);
     if (VX.redstone) VX.redstone.reset();
+    if (VX.items) VX.items.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -305,6 +314,7 @@
     G.meta.inv = inv.toJSON();
     G.meta.lastPlayed = Date.now();
     G.meta.dim = G.dim;
+    if (VX.items) VX.items.saveMaps();
     const slot = dimSlot(G.meta, G.dim);
     if (VX.entities) VX.entities.save(slot);
     if (VX.fluids) VX.fluids.save(slot);
@@ -569,6 +579,7 @@
     if (up >= C.NETHER_WART && up <= C.NETHER_WART + 3 && here !== C.SOUL_SAND) popBlock(x, y + 1, z);
     if (VX.nether) VX.nether.after(x, y, z);
     if (VX.redstone) VX.redstone.after(x, y, z);
+    if (VX.items) VX.items.after(x, y, z);
     const walls = [[0, 0, -1, 2], [1, 0, 0, 3], [0, 0, 1, 0], [-1, 0, 0, 1]];
     for (const [dx, , dz, r] of walls) {
       const id = world.getBlock(x + dx, y, z + dz);
@@ -708,6 +719,7 @@
       const [x, y, z] = k.split(',').map(Number);
       const id = world.getBlock(x, y, z);
       if (id < 0) continue;
+      if (id === C.SUGAR_CANE) { if (Math.random() < 1 / 20 && VX.items) VX.items.growCane(x, y, z); continue; }
       if (id >= C.NETHER_WART && id <= C.NETHER_WART + 3) { if (id < C.NETHER_WART + 3 && Math.random() < 1 / 20) world.setBlock(x, y, z, id + 1); continue; }
       if (id < 64 || id > 71) { delete G.crops[k]; continue; }
       if (id < 71 && Math.random() < 1 / 15) world.setBlock(x, y, z, id + 1);
@@ -729,6 +741,7 @@
     if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
     if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
     if (hi && hi.key === 'shield') return 'shield';
+    if (hi && VX.items) { const iu = VX.items.use(held); if (iu !== undefined) return iu; }
     if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
     const t = G.target();
     if (!t) return null;
@@ -791,6 +804,8 @@
     if (built !== undefined) return built;
     const rsb = VX.redstone && VX.redstone.place(t, held);
     if (rsb !== undefined) return rsb;
+    const ib = VX.items && VX.items.place(t, held);
+    if (ib !== undefined) return ib;
     let { x, y, z } = t.place;
     if (tb.replaceable) { x = t.x; y = t.y; z = t.z; }
     if (y < 0 || y >= C.CH) return null;
@@ -1152,6 +1167,7 @@
     if (VX.fluids) VX.fluids.tick(dt);
     if (VX.nether && G.state === 'play') VX.nether.tick(dt);
     if (VX.redstone) VX.redstone.tick(dt);
+    if (VX.items) VX.items.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
