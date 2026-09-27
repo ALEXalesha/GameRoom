@@ -90,44 +90,152 @@ test.describe('horizon_drift_offline: открытый мир', () => {
       expect(r.buried).toBe(0);
     });
 
-    test(`${map}: 10 минут езды - число геометрий и текстур не растёт`, async ({ page }) => {
+    test(`${map}: 10 минут езды с трафиком - геометрии кусков и остальные счётчики не растут`, async ({ page }) => {
       await page.setViewportSize({ width: 480, height: 300 });
       await openDrift(page);
       await startWorld(page, map);
       const r = await page.evaluate(async () => {
         const w = __drift.world, W = __drift.worldRender, info = __drift.renderer.info;
         const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
-        const carGeo = () => { let n = 0; for (const cm of W.carMeshes.values()) { const set = new Set(); cm.root.traverse((o) => { if (o.geometry) set.add(o.geometry); }); n += set.size; } return n; };
-        // одно и то же место (фестиваль), кусков догружено полностью; машины в счёт не входят
-        const atFest = async () => { w.placeAtPoint('fest'); __drift.stepWorld(2); for (let k = 0; k < 60 && (W.info().pending > 0 || k < 2); k++) { W.stream(true); await frame(); } return { geo: info.memory.geometries, tex: info.memory.textures, chunks: W.info().chunks, cars: w.cars.length }; };
+        // одно и то же место, куски догружены полностью; геометрии машин считаются отдельно и вычитаются точно
+        // какие геометрии попали в видеокарту и какие освобождены: утечка - загруженная, не освобождённая и нигде не используемая
+        const up = new Set(), oAdd = THREE.BufferGeometry.prototype.addEventListener, oDisp = THREE.BufferGeometry.prototype.dispose;
+        THREE.BufferGeometry.prototype.addEventListener = function (t, f) { if (t === 'dispose') up.add(this); return oAdd.call(this, t, f); };
+        THREE.BufferGeometry.prototype.dispose = function () { up.delete(this); return oDisp.call(this); };
+        const upT = new Set(), tAdd = THREE.Texture.prototype.addEventListener, tDisp = THREE.Texture.prototype.dispose;
+        THREE.Texture.prototype.addEventListener = function (t, f) { if (t === 'dispose') upT.add(this); return tAdd.call(this, t, f); };
+        THREE.Texture.prototype.dispose = function () { upT.delete(this); return tDisp.call(this); };
+        const leaked = () => { const live = new Set(); W.scene.traverse((o) => { if (o.geometry) live.add(o.geometry); }); for (const g of Object.values(W.geo)) live.add(g); return [...up].filter((g) => !live.has(g)).length; };
+        const leakedTex = () => {
+          const live = new Set(W.owned);
+          W.scene.traverse((o) => { for (const m of [].concat(o.material || [])) { for (const k in m) if (m[k] && m[k].isTexture) live.add(m[k]); if (m.uniforms) for (const u of Object.values(m.uniforms)) if (u.value && u.value.isTexture) live.add(u.value); } });
+          if (W.sun.shadow.map) live.add(W.sun.shadow.map.texture);
+          return [...upT].filter((t) => !live.has(t)).length;
+        };
+        // замер без машин ИИ (их меши уходят вместе с ними), с одной и той же позиции, после отрисовки
+        const atFest = async () => {
+          for (const a of w.traffic.slice()) w.removeAi(a); for (const a of w.rivals.slice()) w.removeAi(a);
+          w.placeAtPoint('fest'); __drift.stepWorld(2); W.cam.init = false;
+          for (let k = 0; k < 400 && (W.info().pending > 0 || k < 3); k++) { W.stream(true); await frame(); }
+          for (let k = 0; k < 3; k++) await frame();
+          return { leaked: leaked(), leakedTex: leakedTex(), chunkGeo: W.chunkGeometryCount(), tex: info.memory.textures - 2 * W.carMeshes.size, chunks: W.info().chunks, pending: W.info().pending };
+        };
         w.save.autoTime = true;
-        // куски мира меряем без попутчиков (их меши создаются и удаляются отдельно - ниже проверка числа мешей машин)
-        w.trafficOn = false; for (const a of w.traffic.slice()) w.removeAi(a); for (const a of w.rivals.slice()) w.removeAi(a);
-        let maxChunks = 0, maxCars = 0, before = null;
+        const before = await atFest();
+        let maxChunks = 0, maxCars = 0, maxTraffic = 0;
+        w.setAutopilot(36);
         for (let min = 0; min < 10; min++) {
-          w.setAutopilot(36);
-          for (let k = 0; k < 60; k++) { __drift.stepWorld(120); W.stream(false, 3); if (k % 10 === 0) await frame(); maxChunks = Math.max(maxChunks, W.info().chunks); maxCars = Math.max(maxCars, W.carMeshes.size); }
-          // первая минута - прогрев (видеокарта впервые видит часть общих буферов), дальше счётчики стоят
-          if (min === 0) { w.setAutopilot(0); before = await atFest(); }
+          for (let k = 0; k < 60; k++) { __drift.stepWorld(120); W.stream(false, 3); if (k % 10 === 0) await frame(); maxChunks = Math.max(maxChunks, W.info().chunks); maxCars = Math.max(maxCars, W.carMeshes.size); maxTraffic = Math.max(maxTraffic, w.traffic.length); }
         }
         w.setAutopilot(0);
         const after = await atFest();
-        // попутчики: 30 раз появился и исчез - счётчики возвращаются
-        const g0 = info.memory.geometries, t0 = info.memory.textures;
-        const e = w.M.edges.find((x) => x.type === 'highway') || w.M.edges[0];
-        const p = w.player, near = w.M.nearestRoad(p.x, p.z);
-        for (let k = 0; k < 30; k++) { const a = w.spawnAi(near.edge, near.i, 1, ['iskra', 'kobalt', 'buran'][k % 3], 'x', 20, false); a.car.look = { color: '#2f7dd8', color2: '#ffffff', rims: 'solid', rimColor: '#c9ced6', livery: 'stripes' }; w.traffic.push(a); await frame(); w.removeAi(a); await frame(); }
-        return { before, after, maxChunks, maxCars, t: w.t, churn: { before: g0 + t0, after: info.memory.geometries + info.memory.textures }, e: e.id };
+        THREE.BufferGeometry.prototype.addEventListener = oAdd; THREE.BufferGeometry.prototype.dispose = oDisp; THREE.Texture.prototype.addEventListener = tAdd; THREE.Texture.prototype.dispose = tDisp;
+        return { before, after, maxChunks, maxCars, maxTraffic, t: w.t };
       });
       expect(r.t).toBeGreaterThan(600);
+      expect(r.maxTraffic).toBeGreaterThan(0);                  // трафик включён
+      expect(r.before.pending).toBe(0);
+      expect(r.after.pending).toBe(0);
       expect(r.after.chunks).toBe(r.before.chunks);
-      expect(r.after.geo).toBeLessThanOrEqual(r.before.geo + 4);            // утечка куска дала бы сотни геометрий за 9 минут
-      expect(r.after.tex).toBeLessThanOrEqual(r.before.tex);
+      expect(r.after.chunkGeo).toBe(r.before.chunkGeo);          // те же куски - ровно те же геометрии
+      expect(r.before.leaked).toBe(0);
+      expect(r.after.leaked).toBe(0);                            // в видеокарте нет ни одной брошенной геометрии
+      expect(r.after.leakedTex).toBe(0);                         // и ни одной брошенной текстуры
+      expect(r.after.tex).toBeLessThanOrEqual(r.before.tex + 3);  // (точные счётчики видеокарты зависят от того, что попало в кадр)
       expect(r.maxChunks).toBeLessThanOrEqual(81);
       expect(r.maxCars).toBeLessThanOrEqual(10);
-      expect(r.churn.after).toBeLessThanOrEqual(r.churn.before);
+    });
+
+    test(`${map}: настоящие маршруты - под мостом, поперёк горы над тоннелем, сквозь тоннель; сетка рельефа совпадает с физикой по всем дорогам`, async ({ page }) => {
+      await page.setViewportSize({ width: 480, height: 300 });
+      await openDrift(page);
+      await startWorld(page, map);
+      const r = await page.evaluate(() => {
+        const w = __drift.world, M = w.M, p = w.player, W = __drift.worldRender;
+        for (const a of w.rivals.slice()) w.removeAi(a); w.trafficOn = false; for (const a of w.traffic.slice()) w.removeAi(a);
+        const drive = (x, z, h, v, n, inp) => {
+          p.x = x; p.z = z; p.h = h; p.y = M.groundAt(x, z, {}, 1e4).y; p.vx = Math.sin(h) * v; p.vz = Math.cos(h) * v; p.w = 0; p.air = false; p.vy = 0;
+          const tr = [];
+          for (let k = 0; k < n; k++) { const y0 = p.y; w.step(1 / 120, inp || { thr: 0.5 }); w.events.length = 0; tr.push({ y: p.y, dy: p.y - y0, x: p.x, z: p.z }); }
+          return tr;
+        };
+        const out = {};
+        // под мостом поперёк: полотно моста не подбрасывает машину
+        let bi = -1; for (let i = 0; i < M.N; i++) if ((M.FL[i] & 1) && M.RAW[i] > 2 && M.Y[i] - M.RAW[i] > 6) { bi = i; break; }
+        if (bi >= 0) {
+          const nx = -M.TZ[bi], nz = M.TX[bi];
+          const tr = drive(M.X[bi] + nx * 40, M.Z[bi] + nz * 40, Math.atan2(-nx, -nz), 15, 600);
+          out.bridge = { deck: M.Y[bi], maxY: Math.max(...tr.map((t) => t.y)), maxDy: Math.max(...tr.map((t) => Math.abs(t.dy))) };
+        }
+        // тоннель: поперёк по горе - не проваливается внутрь; вдоль по дороге - едет по полотну внутри
+        const e = M.edges.find((x) => x.tunnelRange);
+        if (e) {
+          const ti = (e.tunnelRange[0] + e.tunnelRange[1]) >> 1, nx = -M.TZ[ti], nz = M.TX[ti];
+          const tr = drive(M.X[ti] + nx * 45, M.Z[ti] + nz * 45, Math.atan2(-nx, -nz), 12, 900, { thr: 0.4 });
+          out.over = { road: M.Y[ti], minY: Math.min(...tr.map((t) => t.y)) };
+          let it = e.i0; while (it < e.i1 && !(M.FL[it] & 2)) it++;            // первая точка под горой
+          const i0 = Math.max(e.i0, it - 60);
+          w.placeAt(M.X[i0], M.Z[i0], Math.atan2(M.TX[i0], M.TZ[i0])); w.setAutopilot(20);
+          const tr2 = drive(p.x, p.z, p.h, 15, 2400, {});
+          w.setAutopilot(0);
+          let worst = 0; for (const t of tr2) { const q = M.nearestRoad(t.x, t.z); if (q && q.tunnel && q.d < q.hw) worst = Math.max(worst, Math.abs(t.y - q.y)); }
+          out.through = { worst, reached: tr2.some((t) => { const q = M.nearestRoad(t.x, t.z); return q && q.tunnel; }) };
+        }
+        // сетка рельефа против физики: по всем дорогам через каждые 20 м куски строятся с полной детальностью
+        const byChunk = new Map();
+        for (const ed of M.edges) for (let i = ed.i0 + 5; i < ed.i1 - 5; i += 10) {
+          const [cx, cz] = M.chunkOf(M.X[i], M.Z[i]), k = cx + ',' + cz;
+          if (!byChunk.has(k)) byChunk.set(k, { cx, cz, list: [] });
+          byChunk.get(k).list.push(i);
+        }
+        let buried = 0, onRoad = 0, worstOff = 0, where = null;
+        const diffs = [];
+        for (const { cx, cz, list } of byChunk.values()) {
+          const ch = W._build(cx, cz, 0);
+          for (const i of list) {
+            if (M.FL[i] & 3) continue;
+            const mh = W.meshHeight(M.X[i], M.Z[i], [ch]);
+            if (mh !== null) { onRoad++; if (mh > M.Y[i] + 0.05) buried++; }
+            const hw = M.edges[M.E[i]].hw, ox = M.X[i] + (-M.TZ[i]) * (hw + 14), oz = M.Z[i] + M.TX[i] * (hw + 14);
+            if (Math.floor(ox / 256) !== cx || Math.floor(oz / 256) !== cz) continue;
+            const q = M.nearestRoad(ox, oz); if (q && q.d < q.hw + 12) continue;
+            const m2 = W.meshHeight(ox, oz, [ch]); if (m2 === null) continue;
+            const dd = Math.abs(m2 - M.groundAt(ox, oz).y); diffs.push(dd); if (dd > worstOff) { worstOff = dd; where = [Math.round(ox), Math.round(oz)]; }
+          }
+          W._dispose(ch);
+        }
+        diffs.sort((a, b) => a - b);
+        out.mesh = { chunks: byChunk.size, onRoad, buried, p95: diffs[Math.floor(diffs.length * 0.95)], worstOff, where, n: diffs.length };
+        return out;
+      });
+      if (r.bridge) { expect(r.bridge.maxY).toBeLessThan(r.bridge.deck - 2); expect(r.bridge.maxDy).toBeLessThan(0.5); }
+      if (r.over) { expect(r.over.minY).toBeGreaterThan(r.over.road + 5); expect(r.through.reached).toBe(true); expect(r.through.worst).toBeLessThan(0.05); }
+      expect(r.mesh.onRoad).toBeGreaterThan(1000);
+      expect(r.mesh.buried).toBe(0);
+      expect(r.mesh.p95).toBeLessThan(0.6);
+      expect(r.mesh.worstOff).toBeLessThan(4);
     });
   }
+
+  test('после прогрева езда по карте в разную погоду и время не собирает новых шейдеров; вход в мир быстрый', async ({ page }) => {
+    await page.setViewportSize({ width: 640, height: 400 });
+    await openDrift(page);
+    for (const map of ['metro', 'coast']) {
+      const r = await page.evaluate(async (map) => {
+        const t0 = performance.now(); await __drift.startWorld(map, { fest: true }); const load = performance.now() - t0;
+        __drift.manual = true;
+        const w = __drift.world, W = __drift.worldRender, ren = __drift.renderer;
+        const start = ren.info.programs.length;
+        w.setAutopilot(38); w.save.autoTime = true;
+        for (let f = 0; f < 1500; f++) { __drift.stepWorld(2); W.frame(1 / 60, 1, 'chase'); if (f === 500) w.save.weather = 'rain'; if (f === 1000) { w.save.weather = 'snow'; w.save.tod = 23; } }
+        const added = ren.info.programs.length - start;
+        w.setAutopilot(0); __drift.quitWorld();
+        return { load, added, start };
+      }, map);
+      expect(r.added, map).toBe(0);
+      expect(r.load, map).toBeLessThan(6000);
+    }
+  });
 
   test('событие карьеры из мира засчитывается и возвращает в мир', async ({ page }) => {
     await openDrift(page);
@@ -146,6 +254,9 @@ test.describe('horizon_drift_offline: открытый мир', () => {
     await page.locator('#resNext').click();
     await page.waitForFunction(() => __drift.screen === 'world');
     expect(await page.evaluate(() => [!!__drift.world, __drift.world.M.id, !!__drift.worldRender.world])).toEqual([true, 'coast', true]);
+    // вернулись туда же, откуда уехали на событие
+    const back = await page.evaluate(() => { const w = __drift.world, pt = w.M.pointById('ev-city'); return Math.hypot(w.player.x - pt.x, w.player.z - pt.z); });
+    expect(back).toBeLessThan(30);
   });
 
   test('щит засчитывается один раз: деньги один раз, после перезагрузки тоже', async ({ page }) => {
@@ -293,5 +404,184 @@ test.describe('horizon_drift_offline: открытый мир', () => {
       await expect(page.locator('#scrMap')).toBeHidden();
       await page.evaluate(() => __drift.quitWorld());
     }
+  });
+
+  test('дома - твёрдые коробки: машина не заезжает внутрь ни с какой стороны; в центрах городов плотная застройка', async ({ page }) => {
+    await openDrift(page);
+    const r = await page.evaluate(() => {
+      const WD = __drift.worldData, C = __drift.core;
+      const inside = (d, x, z) => { const c = Math.cos(d.rot), s = Math.sin(d.rot), dx = x - d.x, dz = z - d.z; const lx = dx * c - dz * s, lz = dx * s + dz * c; return Math.min(d.w / 2 - Math.abs(lx), d.d / 2 - Math.abs(lz)); };
+      const out = {};
+      for (const id of ['metro', 'coast']) {
+        const M = WD.buildMap(id);
+        const reg = M.R.find((rg) => rg.id === (id === 'metro' ? 'down' : 'city'));
+        let houses = [];
+        for (let cx = Math.floor((reg.x - 900) / 256); cx <= Math.floor((reg.x + 900) / 256); cx++) for (let cz = Math.floor((reg.z - 900) / 256); cz <= Math.floor((reg.z + 900) / 256); cz++) houses = houses.concat(M.chunkDecor(cx, cz).filter((d) => d.type === 'building' && Math.hypot(d.x - reg.x, d.z - reg.z) < 900));
+        const tall = houses.filter((d) => d.h > 50).length;
+        let deepest = -1e9;
+        for (const d of houses.slice(0, 6)) {
+          for (let a = 0; a < 16; a++) {
+            const w = new WD.World({ map: id, car: 'sapsan', seed: 1, traffic: false }); for (const rv of w.rivals.slice()) w.removeAi(rv);
+            const p = w.player, ang = a / 16 * 2 * Math.PI;
+            p.x = d.x + Math.sin(ang) * (Math.hypot(d.w, d.d) / 2 + 20); p.z = d.z + Math.cos(ang) * (Math.hypot(d.w, d.d) / 2 + 20); p.y = M.groundAt(p.x, p.z).y;
+            p.h = Math.atan2(d.x - p.x, d.z - p.z); p.vx = Math.sin(p.h) * 25; p.vz = Math.cos(p.h) * 25; p.air = false;
+            for (let k = 0; k < 200; k++) { w.step(C.DT, { thr: 1 }); w.events.length = 0; deepest = Math.max(deepest, inside(d, p.x, p.z)); }
+          }
+        }
+        out[id] = { houses: houses.length, tall, deepest };
+      }
+      return out;
+    });
+    expect(r.metro.houses).toBeGreaterThan(150);
+    expect(r.metro.tall).toBeGreaterThan(10);
+    expect(r.coast.houses).toBeGreaterThan(80);
+    expect(r.metro.deepest).toBeLessThan(-0.5);              // центр машины не ближе 0.5 м к стене изнутри
+    expect(r.coast.deepest).toBeLessThan(-0.5);
+  });
+
+  test('сохранение мира: чужие ключи погоды отбрасываются, мир с ними работает', async ({ page }) => {
+    await openDrift(page);
+    const r = await page.evaluate(() => {
+      const WD = __drift.worldData, C = __drift.core, out = {};
+      for (const bad of ['toString', '__proto__', 'constructor', 'hasOwnProperty', 7, null]) {
+        const s = WD.sanitizeSave('coast', { weather: bad, tod: 12, day: -3, duels: { x: 'y' } });
+        const w = new WD.World({ map: 'coast', car: 'iskra', save: s, seed: 1 });
+        let err = null; try { for (let k = 0; k < 240; k++) w.step(C.DT, { thr: 1 }); } catch (e) { err = String(e); }
+        out[String(bad)] = { weather: s.weather, err, day: s.day, duels: s.duels };
+      }
+      return out;
+    });
+    for (const k in r) { expect(r[k].weather, k).toBe('clear'); expect(r[k].err, k).toBeNull(); expect(r[k].day, k).toBe(0); expect(r[k].duels, k).toEqual({}); }
+  });
+
+  test('трафик и соперники держатся дороги, не застревают, сбрасываются вне взгляда игрока', async ({ page }) => {
+    await openDrift(page);
+    const r = await page.evaluate(() => {
+      const WD = __drift.worldData, C = __drift.core, out = {};
+      for (const def of WD.MAPS) {
+        const M = WD.buildMap(def.id), w = new WD.World({ map: def.id, car: 'iskra', seed: 5 });
+        const st = { aiOff: 0, aiT: 0, rOff: 0, rT: 0, stuck: 0 }, slow = new Map();
+        for (let k = 0; k < 120 * 60 * 3; k++) {
+          if (k % 7200 === 0) { const ks = Object.keys(M.nodes), n2 = M.nodes[ks[(k / 7200 | 0) % ks.length]]; w.placeAt(n2.x + 30, n2.z + 30); }
+          w.step(C.DT, {}); w.events.length = 0;
+          for (const c of w.cars) {
+            if (c === w.player) continue;
+            const q = M.nearestRoad(c.x, c.z), off = !q || q.d > q.hw + 0.3;
+            if (c.rival) { st.rT++; if (off) st.rOff++; } else { st.aiT++; if (off) st.aiOff++; }
+            let s = slow.get(c) || 0; s = c.speed < 1 ? s + C.DT : 0; slow.set(c, s); if (s > 10 && s - C.DT <= 10) st.stuck++;
+          }
+        }
+        // застрявший у стены соперник вне взгляда игрока возвращается на полосу
+        const a = w.rivals[0], c = a.car; w.player.x = c.x + 400; w.player.z = c.z + 400;
+        const e = M.edges[a.edge]; c.x += -M.TZ[a.i] * (e.hw + 30); c.z += M.TX[a.i] * (e.hw + 30); c.vx = c.vz = 0;
+        a.stuckTotal = 6; a.reverseT = 0.5;
+        w.step(C.DT, {}); const q = M.nearestRoad(c.x, c.z);
+        out[def.id] = { traffic: st.aiOff / Math.max(1, st.aiT), rivals: st.rOff / Math.max(1, st.rT), stuck: st.stuck, reset: !!q && q.d < q.hw };
+      }
+      return out;
+    });
+    for (const k in r) {
+      expect(r[k].traffic, k).toBeLessThan(0.07);
+      expect(r[k].rivals, k).toBeLessThan(0.07);
+      expect(r[k].stuck, k).toBe(0);
+      expect(r[k].reset, k).toBe(true);
+    }
+  });
+
+  test('ночью фары заметно освещают полотно перед машиной; фонари дают пятна света', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 500 });
+    await openDrift(page);
+    await startWorld(page, 'mountains');
+    const r = await page.evaluate(() => {
+      const w = __drift.world, M = w.M, W = __drift.worldRender, ren = __drift.renderer, gl = ren.getContext();
+      for (const a of w.rivals.slice()) w.removeAi(a); w.trafficOn = false; for (const a of w.traffic.slice()) w.removeAi(a);
+      // прямой участок шоссе
+      const e = M.edges.find((x) => x.type === 'highway'); let i = e.i0 + 200; for (let k = e.i0 + 100; k < e.i1 - 100; k += 10) if (M.K[k] < 0.002 && !M.FL[k]) { i = k; break; }
+      w.placeAt(M.X[i], M.Z[i], Math.atan2(M.TX[i], M.TZ[i])); w.save.autoTime = false; w.save.weather = 'clear';
+      for (let k = 0; k < 40; k++) W.stream(true);
+      const measure = (tod) => {
+        w.save.tod = tod; __drift.stepWorld(2); W.cam.init = false; for (let k = 0; k < 8; k++) W.frame(1 / 60, 1, 'chase');
+        const p = w.player, fx = Math.sin(p.h), fz = Math.cos(p.h), hw = M.edges[M.E[i]].hw;
+        const px = (x, z) => { const v = new THREE.Vector3(x, M.groundAt(x, z).y + 0.05, z).project(__drift.render.camera); const cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight; const X = Math.round((v.x + 1) / 2 * cw), Y = Math.round((v.y + 1) / 2 * ch); const b = new Uint8Array(4); gl.readPixels(X, Y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b); return (b[0] * 0.2126 + b[1] * 0.7152 + b[2] * 0.0722) / 255; };
+        W.frame(1 / 60, 1, 'chase');
+        const road = px(p.x + fx * 14, p.z + fz * 14), side = px(p.x + fx * 14 + (-fz) * (hw + 16), p.z + fz * 14 + fx * (hw + 16));
+        return { road, side };
+      };
+      const night = measure(23.5), day = measure(13);
+      return { night, day, poolOpacity: W.mat.pool.opacity };
+    });
+    expect(r.night.road).toBeGreaterThan(0.12);                 // полотно в свете фар хорошо видно
+    expect(r.night.road).toBeGreaterThan(r.night.side * 2);     // и заметно ярче обочины вне пятна
+  });
+
+  test('зона дрифта считается только по ходу зоны; призовые за дуэль с бродячим соперником раз в игровые сутки', async ({ page }) => {
+    await openDrift(page);
+    await page.evaluate(() => { const c = __drift.career; c.d.owned.push('vihr'); c.d.current = 'vihr'; c.save(c.d); });
+    await startWorld(page, 'coast');
+    const r = await page.evaluate(() => {
+      const w = __drift.world, M = w.M, p = w.player, zone = M.points.find((q) => q.type === 'drift');
+      const run = (dir) => {
+        const i = dir > 0 ? zone.i0 + 5 : zone.i1 - 5, h = Math.atan2(M.TX[i] * dir, M.TZ[i] * dir);
+        p.x = M.X[i]; p.z = M.Z[i]; p.h = h; p.y = M.Y[i]; p.vx = Math.sin(h) * 22; p.vz = Math.cos(h) * 22; p.air = false; p.w = 0;
+        p.assist.tc = false; p.assist.steer = false; w.zone = null; const ev = [];
+        for (let k = 0; k < 190; k++) { __drift.stepWorld(1, k < 40 ? { thr: 1, steer: 1, hb: 1 } : { thr: 1, steer: 0.4 }); }
+        w.placeAtPoint('fest'); __drift.stepWorld(2);
+        return w.save.rec.drift[zone.id] || 0;
+      };
+      const back = run(-1), fwd = run(1);
+      return { back, fwd };
+    });
+    expect(r.back).toBe(0);
+    expect(r.fwd).toBeGreaterThan(0);
+    // дуэль: победа в тот же игровой день второй раз денег не даёт
+    const money = [];
+    for (let k = 0; k < 2; k++) {
+      await page.evaluate(() => { const w = __drift.world, a = w.rivals[0]; a.cool = 0; w.player.x = a.car.x + 10; w.player.z = a.car.z + 10; __drift.stepWorld(2); __drift.manual = false; });
+      await page.waitForFunction(() => __drift.world.nearRival);
+      const m0 = await page.evaluate(() => __drift.career.money);
+      await page.keyboard.press('KeyE');
+      await page.waitForFunction(() => __drift.screen === 'race' && __drift.race);
+      await page.evaluate(() => { __drift.manual = true; const r = __drift.race; r.cars.find((c) => !c.isPlayer).ai.pace = 0.3; r.setAutopilot(r.player, 1); for (let i = 0; i < 400 * 120 && r.phase !== 'done'; i++) __drift.step(1); __drift.showResults(); });
+      money.push((await page.evaluate(() => __drift.career.money)) - m0);
+      await page.locator('#resNext').click();
+      await page.waitForFunction(() => __drift.screen === 'world');
+      await page.evaluate(() => { __drift.manual = true; });
+    }
+    expect(money[0]).toBe(1500);
+    expect(money[1]).toBe(0);
+    // на следующие игровые сутки - снова можно
+    expect(await page.evaluate(() => { const w = __drift.world; w.save.autoTime = true; w.save.tod = 23.9995; __drift.stepWorld(10); return w.save.day; })).toBe(1);
+  });
+
+  test('фестиваль: экран развёрнут к дороге, надписи влезают, деревья и дома не стоят на площадке; покрытие по точкам, вода у набережной', async ({ page }) => {
+    await openDrift(page);
+    const r = await page.evaluate(async () => {
+      const WD = __drift.worldData, out = {};
+      await __drift.startWorld('coast', { fest: true });
+      const W = __drift.worldRender, M = __drift.world.M, f = M.pointById('fest');
+      const n = new THREE.Vector3(0, 0, 1).applyQuaternion(W.festScreen.getWorldQuaternion(new THREE.Quaternion()));
+      const toRoad = new THREE.Vector3(M.X[f.i] - f.x, 0, M.Z[f.i] - f.z).normalize();
+      out.face = n.x * toRoad.x + n.z * toRoad.z;
+      out.labels = M.points.filter((p) => p.type === 'event').map((p) => W.labelFits('СОБЫТИЯ · ' + p.name.toUpperCase())).every(Boolean) && W.labelFits('HORIZON DRIFT · ФЕСТИВАЛЬ', true);
+      for (const def of WD.MAPS) {
+        const Mm = WD.buildMap(def.id), fp = Mm.pointById('fest');
+        let near = 0; const [cx, cz] = Mm.chunkOf(fp.x, fp.z);
+        for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) for (const d of Mm.chunkDecor(cx + ox, cz + oz)) if (Math.hypot(d.x - fp.x, d.z - fp.z) < 55) near++;
+        let snowWrong = 0, total = 0;
+        for (let i = 0; i < Mm.N; i += 5) { total++; if (Mm.SF[i] === 'snow' && Mm.regionAt(Mm.X[i], Mm.Z[i]).biome !== 'snow') snowWrong++; }
+        out[def.id] = { near, snowWrong: snowWrong / total };
+      }
+      const Mt = WD.buildMap('metro'), docks = Mt.R.find((rg) => rg.id === 'docks');
+      let water = false; for (let a = 0; a < 36; a++) for (let d = 100; d <= 700; d += 100) if (Mt.rawHeight(docks.x + Math.cos(a / 36 * 6.283) * d, docks.z + Math.sin(a / 36 * 6.283) * d) < WD.WATER - 1) water = true;
+      out.docksWater = water;
+      const Mo = WD.buildMap('mountains'), lake = Mo.R.find((rg) => rg.id === 'lake'), lk = Mo.lakes[0];
+      out.lakeDist = Math.hypot(lake.x - lk.x, lake.z - lk.z) - lk.r;
+      return out;
+    });
+    expect(r.face).toBeGreaterThan(0.7);
+    expect(r.labels).toBe(true);
+    for (const id of ['coast', 'mountains', 'desert', 'metro']) { expect(r[id].near, id).toBe(0); expect(r[id].snowWrong, id).toBeLessThan(0.03); }
+    expect(r.docksWater).toBe(true);
+    expect(r.lakeDist).toBeLessThan(300);
   });
 });

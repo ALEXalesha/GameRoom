@@ -217,4 +217,17 @@ test.describe('horizon_drift_offline: устойчивость', () => {
     await page.waitForTimeout(400);
     expect(await page.evaluate(() => __drift.world.t)).toBe(wt);
   });
+
+  test('команды паузы от чужого окна (не оболочки) не принимаются', async ({ page }) => {
+    await openDrift(page);
+    await startQuick(page, { track: 'port', mode: 'time' });
+    await page.evaluate(() => { __drift.step(400, { thr: 1 }); __drift.manual = false; });
+    await page.evaluate(() => new Promise((res) => {
+      const f = document.createElement('iframe');
+      f.srcdoc = '<script>parent.postMessage({ mix: "pause" }, "*");<\/script>';
+      document.body.appendChild(f); setTimeout(res, 500);
+    }));
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => __drift.paused)).toBe(false);
+  });
 });
