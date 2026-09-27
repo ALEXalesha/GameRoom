@@ -621,6 +621,94 @@ body.paused *, body.paused *::before, body.paused *::after { animation-play-stat
 #recents.empty .rc-empty { display: block; }
 .rc-close-all { align-self: center; margin: 0 0 46px; padding: 10px 26px; border-radius: 22px; background: rgba(255,255,255,0.14); color: #fff; font-size: 14px; font-weight: 600; }
 #recents.empty .rc-close-all { display: none; }
+
+/* ===== Замечания ревьюера: акцент, светлая тема, значки «Моих файлов», игры ===== */
+:root { --accent: #1f6fe5; }
+.o-btn { background: var(--accent); color: #fff; }
+.o-toggle.on { background: var(--accent); }
+.o-tab.on { border-bottom-color: var(--accent); }
+.qs-tile.on { background: var(--accent); color: #fff; }
+.qs-tile.on .qs-name, .qs-tile.on .qs-state { color: #fff; }
+.qs-tile.on .qs-tile-icon { background: rgba(255,255,255,0.2); }
+.qs-tile.on .qs-tile-icon svg { fill: #fff; }
+.qs-state { font-size: 11px; opacity: 1; color: rgba(255,255,255,0.78); }
+.bar-fill { background: var(--accent); }
+.o-dlg input { border-color: var(--accent); }
+.acc-row { display: flex; gap: 14px; }
+.acc { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
+.acc.on { box-shadow: 0 0 0 3px #fff inset, 0 0 0 2px var(--accent); }
+.f-cat { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.f-cat svg { width: 24px; height: 24px; }
+.o-hbtn svg { width: 20px; height: 20px; }
+
+/* светлая тема: программы с обычным фоном, шторка, все приложения, диалоги */
+body.light #app-container:has(.app-screen.std) { background: #f3f4f7; }
+body.light .app-screen.std { background: #f3f4f7 !important; color: #15161a; }
+body.light #app-container:has(.app-screen.std) > .statusbar { color: #15161a; }
+body.light .app-screen.std .app-header, body.light .app-screen.std .o-list-row, body.light .app-screen.std .set-row, body.light .app-screen.std .f-crumbs, body.light .app-screen.std .b-page { color: #15161a; }
+body.light .app-screen.std .app-back svg path { fill: #15161a; }
+body.light .app-screen.std .app-back:active { background: rgba(0,0,0,0.06); }
+body.light .app-screen.std .o-card { background: #fff; color: #15161a; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+body.light .app-screen.std .o-sub, body.light .app-screen.std .o-empty { color: rgba(0,0,0,0.58); }
+body.light .app-screen.std .o-list-row, body.light .app-screen.std .set-row { border-bottom-color: rgba(0,0,0,0.07); }
+body.light .app-screen.std .o-input, body.light .app-screen.std .fv-text { background: #e6e8ed; color: #15161a; }
+body.light .app-screen.std .o-tabs { border-bottom-color: rgba(0,0,0,0.08); }
+body.light .app-screen.std .o-tab { color: rgba(0,0,0,0.55); }
+body.light .app-screen.std .o-tab.on { color: #15161a; }
+body.light .app-screen.std .o-btn.ghost, body.light .app-screen.std .o-hbtn, body.light .app-screen.std .o-chip, body.light .app-screen.std .set-ic { background: rgba(0,0,0,0.07); color: #15161a; }
+body.light .app-screen.std .o-hbtn svg path { fill: #3a3d45; }
+body.light .app-screen.std .o-toggle { background: rgba(0,0,0,0.2); }
+body.light .app-screen.std .o-toggle.on { background: var(--accent); }
+body.light .app-screen.std .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .app-screen.std [style*="color:#fff"] { color: #15161a !important; }
+body.light .app-screen.std [style*="color:rgba(255,255,255"] { color: rgba(0,0,0,0.58) !important; }
+body.light .shade { background: rgba(240,241,245,0.94); }
+body.light .shade-tab { color: rgba(0,0,0,0.6); background: rgba(0,0,0,0.05); }
+body.light .shade-tab.active { color: #15161a; background: rgba(0,0,0,0.1); }
+body.light .shade-info { color: rgba(0,0,0,0.6); }
+body.light .qs-tile { background: #fff; border-color: rgba(0,0,0,0.05); }
+body.light .qs-tile:not(.on) .qs-name { color: #15161a; }
+body.light .qs-tile:not(.on) .qs-state { color: rgba(0,0,0,0.62); }
+body.light .qs-tile:not(.on) .qs-tile-icon { background: rgba(0,0,0,0.06); }
+body.light .qs-tile:not(.on) .qs-tile-icon svg { fill: #3a3d45; }
+body.light .brightness-slider { background: #fff; }
+body.light .brightness-slider svg { fill: #3a3d45; }
+body.light .bar-track { background: rgba(0,0,0,0.1); }
+body.light .notif-card { background: #fff; }
+body.light .notif-body { color: #15161a; }
+body.light .shade .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .app-drawer { background: rgba(240,241,245,0.96); }
+body.light .app-drawer .app-icon-label { color: #15161a; text-shadow: none; }
+body.light .drawer-search { background: #fff; color: #15161a; }
+body.light .drawer-search input { color: #15161a; }
+body.light .drawer-search svg { fill: #3a3d45; }
+body.light .app-drawer .nav-pill { background: rgba(0,0,0,0.45); }
+body.light .o-dlg, body.light .o-sheet { background: #fff; color: #15161a; }
+body.light .o-dlg input { color: #15161a; }
+body.light .o-sheet button { color: #15161a; }
+body.light .os-title { color: rgba(0,0,0,0.55); }
+body.light .heads-up { background: rgba(255,255,255,0.95); }
+body.light .heads-up .notif-body { color: #15161a; }
+
+/* игры: слой поверх программ, полоска «Домой» снизу; папка «Игры» */
+#game-layer { position: absolute; inset: 0; z-index: 170; display: none; background: #000; }
+#game-layer.open { display: block; }
+.game-app { position: absolute; inset: 0; display: none; }
+.game-app.on { display: block; }
+.game-frame { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 30px); border: 0; background: #000; }
+.game-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; display: flex; align-items: center; justify-content: center; background: #000; cursor: pointer; touch-action: none; }
+.game-bar .nav-pill { background: rgba(255,255,255,0.6); }
+.game-host { background: #000; align-items: center; justify-content: center; gap: 14px; }
+.gh-name { color: #fff; font-size: 16px; font-weight: 600; }
+.o-folder { background: rgba(255,255,255,0.22) !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px; box-sizing: border-box; }
+.o-folder i { display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+.o-folder i svg { width: 14px; height: 14px; }
+#games-folder { position: absolute; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+#games-folder.open { display: flex; }
+.gf-box { width: 330px; border-radius: 30px; background: rgba(46,46,58,0.78); padding: 18px 10px 20px; }
+.gf-title { color: #fff; font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 16px; }
+.gf-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 4px; }
+.gf-grid .app-icon-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 76px; }
 </style>
 </head>
 <body>
@@ -697,6 +785,7 @@ body.paused *, body.paused *::before, body.paused *::after { animation-play-stat
 </div>
 </div>
 
+<script src="../_os-shared/games.js"></script>
 <script>
 'use strict';
 // ================================================================
@@ -725,7 +814,9 @@ const WALLS = {
   berry: { name: 'Ягоды', lock: 'radial-gradient(circle at 70% 20%, rgba(244,114,182,0.5), transparent 50%), linear-gradient(160deg, #4a044e, #1e1b4b)', home: 'radial-gradient(circle at 30% 70%, rgba(244,114,182,0.35), transparent 50%), linear-gradient(170deg, #3b0764, #111827)' },
   mint: { name: 'Мята', lock: 'radial-gradient(circle at 30% 30%, rgba(74,222,128,0.4), transparent 50%), linear-gradient(160deg, #064e3b, #022c22)', home: 'radial-gradient(circle at 70% 30%, rgba(74,222,128,0.3), transparent 50%), linear-gradient(170deg, #14532d, #052e16)' },
 };
-const DEF = { wifi: true, mobile: true, bt: false, dnd: false, torch: false, rotate: true, airplane: false, brightness: 100, volume: 60, wall: 'night' };
+const DEF = { wifi: true, mobile: true, bt: false, dnd: false, torch: false, rotate: true, airplane: false, brightness: 100, volume: 60, wall: 'night', light: false, accent: 'blue' };
+// цвета акцента: насыщенные, белый текст на них читается (контраст не ниже 4.5)
+const ACCENTS = { blue: { name: 'Синий', c: '#1f6fe5' }, green: { name: 'Зелёный', c: '#137a4b' }, violet: { name: 'Фиолетовый', c: '#7443d6' }, coral: { name: 'Коралловый', c: '#c0392b' } };
 const S = Object.assign({}, DEF, store.get('settings', {}));
 function applySettings() {
   const w = WALLS[S.wall] || WALLS.night;
@@ -734,6 +825,8 @@ function applySettings() {
   $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7);
   $('torch').style.display = S.torch ? 'block' : 'none';
   $('bright-fill').style.width = S.brightness + '%';
+  document.body.classList.toggle('light', !!S.light);
+  document.documentElement.style.setProperty('--accent', (ACCENTS[S.accent] || ACCENTS.blue).c);
   renderQS(); renderStatus();
   if (state.app === 'settings' || state.app === 'music') renderApp();
 }
@@ -779,8 +872,9 @@ const APP_LIST = [
   { id: 'files', name: 'Мои файлы', bg: 'linear-gradient(135deg, #67e8f9, #06b6d4)' },
   { id: 'mail', name: 'Почта', bg: 'linear-gradient(135deg, #f87171, #dc2626)' },
 ];
-const PAGE1 = ['phone', 'messages', 'contacts', 'camera', 'gallery', 'calculator', 'clock', 'settings'];
-const PAGE2 = ['weather', 'calendar', 'notes', 'music', 'browser', 'files', 'mail'];
+// док (телефон, сообщения, интернет, камера) не повторяется на страницах экрана «Домой»
+const PAGE1 = ['contacts', 'gallery', 'calculator', 'clock', 'settings', 'weather', 'calendar', 'notes'];
+const PAGE2 = ['music', 'files', 'mail'];
 const DOCK = ['phone', 'messages', 'browser', 'camera'];
 const appName = id => APP_LIST.find(a => a.id === id).name;
 function iconHTML(id, label = true) {
@@ -858,7 +952,7 @@ const QS = [
   { k: 'torch', name: 'Фонарик', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l3-8H7z"/></svg>' },
 ];
 function renderQS() {
-  $('qs-grid').innerHTML = QS.map(q => '<div class="qs-tile' + (S[q.k] ? ' on' : '') + '" data-qs="' + q.k + '" role="switch" aria-checked="' + !!S[q.k] + '"><div class="qs-tile-icon">' + q.icon + '</div><div><div class="qs-name">' + q.name + '</div><div class="qs-state">' + (S[q.k] ? q.on : 'Откл') + '</div></div></div>').join('');
+  $('qs-grid').innerHTML = QS.map(q => '<div class="qs-tile' + (S[q.k] ? ' on' : '') + '" data-qs="' + q.k + '" role="switch" aria-checked="' + !!S[q.k] + '"><div class="qs-tile-icon">' + q.icon + '</div><div><div class="qs-name">' + q.name + '</div><div class="qs-state">' + (S[q.k] ? q.on : 'Откл.') + '</div></div></div>').join('');
 }
 $('qs-grid').addEventListener('click', e => { const t = e.target.closest('[data-qs]'); if (t) setS(t.dataset.qs, !S[t.dataset.qs]); });
 $('bright-track').addEventListener('pointerdown', e => {
@@ -936,7 +1030,8 @@ function renderApp() {
 }
 const BACK = '<button class="app-back" data-a="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path fill="#fff" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>';
 function shell(title, content, extra = '', bg = '#0f0f15') {
-  return '<div class="app-screen active" style="background:' + bg + '"><div class="app-header">' + BACK + '<div class="app-title">' + title + '</div><div style="margin-left:auto;display:flex;gap:8px">' + extra + '</div></div>' +
+  // std - обычный фон программы: в светлой теме он светлый (у «Погоды» и «Музыки» свой)
+  return '<div class="app-screen active' + (bg === '#0f0f15' ? ' std' : '') + '" style="background:' + bg + '"><div class="app-header">' + BACK + '<div class="app-title">' + title + '</div><div style="margin-left:auto;display:flex;gap:8px">' + extra + '</div></div>' +
     '<div class="app-content">' + content + '</div><div class="nav-bar"><div class="nav-pill" data-a="home" title="Домой"></div></div></div>';
 }
 $('app-container').addEventListener('click', e => {
@@ -1181,22 +1276,32 @@ APPS.calculator = {
 
 APPS.clock = {
   ZONES: [['Москва', 'Europe/Moscow'], ['Лондон', 'Europe/London'], ['Нью-Йорк', 'America/New_York'], ['Токио', 'Asia/Tokyo']],
-  enter() { views.clock = views.clock || { tab: 'world', timerLeft: 0, timerRun: null, timerEnd: 0, sw: 0, swStart: 0, swRun: false, laps: [] }; this.tick = setInterval(() => { if (state.app === 'clock' && views.clock.tab !== 'alarm') renderApp(); }, 250); },
+  enter() { views.clock = views.clock || { tab: 'world', timerLeft: 0, timerRun: null, timerEnd: 0, sw: 0, swStart: 0, swRun: false, laps: [] }; clearInterval(this.tick); this.tick = setInterval(() => { if (state.app === 'clock') this.live(); }, 250); },
   leave() { clearInterval(this.tick); },
+  // раз в 250 мс меняются только цифры: кнопки не пересоздаются, нажатия не теряются
+  live() {
+    const c = $('app-container'), v = views.clock;
+    c.querySelectorAll('[data-tz]').forEach(el => { const t = this.zoneTime(el.dataset.tz); if (el.textContent !== t) el.textContent = t; });
+    const tm = c.querySelector('#tm'); if (tm) tm.textContent = this.fmtTimer(v);
+    const sw = c.querySelector('#sw'); if (sw) sw.textContent = this.fmtSw(v.sw + (v.swRun ? Date.now() - v.swStart : 0));
+  },
+  zoneTime: tz => new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+  fmtTimer(v) { const left = v.timerRun ? Math.max(0, v.timerEnd - Date.now()) : v.timerLeft, s = Math.ceil(left / 1000); return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60); },
+  fmtSw: x => pad2(Math.floor(x / 60000)) + ':' + pad2(Math.floor(x / 1000) % 60) + ',' + pad2(Math.floor(x / 10) % 100),
+  // таймер считает и при закрытых «Часах»: по окончании - уведомление
+  timerDone() { const v = views.clock; v.timerRun = null; v.timerLeft = 0; v.done = true; notify('clock', 'Таймер', 'Время вышло!'); if (state.app === 'clock') renderApp(); },
   view() {
     const v = views.clock, alarms = store.get('alarms', [{ t: '07:00', label: 'Будни', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
     const tabs = '<div class="o-tabs">' + [['world', 'Мир'], ['alarm', 'Будильник'], ['timer', 'Таймер'], ['stop', 'Секундомер']].map(([k, n]) => '<button class="o-tab' + (v.tab === k ? ' on' : '') + '" data-a="tab" data-tab="' + k + '">' + n + '</button>').join('') + '</div>';
     let body;
-    if (v.tab === 'world') body = this.ZONES.map(([n, tz]) => '<div class="o-list-row" style="cursor:default"><div class="o-main"><div class="o-sub">' + new Date().toLocaleDateString('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }) + '</div><div class="o-title">' + n + '</div></div><div style="color:#fff;font-size:38px;font-weight:200">' + new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) + '</div></div>').join('');
+    if (v.tab === 'world') body = this.ZONES.map(([n, tz]) => '<div class="o-list-row" style="cursor:default"><div class="o-main"><div class="o-sub">' + new Date().toLocaleDateString('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }) + '</div><div class="o-title">' + n + '</div></div><div data-tz="' + tz + '" style="color:#fff;font-size:38px;font-weight:200">' + this.zoneTime(tz) + '</div></div>').join('');
     else if (v.tab === 'alarm') body = '<form class="o-form" style="margin-top:12px"><input class="o-input" type="time" name="t" value="08:00" style="flex:0 0 110px"><input class="o-input" name="label" placeholder="Подпись" maxlength="20" style="flex:1"><button class="o-btn">+</button></form>' +
       (alarms.length ? alarms.map((a, i) => '<div class="o-card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:32px;font-weight:200;opacity:' + (a.on ? 1 : 0.5) + '">' + a.t + '</div><div style="font-size:12px;opacity:0.6">' + esc(a.label) + '</div></div><button class="o-round" style="background:none;color:#f87171;font-size:20px" data-a="adel" data-i="' + i + '" title="Удалить">×</button><button class="o-toggle' + (a.on ? ' on' : '') + '" data-a="atog" data-i="' + i + '" aria-label="Включить будильник"></button></div>').join('') : '<div class="o-empty">Будильников нет</div>');
     else if (v.tab === 'timer') {
-      const left = v.timerRun ? Math.max(0, v.timerEnd - Date.now()) : v.timerLeft, s = Math.ceil(left / 1000);
-      if (v.timerRun && left <= 0) { clearInterval(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = true; }
-      body = '<div class="big-time">' + pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60) + '</div>' + (v.done ? '<div style="text-align:center;color:#fbbf24;margin-bottom:12px">Время вышло!</div>' : '') +
+      body = '<div class="big-time" id="tm">' + this.fmtTimer(v) + '</div>' + (v.done ? '<div style="text-align:center;color:#fbbf24;margin-bottom:12px">Время вышло!</div>' : '') +
         '<div class="presets">' + [1, 5, 10].map(m => '<button class="o-btn ghost" data-a="preset" data-m="' + m + '">' + m + ' мин</button>').join('') + '</div><div class="row-btns"><button class="o-btn" data-a="tstart">' + (v.timerRun ? 'Пауза' : 'Старт') + '</button><button class="o-btn ghost" data-a="treset">Сброс</button></div>';
     } else {
-      const ms = v.sw + (v.swRun ? Date.now() - v.swStart : 0), f = x => pad2(Math.floor(x / 60000)) + ':' + pad2(Math.floor(x / 1000) % 60) + ',' + pad2(Math.floor(x / 10) % 100);
+      const ms = v.sw + (v.swRun ? Date.now() - v.swStart : 0), f = this.fmtSw;
       body = '<div class="big-time" id="sw">' + f(ms) + '</div><div class="row-btns"><button class="o-btn" data-a="swgo">' + (v.swRun ? 'Стоп' : 'Старт') + '</button><button class="o-btn ghost" data-a="swlap">' + (v.swRun ? 'Круг' : 'Сброс') + '</button></div><div class="laps">' + v.laps.map((l, i) => '<div><span>Круг ' + (v.laps.length - i) + '</span><span>' + f(l) + '</span></div>').join('') + '</div>';
     }
     return shell('Часы', tabs + body);
@@ -1207,8 +1312,8 @@ APPS.clock = {
     else if (a === 'atog') { alarms[+t.dataset.i].on = !alarms[+t.dataset.i].on; store.set('alarms', alarms); }
     else if (a === 'adel') { alarms.splice(+t.dataset.i, 1); store.set('alarms', alarms); }
     else if (a === 'preset') { if (!v.timerRun) { v.timerLeft = +t.dataset.m * 60000; v.done = false; } }
-    else if (a === 'tstart') { if (v.timerRun) { v.timerLeft = Math.max(0, v.timerEnd - Date.now()); clearInterval(v.timerRun); v.timerRun = null; } else if (v.timerLeft > 0) { v.timerEnd = Date.now() + v.timerLeft; v.timerRun = setInterval(() => { }, 1000); v.done = false; } }
-    else if (a === 'treset') { clearInterval(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = false; }
+    else if (a === 'tstart') { if (v.timerRun) { v.timerLeft = Math.max(0, v.timerEnd - Date.now()); clearTimeout(v.timerRun); v.timerRun = null; } else if (v.timerLeft > 0) { v.timerEnd = Date.now() + v.timerLeft; v.timerRun = setTimeout(() => APPS.clock.timerDone(), v.timerLeft); v.done = false; } }
+    else if (a === 'treset') { clearTimeout(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = false; }
     else if (a === 'swgo') { if (v.swRun) { v.sw += Date.now() - v.swStart; v.swRun = false; } else { v.swStart = Date.now(); v.swRun = true; } }
     else if (a === 'swlap') { if (v.swRun) v.laps.unshift(v.sw + Date.now() - v.swStart); else { v.sw = 0; v.laps = []; } }
     renderApp();
@@ -1224,7 +1329,7 @@ APPS.settings = {
   ROWS: [
     { p: 'conn', icon: '📶', name: 'Подключения', sub: () => (S.airplane ? 'Авиарежим' : [S.wifi && 'Wi-Fi', S.bt && 'Bluetooth', S.mobile && 'данные'].filter(Boolean).join(', ') || 'Всё выключено') },
     { p: 'sound', icon: '🔊', name: 'Звук', sub: () => 'Громкость ' + S.volume + '%' },
-    { p: 'display', icon: '🌗', name: 'Дисплей', sub: () => 'Яркость ' + S.brightness + '%' },
+    { p: 'display', icon: '🌗', name: 'Дисплей', sub: () => 'Яркость ' + S.brightness + '% · ' + (S.light ? 'светлая' : 'тёмная') + ' тема' },
     { p: 'wall', icon: '🖼', name: 'Обои', sub: () => WALLS[S.wall].name },
     { p: 'battery', icon: '🔋', name: 'Батарея', sub: () => '72% · демо' },
     { p: 'about', icon: 'ⓘ', name: 'О телефоне', sub: () => 'Телефон «Волна» 2.0' },
@@ -1242,7 +1347,8 @@ APPS.settings = {
     let body = '';
     if (v.page === 'conn') body = tog('wifi', 'Wi-Fi') + tog('bt', 'Bluetooth') + tog('mobile', 'Мобильные данные') + tog('airplane', 'Авиарежим');
     else if (v.page === 'sound') body = '<div class="o-card"><div style="margin-bottom:8px">Громкость мультимедиа</div><input class="o-range" type="range" min="0" max="100" name="volume" value="' + S.volume + '"></div><div class="about-note">Громкость действует на «Музыку».</div>';
-    else if (v.page === 'display') body = '<div class="o-card"><div style="margin-bottom:8px">Яркость</div><input class="o-range" type="range" min="30" max="100" name="brightness" value="' + S.brightness + '"></div>' + tog('torch', 'Фонарик') + tog('dnd', 'Не беспокоить');
+    else if (v.page === 'display') body = '<div class="o-card"><div style="margin-bottom:8px">Яркость</div><input class="o-range" type="range" min="30" max="100" name="brightness" value="' + S.brightness + '"></div>' + tog('light', 'Светлая тема') +
+      '<div class="o-card"><div style="margin-bottom:10px">Цвет акцента</div><div class="acc-row">' + Object.entries(ACCENTS).map(([k, x]) => '<button class="acc' + (S.accent === k ? ' on' : '') + '" data-a="accent" data-c="' + k + '" style="background:' + x.c + '" aria-label="' + x.name + '" title="' + x.name + '"></button>').join('') + '</div></div>' + tog('torch', 'Фонарик') + tog('dnd', 'Не беспокоить');
     else if (v.page === 'wall') body = '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall' + (S.wall === k ? ' on' : '') + '" data-a="wall" data-w="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>';
     else if (v.page === 'battery') body = '<div class="o-card"><div style="font-size:40px;font-weight:200">72%</div><div class="o-sub">Демо-значение: страница не читает настоящую батарею</div></div>';
     else body = '<div class="about-note"><b>Телефон «Волна», версия 2.0.</b><br>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung. Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><div style="padding:0 20px"><button class="o-btn red" data-a="reset">Сбросить всё</button></div>';
@@ -1253,11 +1359,18 @@ APPS.settings = {
     if (a === 'page') { v.page = t.dataset.p; renderApp(); }
     else if (a === 'tog') setS(t.dataset.k, !S[t.dataset.k]);
     else if (a === 'wall') setS('wall', t.dataset.w);
-    else if (a === 'reset') { store.clear(); location.reload(); }
+    else if (a === 'accent') setS('accent', t.dataset.c);
+    else if (a === 'reset') {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('oneui7'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
   },
   input(el) {
     if (el.name === 'q') { views.settings.q = el.value.trim().toLowerCase(); const pos = el.selectionStart; renderApp(); const i = $('app-container').querySelector('[name=q]'); i.focus(); i.setSelectionRange(pos, pos); }
-    else if (el.name === 'volume' || el.name === 'brightness') { S[el.name] = +el.value; store.set('settings', S); $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7); if (musicGain) musicGain.gain.value = S.volume / 100; }
+    else if (el.name === 'volume' || el.name === 'brightness') { S[el.name] = +el.value; store.set('settings', S); $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7); $('bright-fill').style.width = S.brightness + '%'; if (musicGain) musicGain.gain.value = S.volume / 100; }
   },
   submit() { },
   back() { if (views.settings.page) { views.settings.page = null; renderApp(); return true; } },
@@ -1481,26 +1594,53 @@ const baseName = p => p.slice(p.lastIndexOf('/') + 1);
 const extOf = p => { const b = baseName(p), i = b.lastIndexOf('.'); return i > 0 ? b.slice(i + 1).toLowerCase() : ''; };
 const isImage = p => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extOf(p));
 const isText = p => ['txt', 'md', 'csv', 'json', 'log'].includes(extOf(p)) || !extOf(p);
+// вторая вкладка с тем же телефоном узнаёт об изменениях и перечитывает базу
+const fsChannel = (() => { try { return new BroadcastChannel('oneui7-fs'); } catch (e) { return null; } })();
+let bcTimer = null;
+function announce() { if (!fsChannel) return; clearTimeout(bcTimer); bcTimer = setTimeout(() => fsChannel.postMessage('changed'), 60); }
 function idb(fn) {
   return new Promise((res, rej) => {
     if (!fdb) { res(null); return; }
     const tx = fdb.transaction(['fs', 'trash'], 'readwrite');
     dbPending++;
     let done = false; const fin = () => { if (!done) { done = true; dbPending--; } };
-    fn(tx);
-    tx.oncomplete = () => { fin(); res(); };
-    tx.onerror = tx.onabort = () => { fin(); rej(tx.error); };
+    try { fn(tx); } catch (e) { try { tx.abort(); } catch (e2) { /* уже */ } }
+    tx.oncomplete = () => { fin(); announce(); res(); };
+    tx.onerror = tx.onabort = () => { fin(); rej(tx.error || new Error('abort')); };
   });
 }
-const dbPut = e => idb(tx => tx.objectStore('fs').put(e)).catch(er => console.warn('FS', er));
-const dbDel = p => idb(tx => tx.objectStore('fs').delete(p)).catch(er => console.warn('FS', er));
-const dbTrash = () => idb(tx => { const s = tx.objectStore('trash'); s.clear(); TRASH.forEach(t => s.put(t)); }).catch(er => console.warn('FS', er));
+// запись не удалась (мало места): говорим об этом и возвращаем память к тому, что в базе
+let failShown = 0, dbFailing = false;
+function dbFail() {
+  if (Date.now() - failShown > 3000) { failShown = Date.now(); notify('files', 'Не сохранено: мало места', 'Последнее изменение не записалось, файлы возвращены к сохранённым'); }
+  if (!dbFailing) { dbFailing = true; setTimeout(() => { dbFailing = false; reloadFromDb(); }, 50); }
+}
+const dbWrite = fn => { if (fdb) idb(fn).catch(dbFail); };
+const dbPut = e => dbWrite(tx => tx.objectStore('fs').put(e));
+const dbDel = p => dbWrite(tx => tx.objectStore('fs').delete(p));
+// корзина по одной записи: две вкладки не стирают корзины друг друга
+const dbTrashPut = t => dbWrite(tx => tx.objectStore('trash').put(t));
+const dbTrashDel = id => dbWrite(tx => tx.objectStore('trash').delete(id));
+async function readDb() {
+  const all = store => new Promise(res => { const r = fdb.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  return [await all('fs'), await all('trash')];
+}
+async function reloadFromDb() {
+  if (!fdb) return;
+  if (dbPending) { setTimeout(reloadFromDb, 80); return; }
+  const [rows, trash] = await readDb();
+  FS.clear(); rows.forEach(e => FS.set(e.path, e));
+  ROOTS.forEach(r => { if (!FS.has(r)) FS.set(r, { path: r, type: 'dir', mtime: Date.now() }); });
+  TRASH = trash.sort((a, b) => a.deleted - b.deleted);
+  emit('fs');
+}
+if (fsChannel) fsChannel.onmessage = () => reloadFromDb();
 function openFDB() {
   return new Promise(res => {
     let req;
     try { req = indexedDB.open('oneui7', 1); } catch (e) { fdbOk = false; res(null); return; }
     req.onupgradeneeded = () => { req.result.createObjectStore('fs', { keyPath: 'path' }); req.result.createObjectStore('trash', { keyPath: 'id' }); };
-    req.onsuccess = () => res(req.result);
+    req.onsuccess = () => { const db = req.result; db.onversionchange = () => { db.close(); fdb = null; }; res(db); };
     req.onerror = () => { fdbOk = false; res(null); };
   });
 }
@@ -1511,10 +1651,7 @@ function picSVG(a, b, c) {
 async function fsLoad() {
   fdb = await openFDB();
   let rows = [], trash = [];
-  if (fdb) {
-    const all = store => new Promise(res => { const r = fdb.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-    rows = await all('fs'); trash = await all('trash');
-  }
+  if (fdb) [rows, trash] = await readDb();
   if (!rows.length) {
     const t = Date.now(), f = (path, text) => ({ path, type: 'file', mtime: t, mime: 'text/plain', size: new Blob([text]).size, text });
     const img = (path, svg) => ({ path, type: 'file', mtime: t, mime: 'image/svg+xml', size: svg.length, text: svg });
@@ -1529,10 +1666,13 @@ async function fsLoad() {
   TRASH = trash.sort((a, b) => a.deleted - b.deleted);
   emit('fs');
 }
+// ссылки на картинки из памяти освобождаются, когда файл изменился, удалён или переименован
 const urlCache = new Map();
+function dropUrl(path) { const c = urlCache.get(path); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(path); } }
 function fileUrl(f) {
   if (!f || f.type !== 'file') return null;
   const c = urlCache.get(f.path); if (c && c.mtime === f.mtime) return c.url;
+  dropUrl(f.path);
   let url;
   if (f.blob) url = URL.createObjectURL(f.blob);
   else if (f.mime === 'image/svg+xml' && f.text) url = URL.createObjectURL(new Blob([f.text], { type: 'image/svg+xml' }));
@@ -1562,7 +1702,7 @@ async function importFile(dir, file) {
 }
 function renamePath(from, name) {
   const to = parentOf(from) + '/' + name;
-  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dbDel(p); const ne = Object.assign({}, e, { path: to + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
+  subtree(from).forEach(p => { const e = FS.get(p); FS.delete(p); dropUrl(p); dbDel(p); const ne = Object.assign({}, e, { path: to + p.slice(from.length) }); FS.set(ne.path, ne); dbPut(ne); });
   fsChanged(); return to;
 }
 function copyPath(from) {
@@ -1574,19 +1714,26 @@ function copyPath(from) {
 function trashPath(path) {
   if (!FS.has(path) || ROOTS.includes(path)) return;
   const items = subtree(path).map(p => FS.get(p));
-  items.forEach(e => { FS.delete(e.path); dbDel(e.path); });
-  TRASH.push({ id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() });
-  dbTrash(); fsChanged();
+  items.forEach(e => { FS.delete(e.path); dropUrl(e.path); dbDel(e.path); });
+  const t = { id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), path, items, deleted: Date.now() };
+  TRASH.push(t);
+  dbTrashPut(t); fsChanged();
 }
 function restoreTrash(id) {
   const i = TRASH.findIndex(t => t.id === id); if (i < 0) return;
-  const t = TRASH[i]; let to = t.path;
-  if (!FS.has(parentOf(to))) makeDir(parentOf(to));
-  if (FS.has(to)) { const b = baseName(to), dot = b.lastIndexOf('.'); to = uniquePath(parentOf(to), dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
+  const t = TRASH[i];
+  let dir = parentOf(t.path);
+  // на месте одной из родительских папок теперь файл: возвращаем рядом с ним
+  let a = dir; while (a) { if (FS.has(a) && FS.get(a).type !== 'dir') dir = parentOf(a); a = parentOf(a); }
+  // удалены и папка, и её родитель: восстанавливаем всю цепочку
+  const missing = []; let m = dir; while (m && !FS.has(m)) { missing.unshift(m); m = parentOf(m); }
+  missing.forEach(makeDir);
+  let to = (dir ? dir + '/' : '') + baseName(t.path);
+  if (FS.has(to)) { const b = baseName(to), dot = b.lastIndexOf('.'); to = uniquePath(dir, dot > 0 ? b.slice(0, dot) : b, dot > 0 ? b.slice(dot) : ''); }
   t.items.forEach(e => { const ne = Object.assign({}, e, { path: to + e.path.slice(t.path.length) }); FS.set(ne.path, ne); dbPut(ne); });
-  TRASH.splice(i, 1); dbTrash(); fsChanged();
+  TRASH.splice(i, 1); dbTrashDel(t.id); fsChanged();
 }
-function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrash(); fsChanged(); }
+function deleteTrash(id) { TRASH = TRASH.filter(t => t.id !== id); dbTrashDel(id); fsChanged(); }
 const fmtSize = b => b < 1000 ? b + ' Б' : b < 1e6 ? (b / 1000).toFixed(1).replace('.', ',') + ' КБ' : (b / 1e6).toFixed(1).replace('.', ',') + ' МБ';
 const fmtWhenF = t => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const fsReady = fsLoad();
@@ -1616,6 +1763,14 @@ function oSheet(title, actions) {
 // ===== «Мои файлы» на IndexedDB =====
 const FOLDER_SVG = '<svg viewBox="0 0 40 32"><path d="M2 5a3 3 0 013-3h10l3 3.5h17a3 3 0 013 3V27a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#f5b400"/><path d="M2 10h36v17a3 3 0 01-3 3H5a3 3 0 01-3-3z" fill="#ffca28"/></svg>';
 const DOC_SVG = '<svg viewBox="0 0 32 40"><path d="M3 1h18l8 8v28a2 2 0 01-2 2H3a2 2 0 01-2-2V3a2 2 0 012-2z" fill="#4c8bf5"/><path d="M21 1v8h8" fill="#8ab4f8"/><path d="M7 19h18M7 24h18M7 29h12" stroke="#fff" stroke-width="1.8"/></svg>';
+// значки разделов «Моих файлов»: цветной круг и белый рисунок, без эмодзи
+const CAT_SVG = {
+  img: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 13h14l-4.5-6-3.5 4.5-2.5-3z"/><circle cx="8.5" cy="8.5" r="1.8" fill="#fff"/></svg>',
+  doc: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M6 2h8l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm7 1.5V8h4.5zM7.5 12v1.6h9V12zm0 3.5v1.6h9v-1.6zm0 3.5v1.5h6V19z"/></svg>',
+  dl: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M9 3h6l1 1.5h4v2H4v-2h4zM6 8h12l-1 12.2a2 2 0 01-2 1.8H9a2 2 0 01-2-1.8zm3.2 2.5l.4 8h1.6l-.3-8zm4 0l-.3 8h1.6l.4-8z"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><path fill="#fff" d="M8 2h8a2 2 0 012 2v16a2 2 0 01-2 2H8a2 2 0 01-2-2V4a2 2 0 012-2zm0 3v13h8V5zm3 14.2v1.3h2v-1.3z"/></svg>',
+};
 const thumbOf = e => { if (e.type === 'dir') return FOLDER_SVG; const u = isImage(e.path) && fileUrl(e); return u ? '<img src="' + u + '" alt="">' : DOC_SVG; };
 APPS.files = {
   enter(arg) { views.files = { dir: arg && (FS.has(arg) || arg === '__trash') ? arg : null, view: null, q: '' }; },
@@ -1624,15 +1779,15 @@ APPS.files = {
     if (v.view && FS.get(v.view)) {
       const e = FS.get(v.view);
       const body = isImage(v.view) ? '<div class="fv-img" style="background-image:url(' + (fileUrl(e) || '') + ')"></div>' : e.text != null ? '<textarea class="fv-text" name="fvtext" aria-label="Текст"></textarea>' : '<div class="o-empty">Просмотр недоступен</div>';
-      return shell(esc(baseName(v.view)), body, '<button class="o-hbtn" data-a="fvdel" aria-label="Удалить">🗑</button>');
+      return shell(esc(baseName(v.view)), body, '<button class="o-hbtn" data-a="fvdel" aria-label="Удалить">' + CAT_SVG.trash + '</button>');
     }
     if (v.dir === null) {
       const imgs = [...FS.values()].filter(e => e.type === 'file' && isImage(e.path)).length, docs = [...FS.values()].filter(e => e.type === 'file' && !isImage(e.path)).length;
       const used = [...FS.values()].reduce((s, e) => s + (e.size || 0), 0);
-      const cats = [['Изображения', '🖼', 'Изображения', imgs, '#ec4899'], ['Документы', '📄', 'Документы', docs, '#4ade80'], ['Загрузки', '⬇', 'Загрузки', childrenOf('Загрузки').length, '#60a5fa'], ['__trash', '🗑', 'Корзина', TRASH.length, '#94a3b8']];
+      const cats = [['Изображения', 'img', 'Изображения', imgs, '#d9467a'], ['Документы', 'doc', 'Документы', docs, '#1b8a52'], ['Загрузки', 'dl', 'Загрузки', childrenOf('Загрузки').length, '#2f6fd6'], ['__trash', 'trash', 'Корзина', TRASH.length, '#6b7385']];
       return shell('Мои файлы', '<div class="o-card"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>Память телефона</span><span style="opacity:0.6">' + fmtSize(used) + (fdbOk ? ' · IndexedDB' : '') + '</span></div><div class="f-bar"><i style="width:' + Math.min(100, 4 + used / 2000) + '%"></i></div></div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' + cats.map(c => '<div class="o-card" style="margin:0;cursor:pointer" data-a="go" data-d="' + c[0] + '"><div style="font-size:24px;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:' + c[4] + '33">' + c[1] + '</div><div style="margin-top:8px;font-weight:600">' + c[2] + '</div><div style="font-size:12px;opacity:0.6">' + c[3] + '</div></div>').join('') + '</div>' +
-        '<div class="o-card f-root" data-a="go" data-d="" style="cursor:pointer;margin-top:14px;display:flex;align-items:center;gap:12px"><span style="font-size:22px">📱</span><div style="flex:1"><div style="font-weight:600">Внутренняя память</div><div style="font-size:12px;opacity:0.6">Все папки</div></div><span style="opacity:.5">›</span></div>');
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' + cats.map(c => '<div class="o-card" style="margin:0;cursor:pointer" data-a="go" data-d="' + c[0] + '"><div class="f-cat" style="background:' + c[4] + '">' + CAT_SVG[c[1]] + '</div><div style="margin-top:8px;font-weight:600">' + c[2] + '</div><div style="font-size:12px;opacity:0.6">' + c[3] + '</div></div>').join('') + '</div>' +
+        '<div class="o-card f-root" data-a="go" data-d="" style="cursor:pointer;margin-top:14px;display:flex;align-items:center;gap:12px"><div class="f-cat" style="background:#566479">' + CAT_SVG.phone + '</div><div style="flex:1"><div style="font-weight:600">Внутренняя память</div><div style="font-size:12px;opacity:0.6">Все папки</div></div><span style="opacity:.5">›</span></div>');
     }
     if (v.dir === '__trash') return shell('Корзина', TRASH.length ? [...TRASH].reverse().map(t => '<div class="o-list-row"><div class="f-th">' + (t.items[0].type === 'dir' ? FOLDER_SVG : DOC_SVG) + '</div><div class="o-main"><div class="o-title">' + esc(baseName(t.path)) + '</div><div class="o-sub">' + esc(parentOf(t.path)) + '</div></div><button class="o-chip" data-a="restore" data-id="' + t.id + '">Восстановить</button><button class="o-chip danger" data-a="kill" data-id="' + t.id + '">Удалить</button></div>').join('') : '<div class="o-empty">Корзина пуста</div>');
     const list = v.q ? [...FS.values()].filter(e => e.path && (v.dir === '' || e.path.startsWith(v.dir + '/')) && baseName(e.path).toLowerCase().includes(v.q)) : v.dir === '' ? ROOTS.map(r => FS.get(r)) : childrenOf(v.dir);
@@ -1649,7 +1804,7 @@ APPS.files = {
     c.querySelectorAll('[data-a=item]').forEach(row => {
       row.addEventListener('contextmenu', e => { e.preventDefault(); APPS.files.actions(row.dataset.p); });
       let lp = null;
-      row.addEventListener('pointerdown', () => { lp = setTimeout(() => { lp = null; row.dataset.lp = '1'; APPS.files.actions(row.dataset.p); }, 550); });
+      row.addEventListener('pointerdown', () => { delete row.dataset.lp; lp = setTimeout(() => { lp = null; row.dataset.lp = '1'; APPS.files.actions(row.dataset.p); }, 550); });
       ['pointerup', 'pointerleave'].forEach(ev => row.addEventListener(ev, () => { clearTimeout(lp); lp = null; }));
     });
   },
@@ -1692,7 +1847,7 @@ on('fs', () => { if (state.app === 'files' && !$('app-container').querySelector(
 function notify(app, title, text) {
   notifs.unshift({ app, title, text }); notifs = notifs.slice(0, 20); store.set('notifs', notifs);
   renderNotifs(); renderLockNotifs();
-  if (S.dnd || !state.unlocked) return;
+  if (S.dnd || !state.unlocked || state.shade || state.recents) return;   // шторка или недавние открыты: карточка уже в списке, второй поверх не нужно
   document.querySelectorAll('.heads-up').forEach(b => b.remove());
   const a = APP_LIST.find(x => x.id === app);
   const b = document.createElement('div'); b.className = 'heads-up'; b.setAttribute('role', 'status');
@@ -1721,7 +1876,7 @@ setInterval(() => { const d = new Date(), hm = pad(d.getHours()) + ':' + pad(d.g
 // ===== Недавние приложения: смахнуть вверх и задержать или двойное нажатие на полоску =====
 let RECENTS = [];
 const openApp0 = openApp;
-openApp = function (id, arg) { closeRecents(); openApp0(id, arg); RECENTS = [id].concat(RECENTS.filter(x => x !== id)); };
+openApp = function (id, arg) { closeRecents(); if ($('games-folder')) $('games-folder').classList.remove('open'); openApp0(id, arg); RECENTS = [id].concat(RECENTS.filter(x => x !== id)); };
 (function () {
   const r = document.createElement('div'); r.id = 'recents'; r.setAttribute('role', 'dialog'); r.setAttribute('aria-label', 'Недавние приложения');
   r.innerHTML = '<div class="statusbar"><div class="left" data-time></div><div class="right" data-status></div></div><div class="rc-row" id="rc-row"></div><div class="rc-empty">Нет недавних приложений</div><button class="rc-close-all" id="rc-close-all">Закрыть все</button>';
@@ -1729,7 +1884,7 @@ openApp = function (id, arg) { closeRecents(); openApp0(id, arg); RECENTS = [id]
   renderStatus();
 })();
 function openRecents() {
-  closeShade(); closeDrawer();
+  closeShade(); closeDrawer(); document.querySelectorAll('.heads-up').forEach(b => b.remove());
   $('rc-row').innerHTML = RECENTS.map(id => { const a = APP_LIST.find(x => x.id === id); return '<div class="rc-card" data-rc="' + id + '" role="button" aria-label="' + appName(id) + '"><div class="rc-head"><span class="notif-icon" style="background:' + (a ? a.bg : '#666') + '">' + (ICONS[id] || '') + '</span>' + appName(id) + '</div><div class="rc-shot"><div class="rc-clone"></div></div></div>'; }).join('');
   $('rc-row').querySelectorAll('.rc-card').forEach(c => { try { c.querySelector('.rc-clone').innerHTML = APPS[c.dataset.rc].view(); } catch (e) { /* предпросмотр необязателен */ } });
   $('recents').classList.toggle('empty', !RECENTS.length);
@@ -1739,7 +1894,8 @@ function openRecents() {
   renderStatus();
 }
 function closeRecents() { $('recents').classList.remove('open'); state.recents = false; }
-function killApp(id) { RECENTS = RECENTS.filter(x => x !== id); if (state.app === id) closeApp(); }
+// закрыть программу совсем: музыка замолкает, игра получает паузу и убирается
+function killApp(id) { RECENTS = RECENTS.filter(x => x !== id); if (id === 'music') mPause(); if (APPS[id] && APPS[id].kill) APPS[id].kill(); if (state.app === id) closeApp(); }
 $('rc-close-all').addEventListener('click', e => { e.stopPropagation(); [...RECENTS].forEach(killApp); closeRecents(); closeApp(); });
 let rcDrag = null;
 let rcDown = false;   // отпускание того же нажатия, что открыло список, его не закрывает
@@ -1774,7 +1930,8 @@ document.addEventListener('pointerup', () => clearTimeout(pillTimer), true);
 document.addEventListener('click', e => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (document.querySelector('.o-dlg-back')) { document.querySelectorAll('.o-dlg-back.bottom').forEach(x => x.remove()); e.stopImmediatePropagation(); return; }
+  // лист действий закрывается, окно ввода имени - как «Отмена» (даже если фокус ушёл с поля)
+  if (document.querySelector('.o-dlg-back')) { document.querySelectorAll('.o-dlg-back.bottom').forEach(x => x.remove()); const pr = document.querySelector('.o-dlg-back [data-r="0"]'); if (pr) pr.click(); e.stopImmediatePropagation(); return; }
   if (state.recents) { e.stopImmediatePropagation(); closeRecents(); }
 }, true);
 const lock0 = lock;
@@ -1786,6 +1943,62 @@ document.addEventListener('visibilitychange', () => {
   document.body.classList.toggle('paused', document.hidden);
   if (document.hidden && music.playing) { mPause(); pausedByTab = true; } else if (!document.hidden && pausedByTab) { pausedByTab = false; mPlay(); }
 });
+
+// ===== Шторка открылась - всплывающая карточка уходит (она уже в списке) =====
+const openShade0 = openShade;
+openShade = function (tab) { document.querySelectorAll('.heads-up').forEach(b => b.remove()); openShade0(tab); };
+
+// ===== Игры: папка «Игры» на втором экране, игра на весь экран из соседней папки =====
+// Игра живёт в своём слое (рамка не пересоздаётся при перерисовке), уход домой - пауза по протоколу
+// {mix:'pause'}/{mix:'resume'} (web/_os-shared/README.md), закрытие в недавних убирает рамку.
+(function () { const L = document.createElement('div'); L.id = 'game-layer'; $('screen').appendChild(L); })();
+function gameGlyph(g) { return '<svg viewBox="6 6 36 36">' + ((window.OS_GAME_GLYPHS || {})[g.glyph] || '') + '</svg>'; }
+const gameEl = id => document.querySelector('#game-layer [data-g="' + id + '"]');
+function gamePost(id, msg) { const el = gameEl(id), f = el && el.querySelector('iframe'); if (f) try { f.contentWindow.postMessage({ mix: msg }, '*'); } catch (e) { /* грузится */ } }
+function showGame(id, g) {
+  let el = gameEl(id);
+  if (!el) {
+    el = document.createElement('div'); el.className = 'game-app'; el.dataset.g = id;
+    el.innerHTML = '<iframe class="game-frame" title="' + esc(g.title) + '" src="' + (g.src || '../' + g.dir + '/index.html') + '" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe><div class="game-bar" title="Домой"><div class="nav-pill"></div></div>';
+    // жест «Домой» уходит над рамкой игры: захват указателя, чтобы отпускание пришло телефону
+    el.querySelector('.game-bar').addEventListener('pointerdown', e => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ } });
+    el.querySelector('.game-bar').addEventListener('click', () => { if (state.app === id) closeApp(); });
+    $('game-layer').appendChild(el);
+  } else gamePost(id, 'resume');
+  $('game-layer').querySelectorAll('.game-app').forEach(x => x.classList.toggle('on', x === el));
+  $('game-layer').classList.add('open');
+}
+function hideGame(id) { gamePost(id, 'pause'); $('game-layer').classList.remove('open'); const el = gameEl(id); if (el) el.classList.remove('on'); }
+function addGame(g) {
+  const id = 'game-' + g.id;
+  APP_LIST.push({ id, name: g.title, bg: 'linear-gradient(160deg,' + g.colors[0] + ',' + g.colors[1] + ')', game: true });
+  ICONS[id] = gameGlyph(g);
+  APPS[id] = {
+    game: g,
+    enter() { showGame(id, g); },
+    leave() { hideGame(id); },
+    kill() { gamePost(id, 'pause'); const el = gameEl(id); if (el) setTimeout(() => { if (state.app !== id) el.remove(); }, 150); },
+    view() { const a = APP_LIST.find(x => x.id === id); return '<div class="app-screen active game-host"><div class="app-icon-img" style="background:' + a.bg + '">' + ICONS[id] + '</div><div class="gh-name">' + esc(g.title) + '</div></div>'; },
+    act() { },
+  };
+  return id;
+}
+const GAME_IDS = (window.OS_GAMES || []).map(addGame);
+if (GAME_IDS.length) PAGE2.push('games');
+const iconHTML0 = iconHTML;
+iconHTML = function (id, label = true) {
+  if (id !== 'games') return iconHTML0(id, label);
+  return '<div class="app-icon" data-folder="games" tabindex="0" role="button" aria-label="Игры"><div class="app-icon-img o-folder">' + GAME_IDS.slice(0, 4).map(x => '<i style="background:' + APP_LIST.find(a => a.id === x).bg + '">' + ICONS[x] + '</i>').join('') + '</div>' + (label ? '<div class="app-icon-label">Игры</div>' : '') + '</div>';
+};
+(function () {
+  const f = document.createElement('div'); f.id = 'games-folder'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Папка «Игры»');
+  f.innerHTML = '<div class="gf-box"><div class="gf-title">Игры</div><div class="gf-grid">' + GAME_IDS.map(x => iconHTML(x)).join('') + '</div></div>';
+  $('homescreen').appendChild(f);
+  $('homescreen').addEventListener('click', e => { if (e.target.closest('[data-folder]')) f.classList.add('open'); else if (e.target === f) f.classList.remove('open'); });
+  $('homescreen').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('[data-folder]')) f.classList.add('open'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && f.classList.contains('open')) { f.classList.remove('open'); e.stopImmediatePropagation(); } }, true);
+  renderHome();
+})();
 
 </script>
 </body>

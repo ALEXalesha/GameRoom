@@ -9,6 +9,8 @@ const head = '<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="UTF-8">\
 let body = read('body.html');
 const kit = read('kit.js');
 if (kit) body = body.replace('\n</script>\n</body>', '\n' + kit + '\n</script>\n</body>');
+// таблица игр - общая с другими оболочками
+body = body.replace("<script>\n'use strict';", "<script src=\"../_os-shared/games.js\"></script>\n<script>\n'use strict';");
 const html = head + read('base.css') + read('extra.css') + read('kit.css') + '</style>\n</head>\n' + body;
 fs.writeFileSync(path.join(dir, '..', 'index.html'), html);
 console.log('index.html:', html.length, 'байт');

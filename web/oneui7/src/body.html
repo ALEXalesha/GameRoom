@@ -100,7 +100,9 @@ const WALLS = {
   berry: { name: 'Ягоды', lock: 'radial-gradient(circle at 70% 20%, rgba(244,114,182,0.5), transparent 50%), linear-gradient(160deg, #4a044e, #1e1b4b)', home: 'radial-gradient(circle at 30% 70%, rgba(244,114,182,0.35), transparent 50%), linear-gradient(170deg, #3b0764, #111827)' },
   mint: { name: 'Мята', lock: 'radial-gradient(circle at 30% 30%, rgba(74,222,128,0.4), transparent 50%), linear-gradient(160deg, #064e3b, #022c22)', home: 'radial-gradient(circle at 70% 30%, rgba(74,222,128,0.3), transparent 50%), linear-gradient(170deg, #14532d, #052e16)' },
 };
-const DEF = { wifi: true, mobile: true, bt: false, dnd: false, torch: false, rotate: true, airplane: false, brightness: 100, volume: 60, wall: 'night' };
+const DEF = { wifi: true, mobile: true, bt: false, dnd: false, torch: false, rotate: true, airplane: false, brightness: 100, volume: 60, wall: 'night', light: false, accent: 'blue' };
+// цвета акцента: насыщенные, белый текст на них читается (контраст не ниже 4.5)
+const ACCENTS = { blue: { name: 'Синий', c: '#1f6fe5' }, green: { name: 'Зелёный', c: '#137a4b' }, violet: { name: 'Фиолетовый', c: '#7443d6' }, coral: { name: 'Коралловый', c: '#c0392b' } };
 const S = Object.assign({}, DEF, store.get('settings', {}));
 function applySettings() {
   const w = WALLS[S.wall] || WALLS.night;
@@ -109,6 +111,8 @@ function applySettings() {
   $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7);
   $('torch').style.display = S.torch ? 'block' : 'none';
   $('bright-fill').style.width = S.brightness + '%';
+  document.body.classList.toggle('light', !!S.light);
+  document.documentElement.style.setProperty('--accent', (ACCENTS[S.accent] || ACCENTS.blue).c);
   renderQS(); renderStatus();
   if (state.app === 'settings' || state.app === 'music') renderApp();
 }
@@ -154,8 +158,9 @@ const APP_LIST = [
   { id: 'files', name: 'Мои файлы', bg: 'linear-gradient(135deg, #67e8f9, #06b6d4)' },
   { id: 'mail', name: 'Почта', bg: 'linear-gradient(135deg, #f87171, #dc2626)' },
 ];
-const PAGE1 = ['phone', 'messages', 'contacts', 'camera', 'gallery', 'calculator', 'clock', 'settings'];
-const PAGE2 = ['weather', 'calendar', 'notes', 'music', 'browser', 'files', 'mail'];
+// док (телефон, сообщения, интернет, камера) не повторяется на страницах экрана «Домой»
+const PAGE1 = ['contacts', 'gallery', 'calculator', 'clock', 'settings', 'weather', 'calendar', 'notes'];
+const PAGE2 = ['music', 'files', 'mail'];
 const DOCK = ['phone', 'messages', 'browser', 'camera'];
 const appName = id => APP_LIST.find(a => a.id === id).name;
 function iconHTML(id, label = true) {
@@ -233,7 +238,7 @@ const QS = [
   { k: 'torch', name: 'Фонарик', on: 'Вкл', icon: '<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l3-8H7z"/></svg>' },
 ];
 function renderQS() {
-  $('qs-grid').innerHTML = QS.map(q => '<div class="qs-tile' + (S[q.k] ? ' on' : '') + '" data-qs="' + q.k + '" role="switch" aria-checked="' + !!S[q.k] + '"><div class="qs-tile-icon">' + q.icon + '</div><div><div class="qs-name">' + q.name + '</div><div class="qs-state">' + (S[q.k] ? q.on : 'Откл') + '</div></div></div>').join('');
+  $('qs-grid').innerHTML = QS.map(q => '<div class="qs-tile' + (S[q.k] ? ' on' : '') + '" data-qs="' + q.k + '" role="switch" aria-checked="' + !!S[q.k] + '"><div class="qs-tile-icon">' + q.icon + '</div><div><div class="qs-name">' + q.name + '</div><div class="qs-state">' + (S[q.k] ? q.on : 'Откл.') + '</div></div></div>').join('');
 }
 $('qs-grid').addEventListener('click', e => { const t = e.target.closest('[data-qs]'); if (t) setS(t.dataset.qs, !S[t.dataset.qs]); });
 $('bright-track').addEventListener('pointerdown', e => {
@@ -311,7 +316,8 @@ function renderApp() {
 }
 const BACK = '<button class="app-back" data-a="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path fill="#fff" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>';
 function shell(title, content, extra = '', bg = '#0f0f15') {
-  return '<div class="app-screen active" style="background:' + bg + '"><div class="app-header">' + BACK + '<div class="app-title">' + title + '</div><div style="margin-left:auto;display:flex;gap:8px">' + extra + '</div></div>' +
+  // std - обычный фон программы: в светлой теме он светлый (у «Погоды» и «Музыки» свой)
+  return '<div class="app-screen active' + (bg === '#0f0f15' ? ' std' : '') + '" style="background:' + bg + '"><div class="app-header">' + BACK + '<div class="app-title">' + title + '</div><div style="margin-left:auto;display:flex;gap:8px">' + extra + '</div></div>' +
     '<div class="app-content">' + content + '</div><div class="nav-bar"><div class="nav-pill" data-a="home" title="Домой"></div></div></div>';
 }
 $('app-container').addEventListener('click', e => {
@@ -556,22 +562,32 @@ APPS.calculator = {
 
 APPS.clock = {
   ZONES: [['Москва', 'Europe/Moscow'], ['Лондон', 'Europe/London'], ['Нью-Йорк', 'America/New_York'], ['Токио', 'Asia/Tokyo']],
-  enter() { views.clock = views.clock || { tab: 'world', timerLeft: 0, timerRun: null, timerEnd: 0, sw: 0, swStart: 0, swRun: false, laps: [] }; this.tick = setInterval(() => { if (state.app === 'clock' && views.clock.tab !== 'alarm') renderApp(); }, 250); },
+  enter() { views.clock = views.clock || { tab: 'world', timerLeft: 0, timerRun: null, timerEnd: 0, sw: 0, swStart: 0, swRun: false, laps: [] }; clearInterval(this.tick); this.tick = setInterval(() => { if (state.app === 'clock') this.live(); }, 250); },
   leave() { clearInterval(this.tick); },
+  // раз в 250 мс меняются только цифры: кнопки не пересоздаются, нажатия не теряются
+  live() {
+    const c = $('app-container'), v = views.clock;
+    c.querySelectorAll('[data-tz]').forEach(el => { const t = this.zoneTime(el.dataset.tz); if (el.textContent !== t) el.textContent = t; });
+    const tm = c.querySelector('#tm'); if (tm) tm.textContent = this.fmtTimer(v);
+    const sw = c.querySelector('#sw'); if (sw) sw.textContent = this.fmtSw(v.sw + (v.swRun ? Date.now() - v.swStart : 0));
+  },
+  zoneTime: tz => new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+  fmtTimer(v) { const left = v.timerRun ? Math.max(0, v.timerEnd - Date.now()) : v.timerLeft, s = Math.ceil(left / 1000); return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60); },
+  fmtSw: x => pad2(Math.floor(x / 60000)) + ':' + pad2(Math.floor(x / 1000) % 60) + ',' + pad2(Math.floor(x / 10) % 100),
+  // таймер считает и при закрытых «Часах»: по окончании - уведомление
+  timerDone() { const v = views.clock; v.timerRun = null; v.timerLeft = 0; v.done = true; notify('clock', 'Таймер', 'Время вышло!'); if (state.app === 'clock') renderApp(); },
   view() {
     const v = views.clock, alarms = store.get('alarms', [{ t: '07:00', label: 'Будни', on: true }, { t: '09:30', label: 'Выходные', on: false }]);
     const tabs = '<div class="o-tabs">' + [['world', 'Мир'], ['alarm', 'Будильник'], ['timer', 'Таймер'], ['stop', 'Секундомер']].map(([k, n]) => '<button class="o-tab' + (v.tab === k ? ' on' : '') + '" data-a="tab" data-tab="' + k + '">' + n + '</button>').join('') + '</div>';
     let body;
-    if (v.tab === 'world') body = this.ZONES.map(([n, tz]) => '<div class="o-list-row" style="cursor:default"><div class="o-main"><div class="o-sub">' + new Date().toLocaleDateString('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }) + '</div><div class="o-title">' + n + '</div></div><div style="color:#fff;font-size:38px;font-weight:200">' + new Date().toLocaleTimeString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) + '</div></div>').join('');
+    if (v.tab === 'world') body = this.ZONES.map(([n, tz]) => '<div class="o-list-row" style="cursor:default"><div class="o-main"><div class="o-sub">' + new Date().toLocaleDateString('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }) + '</div><div class="o-title">' + n + '</div></div><div data-tz="' + tz + '" style="color:#fff;font-size:38px;font-weight:200">' + this.zoneTime(tz) + '</div></div>').join('');
     else if (v.tab === 'alarm') body = '<form class="o-form" style="margin-top:12px"><input class="o-input" type="time" name="t" value="08:00" style="flex:0 0 110px"><input class="o-input" name="label" placeholder="Подпись" maxlength="20" style="flex:1"><button class="o-btn">+</button></form>' +
       (alarms.length ? alarms.map((a, i) => '<div class="o-card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:32px;font-weight:200;opacity:' + (a.on ? 1 : 0.5) + '">' + a.t + '</div><div style="font-size:12px;opacity:0.6">' + esc(a.label) + '</div></div><button class="o-round" style="background:none;color:#f87171;font-size:20px" data-a="adel" data-i="' + i + '" title="Удалить">×</button><button class="o-toggle' + (a.on ? ' on' : '') + '" data-a="atog" data-i="' + i + '" aria-label="Включить будильник"></button></div>').join('') : '<div class="o-empty">Будильников нет</div>');
     else if (v.tab === 'timer') {
-      const left = v.timerRun ? Math.max(0, v.timerEnd - Date.now()) : v.timerLeft, s = Math.ceil(left / 1000);
-      if (v.timerRun && left <= 0) { clearInterval(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = true; }
-      body = '<div class="big-time">' + pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60) + '</div>' + (v.done ? '<div style="text-align:center;color:#fbbf24;margin-bottom:12px">Время вышло!</div>' : '') +
+      body = '<div class="big-time" id="tm">' + this.fmtTimer(v) + '</div>' + (v.done ? '<div style="text-align:center;color:#fbbf24;margin-bottom:12px">Время вышло!</div>' : '') +
         '<div class="presets">' + [1, 5, 10].map(m => '<button class="o-btn ghost" data-a="preset" data-m="' + m + '">' + m + ' мин</button>').join('') + '</div><div class="row-btns"><button class="o-btn" data-a="tstart">' + (v.timerRun ? 'Пауза' : 'Старт') + '</button><button class="o-btn ghost" data-a="treset">Сброс</button></div>';
     } else {
-      const ms = v.sw + (v.swRun ? Date.now() - v.swStart : 0), f = x => pad2(Math.floor(x / 60000)) + ':' + pad2(Math.floor(x / 1000) % 60) + ',' + pad2(Math.floor(x / 10) % 100);
+      const ms = v.sw + (v.swRun ? Date.now() - v.swStart : 0), f = this.fmtSw;
       body = '<div class="big-time" id="sw">' + f(ms) + '</div><div class="row-btns"><button class="o-btn" data-a="swgo">' + (v.swRun ? 'Стоп' : 'Старт') + '</button><button class="o-btn ghost" data-a="swlap">' + (v.swRun ? 'Круг' : 'Сброс') + '</button></div><div class="laps">' + v.laps.map((l, i) => '<div><span>Круг ' + (v.laps.length - i) + '</span><span>' + f(l) + '</span></div>').join('') + '</div>';
     }
     return shell('Часы', tabs + body);
@@ -582,8 +598,8 @@ APPS.clock = {
     else if (a === 'atog') { alarms[+t.dataset.i].on = !alarms[+t.dataset.i].on; store.set('alarms', alarms); }
     else if (a === 'adel') { alarms.splice(+t.dataset.i, 1); store.set('alarms', alarms); }
     else if (a === 'preset') { if (!v.timerRun) { v.timerLeft = +t.dataset.m * 60000; v.done = false; } }
-    else if (a === 'tstart') { if (v.timerRun) { v.timerLeft = Math.max(0, v.timerEnd - Date.now()); clearInterval(v.timerRun); v.timerRun = null; } else if (v.timerLeft > 0) { v.timerEnd = Date.now() + v.timerLeft; v.timerRun = setInterval(() => { }, 1000); v.done = false; } }
-    else if (a === 'treset') { clearInterval(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = false; }
+    else if (a === 'tstart') { if (v.timerRun) { v.timerLeft = Math.max(0, v.timerEnd - Date.now()); clearTimeout(v.timerRun); v.timerRun = null; } else if (v.timerLeft > 0) { v.timerEnd = Date.now() + v.timerLeft; v.timerRun = setTimeout(() => APPS.clock.timerDone(), v.timerLeft); v.done = false; } }
+    else if (a === 'treset') { clearTimeout(v.timerRun); v.timerRun = null; v.timerLeft = 0; v.done = false; }
     else if (a === 'swgo') { if (v.swRun) { v.sw += Date.now() - v.swStart; v.swRun = false; } else { v.swStart = Date.now(); v.swRun = true; } }
     else if (a === 'swlap') { if (v.swRun) v.laps.unshift(v.sw + Date.now() - v.swStart); else { v.sw = 0; v.laps = []; } }
     renderApp();
@@ -599,7 +615,7 @@ APPS.settings = {
   ROWS: [
     { p: 'conn', icon: '📶', name: 'Подключения', sub: () => (S.airplane ? 'Авиарежим' : [S.wifi && 'Wi-Fi', S.bt && 'Bluetooth', S.mobile && 'данные'].filter(Boolean).join(', ') || 'Всё выключено') },
     { p: 'sound', icon: '🔊', name: 'Звук', sub: () => 'Громкость ' + S.volume + '%' },
-    { p: 'display', icon: '🌗', name: 'Дисплей', sub: () => 'Яркость ' + S.brightness + '%' },
+    { p: 'display', icon: '🌗', name: 'Дисплей', sub: () => 'Яркость ' + S.brightness + '% · ' + (S.light ? 'светлая' : 'тёмная') + ' тема' },
     { p: 'wall', icon: '🖼', name: 'Обои', sub: () => WALLS[S.wall].name },
     { p: 'battery', icon: '🔋', name: 'Батарея', sub: () => '72% · демо' },
     { p: 'about', icon: 'ⓘ', name: 'О телефоне', sub: () => 'Телефон «Волна» 2.0' },
@@ -617,7 +633,8 @@ APPS.settings = {
     let body = '';
     if (v.page === 'conn') body = tog('wifi', 'Wi-Fi') + tog('bt', 'Bluetooth') + tog('mobile', 'Мобильные данные') + tog('airplane', 'Авиарежим');
     else if (v.page === 'sound') body = '<div class="o-card"><div style="margin-bottom:8px">Громкость мультимедиа</div><input class="o-range" type="range" min="0" max="100" name="volume" value="' + S.volume + '"></div><div class="about-note">Громкость действует на «Музыку».</div>';
-    else if (v.page === 'display') body = '<div class="o-card"><div style="margin-bottom:8px">Яркость</div><input class="o-range" type="range" min="30" max="100" name="brightness" value="' + S.brightness + '"></div>' + tog('torch', 'Фонарик') + tog('dnd', 'Не беспокоить');
+    else if (v.page === 'display') body = '<div class="o-card"><div style="margin-bottom:8px">Яркость</div><input class="o-range" type="range" min="30" max="100" name="brightness" value="' + S.brightness + '"></div>' + tog('light', 'Светлая тема') +
+      '<div class="o-card"><div style="margin-bottom:10px">Цвет акцента</div><div class="acc-row">' + Object.entries(ACCENTS).map(([k, x]) => '<button class="acc' + (S.accent === k ? ' on' : '') + '" data-a="accent" data-c="' + k + '" style="background:' + x.c + '" aria-label="' + x.name + '" title="' + x.name + '"></button>').join('') + '</div></div>' + tog('torch', 'Фонарик') + tog('dnd', 'Не беспокоить');
     else if (v.page === 'wall') body = '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall' + (S.wall === k ? ' on' : '') + '" data-a="wall" data-w="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>';
     else if (v.page === 'battery') body = '<div class="o-card"><div style="font-size:40px;font-weight:200">72%</div><div class="o-sub">Демо-значение: страница не читает настоящую батарею</div></div>';
     else body = '<div class="about-note"><b>Телефон «Волна», версия 2.0.</b><br>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung. Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><div style="padding:0 20px"><button class="o-btn red" data-a="reset">Сбросить всё</button></div>';
@@ -628,11 +645,18 @@ APPS.settings = {
     if (a === 'page') { v.page = t.dataset.p; renderApp(); }
     else if (a === 'tog') setS(t.dataset.k, !S[t.dataset.k]);
     else if (a === 'wall') setS('wall', t.dataset.w);
-    else if (a === 'reset') { store.clear(); location.reload(); }
+    else if (a === 'accent') setS('accent', t.dataset.c);
+    else if (a === 'reset') {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('oneui7'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
   },
   input(el) {
     if (el.name === 'q') { views.settings.q = el.value.trim().toLowerCase(); const pos = el.selectionStart; renderApp(); const i = $('app-container').querySelector('[name=q]'); i.focus(); i.setSelectionRange(pos, pos); }
-    else if (el.name === 'volume' || el.name === 'brightness') { S[el.name] = +el.value; store.set('settings', S); $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7); if (musicGain) musicGain.gain.value = S.volume / 100; }
+    else if (el.name === 'volume' || el.name === 'brightness') { S[el.name] = +el.value; store.set('settings', S); $('dim').style.opacity = String((100 - S.brightness) / 100 * 0.7); $('bright-fill').style.width = S.brightness + '%'; if (musicGain) musicGain.gain.value = S.volume / 100; }
   },
   submit() { },
   back() { if (views.settings.page) { views.settings.page = null; renderApp(); return true; } },
