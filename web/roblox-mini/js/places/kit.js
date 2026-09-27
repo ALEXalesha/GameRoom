@@ -81,10 +81,10 @@
   };
 
   // Точка контрольного пункта: плита с номером, флажок; касание - сохранить этап
-  K.checkpoint = function (game, n, x, y, z, w, d, onReach) {
+  K.checkpoint = function (game, n, x, y, z, w, d, onReach, rot) {
     const part = game.world.add({ top: [x, y, z], size: [w, 1, d], color: '#c9ccd1', mat: 'plastic', tag: 'cp' + n, data: { n } });
     part.onTouch = (g, p, body) => { if (body === g.player) onReach(n, p); };
-    const dec = K.decal(game, String(n), x, y, z, Math.min(w, d) * 0.7, Math.min(w, d) * 0.35, '#2f74d0', '#ffffff');
+    const dec = K.decal(game, String(n), x, y, z, Math.min(w, d) * 0.7, Math.min(w, d) * 0.35, '#2f74d0', '#ffffff', rot);
     part.data.decal = dec;
     const flag = K.flag(game, x - w / 2 + 0.8, y, z - d / 2 + 0.8, '#8a8d93');
     part.data.flag = flag;
@@ -98,5 +98,15 @@
       col.needsUpdate = true;
     }
     if (part.data.decal) part.data.decal.material.map = B.tex.label(String(part.data.n), '#3fae4a', '#ffffff');
+  };
+  // Погасить флажок (новый забег): серый флажок, синий номер
+  K.unlightCheckpoint = function (part) {
+    const f = part.data.flag;
+    if (f && f.mesh) {
+      const col = f.mesh.geometry.getAttribute('color'), c = new THREE.Color('#8a8d93');
+      for (let i = 0; i < col.count; i++) col.setXYZ(i, c.r, c.g, c.b);
+      col.needsUpdate = true;
+    }
+    if (part.data.decal) part.data.decal.material.map = B.tex.label(String(part.data.n), '#2f74d0', '#ffffff');
   };
 })(window.Blox);

@@ -14,6 +14,7 @@
     { id: 'paint', ru: 'Красить', en: 'Paint', key: '3' },
   ];
   const cellKey = (i, j, k) => i + ',' + j + ',' + k;
+  const TMP_M = new THREE.Matrix4(), TMP_C = new THREE.Color();
   const BOT_LIMIT = 360;        // блоков ботов на всей плите
   const BUILD_TTL = 150;        // секунд живёт готовая постройка бота, потом исчезает
   const SPAWN_R = 6;            // клеток вокруг точки появления - не строить
@@ -122,16 +123,17 @@
       }
       const x = 2 * i + 1, y = 2 * j + 1, z = 2 * k + 1;
       const part = game.world.add({ pos: [x, y, z], size: [2, 2, 2], visual: false, tag: 'block', data: { i, j, k } });
-      st.cells.set(key, { i, j, k, c: B.clamp(c | 0, 0, PALETTE.length - 1), part, owner: owner || null, build: build || null });
+      const cell = { i, j, k, c: B.clamp(c | 0, 0, PALETTE.length - 1), part, owner: owner || null, build: build || null };
+      st.cells.set(key, cell);
+      if (!silent) P.instPut(st, cell);                          // при загрузке - одним refresh после
       if (owner) {
         st.botBlocks++; st.botCells[owner] = (st.botCells[owner] || 0) + 1;
         if (!silent && game.player && Math.hypot(game.player.pos.x - x, game.player.pos.z - z) < 30) B.sound.play('place');
-        P.refresh(game);
       } else if (!silent) {
         st.placed++;
         B.sound.play('place');
         if (st.placed >= 25) B.acct.completeBadge('sandbox');
-        P.refresh(game); P.save(game);
+        P.save(game);
       }
       return true;
     },
@@ -144,7 +146,7 @@
       st.cells.delete(key);
       if (b.owner) { st.botBlocks--; st.botCells[b.owner] = Math.max(0, (st.botCells[b.owner] || 0) - 1); }
       if (owner === undefined) B.sound.play('pop');
-      P.refresh(game);
+      P.instDrop(st, b);
       if (!b.owner) P.save(game);
       return true;
     },
@@ -170,22 +172,49 @@
       if (owner !== undefined && b.owner !== owner) return false;
       b.c = c;
       if (owner === undefined) B.sound.play('paint');
-      P.refresh(game);
+      P.instColor(game.state, b);
       if (!b.owner) P.save(game);
       return true;
     },
+    // Все блоки заново (при входе). Дальше - только изменённые экземпляры (instPut/instDrop/instColor)
     refresh(game) {
-      const st = game.state, im = st.im, m = new THREE.Matrix4(), col = new THREE.Color();
-      let n = 0;
-      for (const b of st.cells.values()) {
-        m.makeTranslation(2 * b.i + 1, 2 * b.j + 1, 2 * b.k + 1);
-        im.setMatrixAt(n, m);
-        im.setColorAt(n, col.set(PALETTE[b.c]));
-        n++;
-      }
-      im.count = n;
+      const st = game.state, im = st.im;
+      st.slots = [];
+      im.count = 0;
+      for (const b of st.cells.values()) P.instPut(st, b, true);
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      st.dirty = null;
+    },
+    instPut(st, b, bulk) {
+      const im = st.im, n = im.count++;
+      im.setMatrixAt(n, TMP_M.makeTranslation(2 * b.i + 1, 2 * b.j + 1, 2 * b.k + 1));
+      im.setColorAt(n, TMP_C.set(PALETTE[b.c]));
+      b.inst = n; st.slots[n] = b;
+      if (!bulk) P.markDirty(st, n);
+    },
+    // убрать экземпляр: на его место - последний (один сдвиг, а не пересборка всех)
+    instDrop(st, b) {
+      const im = st.im, n = b.inst, last = im.count - 1;
+      if (n == null || n > last) return;
+      if (n !== last) {
+        const mv = st.slots[last];
+        im.getMatrixAt(last, TMP_M); im.setMatrixAt(n, TMP_M);
+        im.setColorAt(n, TMP_C.set(PALETTE[mv.c]));
+        mv.inst = n; st.slots[n] = mv;
+      }
+      st.slots.length = last; im.count = last; b.inst = null;
+      P.markDirty(st, n);
+    },
+    instColor(st, b) { if (b.inst == null) return; st.im.setColorAt(b.inst, TMP_C.set(PALETTE[b.c])); P.markDirty(st, b.inst); },
+    markDirty(st, n) { const d = st.dirty || (st.dirty = { lo: n, hi: n }); d.lo = Math.min(d.lo, n); d.hi = Math.max(d.hi, n); },
+    // в кадре: отправить в видеокарту только изменённый кусок
+    flushInst(st) {
+      const d = st.dirty, im = st.im;
+      if (!d) return;
+      im.instanceMatrix.updateRange.offset = d.lo * 16; im.instanceMatrix.updateRange.count = (d.hi - d.lo + 1) * 16; im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) { im.instanceColor.updateRange.offset = d.lo * 3; im.instanceColor.updateRange.count = (d.hi - d.lo + 1) * 3; im.instanceColor.needsUpdate = true; }
+      st.dirty = null;
     },
     // Куда указывает мышь: { cell для постройки, block под курсором }
     target(game, cx, cy) {
@@ -209,6 +238,7 @@
     onPointerLock(game) { if (!game.state.mouse) game.state.mouse = { x: innerWidth / 2, y: innerHeight / 2 }; },
     render(game) {
       const st = game.state, gm = st.ghost;
+      if (st.im) P.flushInst(st);
       if (!gm) return;
       if (!st.tool || !st.mouse || game.menuOpen || game.dead) { gm.visible = false; return; }
       const a = B.game.aim(st.mouse.x, st.mouse.y), t = P.target(game, a.x, a.y);

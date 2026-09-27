@@ -97,8 +97,8 @@
     meshColors() {
       const ch = G.cur.ch, out = {};
       for (const k of ['head', 'torso', 'armL', 'armR', 'legL', 'legR']) out[k] = ch.parts[k].userData.color;
-      out.headPixel = colorAt(ch.parts.head.material[0].map, 0.01, 0.5);
-      out.armLPixel = colorAt(ch.parts.armL.material[0].map, 0.5, 0.95);
+      out.headPixel = colorAt(ch.parts.head.material.map, 0.01, 0.5);
+      out.armLPixel = colorAt(ch.parts.armL.material.map, 0.5 / 3, 0.95 / 2);   // атлас 3x2: грань +x - левая верхняя клетка
       out.items = ch.items.slice();
       out.face = ch.parts.head.userData.face;
       return out;

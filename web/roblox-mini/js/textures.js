@@ -170,6 +170,12 @@
       g.fillStyle = c1; g.fillRect(0, 0, w, h);
     }
   }
+  // Все шесть граней части тела на одной текстуре 3x2 (порядок граней ящика: +x, -x, +y, -y, +z, -z):
+  // одна текстура и один материал на часть - одна отрисовка вместо шести
+  T.ATLAS_FACES = ['side', 'side', 'top', 'bottom', 'front', 'back'];
+  T.clothingAtlas = (part, base, shirt, pants) => tex(['atlas', part, base, shirt, pants].join(':'), 384, 256, (g) => {
+    T.ATLAS_FACES.forEach((f, i) => g.drawImage(T.clothing(part, f, base, shirt, pants).image, (i % 3) * 128, Math.floor(i / 3) * 128));
+  });
   // part: torso | arm | leg; face: front | back | side | top | bottom
   T.clothing = (part, face, base, shirt, pants) => {
     const key = ['cl', part, face, base, shirt, pants].join(':');

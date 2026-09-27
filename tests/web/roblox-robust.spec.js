@@ -156,4 +156,62 @@ test.describe('roblox-mini (Блоксити): устойчивость', () => 
     expect(Math.hypot(r.dx, r.dz)).toBeLessThan(12);
     expect(r.dz).toBeGreaterThan(0);                                  // перед героем (камера смотрит на +Z)
   });
+test('персонаж со всеми вещами - не больше 10 отрисовок; тень отбрасывают не больше 4 частей', async ({ page }) => {
+    await openBlox(page);
+    const r = await page.evaluate(() => {
+      const A = __blox.B.avatar, R = __blox.B.engine.renderer, cfg = __blox.B.data.defaultAvatar();
+      Object.assign(cfg, { hat: 'hat_crown', hair: 'hair_spiky', faceAcc: 'acc_glasses', back: 'back_wings' });
+      const ch = A.build(cfg), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+      sc.add(new THREE.AmbientLight(0xffffff)); cam.position.set(0, 4, 12); cam.lookAt(0, 3, 0);
+      const sh = R.shadowMap.enabled; R.shadowMap.enabled = false;
+      R.render(sc, cam); const c0 = R.info.render.calls;
+      sc.add(ch.root); R.render(sc, cam); const c1 = R.info.render.calls;
+      R.shadowMap.enabled = sh;
+      let casters = 0; ch.root.traverse((o) => { if (o.isMesh && o.castShadow) casters++; });
+      return { calls: c1 - c0, casters };
+    });
+    expect(r.calls).toBeLessThanOrEqual(10);
+    expect(r.casters).toBeLessThanOrEqual(4);
+  });
+
+  test('песочница: новый блок обновляет в видеокарте только свой экземпляр, а не все', async ({ page }) => {
+    await openBlox(page);
+    await page.evaluate(() => localStorage.setItem('mix.blox.place.sandbox', JSON.stringify({ bots: 0, botsBuild: true })));
+    await enter(page, 'sandbox');
+    const r = await page.evaluate(() => {
+      const g = __blox.game, P = g.place, im = g.state.im;
+      for (let n = 0; n < 200; n++) P.placeAt(g, 20 + (n % 20), 0, 20 + Math.floor(n / 20), n % 12);
+      __blox.step(1);
+      P.placeAt(g, 10, 0, 10, 3);
+      P.flushInst(g.state);
+      const one = im.instanceMatrix.updateRange.count;
+      P.removeAt(g, 25, 0, 21);
+      P.flushInst(g.state);
+      const drop = im.instanceMatrix.updateRange.count;
+      // после удаления на месте убранного - другой блок, картинка совпадает с таблицей клеток
+      const m = new THREE.Matrix4(), seen = new Set();
+      for (let n = 0; n < im.count; n++) { im.getMatrixAt(n, m); seen.add([m.elements[12], m.elements[13], m.elements[14]].join(',')); }
+      const want = new Set(Array.from(g.state.cells.values()).map((b) => [2 * b.i + 1, 2 * b.j + 1, 2 * b.k + 1].join(',')));
+      return { one, drop, count: im.count, cells: g.state.cells.size, same: [...want].every((x) => seen.has(x)) && seen.size === want.size };
+    });
+    expect(r.one).toBe(16);
+    expect(r.drop).toBeLessThanOrEqual(16 * 200);
+    expect(r.count).toBe(r.cells);
+    expect(r.same).toBe(true);
+  });
+
+  test('авто-графика не переключает тени на ходу (без пересборки шейдеров)', async ({ page }) => {
+    await openBlox(page, 'seed=7&fast=1');
+    await page.evaluate(() => __blox.enter('obby'));
+    const r = await page.evaluate(() => {
+      const g = __blox.game, R = __blox.B.engine.renderer, before = R.shadowMap.enabled;
+      __blox.B.gameSettings.set('graphicsMode', 'auto');
+      __blox.B.autoQuality = 2; g.applySettings();
+      const low = R.shadowMap.enabled;
+      __blox.B.autoQuality = 8; g.applySettings();
+      return { before, low, after: R.shadowMap.enabled };
+    });
+    expect(r.low).toBe(r.before);
+    expect(r.after).toBe(r.before);
+  });
 });

@@ -85,7 +85,13 @@
       if (P.setup) P.setup(this);
       this.applySettings();
       this.updateCamera(0, 0);
-      try { E.renderer.compile(w.scene, this.camera); } catch (e) { /* не страшно */ }
+      // собрать шейдеры заранее, в том числе у скрытого (призрак блока, ватрушки): иначе заминка при первом показе
+      try {
+        const hidden = [];
+        w.scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+        E.renderer.compile(w.scene, this.camera);
+        for (const o of hidden) o.visible = false;
+      } catch (e) { /* не страшно */ }
       yield 1;
     }
 
@@ -147,8 +153,11 @@
       const q = B.effectiveQuality();
       const prof = E.qualityProfile(q);
       this.profile = prof;
-      if (r.shadowMap.enabled !== prof.shadows) { r.shadowMap.enabled = prof.shadows; this.world.scene.traverse((o) => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); } }); }
-      r.shadowMap.type = prof.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+      // авто-графика тени на ходу не переключает (это пересборка всех шейдеров) - только вручную или при входе
+      if (r.shadowMap.enabled !== prof.shadows && (B.gameSettings.get('graphicsMode') === 'manual' || !this.shadowsSet)) {
+        this.shadowsSet = true; r.shadowMap.enabled = prof.shadows; this.world.scene.traverse((o) => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); } }); }
+      if (B.gameSettings.get('graphicsMode') === 'manual' || !this.shadowsSet) r.shadowMap.type = prof.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+      this.shadowsSet = true;
       const sun = this.lights.sun;
       if (sun.shadow.mapSize.x !== prof.shadowSize) {
         sun.shadow.mapSize.set(prof.shadowSize, prof.shadowSize);
@@ -349,7 +358,7 @@
       const first = this.rig.first;
       // камера упёрлась почти в героя (стена за спиной) - свой персонаж прячется, чтобы не закрывать экран
       const close = Math.hypot(this.camera.position.x - pp.x, this.camera.position.y - pp.y - 4.5, this.camera.position.z - pp.z) < 2.4;
-      if (!this.dead) { this.ch.setVisible(!first && !close); this.np.visible = !first; }
+      if (!this.dead) { this.ch.setVisible(!first && !close); this.np.visible = false; }   // своё имя над собой не видно (как в похожих играх)
       // имена над головой: вблизи камеры гаснут, вдали - не мельчают
       const cam = this.camera.position;
       const plate = (np, x, y, z, show) => {
@@ -359,7 +368,7 @@
         np.material.opacity = B.clamp((d - 4) / 5, 0, 1);
         np.visible = show && d > 4;
       };
-      if (!this.dead) plate(this.np, pp.x, pp.y, pp.z, !first);
+      if (!this.dead) plate(this.np, pp.x, pp.y, pp.z, false);
       for (const b of this.bots) {
         const bp = b.body.lerpPos(alpha);
         if (!b.dead) plate(b.np, bp.x, bp.y, bp.z, true);
@@ -469,6 +478,7 @@
     }
     closeMenu() {
       this.menuOpen = false; this.paused = false;
+      G.resetLeave();
       $('g-menu-panel').hidden = true;
       B.sound.resume();
       B.emit('menu', false);
@@ -640,7 +650,7 @@
     el.textContent = `${Math.round(1000 / avg)} fps · ${avg.toFixed(1)} ms · q${B.effectiveQuality()}`;
   }
   // Автоматическая графика: медленно - проще, быстро - красивее
-  let aqT = 0;
+  let aqT = 0, aqSlow = 0, aqFast = 0;
   function autoQuality(g) {
     if (B.gameSettings.get('graphicsMode') !== 'auto' || B.params.manual) return;
     aqT += 0.25;
@@ -650,8 +660,11 @@
     if (ft.length < 100) return;
     const med = ft[Math.floor(ft.length / 2)];
     const before = B.autoQuality;
-    if (med > 22 && B.autoQuality > 2) B.autoQuality--;
-    else if (med < 13 && B.autoQuality < 8) B.autoQuality++;
+    // гистерезис: вниз - после трёх медленных замеров подряд (9 с), вверх - после пяти быстрых (15 с)
+    aqSlow = med > 22 ? aqSlow + 1 : 0;
+    aqFast = med < 13 ? aqFast + 1 : 0;
+    if (aqSlow >= 3 && B.autoQuality > 3) { B.autoQuality--; aqSlow = 0; }
+    else if (aqFast >= 5 && B.autoQuality < 8) { B.autoQuality++; aqFast = 0; }
     if (before !== B.autoQuality) g.applySettings();
   }
 
@@ -666,7 +679,7 @@
       const g = G.cur;
       if (!g) return;
       if (e.target === chatIn) {
-        if (e.code === 'Enter') { g.sendChat(chatIn.value); chatIn.value = ''; chatIn.blur(); e.preventDefault(); }
+        if (e.code === 'Enter' || e.code === 'NumpadEnter') { g.sendChat(chatIn.value); chatIn.value = ''; chatIn.blur(); e.preventDefault(); }
         else if (e.code === 'Escape') { chatIn.blur(); e.preventDefault(); }
         return;
       }
@@ -674,11 +687,11 @@
       if (e.code === 'Escape') { e.preventDefault(); if (g.menuOpen) g.closeMenu(); else g.openMenu(); return; }
       if (g.menuOpen) {
         if (e.code === 'KeyR') { g.closeMenu(); g.killPlayer(); }
-        else if (e.code === 'KeyL') G.leave();
+        else if (e.code === 'KeyL') G.askLeave();
         return;
       }
       if (e.code === 'Tab') { e.preventDefault(); $('g-board').hidden = !$('g-board').hidden; return; }
-      if ((e.code === 'Enter' || e.code === 'Slash') && B.settings.get('chat') !== 'off') { e.preventDefault(); chatIn.focus(); return; }
+      if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Slash') && B.settings.get('chat') !== 'off') { e.preventDefault(); chatIn.focus(); return; }
       if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
         if (B.gameSettings.get('shiftLock') && !g.rig.first) {
           g.shiftLock = !g.shiftLock;
@@ -747,7 +760,7 @@
       if (document.pointerLockElement) document.exitPointerLock();
       B.sound.suspend();
     };
-    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAll(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAll(); else if (!G.cur) B.sound.resume(); });   // в лаунчере звук возвращается сам
     // прицел в центре, пока мышь захвачена
     document.addEventListener('pointerlockchange', () => {
       const on = !!document.pointerLockElement && !!G.cur;
@@ -767,7 +780,7 @@
     $('m-resume').addEventListener('click', () => G.cur && G.cur.closeMenu());
     $('m-reset').addEventListener('click', () => { const g = G.cur; if (!g) return; g.closeMenu(); g.killPlayer(); });
     $('m-settings').addEventListener('click', () => G.cur && G.cur.menuTab('settings'));
-    $('m-leave').addEventListener('click', () => G.leave());
+    $('m-leave').addEventListener('click', () => G.askLeave());
     $('m-close').addEventListener('click', () => G.cur && G.cur.closeMenu());
     document.querySelectorAll('#g-menu-panel .mtab').forEach((b) => b.addEventListener('click', () => G.cur && G.cur.menuTab(b.dataset.tab)));
     $('m-defaults').addEventListener('click', () => { B.gameSettings.reset(); if (G.cur) { G.cur.applySettings(); G.cur.menuTab('settings'); } });
@@ -778,6 +791,17 @@
     B.on('settings', () => { if (G.cur) G.cur.applySettings(); });
   }
   G.bindInput = bindInput;
+
+  // Выход - с подтверждением: первый раз кнопка спрашивает «Точно выйти?», второй - выходит
+  G.askLeave = function () {
+    const b = $('m-leave');
+    if (b.classList.contains('confirm')) { G.leave(); return; }
+    b.classList.add('confirm');
+    b.querySelector('b').textContent = B.lang() === 'en' ? 'Leave for sure? (L again)' : 'Точно выйти? (ещё раз L)';
+    clearTimeout(G.leaveT);
+    G.leaveT = setTimeout(G.resetLeave, 4000);
+  };
+  G.resetLeave = function () { const b = $('m-leave'); b.classList.remove('confirm'); b.querySelector('b').textContent = B.t('leave'); };
 
   G.toggleFullscreen = function () {
     try {

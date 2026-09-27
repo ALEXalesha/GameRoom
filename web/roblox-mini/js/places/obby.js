@@ -216,6 +216,7 @@
     restart(game) {
       const st = game.state;
       st.cp = 0; st.t = 0; st.running = false; st.done = false;
+      for (const p of st.pads) if (p) K.unlightCheckpoint(p);         // «Ещё раз» - флажки снова серые
       game.respawn();
     },
     hud(game) {

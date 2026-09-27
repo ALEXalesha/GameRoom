@@ -24,10 +24,70 @@
   const HEAD_GEO = new THREE.CylinderGeometry(HEAD_R, HEAD_R, HEAD_H, 28, 1, false, Math.PI, Math.PI * 2);
   HEAD_GEO.userData.shared = true;
 
-  function clothMats(part, color, shirt, pants) {
-    const t = (f) => new THREE.MeshLambertMaterial({ map: B.tex.clothing(part, f, color, shirt, pants) });
-    // порядок граней BoxGeometry: +x, -x, +y, -y, +z (перед), -z (спина)
-    return [t('side'), t('side'), t('top'), t('bottom'), t('front'), t('back')];
+  // Ящик части тела с развёрткой под атлас 3x2 и без групп: один материал - одна отрисовка
+  function atlasBox(w, h, d) {
+    const k = 'ab' + w + ',' + h + ',' + d;
+    if (geoCache[k]) return geoCache[k];
+    const g = new THREE.BoxGeometry(w, h, d), uv = g.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) {
+      const f = Math.floor(i / 4), col = f % 3, row = Math.floor(f / 3);
+      uv.setXY(i, (col + uv.getX(i)) / 3, 1 - (row + 1) / 2 + uv.getY(i) / 2);
+    }
+    g.clearGroups();
+    return (geoCache[k] = keep(g));
+  }
+  function clothMat(part, color, shirt, pants) {
+    const t = B.tex.clothingAtlas(part, color, shirt, pants), key = 'atlas' + t.uuid;
+    if (!matCache[key]) { matCache[key] = new THREE.MeshLambertMaterial({ map: t }); matCache[key].userData.shared = true; }
+    return matCache[key];
+  }
+  // Голова: боковина с лицом, крышки - цветом кожи из той же текстуры (угол слева, где затылок)
+  const HEAD_ONE = HEAD_GEO.clone();
+  (function () {
+    const uv = HEAD_ONE.getAttribute('uv'), side = HEAD_GEO.groups[0];
+    const idx = HEAD_ONE.index, capStart = side.start + side.count, seen = new Set();
+    for (let n = capStart; n < idx.count; n++) { const v = idx.getX(n); if (!seen.has(v)) { seen.add(v); uv.setXY(v, 0.01, 0.5); } }
+    HEAD_ONE.clearGroups();
+    HEAD_ONE.userData.shared = true;
+  })();
+  function headMat(faceTex) {
+    const key = 'head' + faceTex.uuid;
+    if (!matCache[key]) { matCache[key] = new THREE.MeshLambertMaterial({ map: faceTex }); matCache[key].userData.shared = true; }
+    return matCache[key];
+  }
+  // Вещь из нескольких деталей - одна сетка с цветами вершин (одна отрисовка)
+  const vcMat = {};
+  function mergeItem(src) {
+    src.updateMatrixWorld(true);
+    const pos = [], nor = [], col = [], c = new THREE.Color();
+    let double = false;
+    src.traverse((o) => {
+      if (!o.isMesh) return;
+      const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+      if (!geo.getAttribute('normal')) geo.computeVertexNormals();
+      const p = geo.getAttribute('position'), nn = geo.getAttribute('normal');
+      c.copy(o.material.color || c.set('#ffffff'));
+      if (o.material.side === THREE.DoubleSide) double = true;
+      for (let i = 0; i < p.count; i++) { pos.push(p.getX(i), p.getY(i), p.getZ(i)); nor.push(nn.getX(i), nn.getY(i), nn.getZ(i)); col.push(c.r, c.g, c.b); }
+      geo.dispose();
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeBoundingSphere();
+    g.userData.shared = true;
+    const key = double ? 'd' : 's';
+    if (!vcMat[key]) { vcMat[key] = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 40, specular: 0x333333, side: double ? THREE.DoubleSide : THREE.FrontSide }); vcMat[key].userData.shared = true; }
+    return new THREE.Mesh(g, vcMat[key]);
+  }
+  const itemCache = {};
+  function itemMesh(id, c) {
+    const key = id + (c || '');
+    if (!itemCache[key]) { const tmp = new THREE.Group(); ACC[id](tmp, c); itemCache[key] = mergeItem(tmp); }
+    const m = new THREE.Mesh(itemCache[key].geometry, itemCache[key].material);
+    m.castShadow = false;
+    return m;
   }
 
   // ---------- Аксессуары: строятся от шеи (голова: центр y=0.6, макушка 1.2) или от центра туловища ----------
@@ -131,19 +191,18 @@
     const body = new THREE.Group(); root.add(body);        // для покачивания в танце
     const parts = {}, pivots = {};
 
-    const torso = mesh(box(2, 2, 1), clothMats('torso', col.torso, cfg.shirt, cfg.pants), 0, 3, 0);
+    const torso = mesh(atlasBox(2, 2, 1), clothMat('torso', col.torso, cfg.shirt, cfg.pants), 0, 3, 0);
     torso.userData = { part: 'torso', color: col.torso }; body.add(torso); parts.torso = torso;
 
     const neck = new THREE.Group(); neck.position.set(0, 4, 0); body.add(neck); pivots.neck = neck;
     const faceTex = B.tex.face(cfg.face, col.head);
-    const headSide = new THREE.MeshLambertMaterial({ map: faceTex });
-    const headCap = lambert(col.head);
-    const head = mesh(HEAD_GEO, [headSide, headCap, headCap], 0, 0.6, 0);
+    const head = mesh(HEAD_ONE, headMat(faceTex), 0, 0.6, 0);
     head.userData = { part: 'head', color: col.head, face: cfg.face }; neck.add(head); parts.head = head;
 
     function limb(name, x, y, color, kind) {
       const p = new THREE.Group(); p.position.set(x, y, 0); body.add(p);
-      const m = mesh(box(1, 2, 1), clothMats(kind, color, cfg.shirt, cfg.pants), 0, -(kind === 'arm' ? 0.5 : 1), 0);
+      const m = mesh(atlasBox(1, 2, 1), clothMat(kind, color, cfg.shirt, cfg.pants), 0, -(kind === 'arm' ? 0.5 : 1), 0);
+      if (kind === 'arm') m.castShadow = false;                   // тень - от туловища, головы и ног
       if (kind === 'arm') m.position.y = -0.5;
       m.userData = { part: name, color }; p.add(m);
       parts[name] = m; pivots[name] = p;
@@ -159,7 +218,7 @@
       const id = cfg[slot];
       if (!id || !ACC[id]) continue;
       const g = new THREE.Group(); g.userData = { item: id, slot };
-      ACC[id](g);
+      g.add(itemMesh(id));
       if (slot === 'back') { g.position.set(0, 3, 0); body.add(g); } else neck.add(g);
       items.push(id);
     }
@@ -206,7 +265,9 @@
   // Отдельная вещь для картинки каталога
   A.buildItem = function (id) {
     const g = new THREE.Group();
-    if (ACC[id]) ACC[id](g);
+    if (ACC[id]) g.add(itemMesh(id));
     return g;
   };
+  // Сколько отрисовок даёт персонаж (для законов): сетки, у каждой - число групп материалов
+  A.drawCalls = (ch) => { let n = 0; ch.root.traverse((o) => { if (o.isMesh && o.visible) n += Array.isArray(o.material) ? Math.max(1, o.geometry.groups.length) : 1; }); return n; };
 })(window.Blox);

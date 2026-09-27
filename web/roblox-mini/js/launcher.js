@@ -147,7 +147,12 @@
       cfg.shirt = it.type === 'shirt' ? id : 'shirt_none'; cfg.pants = it.type === 'pants' ? id : 'pants_none';
       const { ch } = (() => { const ch = B.avatar.build(cfg); ch.pose({ dt: 0.016, speed: 0 }); scene.add(ch.root); return { ch }; })();
       ch.root.rotation.y = -0.3;
-      if (it.type === 'shirt') { cam.position.set(0, 3.2, 9); cam.lookAt(0, 3, 0); } else { cam.position.set(0, 1.8, 9); cam.lookAt(0, 1.6, 0); }
+      if (it.type === 'shirt') { cam.position.set(0, 3.2, 9); cam.lookAt(0, 3, 0); } else {
+        // штаны: только ноги с поясом, без туловища и головы
+        for (const k of ['torso', 'head', 'armL', 'armR']) ch.parts[k].visible = false;
+        for (const o of ch.root.children[0].children) if (o.userData && o.userData.item) o.visible = false;
+        cam.position.set(0, 1.5, 7.2); cam.lookAt(0, 1.2, 0);
+      }
     }
     return (L.icons[id] = snap(scene, cam, 160, 160, 'image/png'));
   }
@@ -242,7 +247,9 @@
       </div>
       ${friendRow()}
       ${recent.length ? `<h2 class="row-h">${B.t('continue_row')}</h2><div class="row">${recent.map(card).join('')}</div>` : ''}
-      <h2 class="row-h">${B.t('recommended')}</h2><div class="row">${B.data.PLACES.map(card).join('')}</div>`;
+      <h2 class="row-h">${B.t('recommended')}</h2><div class="row">${B.data.PLACES.map(card).join('')}</div>
+      <h2 class="row-h">${B.t('badges')} <span class="muted">${Object.keys(B.acct.badges()).length}/${B.data.BADGES.length}</span></h2>
+      <div class="badges home-badges">${B.data.BADGES.map((b) => `<div class="badge${B.acct.badges()[b.id] ? ' got' : ''}" title="${B.esc(b.desc)}"><span class="b-ic" style="--c:${b.color}">${badgeIcon(b.icon)}</span><b>${B.esc(B.tn(b))}</b><small>${B.acct.badges()[b.id] ? B.esc(B.fmtDate(B.acct.badges()[b.id])) : B.esc(b.desc)}</small></div>`).join('')}</div>`;
     bindCards($('sec-home'));
     rowFades();
     $('sec-home').querySelectorAll('[data-fi]').forEach((b) => b.addEventListener('click', () => { const f = friends()[b.dataset.fi]; if (f.place) L.openPlace(f.place.id); }));
@@ -310,7 +317,7 @@
             <div><span class="muted">${B.lang() === 'en' ? 'Visits' : 'Посещения'}</span><b>${B.fmtNum(st.visits)}</b></div>
             <div><span class="muted">${B.t('genre')}</span><b>${B.esc(B.lang() === 'en' ? p.genreEn : p.genre)}</b></div>
             <div><span class="muted">${B.t('max_players')}</span><b>${p.maxPlayers}</b></div>
-            <div><span class="muted">${B.t('created')}</span><b>26.09.2026</b></div>
+            <div><span class="muted">${B.t('created')}</span><b>${B.fmtDate(p.created)}</b></div>
           </div>
           ${p.medals ? `<div class="medal-row">${['gold', 'silver', 'bronze'].map((m) => `<div>${U.medal(m, 26)}<span>${U.medalName(m)}</span><b>${p.medals[m] === Infinity ? (B.lang() === 'en' ? 'finish' : 'финиш') : (p.metric === 'time' ? (p.lower ? '≤ ' : '') + p.medals[m] + ' с' : '≥ ' + p.medals[m])}</b><small>+${B.REWARD[m]} ${U.cube(12)}</small></div>`).join('')}</div>` : ''}
         </div>
@@ -346,6 +353,8 @@
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.7));
     const d = new THREE.DirectionalLight(0xffffff, 0.75); d.position.set(5, 10, 8); d.castShadow = true; scene.add(d);
+    // тень целиком на подставке (иначе край подставки срезан тёмным клином)
+    const sc = d.shadow.camera; sc.left = sc.bottom = -8; sc.right = sc.top = 8; sc.near = 1; sc.far = 40; d.shadow.mapSize.set(1024, 1024); d.shadow.bias = -0.001;
     r.shadowMap.enabled = true;
     const floor = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.3, 40), new THREE.MeshLambertMaterial({ color: 0x9aa3b2 }));
     floor.position.y = -0.15; floor.receiveShadow = true; scene.add(floor);
@@ -528,7 +537,7 @@
             <div><b>${tot}</b><span>${B.t('visits')}</span></div>
             <div><b>${Object.keys(badges).length}</b><span>${B.t('badges')}</span></div>
             <div><b>${U.cube(16)} ${B.acct.balance()}</b><span>${B.t('currency')}</span></div>
-            <div><b>${B.esc(p.created)}</b><span>${en ? 'joined' : 'с нами с'}</span></div>
+            <div><b>${B.esc(B.fmtDate(p.created))}</b><span>${en ? 'joined' : 'с нами с'}</span></div>
           </div>
           <button type="button" class="btn ghost" id="pf-edit">${U.icon('pencil', 16)} ${B.t('edit')}</button>
         </div>
@@ -545,7 +554,7 @@
         ${B.data.PLACES.map((pl) => { const s = B.acct.placeStats(pl.id); const best = pl.metric === 'blocks' ? B.places.sandbox.load().blocks.length : s.best; return `<tr><td>${B.esc(B.tn(pl))}</td><td>${s.visits}</td><td>${best == null ? '-' : pl.metric === 'time' ? B.fmtTime(best) : best}</td><td>${s.medal ? U.medal(s.medal, 18) : '-'}</td><td>${B.acct.completed(pl.id) ? '✓' : '-'}</td></tr>`; }).join('')}
         </tbody></table></div>
       <div class="panel"><h2>${B.t('badges')} <span class="muted">${Object.keys(badges).length}/${B.data.BADGES.length}</span></h2>
-        <div class="badges">${B.data.BADGES.map((b) => `<div class="badge${badges[b.id] ? ' got' : ''}" title="${B.esc(b.desc)}"><span class="b-ic" style="--c:${b.color}">${badgeIcon(b.icon)}</span><b>${B.esc(B.tn(b))}</b><small>${badges[b.id] ? badges[b.id] : B.esc(b.desc)}</small></div>`).join('')}</div></div>`;
+        <div class="badges">${B.data.BADGES.map((b) => `<div class="badge${badges[b.id] ? ' got' : ''}" title="${B.esc(b.desc)}"><span class="b-ic" style="--c:${b.color}">${badgeIcon(b.icon)}</span><b>${B.esc(B.tn(b))}</b><small>${badges[b.id] ? B.esc(B.fmtDate(badges[b.id])) : B.esc(b.desc)}</small></div>`).join('')}</div></div>`;
     $('pf-edit').onclick = () => { $('pf-form').hidden = !$('pf-form').hidden; };
     $('pf-cancel').onclick = () => { $('pf-form').hidden = true; };
     $('pf-form').onsubmit = (e) => {

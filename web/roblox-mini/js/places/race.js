@@ -17,12 +17,12 @@
     build(game) {
       const w = game.world, path = game.path = [];
       w.voidY = -6;
-      w.add({ top: [150, -8, 0], size: [900, 1, 600], color: '#2f8fd8', mat: 'glass', solid: false, tag: 'water' });
+      w.add({ top: [150, -8, 0], size: [900, 1, 600], color: '#2f8fd8', mat: 'smooth', solid: false, tag: 'water' });   // матовая: без белого блика солнца
       w.add({ top: [150, -20, 0], size: [900, 1, 600], color: '#1e5a8f', mat: 'smooth', solid: false });
       const plat = (x0, x1, y, z, wz, color, extra) => w.add(Object.assign({ top: [(x0 + x1) / 2, y, z], size: [x1 - x0, 1, wz], color }, extra || {}));
       // старт
       path.push(plat(-24, 11, 0, 0, 22, '#56b05a', { tag: 'start' }));
-      K.decal(game, B.lang() === 'en' ? 'START' : 'СТАРТ', 6, 0, 0, 8, 4, '#2f74d0', '#fff', Math.PI / 2);
+      K.decal(game, B.lang() === 'en' ? 'START' : 'СТАРТ', 6, 0, 0, 8, 4, '#2f74d0', '#fff', -Math.PI / 2);   // читается с дорожки (бег вдоль +X)
       for (const z of [-10, 10]) w.add({ top: [START_X, 9, z], size: [1.2, 9, 1.2], color: '#f2f3f3', mat: 'smooth' });
       w.add({ pos: [START_X, 9.6, 0], size: [1, 1.4, 21], color: '#2f74d0', mat: 'neon', solid: false });
       K.tree(game, -2, 0, -9, 0.8); K.tree(game, -6, 0, 9, 0.7);
@@ -32,7 +32,7 @@
       w.add({ top: [34, 0.1, 0], size: [3, 0.2, 5], color: '#3fe07a', mat: 'neon', speed: 1.2, tag: 'speed' });
       // КТ 1
       const cp = (i, x0, x1, y) => {
-        const p = K.checkpoint(game, i + 1, (x0 + x1) / 2, y, 0, x1 - x0, 12, (n, part) => P.reach(game, n, part));
+        const p = K.checkpoint(game, i + 1, (x0 + x1) / 2, y, 0, x1 - x0, 12, (n, part) => P.reach(game, n, part), -Math.PI / 2);
         path.push(p); return p;
       };
       cp(0, 75, 85, 0);
@@ -62,7 +62,7 @@
       path.push(plat(305, 330, 6, 0, 20, '#56b05a', { tag: 'finishpad' }));
       for (const z of [-9, 9]) w.add({ top: [FINISH_X, 15, z], size: [1.2, 9, 1.2], color: '#f2f3f3', mat: 'smooth' });
       w.add({ pos: [FINISH_X, 15.6, 0], size: [1, 1.4, 19], color: '#ffc21a', mat: 'neon', solid: false });
-      K.decal(game, B.lang() === 'en' ? 'FINISH' : 'ФИНИШ', 318, 6, 0, 8, 4, '#d62d2d', '#fff', Math.PI / 2);
+      K.decal(game, B.lang() === 'en' ? 'FINISH' : 'ФИНИШ', 318, 6, 0, 8, 4, '#d62d2d', '#fff', -Math.PI / 2);
       K.trophy(game, 326, 6, -6);
       K.tree(game, 326, 6, 7, 0.8);
       game.spawn = { x: -12, y: 0, z: 0, facing: Math.PI / 2 };

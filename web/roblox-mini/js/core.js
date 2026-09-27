@@ -44,6 +44,8 @@ window.Blox = window.Blox || {};
     const m = Math.floor(s / 60), r = s - m * 60;
     return m > 0 ? m + ':' + (r < 10 ? '0' : '') + r.toFixed(2) : r.toFixed(2) + ' с';
   };
+  // Даты везде в одном виде: ДД.ММ.ГГГГ (хранятся как ГГГГ-ММ-ДД)
+  B.fmtDate = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? m[3] + '.' + m[2] + '.' + m[1] : String(s || '-'); };
   B.fmtNum = (n) => (n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'K' : String(n));
   B.esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

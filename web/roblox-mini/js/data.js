@@ -70,37 +70,37 @@
       id: 'obby', name: 'Обби: Башня', en: 'Tower Obby', genre: 'Обби', genreEn: 'Obby', color: '#ff9d3b',
       desc: 'Восемь этапов вверх вокруг башни: простые прыжки, лава, ездящие и исчезающие плиты, батуты, конвейеры и крутилки. Контрольные точки запоминают этап.',
       descEn: 'Eight stages up around a tower: jumps, lava, moving and vanishing tiles, trampolines, conveyors and spinners. Checkpoints save your stage.',
-      metric: 'time', lower: true, medals: { gold: 150, silver: 240, bronze: Infinity }, maxPlayers: 12,
+      metric: 'time', lower: true, medals: { gold: 150, silver: 240, bronze: Infinity }, maxPlayers: 12, created: '2026-09-26',
     },
     {
       id: 'race', name: 'Скоростной забег', en: 'Speed Run', genre: 'Гонки', genreEn: 'Racing', color: '#3fd0c4',
       desc: 'Длинная трасса на время: ускорители, узкие балки, прыжки через пропасти. Таймер стартует на линии. Золото - быстрее 34 секунд.',
       descEn: 'A long timed course: speed pads, narrow beams and gaps. The timer starts at the line. Gold is under 34 seconds.',
-      metric: 'time', lower: true, medals: { gold: 34, silver: 44, bronze: 58 }, maxPlayers: 8,
+      metric: 'time', lower: true, medals: { gold: 34, silver: 44, bronze: 58 }, maxPlayers: 8, created: '2026-09-26',
     },
     {
       id: 'lava', name: 'Лава поднимается', en: 'The Floor Is Lava', genre: 'Выживание', genreEn: 'Survival', color: '#ff5c5c',
       desc: 'Лава поднимается всё быстрее. Карабкайся по платформам как можно выше - засчитывается самая большая высота за раунд.',
       descEn: 'The lava keeps rising faster. Climb as high as you can - the best height of the round counts.',
-      metric: 'height', lower: false, medals: { gold: 90, silver: 60, bronze: 30 }, maxPlayers: 10,
+      metric: 'height', lower: false, medals: { gold: 90, silver: 60, bronze: 30 }, maxPlayers: 10, created: '2026-09-26',
     },
     {
       id: 'coins', name: 'Собери монетки', en: 'Coin Rush', genre: 'Соревнование', genreEn: 'Competitive', color: '#ffd23f',
       desc: 'Кто первым соберёт 10 монет - ты или три бота? Монеты появляются по всей карте, боты не ждут.',
       descEn: 'Who gets 10 coins first - you or three bots? Coins pop up all over the map, and the bots do not wait.',
-      metric: 'time', lower: true, medals: { gold: 45, silver: 70, bronze: Infinity }, maxPlayers: 4, goal: 10,
+      metric: 'time', lower: true, medals: { gold: 45, silver: 70, bronze: Infinity }, maxPlayers: 4, goal: 10, created: '2026-09-26',
     },
     {
       id: 'sandbox', name: 'Песочница', en: 'Sandbox', genre: 'Строительство', genreEn: 'Building', color: '#a8d65b',
       desc: 'Своя плита для стройки: ставь, крась и ломай блоки. Постройка сохраняется и ждёт тебя при следующем входе.',
       descEn: 'Your own plate to build on: place, paint and break blocks. Your build is saved for next time.',
-      metric: 'blocks', lower: false, medals: null, maxPlayers: 6,
+      metric: 'blocks', lower: false, medals: null, maxPlayers: 6, created: '2026-09-26',
     },
     {
       id: 'tube', name: 'Горка на ватрушке', en: 'Tube Slide', genre: 'Приключения', genreEn: 'Adventure', color: '#79c7ff',
       desc: 'Садись на ватрушку и мчись вниз по снежной горке. Рули A/D, собирай звёзды в кольцах, объезжай ёлки.',
       descEn: 'Hop on a snow tube and race down the slope. Steer with A/D, grab stars through the rings, dodge the trees.',
-      metric: 'score', lower: false, medals: { gold: 18, silver: 12, bronze: 6 }, maxPlayers: 8,
+      metric: 'score', lower: false, medals: { gold: 18, silver: 12, bronze: 6 }, maxPlayers: 8, created: '2026-09-27',
     },
   ];
 

@@ -47,8 +47,9 @@ test.describe('roblox-mini (Блоксити): лаунчер', () => {
     await expect(page.locator('#g-chat-log')).toContainText('Добро пожаловать');
     const np = await page.evaluate(() => __blox.nameplate());
     expect(np.text).toMatch(/^Гость_\d+$/);
-    expect(np.visible).toBe(true);
-    expect(np.y).toBeGreaterThan(5.2);                 // над макушкой
+    expect(np.visible).toBe(false);                    // своё имя над собой не видно, как в похожих играх
+    expect(np.y).toBeGreaterThan(5.2);                 // над макушкой (у ботов - видно)
+    expect(await page.evaluate(() => __blox.game.bots.every((b) => b.np.visible))).toBe(true);
     expect(errors).toEqual([]);
   });
 
@@ -65,6 +66,9 @@ test.describe('roblox-mini (Блоксити): лаунчер', () => {
     await expect(page.locator('#g-menu-panel')).toBeHidden();
     await page.locator('#g-menu').click();                             // кнопка-логотип - то же меню
     await expect(page.locator('#g-menu-panel')).toBeVisible();
+    await page.locator('#m-leave').click();                            // первый раз - спрашивает
+    await expect(page.locator('#m-leave')).toContainText('Точно выйти');
+    expect(await page.evaluate(() => __blox.screen)).toBe('place');
     await page.locator('#m-leave').click();
     await expect(page.locator('#launcher')).toBeVisible();
     await expect(page.locator('#game')).toBeHidden();
@@ -131,6 +135,47 @@ test.describe('roblox-mini (Блоксити): лаунчер', () => {
     await page.locator('#m-resume').click();
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => __blox.game.time)).toBeGreaterThan(t);
+  });
+
+  test('мелочи: NumpadEnter отправляет в чат; L выходит только со второго раза; «Ещё раз» в обби гасит флажки', async ({ page }) => {
+    await openBlox(page, 'seed=7&fast=1&manual=1');
+    await page.evaluate(() => __blox.enter('obby'));
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('привет');
+    await page.keyboard.press('NumpadEnter');
+    await expect(page.locator('#g-chat-log')).toContainText('привет');
+    const flags = await page.evaluate(() => {
+      const g = __blox.game, pad = g.state.pads[2];
+      g.player.teleport(pad.cx, pad.maxY + 0.01, pad.cz); __blox.step(3);
+      const lit = pad.data.flag.mesh.geometry.getAttribute('color').getY(0);
+      g.place.restart(g);
+      return { lit, after: pad.data.flag.mesh.geometry.getAttribute('color').getY(0) };
+    });
+    expect(flags.lit).toBeGreaterThan(0.7);
+    expect(flags.after).toBeLessThan(0.6);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('KeyL');
+    expect(await page.evaluate(() => __blox.screen)).toBe('place');
+    await page.keyboard.press('KeyL');
+    expect(await page.evaluate(() => __blox.screen)).toBe('launcher');
+  });
+
+  test('лаунчер 1920x1080: содержимое по центру; всплывашки не закрывают прогресс; даты ДД.ММ.ГГГГ', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await openBlox(page, 'seed=7&fast=1&manual=1');
+    await page.evaluate(() => { __blox.B.acct.award('shopper'); __blox.B.ui.toast('проверка', 'ok'); });
+    const r = await page.evaluate(() => {
+      const c = document.querySelector('#content').getBoundingClientRect(), s = document.querySelector('#sec-home').getBoundingClientRect();
+      const t = document.querySelector('#toasts .toast').getBoundingClientRect(), p = document.querySelector('.progress-card').getBoundingClientRect();
+      const overlap = !(t.right < p.left || t.left > p.right || t.bottom < p.top || t.top > p.bottom);
+      return { left: s.left - c.left, right: c.right - s.right, overlap };
+    });
+    expect(Math.abs(r.left - r.right)).toBeLessThan(30);
+    expect(r.overlap).toBe(false);
+    await page.locator('.sidenav [data-sec="profile"]').click();
+    const txt = await page.locator('#sec-profile').textContent();
+    expect(txt).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(txt).toMatch(/\d{2}\.\d{2}\.\d{4}/);
   });
 
   for (const size of SIZES) {
