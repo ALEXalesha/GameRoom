@@ -239,3 +239,42 @@ test.describe('space_shooter: пауза, настройки, окно', () => {
     });
   }
 });
+
+test.describe('space_shooter: по ревью', () => {
+  test('выбор сектора после перезагрузки берёт улучшения и кредиты последней мастерской', async ({ page }) => {
+    await openGame(page, 'space_shooter', 'seed=1&fast');
+    const saved = await page.evaluate(() => {
+      localStorage.clear(); const g = __game; g.startCampaign(); g.S.credits = 3000; g.showShop();
+      for (const k of ['weapon', 'weapon', 'weapon', 'damage', 'shield', 'rate']) g.buy(k);
+      g.progress.up = { ...g.S.up }; g.progress.credits = g.S.credits; g.progress.maxSector = 3; g.progress.sector = 3; g.kit.save('progress', g.progress);
+      return { up: g.progress.up, credits: g.progress.credits };
+    });
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    await page.click('[data-screen=main] [data-id=sectors]');
+    await page.click('[data-sector="1"]');
+    const fight = await page.evaluate(() => ({ up: __game.S.up, credits: __game.S.credits, sector: __game.S.sector }));
+    expect(fight).toEqual({ up: saved.up, credits: saved.credits, sector: 1 });
+  });
+
+  test('корабль не заходит под полосу прочности, кредиты и полосу босса', async ({ page }) => {
+    await openGame(page, 'space_shooter', 'seed=1');
+    await page.click('[data-screen=main] [data-id=campaign]');
+    const r = await page.evaluate(() => { const g = __game; g.P.y = 5; g.P.vy = -20; g.step(3, false); return { y: g.P.y, min: g.HUD_BOTTOM + g.P.r }; });
+    expect(r.y).toBeGreaterThanOrEqual(r.min);
+    expect(r.min).toBeGreaterThanOrEqual(64);
+  });
+
+  test('«Трудная кампания» - только если все сектора пройдены на трудной', async ({ page }) => {
+    await openGame(page, 'space_shooter', 'seed=1&fast');
+    const r = await page.evaluate(() => {
+      localStorage.clear(); const g = __game; g.kit.unlocked = {};
+      g.kit.set('difficulty', 'hard'); g.progress.maxSector = 7; g.progress.up = { weapon: 0, damage: 0, shield: 0, speed: 0, rate: 0 };
+      g.startCampaign(7); g.enemies.length = 0; g.S.queue = []; g.S.wave = g.SECTORS[7].waves.length - 1;
+      g.startFinale(); if (g.boss) g.boss.hp = 0; for (const e of g.enemies) e.hp = 0;
+      for (let i = 0; i < 400 && g.S.phase !== 'won'; i++) g.step(1, false);
+      return { phase: g.S.phase, hard: !!g.kit.unlocked.campaignHard };
+    });
+    expect(r).toEqual({ phase: 'won', hard: false });
+  });
+});

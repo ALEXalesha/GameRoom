@@ -13,9 +13,9 @@ const GAMES = {
   dino: { id: 'dino', start: '[data-id=journey]', keys: { progress: '__game.progress', records: '__game.records' },
     nested: { records: [{ journeyTime: { 0: null, 1: 'x' } }, { journeyTime: [] }] } },
   space_shooter: { id: 'space', start: '[data-id=campaign]', keys: { progress: '__game.progress', records: '__game.records' },
-    nested: { progress: [{ up: { weapon: 'x', damage: null } }, { up: [] }, { sector: 11, maxSector: 11 }], records: [{ bestTime: { 0: null } }] } },
+    nested: { progress: [{ up: { weapon: 'x', damage: null }, sector: 2, maxSector: 2 }, { up: [] }, { sector: 11, maxSector: 11, up: { weapon: 0, damage: 0, shield: 0, speed: 0, rate: 0 } }, { sector: 2, maxSector: 2, up: { weapon: 9, damage: -1, shield: 0, speed: 0, rate: 0 }, credits: 'x', hp: null, bombs: 99 }], records: [{ bestTime: { 0: null } }] } },
   'jungle-strike': { id: 'jungle', start: '[data-id=campaign]', keys: { progress: '__game.progress' },
-    nested: { progress: [{ best: { 0: null, 1: 'x' } }, { unlocked: 9 }] } },
+    nested: { progress: [{ best: { 0: null, 1: 'x' }, unlocked: 2 }, { unlocked: 9 }, { unlocked: 2.5, best: [] }] } },
   mario: { id: 'jumper', start: '[data-id=play]', keys: { progress: '__game.progress', totals: '__game.totals' },
     nested: { progress: [{ levels: { 0: { stars: null, best: 100 } } }, { levels: { 0: null, 3: { stars: [1, 'x'], best: 'x' } } }, { levels: [] }] } },
 };
@@ -197,7 +197,7 @@ test('клавиши: у действия нельзя стереть обе к�
   expect(fire.filter(Boolean).length).toBe(1);
 });
 
-for (const vp of [{ width: 1280, height: 720 }, { width: 1024, height: 700 }, { width: 1280, height: 600 }]) {
+for (const vp of [{ width: 1280, height: 720 }, { width: 1024, height: 700 }, { width: 1280, height: 600 }, { width: 800, height: 600 }]) {
   test(`настройки при ${vp.width}x${vp.height}: «Готово» видно без прокрутки`, async ({ page }) => {
     await page.setViewportSize(vp);
     for (const game of ['dino', 'jungle-strike']) {

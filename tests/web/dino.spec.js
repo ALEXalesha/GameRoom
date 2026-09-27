@@ -278,3 +278,36 @@ test.describe('dino: пауза, настройки, окно', () => {
     });
   }
 });
+
+test.describe('dino: по ревью', () => {
+  test('время путешествия и его достижения - только за забег с нулевой отметки', async ({ page }) => {
+    await openGame(page, 'dino', 'seed=1&fast');
+    const r = await page.evaluate(() => {
+      localStorage.clear(); const g = __game;
+      g.startJourney(3); g.state.dist = 9995; g.clearObstacles(); g.step(30, false);
+      const mid = { phase: g.state.phase, time: g.records.journeyTime.normal || null, leg4: !!g.kit.unlocked.leg4 };
+      g.startJourney(0); g.clearObstacles(); g.step(120, false); g.state.dist = 9995; g.step(30, false);
+      return { mid, full: { phase: g.state.phase, time: g.records.journeyTime.normal > 0, leg4: !!g.kit.unlocked.leg4 } };
+    });
+    expect(r.mid).toEqual({ phase: 'won', time: null, leg4: false });
+    expect(r.full).toEqual({ phase: 'won', time: true, leg4: true });
+  });
+
+  test('короткое нажатие прыжка между кадрами - короткий прыжок, а не пропуск', async ({ page }) => {
+    await openGame(page, 'dino', 'seed=1');
+    await page.click('[data-screen=main] [data-id=endless]');
+    const r = await page.evaluate(() => {
+      const g = __game; g.clearObstacles(); g.step(2, false);
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }));
+      let top = g.dino.y; for (let i = 0; i < 40; i++) { g.step(1, false); top = Math.min(top, g.dino.y); }
+      const tap = g.GROUND_Y - top;
+      g.kit.held.add('Space'); g.kit.pressed.add('jump'); top = g.dino.y;
+      for (let i = 0; i < 60; i++) { g.step(1, false); top = Math.min(top, g.dino.y); }
+      g.kit.held.delete('Space');
+      return { tap, hold: g.GROUND_Y - top };
+    });
+    expect(r.tap).toBeGreaterThan(8);
+    expect(r.hold).toBeGreaterThan(r.tap + 10);
+  });
+});

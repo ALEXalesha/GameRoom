@@ -358,3 +358,62 @@ test.describe('mario (Прыг-скок): пауза, настройки, окн
     });
   }
 });
+
+test.describe('mario (Прыг-скок): по ревью', () => {
+  for (const vp of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }]) {
+    test(`между плитками земли нет светлых швов при дробном масштабе (${vp.width}x${vp.height})`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await openGame(page, 'mario', 'seed=1');
+      await page.click('[data-screen=main] [data-id=play]');
+      const r = await page.evaluate(() => {
+        const g = __game, th = g.THEMES.meadow;
+        th.sky = ['#ff00ff', '#ff00ff']; th.hill = '#ff00ff'; th.hill2 = '#ff00ff'; th.cloud = null;
+        g.clearEnemies(); g.player.x = 60; g.step(1, true);
+        const c = document.getElementById('game'), k = c.width / g.W, x2 = c.getContext('2d');
+        // земля: ряды 10-11 мира, под полосой счёта
+        const y0 = Math.ceil((g.HUD_H + 10 * g.TILE + 4) * k), y1 = Math.floor((g.HUD_H + 12 * g.TILE - 2) * k);
+        const d = x2.getImageData(0, y0, c.width, y1 - y0).data;
+        let bad = 0;
+        // у земли и травы синего меньше, чем зелёного; примесь пурпурного неба - это шов
+        for (let i = 0; i < d.length; i += 4) if (d[i + 2] > d[i + 1] + 20) bad++;
+        return { bad, k };
+      });
+      expect(r.k % 1).not.toBe(0);
+      expect(r.bad).toBe(0);
+    });
+  }
+
+  test('полоса счёта не закрывает верхний ряд потолка', async ({ page }) => {
+    await openGame(page, 'mario', 'seed=1');
+    await page.click('[data-screen=main] [data-id=play]');
+    const r = await page.evaluate(() => {
+      const g = __game; g.startLevel(6); g.clearEnemies(); g.step(1, true);
+      const c = document.getElementById('game'), k = c.width / g.W, x2 = c.getContext('2d');
+      const ratio = c.getBoundingClientRect().height / c.getBoundingClientRect().width;
+      // верхний ряд потолка виден под полосой: если его убрать, картинка в этом месте меняется
+      const at = () => Array.from(x2.getImageData(Math.round(g.player.x - g.camX + 150) * k | 0, Math.round((g.HUD_H + 16) * k), 1, 1).data).join();
+      const tx = Math.floor((g.player.x + 150) / g.TILE);
+      const withCeiling = at(), ceiling = g.tileAt(tx, 0) !== g.T.EMPTY;
+      for (let x = tx - 2; x <= tx + 2; x++) g.setTile(x, 0, g.T.EMPTY);
+      g.step(1, true);
+      return { ratio, want: g.VIEW_H / g.W, ceiling, changed: at() !== withCeiling };
+    });
+    expect(Math.abs(r.ratio - r.want)).toBeLessThan(0.01);
+    expect(r.ceiling).toBe(true);
+    expect(r.changed).toBe(true);
+  });
+
+  test('короткое нажатие прыжка между кадрами не теряется', async ({ page }) => {
+    await openGame(page, 'mario', 'seed=1');
+    await page.click('[data-screen=main] [data-id=play]');
+    const r = await page.evaluate(() => {
+      const g = __game; g.clearEnemies(); g.step(5, false);
+      const y0 = g.player.y;
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }));
+      let top = y0; for (let i = 0; i < 30; i++) { g.step(1, false); top = Math.min(top, g.player.y); }
+      return y0 - top;
+    });
+    expect(r).toBeGreaterThan(8);
+  });
+});

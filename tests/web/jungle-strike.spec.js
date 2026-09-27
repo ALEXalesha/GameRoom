@@ -289,3 +289,80 @@ test.describe('jungle-strike: пауза и окно', () => {
     });
   }
 });
+
+test.describe('jungle-strike: по ревью', () => {
+  for (const [name, dx, dy] of [['слева-сверху', -80, -60], ['справа-снизу', 90, 10], ['прямо над', 2, -90]]) {
+    test(`ЛКМ стреляет в курсор (${name}), герой поворачивается к нему`, async ({ page }) => {
+      await openGame(page, 'jungle-strike', 'seed=1');
+      await page.click('[data-screen=main] [data-id=campaign]');
+      await page.evaluate(() => { const g = __game; g.enemies.length = 0; g.player.invuln = 1e9; g.player.x = g.G.cam + 200; g.player.dir = 1; g.step(1); });
+      const box = await page.locator('#c').boundingBox();
+      const hero = await page.evaluate(() => ({ x: __game.player.x - __game.G.cam, y: __game.player.y - 12 }));
+      const k = box.width / 400;
+      await page.evaluate(() => { __game.bullets.length = 0; __game.player.cd = 0; });
+      await page.mouse.click(box.x + (hero.x + dx) * k, box.y + (hero.y + dy) * k);
+      const b = await page.evaluate(() => { __game.step(1, false); const b = __game.bullets[0]; return b && { vx: b.vx, vy: b.vy, dir: __game.player.dir }; });
+      expect(b).toBeTruthy();
+      const want = Math.atan2(dy, dx), got = Math.atan2(b.vy, b.vx);
+      expect(Math.abs(Math.atan2(Math.sin(want - got), Math.cos(want - got)))).toBeLessThan(0.2);
+      if (Math.abs(dx) > 10) expect(b.dir).toBe(Math.sign(dx));
+    });
+  }
+
+  test('мину можно подстрелить лёжа; сама взорвавшаяся мина очков не даёт', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] [data-id=campaign]');
+    const r = await page.evaluate(() => {
+      const g = __game; g.enemies.length = 0; g.player.invuln = 1e9; g.player.dir = 1;
+      const m = g.spawnEnemy('mine', g.player.x + 60, g.GROUND);
+      g.kit.held.add('KeyS'); g.kit.held.add('KeyJ');
+      for (let i = 0; i < 60 && g.enemies.includes(m); i++) g.step(1, false);
+      g.kit.held.delete('KeyS'); g.kit.held.delete('KeyJ');
+      const shot = !g.enemies.includes(m);
+      g.enemies.length = 0; g.bullets.length = 0; g.step(1, false);
+      const k0 = g.G.stats.kills, s0 = g.G.score;
+      g.spawnEnemy('mine', g.player.x + 4, g.GROUND);
+      g.step(60, false);
+      return { shot, kills: g.G.stats.kills - k0, score: g.G.score - s0 };
+    });
+    expect(r).toEqual({ shot: true, kills: 0, score: 0 });
+  });
+
+  for (const vp of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }, { width: 1024, height: 700 }, { width: 1366, height: 768 }]) {
+    test(`пиксели игры одного размера: целое кратное на экране ${vp.width}x${vp.height}`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await openGame(page, 'jungle-strike', 'seed=1');
+      const r = await page.evaluate(() => { const b = document.getElementById('c').getBoundingClientRect(); return { kx: b.width * devicePixelRatio / 400, ky: b.height * devicePixelRatio / 225, fits: b.right <= innerWidth && b.bottom <= innerHeight }; });
+      expect(Math.abs(r.kx - Math.round(r.kx))).toBeLessThan(0.01);
+      expect(Math.abs(r.ky - r.kx)).toBeLessThan(0.01);
+      expect(r.kx).toBeGreaterThanOrEqual(2);
+      expect(r.fits).toBe(true);
+    });
+  }
+
+  test('зажатая мышь, отпущенная при скрытой вкладке, после продолжения не стреляет', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1');
+    await page.click('[data-screen=main] [data-id=campaign]');
+    const box = await page.locator('#c').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await hideTab(page); await showTab(page);
+    await page.click('[data-screen=pause] [data-id=resume]');
+    const r = await page.evaluate(() => { const a = __game.shotsFired; __game.step(60, false); return { shots: __game.shotsFired - a, mouse: __game.mouseFire }; });
+    await page.mouse.up();
+    expect(r).toEqual({ shots: 0, mouse: false });
+  });
+
+  test('«Трудная кампания» - только если все миссии пройдены на трудной', async ({ page }) => {
+    await openGame(page, 'jungle-strike', 'seed=1&fast');
+    const r = await page.evaluate(() => {
+      localStorage.clear(); const g = __game; g.kit.unlocked = {};
+      g.progress.unlocked = 4; g.progress.best = { 0: { score: 1, time: 1 }, 1: { score: 1, time: 1 }, 2: { score: 1, time: 1 }, 3: { score: 1, time: 1 } };
+      g.kit.set('difficulty', 'hard'); g.startMission(4, false); g.player.invuln = 1e9;
+      g.spawnBoss(); g.boss.hp = 0;
+      for (let i = 0; i < 600 && g.G.phase !== 'done'; i++) g.step(1, false);
+      return { phase: g.G.phase, campaign: !!g.kit.unlocked.campaign, hard: !!g.kit.unlocked.campaignHard };
+    });
+    expect(r).toEqual({ phase: 'done', campaign: true, hard: false });
+  });
+});
