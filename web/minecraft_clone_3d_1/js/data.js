@@ -108,6 +108,8 @@
   item(408, 'ghast_tear', 'Слеза гаста');
   item(409, 'gold_nugget', 'Золотой самородок');
   item(410, 'nether_brick', 'Незер-кирпич');
+  item(414, 'slimeball', 'Слизь');
+  item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
   [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
   // цвет шерсти по красителю
   const WOOL_OF = { white: B.wool_white, red: B.wool_red, yellow: B.wool_yellow, blue: B.wool_blue, green: B.wool_green, black: B.wool_black };
@@ -218,6 +220,18 @@
   RECIPES.push({ out: [C.TRAPDOOR, 2], shape: ['PPP', 'PPP'], keys: { P: '#planks' } });
   RECIPES.push({ out: [C.IRON_TRAPDOOR, 1], shape: ['II', 'II'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: [C.PANE, 16], shape: ['GGG', 'GGG'], keys: { G: 'glass' } });
+  // красный камень
+  RECIPES.push({ out: [C.RS_TORCH, 1], shape: ['R', 'S'], keys: { R: C.WIRE, S: 'stick' } });
+  RECIPES.push({ out: [C.REPEATER, 1], shape: ['TRT', 'SSS'], keys: { T: C.RS_TORCH, R: C.WIRE, S: 'stone' } });
+  RECIPES.push({ out: [C.BUTTON, 1], shapeless: ['stone'] });
+  RECIPES.push({ out: [C.WOOD_BUTTON, 1], shapeless: ['#planks'] });
+  RECIPES.push({ out: [C.RS_PLATE, 1], shape: ['SS'], keys: { S: 'stone' } });
+  RECIPES.push({ out: [C.RS_WOOD_PLATE, 1], shape: ['PP'], keys: { P: '#planks' } });
+  RECIPES.push({ out: [C.LAMP, 1], shape: [' R ', 'RGR', ' R '], keys: { R: C.WIRE, G: 'glowstone' } });
+  RECIPES.push({ out: [C.PISTON, 1], shape: ['PPP', 'CIC', 'CRC'], keys: { P: '#planks', C: 'cobblestone', I: 'iron_ingot', R: C.WIRE } });
+  RECIPES.push({ out: [C.PISTON + 1, 1], shapeless: [C.PISTON, 'slimeball'] });
+  RECIPES.push({ out: [C.REDSTONE_BLOCK, 1], shape: ['RRR', 'RRR', 'RRR'], keys: { R: C.WIRE } });
+  RECIPES.push({ out: [C.WIRE, 9], shapeless: [C.REDSTONE_BLOCK] });
   RECIPES.push({ out: ['flint_and_steel', 1], shapeless: ['iron_ingot', 'flint'] });
   RECIPES.push({ out: ['blaze_powder', 2], shapeless: ['blaze_rod'] });
   RECIPES.push({ out: [C.NETHER_BRICKS, 1], shape: ['NN', 'NN'], keys: { N: 'nether_brick' } });
@@ -313,6 +327,7 @@
     { key: 'color', name: 'Цвет', icon: B.wool_red },
     { key: 'tools', name: 'Инструменты', icon: I.iron_pickaxe },
     { key: 'food', name: 'Еда и прочее', icon: I.apple },
+    { key: 'redstone', name: 'Красный камень', icon: C.RS_TORCH },
     { key: 'search', name: 'Поиск', icon: null },
     { key: 'inv', name: 'Инвентарь', icon: B.crafting_table },
   ];
@@ -343,6 +358,7 @@
     zombie_pigman: { name: 'Зомби-свиночеловек', hp: 20, speed: 2.3, w: 0.6, h: 1.95, drops: [['rotten_flesh', 0, 1], ['gold_nugget', 0, 1]], neutral: true, dmg: 8, fireImmune: true, sound: 'pigman' },
     ghast: { name: 'Гаст', hp: 10, speed: 2.2, w: 4, h: 4, drops: [['ghast_tear', 0, 1], ['gunpowder', 0, 2]], hostile: true, dmg: 0, flying: true, fireImmune: true, sound: 'ghast' },
     blaze: { name: 'Ифрит', hp: 20, speed: 2.3, w: 0.6, h: 1.8, drops: [['blaze_rod', 0, 1]], hostile: true, dmg: 6, hover: true, fireImmune: true, playerDrops: true, sound: 'blaze' },
+    slime: { name: 'Слизень', hp: 4, speed: 1.6, w: 1.0, h: 1.0, drops: [['slimeball', 0, 2]], hostile: true, dmg: 2, jumper: true, sound: 'slime' },
     creeper: { name: 'Крипер', hp: 20, speed: 2.4, w: 0.6, h: 1.7, drops: [['gunpowder', 0, 2]], hostile: true, dmg: 0, explodes: true, fuse: 1.5, power: 3, sound: 'creeper' },
     spider: { name: 'Паук', hp: 16, speed: 2.8, w: 1.4, h: 0.9, drops: [['string', 0, 2]], hostile: true, dmg: 2, climber: true, sound: 'spider' },
   };
@@ -386,6 +402,8 @@
     { id: 'blaze_rod', tab: 'nether', parent: 'fortress', name: 'В огонь', desc: 'Добыть огненный стержень', on: 'pickup', items: ['blaze_rod'], icon: I.blaze_rod },
     { id: 'return_sender', tab: 'nether', parent: 'nether', name: 'Возврат отправителю', desc: 'Сразить гаста его же огненным шаром', on: 'kill', mob: 'ghast', cause: 'fireball', icon: I.ghast_tear },
     { id: 'wart', tab: 'nether', parent: 'fortress', name: 'Адский урожай', desc: 'Собрать адский нарост', on: 'pickup', items: ['nether_wart'], icon: I.nether_wart },
+    { id: 'redstone', parent: 'iron_pick', name: 'Красная пыль', desc: 'Добыть красную пыль из руды', on: 'pickup', items: [C.WIRE], icon: C.WIRE },
+    { id: 'piston', parent: 'redstone', name: 'Толкай!', desc: 'Сделать поршень', on: 'craft', items: [C.PISTON, C.PISTON + 1], icon: C.PISTON },
     { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart, final: true },
   ];
   for (const a of ACH) {

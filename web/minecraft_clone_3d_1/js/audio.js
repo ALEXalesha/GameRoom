@@ -106,6 +106,8 @@
     blaze(t) { noise(t, 0.7, 'bandpass', 400, 0.8, 0.18, 0.2); tone(t, 0.5, 'sawtooth', 90, 70, 0.05, 0.2); },
     blaze_shoot(t) { noise(t, 0.25, 'lowpass', 900, 0.8, 0.3, 0.01); },
     pigman(t) { const o = tone(t, 0.4, 'sawtooth', 150, 110, 0.12, 0.03); o.detune.linearRampToValueAtTime(-300, t + 0.4); },
+    piston(t) { noise(t, 0.12, 'bandpass', 700, 1.2, 0.35); tone(t, 0.1, 'square', 220, 140, 0.06); },
+    slime(t) { noise(t, 0.18, 'lowpass', 500, 2, 0.3, 0.02); tone(t, 0.15, 'sine', 180, 90, 0.1); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };

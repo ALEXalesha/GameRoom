@@ -474,6 +474,38 @@
         for (let k = 2; k < 14; k += 4) t.px(k, k, '#ff8a10', 200);
       });
     },
+    dust_0(t, r) { DRAW.dust(t, r, ['#4a0808', '#5a0a0a', '#3a0606']); },
+    dust_1(t, r) { DRAW.dust(t, r, ['#8a1010', '#7a0c0c', '#9a1414']); },
+    dust_2(t, r) { DRAW.dust(t, r, ['#c01818', '#b01414', '#d02020']); },
+    dust_3(t, r) { DRAW.dust(t, r, ['#ff2a1a', '#f01810', '#ff5a3a']); },
+    dust(t, r, pal) { plant(t, () => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (r() < 0.62) t.px(x, y, pal[(r() * pal.length) | 0]); }); },
+    redstone_torch_on(t) { plant(t, () => { for (let y = 6; y < 16; y++) { t.px(7, y, '#6b4f2a'); t.px(8, y, '#8a6a3a'); } for (const [x, y] of [[7, 6], [8, 6], [7, 7], [8, 7]]) t.px(x, y, '#ff3020'); t.px(7, 5, '#ffa090'); t.px(8, 5, '#ff5040'); }); },
+    redstone_torch_off(t) { plant(t, () => { for (let y = 6; y < 16; y++) { t.px(7, y, '#6b4f2a'); t.px(8, y, '#8a6a3a'); } for (const [x, y] of [[7, 6], [8, 6], [7, 7], [8, 7], [7, 5], [8, 5]]) t.px(x, y, '#5a1010'); }); },
+    repeater(t, r) {
+      t.noise(['#a0a0a0', '#989898', '#aaaaaa'], r);
+      for (let k = 0; k < 16; k++) { t.px(k, 0, '#707070'); t.px(k, 15, '#707070'); t.px(0, k, '#707070'); t.px(15, k, '#707070'); }
+      for (let y = 3; y < 14; y++) t.px(7, y, '#b01414'), t.px(8, y, '#8a1010');
+      for (let k = 0; k < 3; k++) { t.px(7 - k, 3 + k, '#b01414'); t.px(8 + k, 3 + k, '#b01414'); }     // стрелка к выходу (вверх плитки = -Z)
+    },
+    lamp_off(t, r) {
+      t.noise(['#6a4a2a', '#5a3e22', '#7a5632'], r);
+      for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) if ((x + y) % 5 && (x - y + 16) % 5) t.px(x, y, ['#8a6a4a', '#7a5a3a', '#9a7a5a'][(r() * 3) | 0]);
+    },
+    lamp_on(t, r) {
+      t.noise(['#b8783a', '#a86a2a', '#c8884a'], r);
+      for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) if ((x + y) % 5 && (x - y + 16) % 5) t.px(x, y, ['#ffe090', '#fff0b0', '#ffd070'][(r() * 3) | 0]);
+    },
+    piston_top(t, r) { planks(t, r, '#b8945a'); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) t.px(x, y, x === 5 || y === 5 || x === 10 || y === 10 ? '#6a6a6a' : '#c8c8c8'); },
+    piston_top_sticky(t, r) { DRAW.piston_top(t, r); for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) if (r() < 0.55) t.px(x, y, ['#6ab84a', '#5aa83a', '#7ac85a'][(r() * 3) | 0]); },
+    piston_side(t, r) {
+      cells(t, r, 9, ['#8c8c8c', '#7a7a7a', '#999999', '#6f6f6f'], '#4f4f4f');
+      for (let y = 0; y < 4; y++) for (let x = 0; x < 16; x++) t.px(x, y, y === 3 ? '#6a4f2a' : ['#b8945a', '#a8844a'][(r() * 2) | 0]);
+      for (let y = 4; y < 16; y++) { t.px(7, y, '#5a5a5a'); t.px(8, y, '#b0b0b0'); }
+    },
+    piston_bottom(t, r) { cells(t, r, 9, ['#8c8c8c', '#7a7a7a', '#999999', '#6f6f6f'], '#4f4f4f'); for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) t.px(x, y, '#3a3a3a'); },
+    piston_inner(t, r) { cells(t, r, 9, ['#7c7c7c', '#6a6a6a', '#898989'], '#3f3f3f'); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) t.px(x, y, '#9a9a9a'); },
+    redstone_ore(t, r) { ore(t, r, ['#ff2a1a', '#c01818', '#ff6a5a'], '#7a0c0c'); },
+    redstone_block(t, r) { t.noise(['#c01818', '#b01414', '#d02020', '#a81010'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#8a0c0c'); t.px(0, k, '#8a0c0c'); t.px(k, 15, '#700808'); t.px(15, k, '#700808'); } for (let k = 3; k < 13; k += 3) { t.px(k, k, '#ff5a4a'); t.px(15 - k, k, '#ff5a4a'); } },
     water_flow(t, r) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const w = Math.sin((x * 0.5 + y) * 0.9) + Math.sin(x * 0.3 - y * 0.2);
@@ -687,7 +719,7 @@
     },
     bed(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '...wwwwrrrrrrr..', '..#wwwwrrrrrrr#.', '..#############.', '..#p#.......#p#.', '..###.......###.'], { w: '#f0f0f0', r: '#b02828', '#': '#5a3a14', p: '#a8834f' }); },
     egg(t, r, mob) {
-      const c = { zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
+      const c = { slime: ['#6ab84a', '#3a7a2a'], zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
       for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.6, (y - 8.8) / 6.2); if (d < 1) t.px(x, y, d > 0.85 ? shadeHex(c[0], 0.65) : c[0]); }
       for (const [x, y] of [[6, 5], [9, 8], [5, 10], [8, 12], [10, 5]]) { t.px(x, y, c[1]); t.px(x + 1, y, c[1]); }
     },
@@ -698,6 +730,7 @@
       t.px(12, 4, c[1]);
     },
     gunpowder(t, r) { for (let k = 0; k < 40; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#5a5a5a', '#3a3a3a', '#7a7a7a', '#2a2a2a'][(r() * 4) | 0]); } },
+    slimeball(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....####......', '....#gggg#.....', '...#gGggggg#...', '...#gggggGg#...', '...#ggGgggg#...', '....#gggggg#...', '.....######....'], { g: '#6ab84a', G: '#b8f09a', '#': '#3a7a2a' }); },
     flint_and_steel(t) {
       ITEM_DRAW.tpl(t, ['', '', '..####..........', '.#iiii#.........', '.#i##i#.........', '.#i#.#i#........', '..#..#ii#.......', '......#ii#......', '.......###......', '.........##.....', '........#ff#....', '.......#ffff#...', '.......#fbff#...', '........#ff#....', '.........##.....'], { i: '#b8b8b8', '#': '#3a3a3a', f: '#4a4a4a', b: '#7a7a7a' });
     },

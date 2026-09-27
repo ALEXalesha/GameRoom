@@ -191,8 +191,10 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
     const r = await hitRun(page, 'pig', 'diamond_sword');
     const all = r.drops.concat(r.inv);
     expect(all).toContain(I.raw_porkchop);
-    const s = await hitRun(page, 'skeleton', 'diamond_sword');
-    expect(s.drops.concat(s.inv).some((id) => id === I.bone || id === I.arrow)).toBe(true);
+    // у скелета выпадает 0-2 кости и 0-2 стрелы: за четыре победы хоть что-то выпадет (иначе 1 шанс из 10000)
+    let got = [];
+    for (let k = 0; k < 4; k++) { const s = await hitRun(page, 'skeleton', 'diamond_sword'); got = got.concat(s.drops, s.inv); }
+    expect(got.some((id) => id === I.bone || id === I.arrow)).toBe(true);
   });
 
   test('яйца призыва в творческой палитре: ПКМ по земле ставит моба', async ({ page }) => {

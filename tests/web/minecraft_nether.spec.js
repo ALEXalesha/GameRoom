@@ -340,10 +340,11 @@ test.describe('minecraft_clone_3d_1: Нижний мир', () => {
       const main = document.querySelectorAll('#scr-ach .ach').length;
       [...document.querySelectorAll('#scr-ach .ach-tab')].find((b) => b.textContent === 'Нижний мир').click();
       const neth = [...document.querySelectorAll('#scr-ach .ach')].map((n) => n.dataset.id);
-      return { tabs, main, neth };
+      return { tabs, main, neth, wantMain: v.data.ACH.filter((a) => !a.tab).length };
     });
     expect(r.tabs.slice(0, 2)).toEqual(['Обычный мир', 'Нижний мир']);
-    expect(r.main).toBe(30);
+    expect(r.main).toBe(r.wantMain);
+    expect(r.main).toBeGreaterThanOrEqual(30);
     expect(r.neth.sort()).toEqual(['blaze_rod', 'fortress', 'nether', 'return_sender', 'wart']);
   });
 });

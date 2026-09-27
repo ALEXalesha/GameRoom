@@ -62,8 +62,16 @@
     let c;
     if (C.isBlock(id)) {
       const b = C.BLOCKS[id];
-      const flat = b.render === 'cross' || b.render === 'torch' || id === 130 || id === 131 || b.ladder !== undefined || b.trapdoor || id === C.PANE;
-      if (flat) { const t = C.TEXF[id * 6 + 3]; c = VX.tex.flatIcon(atlas.canvas, (t % C.ATLAS_COLS) * 16, ((t / C.ATLAS_COLS) | 0) * 16); }
+      const flat = b.render === 'cross' || b.render === 'torch' || id === 130 || id === 131 || b.ladder !== undefined || b.trapdoor || id === C.PANE || b.wire !== undefined || b.repeater;
+      if (flat) {
+        const t = b.wire !== undefined ? C.T.dust_3 : C.TEXF[id * 6 + 3];
+        c = VX.tex.flatIcon(atlas.canvas, (t % C.ATLAS_COLS) * 16, ((t / C.ATLAS_COLS) | 0) * 16);
+        if (b.wire !== undefined) {       // пыль - горсткой, а не квадратом
+          const g = c.getContext('2d'), im = g.getImageData(0, 0, 64, 64);
+          for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) { const px = (x >> 2) - 7.5, py = (y >> 2) - 8.5; if (px * px / 30 + py * py / 16 > 1) im.data[(y * 64 + x) * 4 + 3] = 0; }
+          g.putImageData(im, 0, 0);
+        }
+      }
       else if (b.render === 'box' && C.SHAPE[id]) c = VX.tex.isoShapeIcon(atlas.canvas, id, C.SHAPE[id]);
       else c = VX.tex.isoIcon(atlas.canvas, id);
     } else {
@@ -149,7 +157,7 @@
     let m = spriteMats.get(id);
     if (m) return m;
     let tex, col, row;
-    if (C.isBlock(id)) { const t = C.TEXF[id * 6]; tex = atlasTex.clone(); col = t % C.ATLAS_COLS; row = (t / C.ATLAS_COLS) | 0; tex.repeat.set(1 / C.ATLAS_COLS, 1 / C.ATLAS_ROWS); tex.offset.set(col / C.ATLAS_COLS, 1 - (row + 1) / C.ATLAS_ROWS); }
+    if (C.isBlock(id)) { const bb = C.BLOCKS[id], t = bb.wire !== undefined ? C.T.dust_3 : C.TEXF[id * 6 + (bb.repeater ? 3 : 0)]; tex = atlasTex.clone(); col = t % C.ATLAS_COLS; row = (t / C.ATLAS_COLS) | 0; tex.repeat.set(1 / C.ATLAS_COLS, 1 / C.ATLAS_ROWS); tex.offset.set(col / C.ATLAS_COLS, 1 - (row + 1) / C.ATLAS_ROWS); }
     else { const it = D.info(id); tex = itemTex.clone(); col = it.itile % 16; row = (it.itile / 16) | 0; const rows = itemCanvas.height / 16; tex.repeat.set(1 / 16, 1 / rows); tex.offset.set(col / 16, 1 - (row + 1) / rows); }
     tex.needsUpdate = true;
     tex.magFilter = tex.minFilter = THREE.NearestFilter;
@@ -168,7 +176,7 @@
     const cube = b && (b.render === 'cube' || b.render === 'leaves' || b.render === 'glass' || b.render === 'ice' || b.render === 'box');
     const k = id + '|' + size;
     let g = itemGeo.get(k);
-    const flatBlock = b && (b.ladder !== undefined || b.trapdoor || id === C.PANE);
+    const flatBlock = b && (b.ladder !== undefined || b.trapdoor || id === C.PANE || b.wire !== undefined || b.repeater);
     if (!g) { g = flatBlock ? new THREE.PlaneGeometry(size * 1.6, size * 1.6) : b && b.render === 'box' && C.SHAPE[id] ? shapeGeometry(id, size, C.SHAPE[id]) : cube ? cubeGeometry(id, size) : new THREE.PlaneGeometry(size * 1.6, size * 1.6); itemGeo.set(k, g); }
     const m = new THREE.Mesh(g, cube && !flatBlock ? cubeMat : spriteMaterial(id));
     m.userData.sharedGeo = true; m.userData.sharedMat = true;
@@ -269,6 +277,7 @@
     G.crops = slot.crops || (slot.crops = {});
     G.sleeping = null; G.bowT = 0; G.afterLoad = null; G.portalT = 0;
     if (VX.fluids) VX.fluids.reset(slot);
+    if (VX.redstone) VX.redstone.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -330,6 +339,7 @@
     G.furnaces = slot.furnaces; G.chests = slot.chests; G.crops = slot.crops;
     if (VX.entities) VX.entities.reset(slot);
     if (VX.fluids) VX.fluids.reset(slot);
+    if (VX.redstone) VX.redstone.reset();
     G.mining = null; G.sleeping = null; G.portalT = 0; G.portalWait = true;
     player.pos.set(pos.x, pos.y, pos.z); player.vel.set(0, 0, 0); player.fallTop = null;
     G.afterLoad = after || null;
@@ -500,6 +510,7 @@
   // Вторая половина двери или кровати (или null)
   function partnerOf(x, y, z, id) {
     const b = C.BLOCKS[id];
+    if (b.piston || b.pistonHead) return VX.redstone ? VX.redstone.partner(x, y, z, id) : null;
     if (b.door) { const dy = b.upper ? -1 : 1; const o = world.getBlock(x, y + dy, z); return o > 0 && C.BLOCKS[o].door ? { x, y: y + dy, z, id: o } : null; }
     if (b.bed) {
       const v = DIRV[b.bedDir], s = b.bedHead ? -1 : 1;
@@ -551,12 +562,13 @@
   function afterChange(x, y, z) {
     const here = world.getBlock(x, y, z);
     const up = world.getBlock(x, y + 1, z);
-    const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131);
+    const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131 || C.BLOCKS[id].wire !== undefined || C.BLOCKS[id].repeater || C.BLOCKS[id].plate || (C.BLOCKS[id].rsTorch !== undefined && C.BLOCKS[id].wall === undefined) || (C.BLOCKS[id].button && C.BLOCKS[id].face === 4));
     if (needsFloor(up) && !C.SOLID[here]) popBlock(x, y + 1, z);
     if (up >= 64 && up <= 71 && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
     if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
     if (up >= C.NETHER_WART && up <= C.NETHER_WART + 3 && here !== C.SOUL_SAND) popBlock(x, y + 1, z);
     if (VX.nether) VX.nether.after(x, y, z);
+    if (VX.redstone) VX.redstone.after(x, y, z);
     const walls = [[0, 0, -1, 2], [1, 0, 0, 3], [0, 0, 1, 0], [-1, 0, 0, 1]];
     for (const [dx, , dz, r] of walls) {
       const id = world.getBlock(x + dx, y, z + dz);
@@ -627,11 +639,8 @@
     const on = id === 130;
     world.setBlock(x, y, z, on ? 131 : 130);
     VX.audio.play('click');
-    // рычаг открывает и закрывает двери рядом (железную - только так)
-    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -1; dy <= 1; dy++) {
-      const d = world.getBlock(x + dx, y + dy, z + dz);
-      if (d > 0 && C.BLOCKS[d].door && !C.BLOCKS[d].upper) setDoorOpen(x + dx, y + dy, z + dz, on);
-    }
+    // рычаг - источник сигнала: двери, лампы, поршни рядом и по пыли (redstone.js)
+    if (VX.redstone) VX.redstone.update(x, y, z);
     return on;
   }
   G.toggleLever = toggleLever;
@@ -734,6 +743,8 @@
       if (tb.bed) return G.useBed(t.x, t.y, t.z);
       const u = VX.build && VX.build.use(t);
       if (u !== undefined) return u;
+      const ru = VX.redstone && VX.redstone.use(t);
+      if (ru !== undefined) return ru;
     }
     if (!held) return null;
     // мотыга: трава и земля становятся грядкой
@@ -778,6 +789,8 @@
     if (!C.isBlock(held.id)) return null;
     const built = VX.build && VX.build.place(t, held);
     if (built !== undefined) return built;
+    const rsb = VX.redstone && VX.redstone.place(t, held);
+    if (rsb !== undefined) return rsb;
     let { x, y, z } = t.place;
     if (tb.replaceable) { x = t.x; y = t.y; z = t.z; }
     if (y < 0 || y >= C.CH) return null;
@@ -1138,6 +1151,7 @@
     }
     if (VX.fluids) VX.fluids.tick(dt);
     if (VX.nether && G.state === 'play') VX.nether.tick(dt);
+    if (VX.redstone) VX.redstone.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);

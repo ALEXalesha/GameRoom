@@ -204,6 +204,8 @@
     TEX.blazeFace = pixTex(8, 8, face(['#f0c020', '#e0a010', '#f8d850'], [[1, 3, '#3a1a00'], [2, 3, '#3a1a00'], [5, 3, '#3a1a00'], [6, 3, '#3a1a00'], [1, 4, '#ffffff'], [6, 4, '#ffffff']], (g) => { g.fillStyle = '#6a3a08'; g.fillRect(2, 6, 4, 1); }));
     TEX.blazeRod = pixTex(2, 8, (g, w, h) => noiseFill(g, w, h, ['#f8c820', '#e89a10', '#fff080'], 25));
     TEX.fireball = pixTex(8, 8, (g, w, h) => { const r = C.mulberry32(26); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const d = Math.hypot(x - 3.5, y - 3.5); g.fillStyle = d < 1.5 ? '#fff4a0' : d < 2.8 ? (r() < 0.5 ? '#ffb020' : '#ff8010') : '#c83a08'; g.fillRect(x, y, 1, 1); } });
+    TEX.slime = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#6ab84a', '#5aa83a', '#78c858'], 27));
+    TEX.slimeFace = pixTex(8, 8, face(['#6ab84a', '#5aa83a'], [[1, 2, '#1a3a10'], [2, 2, '#1a3a10'], [5, 2, '#1a3a10'], [6, 2, '#1a3a10'], [4, 5, '#1a3a10']]));
     TEX.spiderFace = pixTex(8, 8, face(['#3a2e2a', '#2e2420'], [[1, 2, '#e02020'], [2, 3, '#e02020'], [5, 3, '#e02020'], [6, 2, '#e02020'], [3, 2, '#b01010'], [4, 2, '#b01010']]));
     // игрок: своя внешность (не как в оригинале) - бордовая рубаха, коричневые штаны
     TEX.pSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15));
@@ -264,6 +266,10 @@
       const wt = box(0.12, 0.12, 0.06, T.wattle); wt.position.set(0, -0.1, 0.12); head.add(wt);
       for (const x of [-0.09, 0.09]) { const l = limb(0.06, 0.28, 0.06, T.chickenLeg, x, 0.28, 0); body.add(l); legs.push(l); }
       for (const x of [-0.22, 0.22]) { const wg = limb(0.06, 0.25, 0.37, T.chicken, x, 0.6, 0); body.add(wg); extra.wings = (extra.wings || []).concat(wg); }
+    } else if (type === 'slime') {
+      const inner = box(0.6, 0.6, 0.6, T.slime, T.slimeFace); inner.position.set(0, 0.5, 0); body.add(inner);
+      const outer = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ map: T.slime, transparent: true, opacity: 0.55, depthWrite: false }));
+      outer.position.set(0, 0.5, 0); body.add(outer); head = inner; extra.slimeBody = outer;
     } else if (type === 'ghast') {
       const b0 = box(4, 4, 4, T.ghast, T.ghastFace); b0.position.set(0, 2.2, 0); body.add(b0);
       head = b0; extra.ghastBody = b0;
@@ -343,7 +349,10 @@
     if (m.hp <= 0) {
       m.deadT = 0.001;
       poof(m);
-      if (cause !== 'creative' && !(m.def.playerDrops && cause !== 'player' && cause !== 'arrow' && cause !== 'fireball')) {
+      if (m.type === 'slime' && (m.size || 2) > 1) {
+        for (let k = 0, n = 2 + ((rnd() * 2) | 0); k < n; k++) { const s = spawnMob('slime', m.x + (rnd() - 0.5), m.y + 0.2, m.z + (rnd() - 0.5)); s.size = 1; s.w = s.h = 0.5; s.hp = 1; }
+      }
+      if (cause !== 'creative' && !(m.type === 'slime' && (m.size || 2) > 1) && !(m.def.playerDrops && cause !== 'player' && cause !== 'arrow' && cause !== 'fireball')) {
         for (const [id0, a, b] of m.def.drops) {
           let id = id0, n2 = a + Math.floor(rnd() * (b - a + 1));
           if (m.type === 'sheep' && id === B.wool_white) { if (m.sheared) n2 = 0; id = D.WOOL_OF[m.color] || id; }
@@ -374,6 +383,7 @@
     const p = G.player;
     if (m.deadT > 0) { m.deadT += dt; return; }
     if (m.def.flying) return updateGhast(m, dt);
+    if (m.def.jumper) return updateSlime(m, dt);
     if (m.def.hover) return updateBlaze(m, dt);
     if (m.angry > 0) m.angry -= dt;
     const water = inWater(m);
@@ -536,6 +546,30 @@
     m.noiseT -= dt;
     if (m.noiseT <= 0) { m.noiseT = 4 + rnd() * 6; if (dist < 24) VX.audio.play('blaze'); }
   }
+  // Слизень: передвигается только прыжками; большой делится на маленьких, бьёт только большой
+  function updateSlime(m, dt) {
+    const p = G.player;
+    const dx = p.pos.x - m.x, dz = p.pos.z - m.z, dist = Math.hypot(dx, dz);
+    const hunt = G.mode === 'survival' && !p.dead && dist < 16 && Math.abs(p.pos.y - m.y) < 6;
+    m.hopT = (m.hopT === undefined ? 1 : m.hopT) - dt;
+    if (m.onGround) {
+      m.vx *= Math.pow(0.02, dt); m.vz *= Math.pow(0.02, dt);
+      if (m.hopT <= 0) {
+        m.hopT = 0.8 + rnd() * 1.2;
+        const yaw = hunt ? Math.atan2(dx, dz) : rnd() * Math.PI * 2;
+        m.yaw = yaw; m.vy = 5 + (m.size || 2); m.vx = Math.sin(yaw) * m.def.speed * (m.size || 2) * 0.6; m.vz = Math.cos(yaw) * m.def.speed * (m.size || 2) * 0.6;
+        if (dist < 16) VX.audio.play('slime');
+      }
+    }
+    m.vy = Math.max(-40, m.vy - 28.2 * dt);
+    move(m, m.vx * dt, m.vy * dt, m.vz * dt);
+    m.attackCool -= dt;
+    if (hunt && (m.size || 2) > 1 && dist < m.w / 2 + 0.6 && Math.abs(p.pos.y - m.y) < 1.2 && m.attackCool <= 0) {
+      m.attackCool = 1;
+      if (p.damage(m.def.dmg, 'slime', playerEv, false, { x: m.x, z: m.z })) { p.vel.x += dx / (dist || 1) * 4; p.vel.z += dz / (dist || 1) * 4; }
+    }
+    m.hurtT = Math.max(0, m.hurtT - dt);
+  }
   function updateFireballs(dt) {
     const p = G.player;
     for (let i = fireballs.length - 1; i >= 0; i--) {
@@ -644,7 +678,7 @@
     if (!hostile && ground !== B.grass) return;
     if (hostile && (!C.SOLID[ground] || C.RENDER[ground] !== 1)) return;
     if (w.getBlock(x, top + 1, z) !== 0 || w.getBlock(x, top + 2, z) !== 0) return;
-    if (hostile) { const q = rnd(); spawnMob(q < 0.35 ? 'zombie' : q < 0.6 ? 'skeleton' : q < 0.8 ? 'spider' : 'creeper', x + 0.5, top + 1, z + 0.5); }
+    if (hostile) { const q = rnd(); spawnMob(q < 0.32 ? 'zombie' : q < 0.55 ? 'skeleton' : q < 0.72 ? 'spider' : q < 0.9 ? 'creeper' : 'slime', x + 0.5, top + 1, z + 0.5); }
     else {
       const t = ['pig', 'sheep', 'cow', 'chicken'][(rnd() * 4) | 0];
       const n = 2 + ((rnd() * 2) | 0);
@@ -906,6 +940,7 @@
       if (m.type === 'zombie' || m.type === 'skeleton') md.arms.forEach((a, k) => { a.rotation.x = -Math.PI / 2 + (k ? sw : -sw) * 0.2 - (m.swingT > 0 ? 0.5 : 0); });
       if (md.wings) md.wings.forEach((wg, k) => { wg.rotation.z = (k ? 1 : -1) * (m.onGround ? 0 : Math.abs(Math.sin(m.phase * 6)) * 0.8); });
       if (md.wool) md.wool.visible = !m.sheared;
+      if (md.slimeBody) { const s = (m.size || 2) === 1 ? 0.5 : 1, sq = m.onGround ? 1 : 1.12; md.root.scale.set(s / Math.sqrt(sq), s * sq, s / Math.sqrt(sq)); }
       if (md.tentacles) md.tentacles.forEach((tn, k) => { tn.rotation.x = Math.sin(G.frameNo * 0.05 + k) * 0.3; tn.rotation.z = Math.cos(G.frameNo * 0.04 + k * 1.7) * 0.2; });
       if (md.ghastBody) { const angry = (m.charge || 0) > 2.2 || m.shotT > 0; if (md.angry !== angry) { md.angry = angry; md.ghastBody.material[4].map = angry ? textures().ghastAngry : textures().ghastFace; } }
       if (md.rods) md.rods.forEach((rod) => { const ring = rod.userData.ring, k = rod.userData.k, a = m.phase * (ring === 1 ? -1 : 1) + k * Math.PI / 2 + ring * 0.4, rad = [0.6, 0.5, 0.35][ring]; rod.position.set(Math.cos(a) * rad, 1.15 - ring * 0.42 + Math.sin(m.phase * 2 + k) * 0.05, Math.sin(a) * rad); });
@@ -943,13 +978,14 @@
       const e = spawnMob(m.t, m.x, m.y, m.z); e.hp = m.hp; e.yaw = m.yaw || 0;
       if (m.c) e.color = m.c;
       if (m.sh) { e.sheared = true; e.regrow = 60; }
+      if (m.sz === 1) { e.size = 1; e.w = e.h = 0.5; }
     }
   }
   function save(meta) {
     const r = (v) => Math.round(v * 100) / 100;
     meta.entities = {
       items: items.slice(-200).map((it) => ({ s: VX.inv.clone(it.stack), x: r(it.x), y: r(it.y), z: r(it.z), age: Math.round(it.age) })),
-      mobs: mobs.filter((m) => m.deadT === 0).map((m) => ({ t: m.type, x: r(m.x), y: r(m.y), z: r(m.z), hp: m.hp, yaw: r(m.yaw), c: m.color !== 'white' ? m.color : undefined, sh: m.sheared || undefined })),
+      mobs: mobs.filter((m) => m.deadT === 0).map((m) => ({ t: m.type, x: r(m.x), y: r(m.y), z: r(m.z), hp: m.hp, yaw: r(m.yaw), c: m.color !== 'white' ? m.color : undefined, sh: m.sheared || undefined, sz: m.size === 1 ? 1 : undefined })),
     };
   }
 

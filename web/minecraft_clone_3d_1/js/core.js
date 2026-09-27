@@ -27,6 +27,8 @@ function VoxelCore() {
     'bed_foot_top', 'bed_side_head', 'bed_side_foot', 'lever', 'water_flow',
     'trapdoor', 'iron_trapdoor', 'ladder',
     'netherrack', 'soul_sand', 'nether_bricks', 'quartz_ore', 'portal', 'nether_wart_0', 'nether_wart_1', 'nether_wart_2', 'spawner',
+    'dust_0', 'dust_1', 'dust_2', 'dust_3', 'redstone_torch_on', 'redstone_torch_off', 'repeater', 'lamp_off', 'lamp_on',
+    'piston_top', 'piston_top_sticky', 'piston_side', 'piston_bottom', 'piston_inner', 'redstone_ore', 'redstone_block',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -229,6 +231,63 @@ function VoxelCore() {
         like(s, { render: 'box', shape: up ? [flipY(lo), flipY(hi)] : [lo, hi], creative: !d && !up, item: NB_STAIRS, stairs: 8, dir: d, up: !!up, mat: NETHER_BRICKS }));
     }
   }
+  // ---- красный камень (id с 1181)
+  // стороны в 6 направлениях: 0 -Z, 1 +X, 2 +Z, 3 -X, 4 +Y, 5 -Y (у кнопки и факела на стене - сторона стены)
+  const FDIR = [[0, 0, -1], [1, 0, 0], [0, 0, 1], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
+  const FACE_OF_DIR6 = [4, 1, 5, 0, 3, 2];     // номер грани (0 -X, 1 +X, 2 -Y, 3 +Y, 4 -Z, 5 +Z) для стороны
+  // коробка, заданная для «лицом к -Z», повернуть лицом в сторону f
+  const rotBox = (b, f) => {
+    let r;
+    if (f === 0) r = b.slice(0, 6);
+    else if (f === 2) r = [b[0], b[1], 16 - b[5], b[3], b[4], 16 - b[2]];
+    else if (f === 1) r = [16 - b[5], b[1], b[0], 16 - b[2], b[4], b[3]];
+    else if (f === 3) r = [b[2], b[1], 16 - b[3], b[5], b[4], 16 - b[0]];
+    else if (f === 4) r = [b[0], 16 - b[5], b[1], b[3], 16 - b[2], b[4]];
+    else r = [b[0], b[2], 16 - b[4], b[3], b[5], 16 - b[1]];
+    if (b[6]) r.push(b[6]);
+    return r;
+  };
+  const WIRE = 1181, RS_TORCH = 1197, RS_TORCH_OFF = 1202, REPEATER = 1207, BUTTON = 1239, WOOD_BUTTON = 1251, RS_PLATE = 1263, RS_WOOD_PLATE = 1265, LAMP = 1267, PISTON = 1269, PISTON_HEAD = 1293, REDSTONE_ORE = 1305, REDSTONE_BLOCK = 1306;
+  const dustTile = (p) => (p === 0 ? 'dust_0' : p < 6 ? 'dust_1' : p < 11 ? 'dust_2' : 'dust_3');
+  for (let p = 0; p < 16; p++) def(WIRE + p, 'redstone' + (p ? '_' + p : ''), 'Красная пыль', { render: 'box', dyn: 4, tex: dustTile(p), shape: [[3, 0, 3, 13, 1, 13]], solid: false, hardness: 0, sound: 'stone', creative: !p, item: WIRE, drop: WIRE, group: 'redstone', wire: p });
+  for (const [base, on] of [[RS_TORCH, true], [RS_TORCH_OFF, false]]) {
+    def(base, on ? 'redstone_torch' : 'redstone_torch_off', 'Красный факел', { render: 'torch', tex: on ? 'redstone_torch_on' : 'redstone_torch_off', solid: false, hardness: 0, sound: 'wood', light: on ? 7 : 0, creative: on, item: RS_TORCH, drop: RS_TORCH, group: 'redstone', rsTorch: on ? 1 : 0 });
+    for (let r = 0; r < 4; r++) BLOCKS[base + 1 + r] = Object.assign({}, BLOCKS[base], { id: base + 1 + r, key: BLOCKS[base].key + '_wall_' + r, creative: false, wall: r });
+  }
+  for (let d = 0; d < 4; d++) for (let dl = 1; dl <= 4; dl++) for (let pw = 0; pw < 2; pw++) {
+    // сторона выхода d (как у ступеней: 0 -Z, 1 -X, 2 +Z, 3 +X); задняя свеча у входа, передняя - по задержке
+    const post = (t) => [7, 2, t, 9, 7, t + 2, pw ? 'redstone_torch_on' : 'redstone_torch_off'];
+    let shape = [[0, 0, 0, 16, 2, 16], post(12), post(2 + (dl - 1) * 2)];
+    const f6 = [0, 3, 2, 1][d];
+    shape = shape.map((b) => rotBox(b, f6));
+    def(REPEATER + d * 8 + (dl - 1) * 2 + pw, 'repeater' + (d || dl > 1 || pw ? '_' + d + dl + pw : ''), 'Повторитель', { render: 'box', shape, tex: { top: 'repeater', bottom: 'stone', side: 'stone' }, rot: d, solid: true, hardness: 0, sound: 'stone', creative: !d && dl === 1 && !pw, item: REPEATER, drop: REPEATER, group: 'redstone', repeater: true, dir: d, delay: dl, powered: !!pw });
+  }
+  const BTN = [[5, 6, 0, 11, 10, 2], [14, 6, 5, 16, 10, 11], [5, 6, 14, 11, 10, 16], [0, 6, 5, 2, 10, 11], [5, 0, 6, 11, 2, 10], [5, 14, 6, 11, 16, 10]];
+  const BTN_P = [[5, 6, 0, 11, 10, 1], [15, 6, 5, 16, 10, 11], [5, 6, 15, 11, 10, 16], [0, 6, 5, 1, 10, 11], [5, 0, 6, 11, 1, 10], [5, 15, 6, 11, 16, 10]];
+  for (const [base, wood] of [[BUTTON, false], [WOOD_BUTTON, true]]) for (let f = 0; f < 6; f++) for (let pr = 0; pr < 2; pr++) {
+    def(base + f * 2 + pr, (wood ? 'wood_button' : 'stone_button') + (f || pr ? '_' + f + pr : ''), wood ? 'Деревянная кнопка' : 'Каменная кнопка', { render: 'box', shape: [(pr ? BTN_P : BTN)[f]], tex: wood ? 'oak_planks' : 'stone', solid: false, hardness: 0.5, sound: wood ? 'wood' : 'stone', creative: !f && !pr, item: base, drop: base, group: 'redstone', button: wood ? 'wood' : 'stone', face: f, pressed: !!pr });
+  }
+  for (const [base, wood] of [[RS_PLATE, false], [RS_WOOD_PLATE, true]]) for (let pr = 0; pr < 2; pr++) {
+    def(base + pr, (wood ? 'wood_plate' : 'stone_plate') + (pr ? '_on' : ''), wood ? 'Деревянная нажимная плита' : 'Каменная нажимная плита', { render: 'box', shape: [[1, 0, 1, 15, pr ? 0.5 : 1, 15]], tex: wood ? 'oak_planks' : 'stone', solid: false, hardness: 0.5, sound: wood ? 'wood' : 'stone', creative: !pr, item: base, drop: base, group: 'redstone', plate: wood ? 'wood' : 'stone', pressed: !!pr });
+  }
+  def(LAMP, 'redstone_lamp', 'Лампа', { tex: 'lamp_off', hardness: 0.3, sound: 'glass', group: 'redstone', lamp: 0 });
+  def(LAMP + 1, 'redstone_lamp_on', 'Лампа', { tex: 'lamp_on', hardness: 0.3, sound: 'glass', light: 15, creative: false, item: LAMP, drop: LAMP, lamp: 1 });
+  // поршень: сторона лица f (6 направлений), выдвинут, липкий; голова - в соседней клетке
+  for (let f = 0; f < 6; f++) for (let ext = 0; ext < 2; ext++) for (let st = 0; st < 2; st++) {
+    const faces = ['piston_side', 'piston_side', 'piston_side', 'piston_side', 'piston_side', 'piston_side'];
+    faces[FACE_OF_DIR6[f]] = ext ? 'piston_inner' : st ? 'piston_top_sticky' : 'piston_top';
+    faces[FACE_OF_DIR6[[2, 3, 0, 1, 5, 4][f]]] = 'piston_bottom';
+    const o = { tex: { faces }, hardness: 1.5, tool: 'pickaxe', sound: 'stone', creative: !f && !ext, item: PISTON + st, drop: PISTON + st, group: 'redstone', piston: st ? 'sticky' : 'normal', face: f, extended: !!ext };
+    if (ext) { o.render = 'box'; o.shape = [rotBox([0, 0, 4, 16, 16, 16], f)]; }
+    def(PISTON + f * 4 + ext * 2 + st, (st ? 'sticky_piston' : 'piston') + (f || ext ? '_' + f + ext : ''), st ? 'Липкий поршень' : 'Поршень', o);
+  }
+  for (let f = 0; f < 6; f++) for (let st = 0; st < 2; st++) {
+    def(PISTON_HEAD + f * 2 + st, 'piston_head_' + f + st, 'Головка поршня', { render: 'box', shape: [rotBox([0, 0, 0, 16, 16, 4, st ? 'piston_top_sticky' : 'piston_top'], f), rotBox([6, 6, 4, 10, 10, 16, 'piston_side'], f)], tex: 'piston_side',
+      hardness: 1.5, sound: 'stone', creative: false, drop: 0, pistonHead: true, face: f, sticky: !!st });
+  }
+  def(REDSTONE_ORE, 'redstone_ore', 'Руда красного камня', { tex: 'redstone_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: WIRE, dropCount: 4, group: 'nature' });
+  def(REDSTONE_BLOCK, 'redstone_block', 'Блок красного камня', { tex: 'redstone_block', hardness: 5, tool: 'pickaxe', level: 0, group: 'redstone', rsBlock: true });
+
   // плиты и ступени по номеру материала (8 - незер-кирпич, у него свой диапазон id)
   const slabBase = (m) => (m < 8 ? SLAB + m * 3 : NB_SLAB);
   const stairsBase = (m) => (m < 8 ? STAIRS + m * 8 : NB_STAIRS);
@@ -241,8 +300,9 @@ function VoxelCore() {
   const FFALL = new Uint8Array(MAXID);
   const SHAPE = [];                     // коробки не во всю клетку, в шестнадцатых: [x0, y0, z0, x1, y1, z1]
   const CSHAPE = [];                    // своя коробка столкновения (калитка, лестница), [] - проходим
-  const DYN = new Uint8Array(MAXID);    // форма зависит от соседей: 1 забор, 2 стеклянная панель, 3 забор из незер-кирпича
-  const TBOX = new Uint8Array(MAXID);   // коробки в прозрачной сетке (портал)
+  const DYN = new Uint8Array(MAXID);    // форма зависит от соседей: 1 забор, 2 стеклянная панель, 3 забор из незер-кирпича, 4 красная пыль
+  const TBOX = new Uint8Array(MAXID);
+  const RS_CONNECT = new Uint8Array(MAXID);   // к чему тянется пыль: 1 - со всех сторон, 2 - повторитель (вход и выход)   // коробки в прозрачной сетке (портал)
   const SOLID = new Uint8Array(MAXID);
   const EMIT = new Uint8Array(MAXID);
   const FILTER = new Uint8Array(MAXID);   // сколько света гасит клетка (15 - непрозрачная)
@@ -261,10 +321,11 @@ function VoxelCore() {
     if (b.shape) SHAPE[id] = b.shape;
     if (b.collide) CSHAPE[id] = b.collide;
     DYN[id] = b.dyn || 0;
+    RS_CONNECT[id] = b.wire !== undefined || b.rsTorch !== undefined || b.button || b.plate || b.rsBlock || id === 130 || id === 131 ? 1 : b.repeater ? 2 : 0;
     TBOX[id] = b.transBox ? 1 : 0;
     for (let f = 0; f < 6; f++) {
       const t = b.tex || {};
-      let name = t.all || (f === 3 ? t.top : f === 2 ? t.bottom : t.side);
+      let name = t.all || (t.faces ? t.faces[f] : f === 3 ? t.top : f === 2 ? t.bottom : t.side);
       if (b.facing && t.front && f === FACE_OF_ROT[b.rot || 0]) name = t.front;
       if (!b.facing && t.front && (f === 4 || f === 5)) name = t.front;   // верстак: «лицо» с двух сторон
       TEXF[id * 6 + f] = name ? T[name] : 0;
@@ -275,9 +336,39 @@ function VoxelCore() {
   // Форма блока с учётом соседей. nb(dx, dy, dz) - id соседа; mode: 'render' | 'collide' | 'outline'.
   // Забор цепляется к заборам, калиткам и полным блокам, панель - к панелям, стеклу и полным блокам.
   const ARMS = [[0, -1], [-1, 0], [0, 1], [1, 0]];
+  // Куда тянется красная пыль: к пыли рядом (и на ступень вверх или вниз), к факелам, рычагам, кнопкам,
+  // плитам, блоку красного камня и к повторителю с его входа или выхода. Одна связь - линия насквозь.
+  function wireLinks(nb) {
+    const up = nb(0, 1, 0), upSolid = up > 0 && RENDER[up] === 1 && SOLID[up] === 1;
+    const links = [0, 0, 0, 0], climb = [0, 0, 0, 0];     // стороны 0 -Z, 1 +X, 2 +Z, 3 -X
+    for (let a = 0; a < 4; a++) {
+      const d = FDIR[a], n = nb(d[0], 0, d[2]);
+      const nSolid = n > 0 && RENDER[n] === 1 && SOLID[n] === 1;
+      if (n > 0 && RS_CONNECT[n] === 1) links[a] = 1;
+      else if (n > 0 && RS_CONNECT[n] === 2) { const rd = BLOCKS[n].dir; if (FDIR6_OF_DIR4[rd] === a || FDIR6_OF_DIR4[rd] === (a + 2) % 4) links[a] = 1; }
+      else if (nSolid && !upSolid && BLOCKS[Math.max(0, nb(d[0], 1, d[2]))].wire !== undefined) { links[a] = 1; climb[a] = 1; }
+      else if (!nSolid && BLOCKS[Math.max(0, nb(d[0], -1, d[2]))].wire !== undefined) links[a] = 1;
+    }
+    const n = links.reduce((s, v) => s + v, 0);
+    if (n === 1) for (let a = 0; a < 4; a++) if (links[a]) links[(a + 2) % 4] = 1;
+    return { links, climb, count: n };
+  }
+  // сторона выхода повторителя (0 -Z, 1 -X, 2 +Z, 3 +X) -> сторона из FDIR
+  const FDIR6_OF_DIR4 = [0, 3, 2, 1];
   function shapeOf(id, nb, mode) {
     const k = DYN[id];
     if (!k) return mode === 'collide' && CSHAPE[id] ? CSHAPE[id] : (SHAPE[id] || null);
+    if (k === 4) {
+      const { links, climb, count } = wireLinks(nb);
+      const out = [];
+      if (!count) return [[3, 0, 3, 13, 1, 13]];
+      out.push([5, 0, 5, 11, 1, 11]);
+      const span = [[5, 0, 11, 5], [11, 5, 16, 11], [5, 11, 11, 16], [0, 5, 5, 11]];     // x0, z0, x1, z1 от центра к стороне
+      for (let a = 0; a < 4; a++) if (links[a]) { const q = span[a]; out.push([q[0], 0, q[1], q[2], 1, q[3]]); }
+      const wall = [[5, 0, 0, 11, 16, 1], [15, 0, 5, 16, 16, 11], [5, 0, 15, 11, 16, 16], [0, 0, 5, 1, 16, 11]];
+      for (let a = 0; a < 4; a++) if (climb[a]) out.push(wall[a]);
+      return out;
+    }
     const full = (n) => n > 0 && RENDER[n] === 1 && SOLID[n] === 1;
     const out = [];
     if (k === 1 || k === 3) {
@@ -706,7 +797,7 @@ function VoxelCore() {
       }
     }
     // руда: жилы, начатые в этом куске
-    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100], [B.glowstone, 2, 6, 5, 26]];
+    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [REDSTONE_ORE, 6, 7, 5, 16], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100], [B.glowstone, 2, 6, 5, 26]];
     const orng = mulberry32((seed ^ Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663)) | 0);
     for (const [id, count, size, ymin, ymaxO] of ores) {
       for (let v = 0; v < count; v++) {
@@ -1001,7 +1092,7 @@ function VoxelCore() {
       if (rc === 7) {      // факел: столбик 2x10 пикселей, на стене - с наклоном
         const t = TEXF[id * 6];
         const L = cellLight(i);
-        for (let k = 0; k < 4; k++) lights[k] = [L[0], Math.max(L[1], 14 * 17), 255];
+        for (let k = 0; k < 4; k++) lights[k] = [L[0], Math.max(L[1], EMIT[id] ? 14 * 17 : 0), 255];
         const wall = BLOCKS[id].wall;
         let bx = 7, bz = 7, tx = 0, tz = 0, by = 0;
         if (wall !== undefined) {
@@ -1188,7 +1279,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

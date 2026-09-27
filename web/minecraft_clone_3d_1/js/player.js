@@ -333,7 +333,7 @@
   };
   // Урон. Возвращает true, если прошёл (после удара полсекунды неуязвимости)
   // from - откуда удар ({x, z}): щит спереди (в пределах 90° от взгляда) гасит удары мобов, стрелы и взрывы
-  const BLOCKABLE = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob', 'fireball', 'zombie_pigman', 'blaze']);
+  const BLOCKABLE = new Set(['slime', 'zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob', 'fireball', 'zombie_pigman', 'blaze']);
   Player.prototype.damage = function (n, cause, ev, ignoreCool, from) {
     if (this.dead || n <= 0) return false;
     if (this.hurtCool > 0 && !ignoreCool && cause !== 'fall') return false;
@@ -352,7 +352,7 @@
   };
   // Броня по формуле оригинала: урон x (1 - min(20, max(броня/5, броня - урон/(2 + прочность/4)))/25).
   // Падение, утопление, голод, горение и пустота броней не гасятся.
-  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob', 'explosion', 'fireball', 'zombie_pigman', 'blaze']);
+  const ARMORED = new Set(['slime', 'zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob', 'explosion', 'fireball', 'zombie_pigman', 'blaze']);
   Player.prototype.armorPoints = function () {
     const a = this.armorSlots ? this.armorSlots() : null;
     let pts = 0, tough = 0;
