@@ -49,6 +49,7 @@
   const sky = new VX.Sky(scene, 1);
   const player = new VX.Player();
   const inv = new VX.inv.Inventory();
+  player.armorSlots = () => inv.armor;
   G.world = world; G.player = player; G.inv = inv; G.scene = scene; G.camera = camera; G.renderer = renderer;
   G.atlas = atlas; G.atlasTex = atlasTex; G.itemCanvas = itemCanvas; G.itemTex = itemTex;
 
@@ -60,7 +61,7 @@
     let c;
     if (id < 256) {
       const b = C.BLOCKS[id];
-      const flat = b.render === 'cross' || b.render === 'torch';
+      const flat = b.render === 'cross' || b.render === 'torch' || id === 130 || id === 131;
       if (flat) { const t = C.TEXF[id * 6]; c = VX.tex.flatIcon(atlas.canvas, (t % C.ATLAS_COLS) * 16, ((t / C.ATLAS_COLS) | 0) * 16); }
       else c = VX.tex.isoIcon(atlas.canvas, id);
     } else {
@@ -173,11 +174,11 @@
   G.createWorld = async function (o) {
     const seedStr = String(o.seed == null ? '' : o.seed).trim();
     const seedNum = C.seedFrom(seedStr);
-    const sp = C.findSpawn(seedNum);
+    const sp = C.findSpawn(seedNum, o.gen);
     const meta = {
       id: newId(), name: (o.name || '').trim() || 'Новый мир', seed: seedStr || String(seedNum), seedNum, mode: o.mode === 'survival' ? 'survival' : 'creative',
       created: Date.now(), lastPlayed: Date.now(), ticks: 1000, spawn: { x: sp.x + 0.5, y: sp.h + 1, z: sp.z + 0.5 },
-      player: null, inv: null, furnaces: {}, ach: { got: {}, progress: {} }, stats: { broken: 0, placed: 0, kills: 0, deaths: 0, played: 0 }, version: 2,
+      player: null, inv: null, furnaces: {}, chests: {}, crops: {}, bed: null, gen: o.gen || '', ach: { got: {}, progress: {} }, stats: { broken: 0, placed: 0, kills: 0, deaths: 0, played: 0 }, version: 2,
     };
     await VX.store.putWorld(meta);
     return meta;
@@ -205,6 +206,10 @@
     if (VX.entities) VX.entities.reset(meta);
     G.mining = null;
     G.furnaces = meta.furnaces || (meta.furnaces = {});
+    G.chests = meta.chests || (meta.chests = {});
+    G.crops = meta.crops || (meta.crops = {});
+    G.sleeping = null; G.bowT = 0;
+    if (VX.fluids) VX.fluids.reset(meta);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
     G.saveT = 0;
@@ -219,6 +224,7 @@
     G.meta.inv = inv.toJSON();
     G.meta.lastPlayed = Date.now();
     if (VX.entities) VX.entities.save(G.meta);
+    if (VX.fluids) VX.fluids.save(G.meta);
     await VX.store.putWorld(G.meta);
   };
   G.exitToTitle = async function () {
@@ -306,9 +312,14 @@
       if (!G.furnaces[k]) G.furnaces[k] = VX.inv.newFurnace();
       view = new VX.inv.FurnaceView(inv, G.furnaces[k]);
       view.pos = pos;
+    } else if (kind === 'chest') {
+      view = new VX.inv.ChestView(inv, G.chestGroup(pos.x, pos.y, pos.z));
+      view.pos = pos;
+      VX.audio.play('door_open', { surface: 'wood' });
     } else {
       view = new VX.inv.PlayerView(inv, kind === 'table' ? 3 : 2);
       view.onCraft = (r) => { G.emit('craft', { id: r.outId }); VX.audio.play('click'); };
+      view.onEquip = (s) => { G.emit('equip', { id: s.id }); VX.audio.play('place', { surface: 'stone' }); };
     }
     view.kind = kind;
     G.container = view;
@@ -721,6 +732,17 @@
     inv.selected = slot;
     return id;
   };
+  // Лук: чем дольше натянут (до 1 с), тем дальше и больнее; стрела берётся из инвентаря
+  G.shootBow = function (charge) {
+    const f = Math.min(1, charge);
+    const power = Math.min(1, (f * f + 2 * f) / 3);
+    if (power < 0.1) return null;
+    if (G.mode === 'survival') { if (!inv.remove(D.I.arrow, 1)) return null; inv.wearHeld(); }
+    const p = player, d = p.forward();
+    const a = VX.entities.shootArrow(p.pos.x + d.x * 0.4, p.eye() - 0.1 + d.y * 0.4, p.pos.z + d.z * 0.4, d.x * power * 60, d.y * power * 60, d.z * power * 60, 'player', Math.ceil(power * 6) + (power >= 1 ? 3 : 0));
+    VX.audio.play('bow');
+    return a;
+  };
   G.eatHeld = function () {
     const held = inv.held();
     const f = held && D.info(held.id).food;
@@ -802,6 +824,8 @@
   let lastSpace = 0, lastW = 0;
   window.addEventListener('keydown', (e) => {
     VX.audio.init();
+    // F1-F3 и F5 - клавиши игры (F5 в браузере перезагрузил бы страницу)
+    if (['F1', 'F2', 'F3', 'F5'].includes(e.code) && G.meta && !G.panorama) e.preventDefault();
     if (VX.ui && VX.ui.onKey(e)) return;
     const a = action(e.code);
     if (G.state === 'play') {
@@ -818,6 +842,9 @@
       if (a === 'drop') { G.dropHeld(e.ctrlKey); return; }
       if (e.code.startsWith('Digit') && e.code !== 'Digit0') G.select(+e.code.slice(5) - 1);
       if (e.code === 'F3') G.debug = !G.debug;
+      if (e.code === 'F5') G.view = ((G.view || 0) + 1) % 3;        // первое лицо -> сзади -> спереди
+      if (e.code === 'F1') G.hideHud = !G.hideHud;
+      if (e.code === 'F2') G.shotRequest = true;
       if (e.code === 'Escape') G.pause();
     } else if (G.state === 'inv') {
       if (a === 'inventory' || e.code === 'Escape') { e.preventDefault(); G.closeContainer(); }
@@ -835,7 +862,10 @@
     else if (e.button === 2) { G.mouse.r = true; G.placeCool = 0.25; G.useTarget(); }
     else if (e.button === 1) { e.preventDefault(); G.pickTarget(); }
   });
-  window.addEventListener('mouseup', (e) => { if (e.button === 0) { G.mouse.l = false; G.mining = null; } if (e.button === 2) G.mouse.r = false; });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 0) { G.mouse.l = false; G.mining = null; }
+    if (e.button === 2) { G.mouse.r = false; if (G.bowT > 0) { G.shootBow(G.bowT); G.bowT = 0; } }
+  });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('auxclick', (e) => e.preventDefault());
   document.addEventListener('mousemove', (e) => {
@@ -869,6 +899,8 @@
     G.meta.stats && G.meta.stats.deaths++;
     // как в оригинале: вещи выпадают на месте гибели
     for (let i = 0; i < 36; i++) { const s = inv.slots[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.slots[i] = null; } }
+    for (let i = 0; i < 4; i++) { const s = inv.armor[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.armor[i] = null; } }
+    G.sleeping = null;
     if (G.container) closeContainer();
     G.state = 'dead';
     releaseKeys();
@@ -878,7 +910,14 @@
   };
   G.respawn = function () {
     player.reset();
-    const sp = G.meta.spawn;
+    let sp = G.meta.spawn;
+    // кровать: возрождение у неё, если она цела
+    const bd = G.meta.bed;
+    if (bd) {
+      const id = world.getBlock(bd.x, bd.y, bd.z);
+      if (id > 0 && C.BLOCKS[id].bed) sp = { x: bd.x + 0.5, y: bd.y + 0.57, z: bd.z + 0.5 };
+      else if (id >= 0) { G.meta.bed = null; G.say('Кровать не найдена: возрождение в начале мира'); }
+    }
     player.pos.set(sp.x, sp.y, sp.z);
     player.vel.set(0, 0, 0);
     G.state = 'paused';
@@ -891,7 +930,7 @@
     if (!running) return;
     G.ticks += dt * 20;
     const wasWater = player.inWater;
-    const inp = G.state === 'play' ? inputState() : {};
+    const inp = G.state === 'play' && !G.sleeping ? inputState() : {};
     if (G.state !== 'dead') player.update(dt, inp, world, G.mode, playerEvent);
     if (player.dead && G.state !== 'dead') { G.onDeath(player.lastDamage && player.lastDamage.cause); return; }
     if (player.inWater && !wasWater && Math.abs(player.vel.y) > 2) VX.audio.play('splash');
@@ -906,17 +945,19 @@
     } else if (player.inWater && (Math.abs(player.vel.x) + Math.abs(player.vel.z)) > 0.5) {
       stepAcc += dt; if (stepAcc > 0.8) { stepAcc = 0; VX.audio.play('swim'); }
     }
-    if (G.state === 'play') {
+    if (G.sleeping) sleepTick(dt);
+    else if (G.state === 'play') {
       updateMining(dt);
       const hf = inv.held();
+      if (G.bowT > 0 && G.mouse.r) G.bowT += dt;
       if (G.mouse.r && G.eating !== undefined && hf && D.info(hf.id).food) {
         G.eating += dt; G.swing = Math.max(G.swing, 0.3);
         if (G.eating >= 1.6) { G.eatHeld(); G.eating = undefined; }
-      } else if (G.mouse.r) { G.eating = undefined; G.placeCool -= dt; if (G.placeCool <= 0) { G.placeCool = 0.2; G.useTarget(); } }
+      } else if (G.mouse.r && !(G.bowT > 0)) { G.eating = undefined; G.placeCool -= dt; if (G.placeCool <= 0) { G.placeCool = 0.2; G.useTarget(); } }
       else G.eating = undefined;
     }
-    G.fluidT = (G.fluidT || 0) + dt;
-    if (G.fluidT > 0.25) { G.fluidT = 0; fluidStep(); }
+    if (VX.fluids) VX.fluids.tick(dt);
+    cropsTick(dt);
     // печи
     for (const k in G.furnaces) {
       const f = G.furnaces[k];
@@ -947,6 +988,7 @@
     world.saveDirty();
     G.swing = Math.max(0, G.swing - dt * 3.5);
     G.hintT = Math.max(0, (G.hintT || 0) - dt);
+    G.actionT = Math.max(0, (G.actionT || 0) - dt);
     G.itemNameT = Math.max(0, (G.itemNameT || 0) - dt);
   }
   G.simulate = simulate;
@@ -1010,10 +1052,24 @@
     const moving = player.onGround && Math.hypot(player.vel.x, player.vel.z) > 0.3 && G.state === 'play';
     if (moving && s.bobbing) bob += dt * Math.hypot(player.vel.x, player.vel.z) * 1.9; else bob *= 0.9;
     const bobA = s.bobbing && moving ? 1 : 0;
-    camera.position.set(player.pos.x, player.eye() + Math.abs(Math.sin(bob)) * 0.06 * bobA, player.pos.z);
-    camera.rotation.set(player.pitch, player.yaw, Math.sin(bob) * 0.006 * bobA);
+    const view = G.panorama ? 0 : (G.view || 0);
+    if (view === 0) {
+      camera.position.set(player.pos.x, player.eye() + Math.abs(Math.sin(bob)) * 0.06 * bobA, player.pos.z);
+      camera.rotation.set(player.pitch, player.yaw, Math.sin(bob) * 0.006 * bobA);
+    } else {
+      // вид от третьего лица: камера на 4 блока сзади (или спереди) и ближе, если мешает стена
+      const eye = new THREE.Vector3(player.pos.x, player.eye(), player.pos.z);
+      const d = player.forward().multiplyScalar(view === 1 ? -1 : 1);
+      const dist = G.cameraDistance(eye, d, 4);
+      camera.position.copy(eye).addScaledVector(d, dist);
+      if (view === 1) camera.rotation.set(player.pitch, player.yaw, 0);
+      else camera.rotation.set(-player.pitch, player.yaw + Math.PI, 0);
+    }
     camera.updateMatrixWorld();
-    const under = world.getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) === B.water;
+    if (VX.entities && VX.entities.playerModel) VX.entities.playerModel(view > 0 && !G.panorama && (G.state === 'play' || G.state === 'inv' || G.state === 'paused'), dt);
+    const camId = world.getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z));
+    const under = camId > 0 && C.FLUID[camId] === 1;
+    G.inLavaView = camId > 0 && C.FLUID[camId] === 2;
     G.underwater = under;
     const far = world.radius * C.CS;
     const sk = sky.update(G.ticks, camera, under, far, renderer);
@@ -1040,7 +1096,8 @@
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем
     // рука
     const inGame = G.state === 'play' || G.state === 'inv';
-    if (inGame && !G.hideHand) {
+    if (G.shotRequest) { G.shotRequest = false; G.saveShot(); }
+    if (inGame && !G.hideHand && !G.hideHud && !(G.view > 0) && !G.sleeping) {
       const held = inv.held();
       setHand(held ? held.id : 0);
       const sw = Math.sin(G.swing * Math.PI);
@@ -1054,6 +1111,29 @@
     }
     if (VX.ui) VX.ui.frame(dt);
   }
+  // Сколько камере отъехать от глаз по направлению d, не войдя в блок
+  G.cameraDistance = function (eye, d, max) {
+    let dist = 0;
+    for (let k = 0.1; k <= max + 1e-6; k += 0.1) {
+      const x = eye.x + d.x * k, y = eye.y + d.y * k, z = eye.z + d.z * k;
+      if (VX.phys.boxHits(world, [x - 0.2, y - 0.2, z - 0.2, x + 0.2, y + 0.2, z + 0.2])) break;
+      dist = k;
+    }
+    return dist;
+  };
+  // F2: снимок экрана в PNG (браузер спросит, куда сохранить, или положит в загрузки)
+  G.saveShot = function () {
+    try {
+      const url = canvas.toDataURL('image/png');
+      const d = new Date(), p2 = (v) => String(v).padStart(2, '0');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kubicheskiy-mir-${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      G.say('Снимок сохранён: ' + a.download);
+      VX.audio.play('click');
+    } catch (e) { G.say('Снимок не удался'); }
+  };
   // Приблизительная освещённость у игрока (для руки и существ): небо над головой и факелы рядом
   G.lightAt = function (x, y, z) {
     const top = world.skyTop(Math.floor(x), Math.floor(z));
@@ -1074,11 +1154,41 @@
     return llV;
   };
 
+  // ---------- Перенос построек старой версии ----------
+  // Старая версия хранила в localStorage только отличия от своего острова 48x48. Новый мир
+  // «Старый мир» повторяет тот остров клетка в клетку (core.js, legacy), поэтому правки ложатся
+  // на свои места. Старый ключ не удаляется; перенос делается один раз.
+  const OLD_KEY = 'cubeworld_edits_v1', MIGRATED = 'cubeworld_migrated_v1';
+  G.migrateLegacy = async function () {
+    let raw = null, done = null;
+    try { raw = localStorage.getItem(OLD_KEY); done = localStorage.getItem(MIGRATED); } catch (e) { return null; }
+    if (!raw || done) return null;
+    let edits;
+    try { edits = JSON.parse(raw) || {}; } catch (e) { return null; }
+    const keys = Object.keys(edits);
+    if (!keys.length) return null;
+    const meta = await G.createWorld({ name: 'Старый мир', seed: 'старый мир', mode: 'creative', gen: 'legacy' });
+    const chunks = new Map();
+    for (const k of keys) {
+      const [x, y, z] = k.split(',').map(Number);
+      if (!(y >= 0 && y < 32) || !C.inLegacy(x, z)) continue;
+      const id = C.LEG_MAP[edits[k]] || 0;
+      const cx = Math.floor(x / C.CS), cz = Math.floor(z / C.CS), ck = cx + ',' + cz;
+      if (!chunks.has(ck)) chunks.set(ck, { cx, cz, d: C.generate(meta.seedNum, cx, cz, 'legacy') });
+      chunks.get(ck).d[C.cidx(x - cx * C.CS, y + C.LEG_DY, z - cz * C.CS)] = id;
+    }
+    for (const c of chunks.values()) VX.store.putChunk(meta.id, c.cx, c.cz, c.d);
+    await VX.store.flush();
+    try { localStorage.setItem(MIGRATED, meta.id); } catch (e) { /* не страшно: перенос повторится */ }
+    return meta.id;
+  };
+
   // ---------- Запуск ----------
   async function boot() {
     G.settings = loadSettings();
     await VX.store.init();
     applySettings();
+    try { await G.migrateLegacy(); } catch (e) { console.warn('перенос старых построек не удался', e); }
     if (VX.ui) VX.ui.init();
     await openPanorama();
     // ?seed=...&mode=... - сразу в новый мир (для проверок и быстрого старта)

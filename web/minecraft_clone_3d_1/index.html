@@ -96,12 +96,21 @@
   #hearts { left: 0; bottom: 0; }
   #foodbar { right: 0; bottom: 0; }
   #airbar { right: 0; bottom: 19px; }
-  #bars img, #airbar i { width: 18px; height: 18px; image-rendering: pixelated; display: block; }
+  #bars img, #airbar i, #armorbar img { width: 18px; height: 18px; image-rendering: pixelated; display: block; }
   #hearts.low img { animation: shake .3s infinite; }
   @keyframes shake { 50% { transform: translateY(-2px); } }
   #itemName { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); font-size: 15px; text-shadow: var(--shadow); white-space: nowrap; }
   #hurt { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 40%, rgba(200,0,0,.9)); opacity: 0; }
   #waterTint { position: absolute; inset: 0; background: rgba(20, 50, 160, .28); display: none; }
+  #lavaTint { position: absolute; inset: 0; background: rgba(230, 90, 10, .75); display: none; }
+  #fireTint { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; background: linear-gradient(transparent, rgba(255, 110, 10, .55)); display: none; }
+  #armorbar { position: absolute; left: 0; bottom: 19px; display: flex; }
+  #actionBar { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); font-size: 15px; text-shadow: var(--shadow); white-space: nowrap; opacity: 0; }
+  #sleepFade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .1s; }
+  .armorcol { display: flex; flex-direction: column; margin-right: 18px; }
+  .craft.withArmor { margin-left: 0; }
+  .slot.armor:empty::before { content: ''; position: absolute; inset: 7px; opacity: .25; background: #373737; clip-path: polygon(20% 10%, 80% 10%, 90% 45%, 70% 90%, 30% 90%, 10% 45%); }
+  .chestgrid { margin-bottom: 4px; }
   #debug { position: absolute; left: 4px; top: 4px; font-size: 13px; line-height: 1.35; background: rgba(0,0,0,.35); padding: 3px 6px; display: none; text-shadow: 1px 1px 0 #222; }
   #fpsMini { position: absolute; right: 6px; top: 4px; font-size: 13px; display: none; }
   #clickHint { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); font-size: 12px; color: #e8e8e8; display: none; text-shadow: 1px 1px 0 #222; white-space: nowrap; }
@@ -183,6 +192,7 @@
 <script src="js/sky.js"></script>
 <script src="js/player.js"></script>
 <script src="js/game.js"></script>
+<script src="js/fluids.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/ui.js"></script>

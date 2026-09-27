@@ -423,7 +423,12 @@
         for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(el('span', 'mag', '&#x1F50D;&#xFE0E;')); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
         invPanel.append(tabs);
       }
-      if (v.kind === 'furnace') {
+      if (v.kind === 'chest') {
+        const n = v.size;
+        invPanel.append(el('div', 'ptitle', n > 27 ? 'Большой сундук' : 'Сундук'));
+        const ids = []; for (let k = 0; k < n; k++) ids.push(500 + k);
+        invPanel.append(grid(ids, 9, 'chestgrid'), el('div', 'ptitle', 'Инвентарь'), mainGrid());
+      } else if (v.kind === 'furnace') {
         invPanel.append(el('div', 'ptitle', 'Печь'));
         const f = v.f;
         const top = el('div', 'furn');
@@ -435,9 +440,15 @@
       } else {
         const n = v.size;
         invPanel.append(el('div', 'ptitle', n === 3 ? 'Верстак' : 'Создание'));
-        const top = el('div', 'craft');
+        const top = el('div', 'craft' + (n === 2 ? ' withArmor' : ''));
         const ids = []; for (let k = 0; k < n * n; k++) ids.push(100 + k);
         const g = grid(ids, n);
+        if (n === 2) {
+          // броня: шлем, нагрудник, поножи, ботинки - столбик слева, как в оригинале
+          const col = el('div', 'armorcol');
+          for (let k = 0; k < 4; k++) { const d = slotEl(40 + k, v.get(40 + k), 'armor a' + k); col.append(d); }
+          top.append(col);
+        }
         top.append(g, el('div', 'arrow'), slotEl(200, v.get(200), 'big'));
         invPanel.append(top, el('div', 'ptitle', 'Инвентарь'), mainGrid());
       }
@@ -572,6 +583,10 @@
     icons.food = pixIcon(food, { k: '#2a1400', B: '#b86a28', W: '#f0e8d8' });
     icons.fhalf = pixIcon(fhalf, { k: '#2a1400', B: '#b86a28', W: '#f0e8d8', E: '#3a2410' });
     icons.fempty = pixIcon(food.map((r) => r.replace(/[BW]/g, 'E')), { k: '#2a1400', E: '#3a2410' });
+    const arm = ['.kk...kk.', 'kAAkkkAAk', 'kABAAABAk', 'kAAAAAAAk', '.kAAAAAk.', '.kABAAAk.', '.kAAAAAk.', '.kkkkkkk.', '.........'];
+    icons.armor = pixIcon(arm, { k: '#202020', A: '#d8d8d8', B: '#ffffff' });
+    icons.ahalf = pixIcon(arm.map((r) => r.split('').map((ch, x) => (x > 4 && ch !== 'k' && ch !== '.' ? 'E' : ch)).join('')), { k: '#202020', A: '#d8d8d8', B: '#ffffff', E: '#4a4a4a' });
+    icons.aempty = pixIcon(arm.map((r) => r.replace(/[AB]/g, 'E')), { k: '#202020', E: '#4a4a4a' });
     icons.bubble = pixIcon(['..kkkk...', '.kWBBBk..', 'kWBBBBBk.', 'kBBBBBBk.', 'kBBBBBBk.', 'kBBBBBBk.', '.kBBBBk..', '..kkkk...', '.........'], { k: '#10204a', B: '#3a8ae8', W: '#e0f0ff' });
   }
   let hotSig = '', barSig = '';
@@ -579,7 +594,8 @@
     hud = el('div', 'hud');
     hud.id = 'hud';
     hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните по миру, чтобы управлять мышью</div>
-      <div id="hurt"></div><div id="waterTint"></div><div id="bars"><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
+      <div id="hurt"></div><div id="waterTint"></div><div id="lavaTint"></div><div id="fireTint"></div><div id="bars"><div id="armorbar"></div><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
+      <div id="actionBar"></div><div id="sleepFade"></div>
       <div id="itemName"></div><div id="hotbar"></div><div id="toasts"></div>`;
     root.appendChild(hud);
     const hb = $('#hotbar', hud);
@@ -594,12 +610,16 @@
       for (let i = 0; i < 9; i++) { fillSlot(cells[i], inv.slots[i]); cells[i].classList.toggle('sel', i === inv.selected); }
     }
     const surv = G.mode === 'survival';
-    const bs = surv + '|' + p.health + '|' + p.food + '|' + Math.ceil(p.air) + '|' + p.headInWater;
+    const pts = p.armorPoints ? p.armorPoints().pts : 0;
+    const bs = surv + '|' + p.health + '|' + p.food + '|' + Math.ceil(p.air) + '|' + p.headInWater + '|' + pts;
     if (bs !== barSig) {
       barSig = bs;
       $('#bars', hud).style.display = surv ? '' : 'none';
       let h = '';
-      for (let k = 0; k < 10; k++) { const v = p.health - k * 2; h += `<img src="${v >= 2 ? icons.heart : v === 1 ? icons.half : icons.hempty}" alt="">`; }
+      for (let k = 0; k < 10; k++) { const v = p.health - k * 2; h += `<img src="${v >= 1.5 ? icons.heart : v >= 0.5 ? icons.half : icons.hempty}" alt="">`; }
+      let ar = '';
+      if (pts > 0) for (let k = 0; k < 10; k++) { const v = pts - k * 2; ar += `<img src="${v >= 2 ? icons.armor : v === 1 ? icons.ahalf : icons.aempty}" alt="">`; }
+      $('#armorbar', hud).innerHTML = ar;
       $('#hearts', hud).innerHTML = h;
       let f = '';
       for (let k = 9; k >= 0; k--) { const v = p.food - k * 2; f += `<img src="${v >= 2 ? icons.food : v === 1 ? icons.fhalf : icons.fempty}" alt="">`; }
@@ -615,6 +635,14 @@
     nm.style.opacity = Math.min(1, G.itemNameT || 0);
     $('#hurt', hud).style.opacity = Math.min(0.5, p.hurtFlash * 1.6);
     $('#waterTint', hud).style.display = G.underwater ? 'block' : 'none';
+    $('#lavaTint', hud).style.display = G.inLavaView ? 'block' : 'none';
+    $('#fireTint', hud).style.display = p.fireT > 0 && G.mode === 'survival' && !(G.view > 0) ? 'block' : 'none';
+    const ab = $('#actionBar', hud);
+    ab.textContent = G.actionText || '';
+    ab.style.opacity = Math.min(1, (G.actionT || 0) * 1.5);
+    $('#sleepFade', hud).style.opacity = G.sleeping ? Math.min(1, G.sleeping.t / 1.6) : 0;
+    hud.style.visibility = G.hideHud ? 'hidden' : 'visible';
+    $('#crosshair', hud).style.display = G.view === 2 ? 'none' : '';
     const hint = $('#clickHint', hud);
     const showHint = G.state === 'play' && G.needClick && (G.hintT || 0) > 0;
     hint.style.display = showHint ? 'block' : 'none';
