@@ -98,6 +98,7 @@ test('новая папка, проверка имени, переименова
   await page.fill('.modal-input', 'Архив');
   await page.keyboard.press('Enter');
   await expect(row(page, 'Архив')).toBeVisible();
+  await page.waitForFunction(() => dbPending === 0);
   await page.reload();
   await expect(row(page, 'Архив')).toBeVisible();
   await expect(row(page, 'Черновики')).toHaveCount(0);
@@ -111,6 +112,7 @@ test('текстовый файл правится, размер пересчи�
   await page.click('[data-save]');
   await expect(page.locator('.modal-bg')).toHaveCount(0);
   await expect(row(page, 'readme.txt').locator('.meta').first()).toHaveText('6 Б');
+  await page.waitForFunction(() => dbPending === 0);
   await page.reload();
   await row(page, 'readme.txt').dblclick();
   await expect(page.locator('#preview-text')).toHaveText('абв');
@@ -159,3 +161,99 @@ for (const size of [{ width: 1024, height: 700 }, { width: 480, height: 700 }]) 
     expect(errors).toEqual([]);
   });
 }
+
+// ===== Второй этап: IndexedDB, корзина, копировать-вставить, файлы с диска, миниатюры =====
+async function reloadEx(page) {
+  await page.waitForFunction(() => dbPending === 0);
+  await page.reload();
+  await page.waitForFunction(() => typeof xdb !== 'undefined' && document.querySelectorAll('.file-row').length > 0);
+}
+
+test('демо-файлы живут в IndexedDB, а не в localStorage; старые данные переносятся', async ({ page }) => {
+  // данные первой версии в localStorage, базы ещё нет
+  await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('explorer_1.vfs', JSON.stringify({ name: '', type: 'folder', modified: '', children: { 'Старое': { name: 'Старое', type: 'folder', modified: '', children: {} } } })); } });
+  await openOs(page, NAME);
+  await expect(row(page, 'Старое')).toBeVisible();
+  await page.waitForFunction(() => dbPending === 0);
+  expect(await page.evaluate(() => localStorage.getItem('explorer_1.vfs'))).toBeNull();
+  await page.click('#btn-new-folder');
+  await page.fill('.modal-input', 'Новое');
+  await page.keyboard.press('Enter');
+  await reloadEx(page);
+  await expect(row(page, 'Новое')).toBeVisible();
+  await expect(row(page, 'Старое')).toBeVisible();
+});
+
+test('удаление идёт в корзину, оттуда возвращается; очистка корзины переживает перезагрузку', async ({ page }) => {
+  await openOs(page, NAME);
+  await row(page, 'readme.txt').click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.modal-text')).toContainText('в корзину');
+  await page.click('[data-ok]');
+  await expect(row(page, 'readme.txt')).toHaveCount(0);
+  await expect(page.locator('#trash-label')).toHaveText('Корзина (1)');
+  await page.click('#trash-item');
+  await expect(page.locator('#trash-list')).toContainText('readme.txt');
+  await page.click('[data-restore]');
+  await expect(page.locator('#trash-list')).toContainText('Корзина пуста');
+  await page.click('[data-close]');
+  await expect(row(page, 'readme.txt')).toBeVisible();
+  await row(page, 'Проекты').click();
+  await page.keyboard.press('Delete');
+  await page.click('[data-ok]');
+  await reloadEx(page);
+  await expect(page.locator('#trash-label')).toHaveText('Корзина (1)');
+  await page.click('#trash-item');
+  await page.click('[data-empty]');
+  await page.click('[data-close]');
+  await reloadEx(page);
+  await expect(page.locator('#trash-label')).toHaveText('Корзина');
+  await expect(row(page, 'Проекты')).toHaveCount(0);
+});
+
+test('копировать и вставить, вырезать и вставить, перетаскивание на папку', async ({ page }) => {
+  await openOs(page, NAME);
+  await row(page, 'readme.txt').click();
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('Control+v');
+  await expect(row(page, 'readme - копия.txt')).toHaveClass(/selected/);
+  await page.keyboard.press('Control+x');
+  await row(page, 'Документы').dblclick();
+  await page.keyboard.press('Control+v');
+  await expect(row(page, 'readme - копия.txt')).toBeVisible();
+  await page.click('#btn-up');
+  await expect(row(page, 'readme - копия.txt')).toHaveCount(0);
+  // папку нельзя вставить в саму себя
+  await row(page, 'Проекты').click();
+  await page.keyboard.press('Control+c');
+  await row(page, 'Проекты').dblclick();
+  await page.keyboard.press('Control+v');
+  await expect(page.locator('.toast')).toContainText('саму себя');
+  await page.click('#btn-up');
+  await row(page, 'readme.txt').dragTo(row(page, 'Загрузки'));
+  await expect(row(page, 'readme.txt')).toHaveCount(0);
+  await row(page, 'Загрузки').dblclick();
+  await expect(row(page, 'readme.txt')).toBeVisible();
+  await reloadEx(page);
+  expect(await page.evaluate(() => [!!state.vfs.children['Загрузки'].children['readme.txt'], !!state.vfs.children['Документы'].children['readme - копия.txt']])).toEqual([true, true]);
+});
+
+test('файлы с диска: кнопка «Добавить» и перетаскивание в окно; картинка с миниатюрой и просмотром, переживает перезагрузку', async ({ page }) => {
+  await openOs(page, NAME);
+  await row(page, 'Изображения').dblclick();
+  await page.locator('#file-input').setInputFiles({ name: 'закат.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="#f97316"/></svg>') });
+  await expect(row(page, 'закат.svg').locator('img.thumb')).toHaveCount(1);
+  await page.locator('.file-area').evaluate((el) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'снимок.png', { type: 'image/png' }));
+    el.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(row(page, 'снимок.png')).toBeVisible();
+  await reloadEx(page);
+  await row(page, 'Изображения').dblclick();
+  await expect(row(page, 'закат.svg').locator('img.thumb')).toHaveCount(1);
+  expect(await page.evaluate(() => state.vfs.children['Изображения'].children['снимок.png'].blob instanceof Blob)).toBe(true);
+  await row(page, 'закат.svg').dblclick();
+  await expect(page.locator('.modal .preview-content img')).toBeVisible();
+});
