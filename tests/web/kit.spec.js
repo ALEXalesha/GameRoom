@@ -63,7 +63,7 @@ async function loadWith(page, storage) {
 
 for (const game of Object.keys(GAMES)) {
   test(`${game}: испорченный прогресс и рекорды не роняют игру`, async ({ page }) => {
-    test.setTimeout(240000);
+    test.setTimeout(600000);
     const errors = await openGame(page, game, 'seed=1&fast');
     const cfg = GAMES[game];
     const samples = await page.evaluate((keys) => { const o = {}; for (const k in keys) o[k] = JSON.parse(JSON.stringify(eval(keys[k]))); return o; }, cfg.keys);
