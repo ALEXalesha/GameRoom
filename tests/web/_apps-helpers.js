@@ -1,5 +1,5 @@
 // Помощники для проверок группы «приложения» (browser_1, calculator, player, python_ide,
-// telegram, yandex-music, token-calc, english-abbreviations).
+// english-abbreviations; player, telegram, yandex-music и token-calc владелец удалил 27.09.2026).
 const { expect } = require('@playwright/test');
 const { open, pageUrl } = require('../helpers');
 
