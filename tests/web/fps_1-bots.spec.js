@@ -137,14 +137,15 @@ test.describe('fps_1: боты', () => {
     expect(r.after).toBeLessThan(0.6);
   });
 
-  test('во 2-м и 3-м раунде через 25 с боевого времени каждый живой бот идёт к цели и ушёл с базы', async ({ page }) => {
+  test('во 2-6-м раундах (2-м и 3-м тоже) через 25 с боевого времени каждый живой бот идёт к цели и ушёл с базы', async ({ page }) => {
     test.setTimeout(120000);
     await openTactical(page);
-    await startMatch(page, { mode: 'comp', map: 'quarry', seed: 21, side: 'CT', diff: 'medium' });
     const r = await page.evaluate(() => {
-      const m = __tactical.match, p = m.player;
       const out = [];
-      for (const round of [2, 3]) {
+      for (const [map, seed] of [['quarry', 21], ['port', 9]]) {
+      __tactical.start({ mode: 'comp', map, seed, side: 'CT', diff: 'medium' });
+      const m = __tactical.match, p = m.player;
+      for (const round of [2, 3, 4, 5, 6]) {
         while (!(m.round === round && m.phase !== 'freeze' && m.time - m.liveStart >= 25) && m.time < 2000) { p.dummy = true; m.step(); if (m.round > round) break; }
         if (m.round !== round || m.phase === 'roundEnd') { out.push({ round, skipped: m.phase }); continue; }
         for (const b of m.brains) {
@@ -153,6 +154,7 @@ test.describe('fps_1: боты', () => {
           const fighting = !!b.target || b.goalKind === 'cover' || b.goalKind === 'hunt' || (b.lastSeen && m.time - b.lastSeen.time < 3);
           out.push({ round, name: b.bot.name, team: b.bot.team, goal: !!b.goal, inSpawn: !fighting && (zone === 't' || zone === 'u') });
         }
+      }
       }
       return out;
     });
@@ -166,7 +168,7 @@ test.describe('fps_1: боты', () => {
     await openTactical(page);
     const r = await page.evaluate(() => {
       const res = { T: 0, CT: 0, defuse: 0, bomb: 0 };
-      for (const [map, seed] of [['quarry', 1], ['port', 2], ['quarry', 3]]) {
+      for (const [map, seed] of [['quarry', 21], ['quarry', 5], ['port', 9], ['port', 3]]) {
         __tactical.start({ mode: 'comp', map, seed, side: 'CT', diff: 'medium', allies: 5, enemies: 5, short: false });
         const m = __tactical.match, p = m.player;
         while (!m.over && m.round <= 12 && m.time < 3000) { p.alive = false; m.step(); }
