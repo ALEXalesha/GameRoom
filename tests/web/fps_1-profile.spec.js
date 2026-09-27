@@ -350,4 +350,22 @@ test.describe('fps_1: статистика, звания, кампания', () 
     await expect(page.locator('#hud')).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('выход из соревновательного матча через паузу - поражение для звания и статистики', async ({ page }) => {
+    await openTactical(page);
+    const r = await page.evaluate(() => {
+      TAC.profile.data.rankPoints = 150; TAC.profile.save();
+      __tactical.start({ mode: 'comp', map: 'quarry', ai: false, diff: 'medium' });
+      __tactical.step(64);
+      __tactical.app.quitToMenu(true);
+      const a = { rank: TAC.profile.data.rankPoints, ranked: TAC.profile.data.rankedMatches, losses: TAC.stats.data.losses, matches: TAC.stats.data.matches };
+      __tactical.start({ mode: 'dm', map: 'quarry', ai: false });
+      __tactical.step(64);
+      __tactical.app.quitToMenu(true);
+      return { a, dmRank: TAC.profile.data.rankPoints, dmMatches: TAC.stats.data.matches };
+    });
+    expect(r.a).toEqual({ rank: 125, ranked: 1, losses: 1, matches: 1 });
+    expect(r.dmRank).toBe(125);
+    expect(r.dmMatches).toBe(1);
+  });
 });

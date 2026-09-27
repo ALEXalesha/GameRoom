@@ -91,9 +91,10 @@ test.describe('fps_1: экономика', () => {
       return { out, streak: m.lossStreak.slice() };
     });
     // 1000 + ... ; атака - мы (squad 0), защита - squad 1
-    expect(r.out[0]).toEqual({ me: 1000 + 1400, foe: 1000 + 3250 });
-    expect(r.out[1]).toEqual({ me: 1000 + 1900, foe: 1000 + 3250 });
-    expect(r.out[2]).toEqual({ me: 1000 + 2400 + 800, foe: 1000 + 3500 });
+    // как в соревновательных тактических шутерах: в начале половины счётчик поражений уже 1, поэтому проигрыш пистолетного раунда - $1900
+    expect(r.out[0]).toEqual({ me: 1000 + 1900, foe: 1000 + 3250 });
+    expect(r.out[1]).toEqual({ me: 1000 + 2400, foe: 1000 + 3250 });
+    expect(r.out[2]).toEqual({ me: 1000 + 2900 + 800, foe: 1000 + 3500 });
     expect(r.out[3]).toEqual({ me: 1000, foe: 1000 + 3250 });
     expect(r.out[4]).toEqual({ me: 1000 + 3500, foe: 1000 + 1400 });
   });
@@ -198,13 +199,13 @@ test.describe('fps_1: бомба и раунды', () => {
     const r = await page.evaluate(() => {
       const m = __tactical.match, p = m.player;
       for (let i = 0; i < 7; i++) { p.money = 9000; p.inv.primary = TAC.makeWeapon('strazh'); m.endRound(0, 'elimination'); __tactical.step(64 * 5 + 2); }
-      const afterHalf = { team: p.team, money: p.money, primary: p.inv.primary, round: m.round };
+      const afterHalf = { team: p.team, money: p.money, primary: p.inv.primary, round: m.round, streak: m.lossStreak.slice() };
       __tactical.step(64 * 11);
       for (const a of m.agents) if (a.squad === 1) m.applyDamage(p, a, 200, 0, TAC.WEAPONS.burya, 'chest', null);
       __tactical.step(1);
       return { afterHalf, phase: m.phase, last: m.lastRound, score: m.score.slice() };
     });
-    expect(r.afterHalf).toEqual({ team: 'T', money: 800, primary: null, round: 8 });
+    expect(r.afterHalf).toEqual({ team: 'T', money: 800, primary: null, round: 8, streak: [1, 1] });
     expect(r.phase).toBe('roundEnd');
     expect(r.last.reason).toBe('elimination');
     expect(r.score).toEqual([8, 0]);

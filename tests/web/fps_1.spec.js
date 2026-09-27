@@ -115,9 +115,8 @@ test.describe('fps_1: вкладка и окно', () => {
     await setVis(page, 'hidden');
     expect(await page.evaluate(() => TAC.audio.suspendedByPause)).toBe(true);
     await setVis(page, 'visible');
-    await page.waitForTimeout(200);
-    const s = await page.evaluate(() => ({ susp: TAC.audio.suspendedByPause, state: TAC.audio.ctx.state, music: !!TAC.audio.music }));
-    expect(s).toEqual({ susp: false, state: 'running', music: true });
+    await expect.poll(() => page.evaluate(() => ({ susp: TAC.audio.suspendedByPause, state: TAC.audio.ctx.state, music: !!TAC.audio.music })), { timeout: 5000 })
+      .toEqual({ susp: false, state: 'running', music: true });
   });
 
   for (const ev of ['blur', 'pagehide']) {
