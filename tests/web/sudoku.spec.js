@@ -45,10 +45,12 @@ test.describe('Судоку: меню, уровни, единственност�
       return out;
     });
     for (const lv of LEVELS) for (const x of r[lv]) { expect(x.n, lv).toBe(1); expect(x.same, lv).toBe(true); expect(x.solved, lv).toBe(true); }
-    expect(r.easy.every((x) => x.tier === 1 && x.clues >= 36)).toBe(true);
-    expect(r.medium.every((x) => x.tier === 1 && x.clues <= 33)).toBe(true);
-    expect(r.hard.every((x) => x.tier === 2)).toBe(true);
-    expect(r.expert.every((x) => x.tier === 3)).toBe(true);
+    // ярусы: 1 - последний кандидат и одиночка в квадрате, 2 - скрытая одиночка в строке/столбце,
+    // 3 - пересечения и пары, 4 - тройки, четвёрки, «крест», «рыба-меч», «крылья»
+    expect(r.easy.map((x) => x.tier)).toEqual([1, 1, 1, 1]);
+    expect(r.medium.map((x) => x.tier)).toEqual([2, 2, 2, 2]);
+    expect(r.hard.map((x) => x.tier)).toEqual([3, 3, 3, 3]);
+    expect(r.expert.map((x) => x.tier)).toEqual([4, 4, 4, 4]);
   });
 
   test('ежедневная головоломка: одна и та же в один день, другая - в другой; решение одно', async ({ page }) => {
@@ -320,7 +322,9 @@ test.describe('Судоку: пауза, клавиши, окно', () => {
     });
     await open(page);
     await page.evaluate(() => { __game.newSync('easy', 13); __game.kit.closeAll(); __game.kit.play(); __game.select(4, 4); });
-    const tap = async (b) => { await page.evaluate((b) => { __pad.buttons[b].pressed = true; }, b); await page.waitForTimeout(60); await page.evaluate((b) => { __pad.buttons[b].pressed = false; }, b); await page.waitForTimeout(60); };
+    // нажатие держится, пока игра его не увидит (по кадрам, а не по часам - под нагрузкой кадры реже)
+    const frames = (n) => page.evaluate((n) => new Promise((r) => { const f = (k) => (k ? requestAnimationFrame(() => f(k - 1)) : r()); f(n); }), n);
+    const tap = async (b) => { await page.evaluate((b) => { __pad.buttons[b].pressed = true; }, b); await frames(3); await page.evaluate((b) => { __pad.buttons[b].pressed = false; }, b); await frames(3); };
     await tap(15);
     expect(await page.evaluate(() => __game.state.selected)).toEqual({ r: 4, c: 5 });
     const e = await page.evaluate(EMPTY);
@@ -341,4 +345,112 @@ test.describe('Судоку: пауза, клавиши, окно', () => {
       expect(b).toBeGreaterThan(size.height * 0.6);
     });
   }
+});
+
+test.describe('Судоку: по второму ревью', () => {
+  test('генератор никогда не возвращает null: сотни зёрен каждого уровня и все даты двух лет; «Эксперт» - быстро', async ({ page }) => {
+    test.setTimeout(600000);
+    await open(page);
+    const r = await page.evaluate(() => {
+      const L = SudokuLogic, out = { nulls: [], notUnique: 0, maxExpert: 0 };
+      const seeds = { easy: 200, medium: 200, hard: 150, expert: 120 };
+      for (const lv in seeds) for (let s = 1; s <= seeds[lv]; s++) {
+        const t = performance.now(); const g = L.generate(lv, s);
+        if (lv === 'expert') out.maxExpert = Math.max(out.maxExpert, performance.now() - t);
+        if (!g) { out.nulls.push(lv + ':' + s); continue; }
+        if (L.countSolutions(g.puzzle, 2) !== 1) out.notUnique++;
+      }
+      // все даты двух лет (и дни, где раньше ломалось: 01.11.2026, 28.02.2027, 19.09.2027)
+      const days = [];
+      for (let d = Date.UTC(2026, 0, 1); d < Date.UTC(2028, 0, 1); d += 864e5) days.push(new Date(d).toISOString().slice(0, 10));
+      for (const day of days) { const g = __game.dailyPuzzle(day); if (!g) out.nulls.push(day); else if (L.countSolutions(g.puzzle, 2) !== 1) out.notUnique++; }
+      out.days = days.length;
+      return out;
+    });
+    expect(r.nulls).toEqual([]);
+    expect(r.notUnique).toBe(0);
+    expect(r.days).toBe(730);
+    expect(r.maxExpert).toBeLessThan(4000);
+  });
+
+  test('подготовка головоломки не замирает: страница отвечает, пока строится «Эксперт», потом игра начинается', async ({ page }) => {
+    await open(page, 'seed=107&date=2026-11-01');
+    await page.click('[data-screen=main] [data-id=new]');
+    await page.click('[data-screen=levels] [data-level=expert]');
+    await expect(page.locator('[data-screen=preparing] .spinner')).toBeVisible();
+    const t0 = Date.now(); await page.evaluate(() => 1); expect(Date.now() - t0).toBeLessThan(500);
+    await page.waitForFunction(() => __game.kit.mode === 'play', null, { timeout: 15000 });
+    expect(await page.evaluate(() => [__game.state.level, SudokuLogic.countSolutions(__game.state.puzzle, 2)])).toEqual(['expert', 1]);
+  });
+
+  test('отмена ошибки не возвращает счётчик ошибок', async ({ page }) => {
+    await open(page);
+    const r = await page.evaluate((E) => {
+      const g = __game; g.newSync('easy', 21);
+      const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1);
+      const m = g.state.mistakes; g.undo();
+      return { m, after: g.state.mistakes, cell: g.state.user[e.i] };
+    }, EMPTY);
+    expect(r).toEqual({ m: 1, after: 1, cell: 0 });
+  });
+
+  test('время сохраняется на паузе, при скрытии вкладки, при уходе со страницы и раз в несколько секунд', async ({ page }) => {
+    await open(page);
+    const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('sudoku:game')).elapsed);
+    await page.evaluate(() => { const g = __game; g.newSync('easy', 22); g.kit.play(); g.state.elapsed = 42; g.kit.pause(); });
+    expect(await saved()).toBe(42);
+    await page.evaluate(() => { __game.kit.resume(); __game.state.elapsed = 50; });
+    await hideTab(page); await showTab(page);
+    expect(await saved()).toBe(50);
+    await page.evaluate(() => { __game.kit.resume(); __game.state.elapsed = 60; dispatchEvent(new Event('pagehide')); });
+    expect(await saved()).toBe(60);
+    await page.evaluate(() => { __game.state.elapsed = 70; __game.step(6 * 60); });
+    expect(await saved()).toBeGreaterThanOrEqual(70);
+  });
+
+  test('испорченное сохранение: неверная дата, чужое решение, 50 ошибок - игра продолжается честно, победа засчитывается', async ({ page }) => {
+    const errors = await open(page);
+    const real = await page.evaluate(() => { const g = __game; g.newSync('easy', 23); g.kit.play(); g.save(); return g.state.solution.join(''); });
+    await page.evaluate(() => {
+      const o = JSON.parse(localStorage.getItem('sudoku:game'));
+      o.daily = 'x'; o.mistakes = 50; o.solution = o.solution.split('').reverse().join('');
+      localStorage.setItem('sudoku:game', JSON.stringify(o));
+    });
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    await page.click('[data-screen=main] [data-id=continue]');
+    const r = await page.evaluate(() => ({ daily: __game.state.daily, sol: __game.state.solution.join(''), m: __game.state.mistakes, phase: __game.state.phase }));
+    expect(r.daily).toBe(null);
+    expect(r.sol).toBe(real);
+    expect(r.m).toBeLessThan(3);
+    expect(r.phase).toBe('play');
+    await page.evaluate(() => { const g = __game, s = g.state; s.user.forEach((v, i) => { if (!v) { g.select(Math.floor(i / 9), i % 9); g.input(s.solution[i]); } }); });
+    await expect(page.locator('[data-screen=win]')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('рекорд меньше секунды - это рекорд, а не «пусто»; безумный рекорд из хранилища отбрасывается', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { localStorage.clear(); const g = __game; g.newSync('easy', 24); g.kit.play(); g.state.elapsed = 0.4; const s = g.state; s.user.forEach((v, i) => { if (!v) { g.select(Math.floor(i / 9), i % 9); g.input(s.solution[i]); } }); });
+    expect(await page.evaluate(() => __game.records.levels.easy.best)).toBeGreaterThan(0);
+    await page.evaluate(() => localStorage.setItem('sudoku:records', JSON.stringify({ levels: { hard: { played: 1, won: 1, best: 999999999, total: 999999999 } } })));
+    await page.reload();
+    await page.waitForFunction(() => window.__game && __game.ready);
+    await page.click('[data-screen=main] [data-id=new]');
+    await expect(page.locator('[data-screen=levels] [data-level=hard]')).not.toContainText('16666666');
+  });
+
+  test('тёмная тема: неверная цифра в выбранной клетке читается (контраст не ниже 4.5)', async ({ page }) => {
+    await open(page);
+    const ratio = await page.evaluate((E) => {
+      const g = __game; g.kit.set('theme', 'dark'); g.newSync('easy', 25);
+      const e = eval(E); g.select(e.r, e.c); g.input(e.d === 9 ? 1 : e.d + 1);
+      const cs = getComputedStyle(g.cellEl(e.r, e.c));
+      const rgb = (x) => x.match(/[0-9.]+/g).slice(0, 3).map(Number);
+      const lum = ([r, gg, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(gg) + 0.0722 * f(b); };
+      const a = lum(rgb(cs.color)), b = lum(rgb(cs.backgroundColor));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }, EMPTY);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
 });

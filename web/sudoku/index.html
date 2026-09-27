@@ -36,6 +36,7 @@
   .cell.focus { background: var(--sel); color: var(--sel-fg); }
   .cell.error, .cell.conflict { color: var(--err); }
   .cell.error:not(.focus) { background: var(--err-bg); }
+  .cell.focus.error, .cell.focus.conflict { background: #b3202f; color: #ffffff; }
   .cell.hintcell:not(.focus) { box-shadow: inset 0 0 0 3px var(--cell-hint); }
   .cell.pop { animation: pop .28s ease-out; }
   @keyframes pop { from { transform: scale(1.25); } to { transform: none; } }
@@ -43,7 +44,7 @@
   .notes span { display: flex; align-items: center; justify-content: center; }
   .notes span.hl { color: var(--accent); }
   #board.hidden .cell > * , #board.hidden .cell { color: transparent !important; }
-  #board.hidden::after { content: 'Пауза'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--dim); background: var(--cell); }
+  #board.hidden::after { content: ''; position: absolute; inset: 0; background: var(--cell); }
   #side { width: 360px; display: flex; flex-direction: column; gap: 12px; }
   .card { background: var(--bg2); border-radius: 14px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -69,6 +70,8 @@
   #hintText b { color: var(--cell-hint); }
   #hintText .err { color: var(--err); font-weight: 600; }
   .grow { flex: 1; overflow: auto; }
+  .spinner { width: 42px; height: 42px; margin: 6px auto 10px; border-radius: 50%; border: 4px solid rgba(128,140,180,.3); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   #app .kit-grid.levels { grid-template-columns: repeat(4, 1fr); }
   @media (max-width: 860px) {
     .wrap { flex-direction: column; --bs: min(calc(100vw - 24px), calc(100vh - 380px)); align-items: center; }
@@ -103,6 +106,7 @@ let seedBase = params.has('seed') ? Number(params.get('seed')) || 1 : Math.floor
 const nextSeed = () => (seedBase = (seedBase * 1103515245 + 12345) >>> 0);
 const LEVEL_NAMES = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', expert: 'Эксперт' };
 const WEEK_LEVEL = ['expert', 'easy', 'medium', 'medium', 'hard', 'hard', 'expert'];      // по дням недели: вс..сб
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
 // ================= Состояние =================
@@ -153,8 +157,10 @@ function newSync(level, seed) {
 }
 function startLevel(level) {
   preparing(`Готовлю головоломку: ${LEVEL_NAMES[level]}…`);
-  L.generateAsync(level, nextSeed(), (g) => { setup(g.puzzle, g.solution, level, null); beginPlay(false); });
+  const t0 = performance.now();
+  L.generateAsync(level, nextSeed(), (g) => afterPrep(t0, () => { setup(g.puzzle, g.solution, level, null); beginPlay(false); }));
 }
+function dailyPuzzle(d) { return L.generate(dailyLevel(d), dailySeed(d)); }
 function startDailySync(date) {
   const d = date || today(), level = dailyLevel(d), g = L.generate(level, dailySeed(d));
   setup(g.puzzle, g.solution, level, d);
@@ -162,9 +168,12 @@ function startDailySync(date) {
 function startDaily() {
   const d = today(), level = dailyLevel(d);
   preparing(`Готовлю ежедневную головоломку на ${dateLabel(d)}…`);
-  L.generateAsync(level, dailySeed(d), (g) => { setup(g.puzzle, g.solution, level, d); beginPlay(false); });
+  const t0 = performance.now();
+  L.generateAsync(level, dailySeed(d), (g) => afterPrep(t0, () => { setup(g.puzzle, g.solution, level, d); beginPlay(false); }));
 }
-function preparing(text) { kit.show({ id: 'preparing', title: 'Минутку', html: `<p style="text-align:center">${text}</p>` }); }
+// Окно подготовки держится хотя бы 0,4 с: не мигает, когда головоломка готова мгновенно
+function afterPrep(t0, go) { kit.later(go, Math.max(0, 400 - (performance.now() - t0))); }
+function preparing(text) { kit.show({ id: 'preparing', title: 'Минутку', html: `<div class="spinner" aria-hidden="true"></div><p style="text-align:center">${text}</p>` }); }
 function startDemo() {
   const g = L.generate('easy', nextSeed());
   setup(g.puzzle, g.solution, 'easy', null);
@@ -176,9 +185,10 @@ function startDemo() {
 }
 
 // ================= Ходы =================
-function snapshot() { return { user: state.user.slice(), notes: state.notes.map((s) => new Set(s)), hinted: state.hinted.slice(), mistakes: state.mistakes }; }
+// В снимок отмены счётчик ошибок не входит: ошибку нельзя «отменить», она уже сделана
+function snapshot() { return { user: state.user.slice(), notes: state.notes.map((s) => new Set(s)), hinted: state.hinted.slice() }; }
 function pushHistory() { history.push(snapshot()); if (history.length > 500) history.shift(); future = []; }
-function restore(s) { state.user = s.user.slice(); state.notes = s.notes.map((x) => new Set(x)); state.hinted = s.hinted.slice(); state.mistakes = s.mistakes; }
+function restore(s) { state.user = s.user.slice(); state.notes = s.notes.map((x) => new Set(x)); state.hinted = s.hinted.slice(); }
 function undo() { if (state.phase !== 'play' || !history.length) return; future.push(snapshot()); restore(history.pop()); render(); save(); }
 function redo() { if (state.phase !== 'play' || !future.length) return; history.push(snapshot()); restore(future.pop()); render(); save(); checkWin(); }
 const locked = (i) => state.given[i] || state.hinted[i];
@@ -278,7 +288,7 @@ function checkWin() {
   if (state.phase !== 'play' || state.user.some((v, i) => v !== state.solution[i])) return;
   state.phase = 'won';
   if (state.demo) { kit.later(() => { if (state.demo) startDemo(); }, 1500); confetti(); return; }
-  const rec = records.levels[state.level], secs = Math.floor(state.elapsed);
+  const rec = records.levels[state.level], secs = Math.max(1, Math.floor(state.elapsed));
   rec.won++; rec.total += secs;
   const newBest = !rec.best || secs < rec.best;
   if (newBest) rec.best = secs;
@@ -337,8 +347,10 @@ function loadGame() {
     daily: Z.nul(Z.str('')), mistakes: Z.int(0, 0, 99), hints: Z.int(0, 0, 81), elapsed: Z.int(0, 0, 1e7) })));
   if (!g) return null;
   const arr = (s) => (/^[0-9]{81}$/.test(s) ? [...s].map(Number) : null);
-  const p = arr(g.puzzle), so = arr(g.solution), u = arr(g.user);
-  if (!p || !so || !u || L.countSolutions(p, 2) !== 1 || so.some((v) => !v) || p.some((v, i) => v && v !== so[i])) return null;
+  const p = arr(g.puzzle), u = arr(g.user), so = [];
+  // решение не берём на веру: вычисляем по головоломке (она должна иметь ровно одно)
+  if (!p || !u || L.countSolutions(p, 2, so) !== 1) return null;
+  if (g.daily && !DATE_RE.test(g.daily)) g.daily = null;
   return { g, p, so, u };
 }
 function continueGame() {
@@ -348,7 +360,9 @@ function continueGame() {
   state.user = x.u.map((v, i) => (x.p[i] ? x.p[i] : v));
   state.hinted = [...x.g.hinted.padEnd(81, '0')].map((ch, i) => ch === '1' && !x.p[i]);
   state.notes = Array.from({ length: 81 }, (_, i) => new Set([...(x.g.notes[i] || '')].map(Number).filter((d) => d >= 1 && d <= 9)));
-  state.mistakes = x.g.mistakes; state.hints = x.g.hints; state.elapsed = x.g.elapsed;
+  const lim = kit.settings.mistakeLimit;
+  state.mistakes = lim > 0 ? Math.min(x.g.mistakes, lim - 1) : x.g.mistakes;
+  state.hints = x.g.hints; state.elapsed = x.g.elapsed;
   state.demo = false; autopilot = false;
   records.active = true;
   kit.play();
@@ -570,7 +584,7 @@ kit = GameKit.create({
     },
     onRestart() { state.user = state.puzzle.slice(); state.notes = state.puzzle.map(() => new Set()); state.hinted = state.puzzle.map(() => false); state.mistakes = 0; state.hints = 0; state.elapsed = 0; state.phase = 'play'; history = []; future = []; kit.play(); render(); save(); },
     onQuit() { save(); startDemo(); },
-    onPause() { render(); },
+    onPause() { save(); render(); },
     onResume() { render(); },
     onSettings() { if (kit) { applyTheme(); render(); } },
     onResetProgress() { loadRecords(); },
@@ -584,13 +598,17 @@ kit = GameKit.create({
   },
 });
 function loadRecords() {
-  const Z = GameKit.S, N = 1e9, lv = Z.obj({ played: Z.int(0, 0, N), won: Z.int(0, 0, N), best: Z.int(0, 0, N), total: Z.int(0, 0, N) });
+  const Z = GameKit.S, N = 1e9, T = 360000;              // время - не больше 100 часов, иначе значение испорчено
+  const lv = Z.obj({ played: Z.int(0, 0, N), won: Z.int(0, 0, N), best: Z.int(0, 0, T), total: Z.int(0, 0, N) });
   records = kit.loadSafe('records', Z.obj({
     levels: Z.obj({ easy: lv, medium: lv, hard: lv, expert: lv }),
     streak: Z.obj({ cur: Z.int(0, 0, N), best: Z.int(0, 0, N) }),
-    daily: Z.obj({ last: Z.str(''), streak: Z.int(0, 0, N), best: Z.int(0, 0, N), done: Z.map(Z.int(0, 0, N)) }),
+    daily: Z.obj({ last: Z.str(''), streak: Z.int(0, 0, N), best: Z.int(0, 0, N), done: Z.map(Z.int(0, 0, T)) }),
     active: Z.bool(false),
   }));
+  for (const l in records.levels) { const r = records.levels[l]; if (r.won > r.played) r.played = r.won; if (!r.won) { r.best = 0; r.total = 0; } }
+  if (!DATE_RE.test(records.daily.last)) records.daily.last = '';
+  for (const k of Object.keys(records.daily.done)) if (!DATE_RE.test(k)) delete records.daily.done[k];
 }
 function showLevels() {
   const node = document.createElement('div');
@@ -613,6 +631,8 @@ function showImport() {
 }
 
 // ================= Ввод: действия набора и цифры =================
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+addEventListener('pagehide', save);
 addEventListener('keydown', (e) => {
   if (kit.mode !== 'play' || kit.stack.length || e.altKey) return;
   const m = /^(Digit|Numpad)([0-9])$/.exec(e.code);
@@ -629,10 +649,11 @@ function handleAction(a) {
   else if (a === 'place') input(state.padDigit);
 }
 const ACTION_NAMES = ['up', 'down', 'left', 'right', 'erase', 'notes', 'autonotes', 'hint', 'undo', 'redo', 'prevDigit', 'nextDigit', 'place'];
+let saveT = 0;
 function frame(dt) {
   if (kit.mode === 'play' && !state.demo) {
     for (const a of ACTION_NAMES) if (kit.wasPressed(a)) handleAction(a);
-    if (state.phase === 'play') state.elapsed += dt / 1000;
+    if (state.phase === 'play') { state.elapsed += dt / 1000; saveT += dt; if (saveT >= 5000) { saveT = 0; save(); } }
   }
   if ((autopilot && state.phase === 'play') && (kit.mode === 'play' || (kit.mode === 'menu' && state.demo))) {
     pilotT += 1;
@@ -665,7 +686,7 @@ window.__game = {
   newSync(level, seed) { newSync(level, seed); beginPlay(false); kit.closeAll(); kit.mode = 'menu'; },
   startDailySync(date) { startDailySync(date); beginPlay(false); kit.closeAll(); kit.mode = 'menu'; },
   select, input, erase, toggleNotes, autoNotes, hint, undo, redo, save, importPuzzle,
-  cellEl: (r, c) => cells[r * 9 + c],
+  cellEl: (r, c) => cells[r * 9 + c], dailyPuzzle,
 };
 </script>
 </body>

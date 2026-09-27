@@ -68,8 +68,9 @@
     }
     return null;
   } });
-  TECH.push({ tier: 1, name: 'Скрытая одиночка', find(vals, cand) {
-    for (const order of ['box', 'row', 'col']) for (const u of UNITS) {
+  // Скрытая одиночка в квадрате - приём «Лёгкого»; в строке или столбце - уже «Средний»
+  const hiddenSingle = (tier, kinds) => ({ tier, name: 'Скрытая одиночка', find(vals, cand) {
+    for (const order of kinds) for (const u of UNITS) {
       if (u.kind !== order) continue;
       for (let d = 1; d <= 9; d++) {
         if (u.cells.some((i) => vals[i] === d)) continue;
@@ -79,8 +80,9 @@
     }
     return null;
   } });
-  // Ярус 2: пересечения, пары
-  TECH.push({ tier: 2, name: 'Пересечение', find(vals, cand) {
+  TECH.push(hiddenSingle(1, ['box']), hiddenSingle(2, ['row', 'col']));
+  // Ярус 3: пересечения, пары
+  TECH.push({ tier: 3, name: 'Пересечение', find(vals, cand) {
     for (const u of UNITS) for (let d = 1; d <= 9; d++) {
       const where = u.cells.filter((i) => !vals[i] && (cand[i] & (1 << d)));
       if (where.length < 2) continue;
@@ -97,7 +99,7 @@
   } });
   function subsets(arr, k, start = 0, pre = [], out = []) { if (pre.length === k) { out.push(pre.slice()); return out; } for (let i = start; i < arr.length; i++) { pre.push(arr[i]); subsets(arr, k, i + 1, pre, out); pre.pop(); } return out; }
   function nakedSet(k, title) {
-    return { tier: k === 2 ? 2 : 3, name: title, find(vals, cand) {
+    return { tier: k === 2 ? 3 : 4, name: title, find(vals, cand) {
       for (const u of UNITS) {
         const open = u.cells.filter((i) => !vals[i] && bits(cand[i]) <= k && bits(cand[i]) >= 2);
         if (open.length < k) continue;
@@ -113,7 +115,7 @@
     } };
   }
   function hiddenSet(k, title) {
-    return { tier: k === 2 ? 2 : 3, name: title, find(vals, cand) {
+    return { tier: k === 2 ? 3 : 4, name: title, find(vals, cand) {
       for (const u of UNITS) {
         const free = [];
         for (let d = 1; d <= 9; d++) { if (u.cells.some((i) => vals[i] === d)) continue; const w = u.cells.filter((i) => !vals[i] && (cand[i] & (1 << d))); if (w.length >= 1 && w.length <= k) free.push([d, w]); }
@@ -131,10 +133,10 @@
     } };
   }
   TECH.push(nakedSet(2, 'Открытая пара'), hiddenSet(2, 'Скрытая пара'));
-  // Ярус 3: тройки, «крест» и «рыба-меч»
+  // Ярус 4: тройки, «крест» и «рыба-меч»
   TECH.push(nakedSet(3, 'Открытая тройка'), hiddenSet(3, 'Скрытая тройка'));
   function fish(size, title) {
-    return { tier: 3, name: title, find(vals, cand) {
+    return { tier: 4, name: title, find(vals, cand) {
       for (let d = 1; d <= 9; d++) for (const byRow of [true, false]) {
         const lines = [];
         for (let a = 0; a < 9; a++) {
@@ -161,6 +163,40 @@
     } };
   }
   TECH.push(fish(2, 'Крест (X-Wing)'), fish(3, 'Рыба-меч'));
+  // «Крыло» (XY-Wing): опора {x,y} и две «клешни» {x,z}, {y,z}, которые она видит: z стоит в одной из клешней,
+  // поэтому z убирается из клеток, которые видят обе клешни. «Крыло с тремя» (XYZ-Wing) - опора {x,y,z}.
+  const sees = (a, b) => PEERS[a].includes(b);
+  TECH.push({ tier: 4, name: 'Крыло (XY-Wing)', find(vals, cand) {
+    for (let p = 0; p < 81; p++) {
+      if (vals[p] || bits(cand[p]) !== 2) continue;
+      const pin = PEERS[p].filter((i) => !vals[i] && bits(cand[i]) === 2 && bits(cand[i] & cand[p]) === 1);
+      for (const a of pin) for (const b of pin) {
+        if (a >= b) continue;
+        const z = cand[a] & cand[b] & ~cand[p];
+        if (bits(z) !== 1 || (cand[a] | cand[b] | cand[p]) !== (cand[p] | z) || (cand[a] & cand[p]) === (cand[b] & cand[p])) continue;
+        const d = digits(z)[0], elim = [];
+        for (let i = 0; i < 81; i++) if (i !== a && i !== b && i !== p && !vals[i] && (cand[i] & z) && sees(i, a) && sees(i, b)) elim.push([i, d]);
+        if (elim.length) return { elim, cells: [p, a, b], why: `Опора ${name(p)} и клешни ${name(a)}, ${name(b)}: цифра ${d} обязательно стоит в одной из клешней, значит, её нет в клетках, которые видят обе.` };
+      }
+    }
+    return null;
+  } });
+  TECH.push({ tier: 4, name: 'Крыло с тремя (XYZ-Wing)', find(vals, cand) {
+    for (let p = 0; p < 81; p++) {
+      if (vals[p] || bits(cand[p]) !== 3) continue;
+      const pin = PEERS[p].filter((i) => !vals[i] && bits(cand[i]) === 2 && (cand[i] & ~cand[p]) === 0);
+      for (const a of pin) for (const b of pin) {
+        if (a >= b || cand[a] === cand[b]) continue;
+        const z = cand[a] & cand[b];
+        if (bits(z) !== 1) continue;
+        const d = digits(z)[0], elim = [];
+        for (let i = 0; i < 81; i++) if (i !== a && i !== b && i !== p && !vals[i] && (cand[i] & z) && sees(i, a) && sees(i, b) && sees(i, p)) elim.push([i, d]);
+        if (elim.length) return { elim, cells: [p, a, b], why: `Опора ${name(p)} с клешнями ${name(a)}, ${name(b)}: цифра ${d} стоит в одной из трёх клеток, её нет там, где видны все три.` };
+      }
+    }
+    return null;
+  } });
+  TECH.push(nakedSet(4, 'Открытая четвёрка'), hiddenSet(4, 'Скрытая четвёрка'));
 
   // Один шаг логики: сначала самый простой приём
   function nextStep(vals, cand) {
@@ -209,12 +245,17 @@
     return b;
   }
   // Уровни - по приёмам, которых требует решение (и по числу открытых клеток)
+  // Уровень = самый трудный приём, без которого не решить: 1 - последний кандидат и одиночка в квадрате,
+  // 2 - скрытая одиночка в строке или столбце, 3 - пересечения и пары, 4 - тройки, «крест», «рыба-меч»
   const LEVELS = {
-    easy: { name: 'Лёгкий', clues: [36, 40], tier: 1 },
-    medium: { name: 'Средний', clues: [28, 33], tier: 1 },
-    hard: { name: 'Сложный', clues: [22, 30], tier: 2 },
-    expert: { name: 'Эксперт', clues: [20, 28], tier: 3 },
+    easy: { name: 'Лёгкий', clues: [34, 42], tier: 1 },
+    medium: { name: 'Средний', clues: [28, 36], tier: 2 },
+    hard: { name: 'Сложный', clues: [22, 32], tier: 3 },
+    expert: { name: 'Эксперт', clues: [20, 30], tier: 4 },
   };
+  // Цепочка зёрен: если из зерна не вышло за положенное число попыток, берётся следующее по формуле -
+  // у всех одна и та же, поэтому ежедневная головоломка у всех одинаковая. Генератор не возвращает null.
+  const nextChainSeed = (s) => (Math.imul(s ^ 0x9E3779B9, 0x85EBCA6B) + 0x6B43A9B5) >>> 0;
   function generate(level, seed) {
     const it = generator(level, seed);
     for (;;) { const r = it.next(); if (r.done) return r.value; }
@@ -229,28 +270,51 @@
     })();
   }
   function* generator(level, seed) {
-    const L = LEVELS[level], rnd = mulberry32(seed >>> 0 || 1);
-    for (let attempt = 0; attempt < 400; attempt++) {
-      if (attempt) yield attempt;
-      const solution = randomSolution(rnd), puzzle = solution.slice();
-      const target = L.clues[0] + Math.floor(rnd() * (L.clues[1] - L.clues[0] + 1));
-      let clues = 81;
-      for (const i of shuffle(Array.from({ length: 81 }, (_, k) => k), rnd)) {
-        if (clues <= target) break;
-        const keep = puzzle[i]; puzzle[i] = 0;
-        if (countSolutions(puzzle, 2) !== 1) puzzle[i] = keep; else clues--;
+    const L = LEVELS[level];
+    let chain = (seed >>> 0) || 1;
+    for (let link = 0; ; link++) {
+      const rnd = mulberry32(chain);
+      for (let attempt = 0; attempt < 40; attempt++) {
+        yield attempt;
+        const r = yield* oneAttempt(L, rnd);
+        if (r) return Object.assign(r, { attempt: link * 40 + attempt, link });
       }
-      if (clues > L.clues[1]) continue;
-      // лишнее для уровня: если логикой не решается, возвращаем клетки решения, пока не решится
-      let r = solveLogic(puzzle);
-      if (!r.solved) {
-        const empty = shuffle(puzzle.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0), rnd);
-        for (const i of empty) { puzzle[i] = solution[i]; clues++; r = solveLogic(puzzle); if (r.solved || clues > L.clues[1]) break; }
-      }
-      if (!r.solved || clues > L.clues[1] || clues < L.clues[0] || r.maxTier !== L.tier) continue;
-      return { puzzle, solution, clues, tier: r.maxTier, attempt };
+      chain = nextChainSeed(chain);
     }
-    return null;
+  }
+  // Одна попытка: решение, убираем клетки (решение остаётся единственным); логикой не решается - возвращаем
+  // клетки, пока не решится; приём проще нужного - убираем ещё, пока уровень не дорастёт (подъём к уровню).
+  function* oneAttempt(L, rnd) {
+    const solution = randomSolution(rnd), puzzle = solution.slice();
+    const target = L.clues[0] + Math.floor(rnd() * (L.clues[1] - L.clues[0] + 1));
+    let clues = 81;
+    for (const i of shuffle(Array.from({ length: 81 }, (_, k) => k), rnd)) {
+      if (clues <= target) break;
+      const keep = puzzle[i]; puzzle[i] = 0;
+      if (countSolutions(puzzle, 2) !== 1) puzzle[i] = keep; else clues--;
+    }
+    let r = solveLogic(puzzle);
+    if (!r.solved) {
+      for (const i of shuffle(puzzle.map((v, k) => (v ? -1 : k)).filter((k) => k >= 0), rnd)) {
+        puzzle[i] = solution[i]; clues++; r = solveLogic(puzzle);
+        if (r.solved) break;
+      }
+    }
+    if (!r.solved || r.maxTier > L.tier) return null;
+    if (r.maxTier < L.tier) {
+      for (const i of shuffle(puzzle.map((v, k) => (v ? k : -1)).filter((k) => k >= 0), rnd)) {
+        if (clues <= L.clues[0]) break;
+        yield 0;
+        const keep = puzzle[i]; puzzle[i] = 0;
+        if (countSolutions(puzzle, 2) !== 1) { puzzle[i] = keep; continue; }
+        const t = solveLogic(puzzle);
+        if (!t.solved || t.maxTier > L.tier) { puzzle[i] = keep; continue; }
+        clues--; r = t;
+        if (r.maxTier === L.tier) break;
+      }
+    }
+    if (r.maxTier !== L.tier || clues > L.clues[1] || clues < L.clues[0]) return null;
+    return { puzzle, solution, clues, tier: r.maxTier };
   }
 
   window.SudokuLogic = { UNITS, PEERS, ROW, COL, BOX, bits, digits, name, candidates, countSolutions, solveLogic, hintFrom, nextStep, generate, generateAsync, LEVELS, TECH: TECH.map((t) => ({ tier: t.tier, name: t.name })), mulberry32 };
