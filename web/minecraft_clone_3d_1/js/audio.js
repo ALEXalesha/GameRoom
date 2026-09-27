@@ -109,6 +109,8 @@
     piston(t) { noise(t, 0.12, 'bandpass', 700, 1.2, 0.35); tone(t, 0.1, 'square', 220, 140, 0.06); },
     slime(t) { noise(t, 0.18, 'lowpass', 500, 2, 0.3, 0.02); tone(t, 0.15, 'sine', 180, 90, 0.1); },
     page(t) { noise(t, 0.25, 'bandpass', 2500, 0.8, 0.2, 0.03); },
+    orb(t) { tone(t, 0.08, 'sine', 1400 + Math.random() * 800, 2400, 0.08); },
+    levelup(t) { [660, 880, 1100].forEach((f, k) => tone(t + k * 0.08, 0.3, 'triangle', f, f, 0.12)); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };

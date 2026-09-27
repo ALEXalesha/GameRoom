@@ -324,12 +324,14 @@
   }
 
   // ---------- Печь ----------
+  // опыт за переплавку (как в оригинале): выдаётся, когда вынимаешь готовое
+  const SMELT_XP = { iron_ingot: 0.7, gold_ingot: 1, cooked_porkchop: 0.35, cooked_mutton: 0.35, steak: 0.35, cooked_chicken: 0.35, glass: 0.1, stone: 0.1, charcoal: 0.15, bricks: 0.3, green_dye: 1, nether_brick: 0.1, quartz: 0.2 };
   const SMELT = [
     ['cobblestone', 'stone'], ['sand', 'glass'], ['iron_ore', 'iron_ingot'], ['gold_ore', 'gold_ingot'],
     ['oak_log', 'charcoal'], ['birch_log', 'charcoal'], ['spruce_log', 'charcoal'],
     ['raw_porkchop', 'cooked_porkchop'], ['raw_mutton', 'cooked_mutton'], ['clay', 'bricks'], ['cactus', 'green_dye'],
     ['raw_beef', 'steak'], ['raw_chicken', 'cooked_chicken'], ['netherrack', 'nether_brick'], ['quartz_ore', 'quartz'],
-  ].map(([a, b]) => ({ in: idOf(a), out: idOf(b) }));
+  ].map(([a, b]) => ({ in: idOf(a), out: idOf(b), xp: SMELT_XP[b] || 0.1 }));
   const SMELT_TIME = 10;     // секунд на один предмет, как в оригинале
   const smeltOf = (id) => SMELT.find((s) => s.in === id) || null;
   const fuelOf = (id) => { const i = info(id); return i && i.fuel ? i.fuel : 0; };

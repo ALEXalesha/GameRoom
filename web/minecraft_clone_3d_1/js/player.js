@@ -24,6 +24,7 @@
     this.health = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 15; this.hurtCool = 0; this.hurtFlash = 0; this.regenT = 0; this.starveT = 0; this.drownT = 0;
     this.fallTop = null; this.dead = false; this.lastDamage = null; this.fireT = 0; this.burnT = 0;
+    this.level = 0; this.xpPoints = 0; this.xpTotal = 0;
     this.vel.set(0, 0, 0);
   };
   Player.prototype.eye = function () { return this.pos.y + (this.sneaking && !this.flying ? EYE_SNEAK : EYE); };
@@ -382,7 +383,7 @@
   };
   Player.prototype.toJSON = function () {
     const r = (v) => Math.round(v * 1000) / 1000;
-    return { pos: [r(this.pos.x), r(this.pos.y), r(this.pos.z)], yaw: r(this.yaw), pitch: r(this.pitch), flying: this.flying, health: this.health, food: this.food, saturation: this.saturation, air: this.air };
+    return { pos: [r(this.pos.x), r(this.pos.y), r(this.pos.z)], yaw: r(this.yaw), pitch: r(this.pitch), flying: this.flying, health: this.health, food: this.food, saturation: this.saturation, air: this.air, level: this.level || 0, xp: this.xpPoints || 0, score: this.xpTotal || 0 };
   };
   Player.prototype.load = function (o) {
     this.reset();
@@ -393,6 +394,7 @@
     if (typeof o.food === 'number') this.food = o.food;
     if (typeof o.saturation === 'number') this.saturation = o.saturation;
     if (typeof o.air === 'number') this.air = o.air;
+    if (typeof o.level === 'number') { this.level = o.level; this.xpPoints = o.xp || 0; this.xpTotal = o.score || 0; }
   };
 
   VX.Player = Player;

@@ -637,7 +637,7 @@
     hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните, чтобы играть</div>
       <div id="hurt"></div><div id="waterTint"></div><div id="lavaTint"></div><div id="fireTint"></div><div id="bars"><div id="armorbar"></div><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
       <div id="actionBar"></div><div id="sleepFade"></div>
-      <div id="itemName"></div><div id="hotbar"></div><div id="toasts"></div>`;
+      <div id="itemName"></div><div id="xpbar"><div class="fill"></div><span></span></div><div id="hotbar"></div><div id="toasts"></div>`;
     root.appendChild(hud);
     const hb = $('#hotbar', hud);
     for (let i = 0; i < 9; i++) { const s = el('div', 'hslot'); s.dataset.i = i; hb.append(s); }
@@ -670,6 +670,9 @@
       $('#airbar', hud).innerHTML = a;
       $('#hearts', hud).classList.toggle('low', p.health <= 4);
     }
+    const xb = $('#xpbar', hud);
+    xb.style.display = surv ? '' : 'none';
+    if (surv && VX.xp) { xb.firstChild.style.width = (VX.xp.progress(p) * 100).toFixed(1) + '%'; const lv = p.level || 0; xb.lastChild.textContent = lv > 0 ? String(lv) : ''; }
     const nm = $('#itemName', hud);
     const held = inv.held();
     nm.textContent = held ? D.info(held.id).name : '';

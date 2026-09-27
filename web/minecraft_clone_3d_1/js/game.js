@@ -287,6 +287,7 @@
     if (VX.fluids) VX.fluids.reset(slot);
     if (VX.redstone) VX.redstone.reset();
     if (VX.items) VX.items.reset();
+    if (VX.xp) VX.xp.clear();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
@@ -350,6 +351,7 @@
     if (VX.entities) VX.entities.reset(slot);
     if (VX.fluids) VX.fluids.reset(slot);
     if (VX.redstone) VX.redstone.reset();
+    if (VX.xp) VX.xp.clear();
     G.mining = null; G.sleeping = null; G.portalT = 0; G.portalWait = true;
     player.pos.set(pos.x, pos.y, pos.z); player.vel.set(0, 0, 0); player.fallTop = null;
     G.afterLoad = after || null;
@@ -547,6 +549,7 @@
       let drops = D.dropsOf(id, held ? held.id : 0, Math.random);
       if (!drops.length && pair) drops = D.dropsOf(pair.id, held ? held.id : 0, Math.random);   // верх двери, изголовье
       for (const [did, n] of drops) G.dropItem(VX.inv.newStack(did, n), false, x + 0.5, y + 0.3, z + 0.5);
+      if (VX.xp && drops.length) { const xp = VX.xp.forBlock(id); if (xp) VX.xp.spawn(x + 0.5, y + 0.5, z + 0.5, xp); }
       if (D.toolOf(held && held.id)) { if (inv.wearHeld()) VX.audio.play('break', { surface: 'wood' }); }
       player.exhaust(0.005);
     }
@@ -1093,6 +1096,7 @@
     G.meta.stats && G.meta.stats.deaths++;
     // окно (верстак, печь) закрываем первым: вещи из сетки и с курсора тоже выпадают
     if (G.container) closeContainer();
+    if (VX.xp) VX.xp.onDeath(player);
     // как в оригинале: вещи выпадают на месте гибели
     for (let i = 0; i < 36; i++) { const s = inv.slots[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.slots[i] = null; } }
     for (let i = 0; i < 4; i++) { const s = inv.armor[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.armor[i] = null; } }
@@ -1168,6 +1172,7 @@
     if (VX.nether && G.state === 'play') VX.nether.tick(dt);
     if (VX.redstone) VX.redstone.tick(dt);
     if (VX.items) VX.items.tick(dt);
+    if (VX.xp) VX.xp.update(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
@@ -1328,6 +1333,7 @@
     const LL = G.localLight();
     sceneAmb.intensity = 0.65 * LL; sceneSun.intensity = 0.45 * LL;
     if (VX.entities && G.meta && !G.panorama) VX.entities.render(dt, camera);
+    if (VX.xp && G.meta && !G.panorama) VX.xp.render();
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем

@@ -276,7 +276,11 @@
     if (i === 301) return D.fuelOf(s.id) > 0;
     return i !== 302;
   };
-  FurnaceView.prototype.takeOutput = function () { const o = this.f.slots[2]; this.f.slots[2] = null; return o; };
+  FurnaceView.prototype.takeOutput = function () {
+    const o = this.f.slots[2]; this.f.slots[2] = null;
+    if (this.f.xp && VX.xp && VX.game) { VX.xp.addFrac(VX.game.player, this.f.xp); this.f.xp = 0; }       // опыт за переплавку
+    return o;
+  };
   FurnaceView.prototype.shiftMove = function (i, s) {
     if (i >= 300) return addTo(this.inv.slots, MAIN.concat(HOTBAR), s.id, s.count, s.dmg);
     // из инвентаря: что плавится - в сырьё, что горит - в топливо
@@ -321,6 +325,7 @@
         f.cook -= D.SMELT_TIME;
         src.count--; if (!src.count) f.slots[0] = null;
         if (f.slots[2]) f.slots[2].count++; else f.slots[2] = newStack(rec.out, 1);
+        f.xp = (f.xp || 0) + (rec.xp || 0);
         if (onSmelt) onSmelt(rec.out);
       }
     } else f.cook = Math.max(0, f.cook - dt * 2);

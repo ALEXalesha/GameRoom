@@ -359,6 +359,8 @@
           if (n2 > 0) spawnItem({ id, count: n2 }, m.x, m.y + 0.5, m.z, (rnd() - 0.5) * 2, 3, (rnd() - 0.5) * 2, 0.5);
         }
       }
+      // опыт - за победу героя (не в творческом)
+      if (VX.xp && (cause === 'player' || cause === 'arrow' || cause === 'fireball')) VX.xp.spawn(m.x, m.y + 0.5, m.z, VX.xp.forMob(m));
       // в счёт игрока (достижения, статистика) - только его удары и стрелы
       if (cause === 'player' || cause === 'arrow' || cause === 'creative' || cause === 'fireball') {
         G.emit('kill', { mob: m.type, cause });
