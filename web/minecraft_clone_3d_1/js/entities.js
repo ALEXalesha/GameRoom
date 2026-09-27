@@ -114,6 +114,17 @@
       parts.push({ m: q, vx: (rnd() - 0.5) * 2, vy: 1 + rnd() * 2, vz: (rnd() - 0.5) * 2, life: 0.6 + rnd() * 0.4, float: true });
     }
   }
+  const blastMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.85 });
+  function blast(x, y, z, power) {
+    if (!poofGeo) poofGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    for (let k = 0; k < 40; k++) {
+      const q = new THREE.Mesh(poofGeo, blastMat);
+      const a = rnd() * Math.PI * 2, e = (rnd() - 0.3) * 2, r = rnd() * power * 0.8;
+      q.position.set(x + Math.cos(a) * r, y + e, z + Math.sin(a) * r);
+      scene().add(q);
+      parts.push({ m: q, vx: Math.cos(a) * 3, vy: 1 + rnd() * 2, vz: Math.sin(a) * 3, life: 0.5 + rnd() * 0.6, float: true, big: true });
+    }
+  }
   function updateParts(dt) {
     for (let i = parts.length - 1; i >= 0; i--) {
       const q = parts[i];
@@ -123,7 +134,7 @@
       const nx = q.m.position.x + q.vx * dt, ny = q.m.position.y + q.vy * dt, nz = q.m.position.z + q.vz * dt;
       const b = G.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz));
       if (b > 0 && C.SOLID[b]) { q.vx *= 0.3; q.vz *= 0.3; q.vy = 0; } else q.m.position.set(nx, ny, nz);
-      q.m.scale.setScalar(Math.min(1, q.life * 3));
+      q.m.scale.setScalar(Math.min(q.big ? 4 : 1, q.life * (q.big ? 6 : 3)));
     }
   }
 
@@ -170,6 +181,12 @@
     TEX.bone = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c8c8c8', '#bdbdbd', '#d4d4d4'], 13));
     TEX.skull = pixTex(8, 8, face(['#c8c8c8', '#bdbdbd', '#d4d4d4'], [[1, 3, '#202020'], [2, 3, '#202020'], [1, 4, '#202020'], [2, 4, '#202020'], [5, 3, '#202020'], [6, 3, '#202020'], [5, 4, '#202020'], [6, 4, '#202020'], [3, 5, '#505050'], [4, 5, '#505050'], [2, 6, '#606060'], [3, 6, '#404040'], [4, 6, '#606060'], [5, 6, '#404040']]));
     TEX.spider = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#3a2e2a', '#2e2420', '#443630'], 14));
+    TEX.creeper = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#5aa83a', '#4c9a30', '#6cbc48', '#3f8a26', '#78c858'], 20));
+    TEX.creeperFace = pixTex(8, 8, face(['#5aa83a', '#4c9a30', '#6cbc48', '#3f8a26'], [], (g) => {
+      g.fillStyle = '#101010';
+      g.fillRect(1, 2, 2, 2); g.fillRect(5, 2, 2, 2);                 // глаза
+      g.fillRect(3, 4, 2, 3); g.fillRect(2, 5, 1, 3); g.fillRect(5, 5, 1, 3);   // рот
+    }));
     TEX.spiderFace = pixTex(8, 8, face(['#3a2e2a', '#2e2420'], [[1, 2, '#e02020'], [2, 3, '#e02020'], [5, 3, '#e02020'], [6, 2, '#e02020'], [3, 2, '#b01010'], [4, 2, '#b01010']]));
     // игрок: своя внешность (не как в оригинале) - бордовая рубаха, коричневые штаны
     TEX.pSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15));
@@ -230,6 +247,10 @@
       const wt = box(0.12, 0.12, 0.06, T.wattle); wt.position.set(0, -0.1, 0.12); head.add(wt);
       for (const x of [-0.09, 0.09]) { const l = limb(0.06, 0.28, 0.06, T.chickenLeg, x, 0.28, 0); body.add(l); legs.push(l); }
       for (const x of [-0.22, 0.22]) { const wg = limb(0.06, 0.25, 0.37, T.chicken, x, 0.6, 0); body.add(wg); extra.wings = (extra.wings || []).concat(wg); }
+    } else if (type === 'creeper') {
+      const torso = box(0.5, 0.75, 0.25, T.creeper); torso.position.set(0, 0.75, 0); body.add(torso);
+      head = box(0.5, 0.5, 0.5, T.creeper, T.creeperFace); head.position.set(0, 1.375, 0); body.add(head);
+      for (const [x, z] of [[-0.125, 0.25], [0.125, 0.25], [-0.125, -0.25], [0.125, -0.25]]) { const l = limb(0.25, 0.375, 0.25, T.creeper, x, 0.375, z); body.add(l); legs.push(l); }
     } else if (type === 'spider') {
       const abd = box(0.75, 0.56, 0.75, T.spider); abd.position.set(0, 0.56, -0.45); body.add(abd);
       const th = box(0.4, 0.4, 0.4, T.spider); th.position.set(0, 0.5, 0.1); body.add(th);
@@ -339,6 +360,19 @@
         shootArrow(m.x + dxp / flat * 0.6, ey, m.z + dzp / flat * 0.6, dxp / flat * v, (ty - ey) / tt + 10 * tt, dzp / flat * v, m, 2 + ((rnd() * 3) | 0));
         VX.audio.play('bow');
       }
+    } else if (chase && m.def.explodes) {
+      // крипер: подошёл на 3 блока и видит - шипит 1.5 с и взрывается; отошёл дальше 7 - гаснет
+      targetYaw = Math.atan2(dxp, dzp);
+      const d3 = Math.hypot(dxp, p.pos.y - m.y, dzp);
+      if (!m.lit && d3 < 3 && sees(m, p)) { m.lit = true; VX.audio.play('hiss'); }
+      if (m.lit && d3 > 7) m.lit = false;
+      speed = m.lit ? 0 : m.def.speed;
+      m.fuse = Math.max(0, (m.fuse || 0) + (m.lit ? dt : -dt));
+      if (m.fuse >= m.def.fuse) {
+        m.deadT = 0.001; m.exploded = true;
+        if (VX.explode) VX.explode(m.x, m.y + 0.06, m.z, m.def.power, { source: m, ev: playerEv });
+        return;
+      }
     } else if (chase) {
       targetYaw = Math.atan2(dxp, dzp);
       speed = m.def.speed;
@@ -346,7 +380,7 @@
       if (distP < (m.type === 'spider' ? 1.4 : 1.25) && Math.abs(p.pos.y - m.y) < 1.6 && m.attackCool <= 0) {
         m.attackCool = 1;
         m.swingT = 0.3;
-        if (p.damage(m.def.dmg, m.type, playerEv)) { p.vel.x += dxp / (distP || 1) * 6; p.vel.z += dzp / (distP || 1) * 6; p.vel.y = 4; }
+        if (p.damage(m.def.dmg, m.type, playerEv, false, { x: m.x, z: m.z })) { p.vel.x += dxp / (distP || 1) * 6; p.vel.z += dzp / (distP || 1) * 6; p.vel.y = 4; }
       }
     } else {
       m.wander -= dt;
@@ -413,7 +447,7 @@
     if (!hostile && ground !== B.grass) return;
     if (hostile && (!C.SOLID[ground] || C.RENDER[ground] !== 1)) return;
     if (w.getBlock(x, top + 1, z) !== 0 || w.getBlock(x, top + 2, z) !== 0) return;
-    if (hostile) { const q = rnd(); spawnMob(q < 0.45 ? 'zombie' : q < 0.8 ? 'skeleton' : 'spider', x + 0.5, top + 1, z + 0.5); }
+    if (hostile) { const q = rnd(); spawnMob(q < 0.35 ? 'zombie' : q < 0.6 ? 'skeleton' : q < 0.8 ? 'spider' : 'creeper', x + 0.5, top + 1, z + 0.5); }
     else {
       const t = ['pig', 'sheep', 'cow', 'chicken'][(rnd() * 4) | 0];
       const n = 2 + ((rnd() * 2) | 0);
@@ -454,7 +488,7 @@
           const m = mobs.find((mm) => mm.deadT === 0 && hitBox(a, [mm.x - mm.w / 2, mm.y, mm.z - mm.w / 2, mm.x + mm.w / 2, mm.y + mm.h, mm.z + mm.w / 2], nx, ny, nz));
           if (m) { hurtMob(m, a.dmg, a.x - a.vx, a.z - a.vz, 'arrow'); VX.audio.play('arrow_hit'); dropArrow(i); a.stuck = 'gone'; break; }
         } else if (!p.dead && hitBox(a, p.box(), nx, ny, nz)) {
-          if (G.mode === 'survival') { p.damage(a.dmg, 'arrow', playerEv); p.vel.x += a.vx * 0.05; p.vel.z += a.vz * 0.05; }
+          if (G.mode === 'survival') { p.damage(a.dmg, 'arrow', playerEv, false, { x: a.x - a.vx, z: a.z - a.vz }); p.vel.x += a.vx * 0.05; p.vel.z += a.vz * 0.05; }
           VX.audio.play('arrow_hit'); dropArrow(i); a.stuck = 'gone'; break;
         }
         const b = G.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz));
@@ -667,13 +701,16 @@
       if (m.swingT > 0) m.swingT -= 0.016;
       md.body.rotation.z = m.deadT > 0 ? Math.min(Math.PI / 2, m.deadT * 4) : 0;
       md.fire.visible = m.fireT > 0 && m.deadT === 0;
+      const swell = m.fuse ? Math.min(1, m.fuse / m.def.fuse) : 0;
+      md.root.scale.set(1 + swell * 0.25, 1 + swell * 0.12, 1 + swell * 0.25);
+      m.flash = swell > 0 && Math.floor(m.fuse * 6) % 2 === 1;
       if (md.fire.visible) md.fire.rotation.y += 0.2;
       // освещение у моба и красная вспышка после удара
       m.lightT = (m.lightT || 0) - 1;
       if (m.lightT <= 0) { m.lightT = 15; m.light = G.lightAt(m.x, m.y + 1, m.z); }
       const red = m.hurtT > 0 || m.deadT > 0;
-      const l = (m.light || 1) / Math.max(0.15, L);
-      md.root.traverse((o) => { if (o.userData.mats && o !== md.fire) for (const mt of o.userData.mats) mt.color.setRGB(Math.min(2, l) * (red ? 1.4 : 1), Math.min(2, l) * (red ? 0.45 : 1), Math.min(2, l) * (red ? 0.45 : 1)); });
+      const l = (m.light || 1) / Math.max(0.15, L), wk = m.flash ? 2.2 : 1;
+      md.root.traverse((o) => { if (o.userData.mats && o !== md.fire) for (const mt of o.userData.mats) mt.color.setRGB(Math.min(2.4, l * wk) * (red ? 1.4 : 1), Math.min(2.4, l * wk) * (red ? 0.45 : 1), Math.min(2.4, l * wk) * (red ? 0.45 : 1)); });
     }
   }
 
@@ -704,5 +741,5 @@
     };
   }
 
-  VX.entities = { previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

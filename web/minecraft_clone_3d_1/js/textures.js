@@ -652,7 +652,7 @@
     },
     bed(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '...wwwwrrrrrrr..', '..#wwwwrrrrrrr#.', '..#############.', '..#p#.......#p#.', '..###.......###.'], { w: '#f0f0f0', r: '#b02828', '#': '#5a3a14', p: '#a8834f' }); },
     egg(t, r, mob) {
-      const c = { pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
+      const c = { creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
       for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.6, (y - 8.8) / 6.2); if (d < 1) t.px(x, y, d > 0.85 ? shadeHex(c[0], 0.65) : c[0]); }
       for (const [x, y] of [[6, 5], [9, 8], [5, 10], [8, 12], [10, 5]]) { t.px(x, y, c[1]); t.px(x + 1, y, c[1]); }
     },
@@ -661,6 +661,10 @@
       const c = MAT[m];
       for (const [x, y] of [[8, 2], [9, 2], [10, 2], [11, 2], [12, 3], [8, 3], [9, 3], [10, 3], [11, 3]]) t.px(x, y, y === 2 ? c[2] : c[0]);
       t.px(12, 4, c[1]);
+    },
+    gunpowder(t, r) { for (let k = 0; k < 40; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#5a5a5a', '#3a3a3a', '#7a7a7a', '#2a2a2a'][(r() * 4) | 0]); } },
+    shield(t) {
+      ITEM_DRAW.tpl(t, ['', '..############..', '..#pppppppppp#..', '..#pppppppppp#..', '..#ppppiipppp#..', '..#pppiiiippp#..', '..#pppiiiippp#..', '..#ppppiipppp#..', '..#pppppppppp#..', '...#pppppppp#...', '....#pppppp#....', '.....#pppp#.....', '......####......'], { p: '#9a7646', i: '#c8c8c8', '#': '#6a6a6a' });
     },
     bone(t) { for (let k = 0; k < 9; k++) t.px(4 + k, 11 - k, '#e8e4d8'); for (const [x, y] of [[3, 11], [4, 12], [12, 3], [13, 4], [3, 12], [13, 3]]) t.px(x, y, '#d8d4c8'); },
   };

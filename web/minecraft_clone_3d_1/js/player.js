@@ -180,7 +180,7 @@
     let speed;
     if (this.flying) speed = this.sprinting ? SPEED.flySprint : SPEED.fly;
     else if (this.inWater) speed = SPEED.swim * (this.sprinting ? 1.3 : 1);
-    else if (this.sneaking) speed = SPEED.sneak;
+    else if (this.sneaking || this.blocking) speed = SPEED.sneak;
     else speed = this.sprinting ? SPEED.sprint : SPEED.walk;
     // разгон: на земле быстрый, в воздухе - по инерции
     const acc = this.flying ? 10 : this.onGround ? 22 : this.inWater ? 8 : 3.2;
@@ -330,9 +330,15 @@
     } else this.starveT = 0;
   };
   // Урон. Возвращает true, если прошёл (после удара полсекунды неуязвимости)
-  Player.prototype.damage = function (n, cause, ev, ignoreCool) {
+  // from - откуда удар ({x, z}): щит спереди (в пределах 90° от взгляда) гасит удары мобов, стрелы и взрывы
+  const BLOCKABLE = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob']);
+  Player.prototype.damage = function (n, cause, ev, ignoreCool, from) {
     if (this.dead || n <= 0) return false;
     if (this.hurtCool > 0 && !ignoreCool && cause !== 'fall') return false;
+    if (from && this.blocking && BLOCKABLE.has(cause)) {
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), dx = from.x - this.pos.x, dz = from.z - this.pos.z;
+      if (fx * dx + fz * dz > 0) { if (this.onShield) this.onShield(n, cause); if (ev) ev('blocked', { n, cause }); return false; }
+    }
     n = this.armorReduce(n, cause);
     this.health = Math.max(0, Math.round((this.health - n) * 100) / 100);
     this.hurtCool = 0.5; this.hurtFlash = 0.35;
@@ -344,7 +350,7 @@
   };
   // Броня по формуле оригинала: урон x (1 - min(20, max(броня/5, броня - урон/(2 + прочность/4)))/25).
   // Падение, утопление, голод, горение и пустота броней не гасятся.
-  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob']);
+  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob', 'explosion']);
   Player.prototype.armorPoints = function () {
     const a = this.armorSlots ? this.armorSlots() : null;
     let pts = 0, tough = 0;

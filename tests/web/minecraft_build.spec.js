@@ -273,3 +273,133 @@ test.describe('minecraft_clone_3d_1: строительные блоки', () =>
     expect(r.halfLow).toBeGreaterThan(200);
   });
 });
+
+test.describe('minecraft_clone_3d_1: криперы, взрыв, щит', () => {
+  test('крипер подходит, шипит 1.5 с и взрывается: воронка в камне, урон герою, крипера нет; обсидиан и бедрок целы', async ({ page }) => {
+    await world(page);
+    const r = await page.evaluate(() => {
+      const v = __voxel, C = v.core, B = C.B, p = v.player;
+      const { x0, z0 } = base();
+      v.setBlock(x0 + 1, 69, z0 - 3, B.obsidian); v.setBlock(x0 - 1, 69, z0 - 3, B.bedrock);
+      const hiss0 = v.VX.audio.counts.hiss || 0, boom0 = v.VX.audio.counts.explode || 0;
+      const m = v.spawnMob('creeper', 0, -6); m.y = 70;
+      v.look(0, 0);
+      let litAt = -1, t = 0, hp = p.health;
+      for (let i = 0; i < 120 && m.deadT === 0; i++) { v.step(0.05); t += 0.05; if (m.lit && litAt < 0) litAt = t; }
+      let holes = 0;
+      for (let x = x0 - 4; x <= x0 + 4; x++) for (let z = z0 - 7; z <= z0 + 1; z++) if (v.getBlock(x, 69, z) === 0) holes++;
+      return { lit: litAt > 0, boomAfter: t - litAt, exploded: !!m.exploded, holes, dmg: hp - p.health, hiss: (v.VX.audio.counts.hiss || 0) - hiss0, boom: (v.VX.audio.counts.explode || 0) - boom0,
+        obs: v.getBlock(x0 + 1, 69, z0 - 3) === B.obsidian, bed: v.getBlock(x0 - 1, 69, z0 - 3) === B.bedrock, alive: v.entities.mobs.filter((q) => q.deadT === 0 && q.type === 'creeper').length };
+    });
+    expect(r.lit).toBe(true);
+    expect(r.exploded).toBe(true);
+    expect(r.boomAfter).toBeGreaterThan(1.4);
+    expect(r.boomAfter).toBeLessThan(1.7);
+    expect(r.holes).toBeGreaterThan(4);
+    expect(r.dmg).toBeGreaterThan(5);
+    expect(r.hiss).toBe(1);
+    expect(r.boom).toBe(1);
+    expect(r.obs).toBe(true);
+    expect(r.bed).toBe(true);
+    expect(r.alive).toBe(0);
+  });
+
+  test('отбежал дальше 7 блоков - крипер гаснет и не взрывается; в творческом не подходит; убитый мечом - порох', async ({ page }) => {
+    await world(page);
+    const r = await page.evaluate(() => {
+      const v = __voxel, C = v.core, p = v.player, I = v.data.I;
+      const m = v.spawnMob('creeper', 0, -2.5); m.y = 70;
+      v.step(0.05, 6);
+      const lit = !!m.lit;
+      p.pos.z += 9; v.step(0.05, 2);
+      const fuseAfterRun = m.fuse;
+      v.step(0.05, 30);
+      const out = { lit, unlit: !m.lit, fuseDown: m.fuse < fuseAfterRun || m.fuse === 0, exploded: !!m.exploded };
+      // мечом: несколько криперов, хоть один даст порох
+      v.inv.slots[0] = { id: I.diamond_sword, count: 1, dmg: 0 }; v.select(0);
+      let powder = 0;
+      for (let k = 0; k < 8; k++) {
+        const c = v.spawnMob('creeper', 0, -1.6); c.y = p.pos.y;
+        for (let h = 0; h < 6 && c.hp > 0; h++) { c.hurtT = 0; c.fuse = 0; c.lit = false; v.entities.hurtMob(c, 7, p.pos.x, p.pos.z, 'player'); }
+        v.step(0.05, 2);
+      }
+      v.step(0.05, 30);
+      powder = v.inv.count(I.gunpowder) + v.entities.items.filter((it) => it.stack.id === I.gunpowder).length;
+      out.powder = powder;
+      return out;
+    });
+    expect(r.lit).toBe(true);
+    expect(r.unlit).toBe(true);
+    expect(r.fuseDown).toBe(true);
+    expect(r.exploded).toBe(false);
+    expect(r.powder).toBeGreaterThan(0);
+    await page.evaluate(() => { __voxel.game.mode = 'creative'; __voxel.entities.clear(); });
+    const c = await page.evaluate(() => {
+      const v = __voxel, p = v.player;
+      const m = v.spawnMob('creeper', 0, -2.5); m.y = 70;
+      v.step(0.05, 60);
+      return { lit: !!m.lit, exploded: !!m.exploded };
+    });
+    expect(c).toEqual({ lit: false, exploded: false });
+  });
+
+  test('взрыв по формуле оригинала: вплотную 43, на краю ~1, за стеной меньше; броня гасит', async ({ page }) => {
+    await world(page);
+    const r = await page.evaluate(() => {
+      const v = __voxel, X = v.VX.explodeMath, p = v.player, I = v.data.I, C = v.core;
+      const { x0, z0 } = base();
+      const near = X.damageFor(0, 3, 1), edge = X.damageFor(6, 3, 1), far = X.damageFor(6.1, 3, 1), half = X.damageFor(3, 3, 1);
+      const box = [x0, 70, z0 - 5, x0 + 1, 72, z0 - 4];
+      const open = X.exposure(box, x0 + 0.5, 70.5, z0 + 0.5);
+      for (let x = x0 - 3; x <= x0 + 3; x++) for (let y = 69; y < 74; y++) v.setBlock(x, y, z0 - 2, C.B.obsidian);
+      const shut = X.exposure(box, x0 + 0.5, 70.5, z0 + 0.5);
+      // броня
+      p.health = 20; p.hurtCool = 0; p.damage(10, 'explosion', null, true);
+      const bare = 20 - p.health;
+      v.inv.armor[1] = { id: I.diamond_chestplate, count: 1, dmg: 0 }; v.inv.armor[2] = { id: I.diamond_leggings, count: 1, dmg: 0 };
+      p.health = 20; p.hurtCool = 0; p.damage(10, 'explosion', null, true);
+      const armored = 20 - p.health;
+      return { near, edge, far, half, open, shut, bare, armored };
+    });
+    expect(r.near).toBe(43);
+    expect(r.edge).toBe(1);
+    expect(r.far).toBe(0);
+    expect(r.half).toBe(16);
+    expect(r.open).toBe(1);
+    expect(r.shut).toBeLessThan(0.5);
+    expect(r.bare).toBe(10);
+    expect(r.armored).toBeGreaterThan(5);            // 14 очков брони, прочность 4: 10 x (1 - 10.67/25)
+    expect(r.armored).toBeLessThan(6.5);
+  });
+
+  test('щит: поднят (ПКМ) - удары спереди не проходят, щит изнашивается, ход медленный; удар в спину проходит', async ({ page }) => {
+    await world(page);
+    const r = await page.evaluate(() => {
+      const v = __voxel, p = v.player, I = v.data.I;
+      v.inv.slots[0] = { id: I.shield, count: 1, dmg: 0 }; v.select(0);
+      v.look(0, 0);
+      v.game.mouse.r = true; v.step(0.05, 8);
+      const up = p.blocking;
+      const z = v.spawnMob('zombie', 0, -1.1); z.y = 70; z.attackCool = 0;
+      const hp0 = p.health;
+      for (let i = 0; i < 30; i++) { z.x = p.pos.x; z.z = p.pos.z - 1.1; v.step(0.05); }
+      const front = hp0 - p.health, wear = v.inv.slots[0] && v.inv.slots[0].dmg;
+      // скорость со щитом
+      v.entities.clear();
+      p.vel.set(0, 0, 0); v.key('KeyW'); v.step(0.05, 10); const zz = p.pos.z; v.step(0.05, 20); v.key('KeyW', false);
+      const slow = Math.abs(p.pos.z - zz) / 1.0;
+      // сзади
+      const z2 = v.spawnMob('zombie', 0, -1.1); z2.y = p.pos.y;
+      v.look(Math.PI, 0); p.hurtCool = 0;
+      const hp1 = p.health;
+      for (let i = 0; i < 30; i++) { z2.x = p.pos.x; z2.z = p.pos.z - 1.1; z2.y = p.pos.y; v.step(0.05); }
+      v.game.mouse.r = false;
+      return { up, front, wear, slow, back: hp1 - p.health };
+    });
+    expect(r.up).toBe(true);
+    expect(r.front).toBe(0);
+    expect(r.wear).toBeGreaterThan(0);
+    expect(r.slow).toBeLessThan(1.5);              // как крадучись (1.3), а не шагом (4.3)
+    expect(r.back).toBeGreaterThan(0);
+  });
+});

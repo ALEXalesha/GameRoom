@@ -93,6 +93,13 @@
     arrow_hit(t) { noise(t, 0.05, 'bandpass', 1200, 2, 0.35); },
     fizz(t) { noise(t, 0.5, 'highpass', 3500, 0.7, 0.2, 0.02); },
     shear(t) { noise(t, 0.05, 'highpass', 4000, 1, 0.3); noise(t + 0.08, 0.05, 'highpass', 4200, 1, 0.3); },
+    hiss(t) { const f = noise(t, 1.4, 'highpass', 2500, 0.5, 0.22, 0.3); f.frequency.linearRampToValueAtTime(4000, t + 1.4); },
+    creeper(t) { noise(t, 0.3, 'bandpass', 1800, 1.2, 0.08, 0.05); },
+    explode(t) {
+      const f = noise(t, 1.6, 'lowpass', 1400, 0.7, 0.9, 0.005); f.frequency.exponentialRampToValueAtTime(120, t + 1.4);
+      tone(t, 0.9, 'sine', 70, 30, 0.6, 0.005);
+    },
+    shield(t) { noise(t, 0.08, 'bandpass', 500, 1.5, 0.5); tone(t, 0.1, 'sine', 160, 90, 0.2); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };

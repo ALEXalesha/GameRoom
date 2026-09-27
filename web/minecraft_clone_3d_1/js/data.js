@@ -95,6 +95,10 @@
   item(351, 'bed', 'Кровать', { stack: 1, draw: 'bed', places: 'bed', group: 'build' });
   const EGG_MOBS = [['pig', 'свинья'], ['sheep', 'овца'], ['cow', 'корова'], ['chicken', 'курица'], ['zombie', 'зомби'], ['skeleton', 'скелет'], ['spider', 'паук']];
   EGG_MOBS.forEach(([m, n], k) => item(352 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
+  // ---- четвёртый заход: id с 400
+  item(400, 'gunpowder', 'Порох');
+  item(401, 'shield', 'Щит', { stack: 1, tool: { type: 'shield', speed: 1, level: 0, dur: 336, dmg: 1 } });
+  item(402, 'egg_creeper', 'Яйцо призыва: крипер', { draw: 'egg:creeper', egg: 'creeper', creativeOnly: true });
   // цвет шерсти по красителю
   const WOOL_OF = { white: B.wool_white, red: B.wool_red, yellow: B.wool_yellow, blue: B.wool_blue, green: B.wool_green, black: B.wool_black };
 
@@ -203,6 +207,7 @@
   RECIPES.push({ out: [C.TRAPDOOR, 2], shape: ['PPP', 'PPP'], keys: { P: '#planks' } });
   RECIPES.push({ out: [C.IRON_TRAPDOOR, 1], shape: ['II', 'II'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: [C.PANE, 16], shape: ['GGG', 'GGG'], keys: { G: 'glass' } });
+  RECIPES.push({ out: ['shield', 1], shape: ['PIP', 'PPP', ' P '], keys: { P: '#planks', I: 'iron_ingot' } });
   RECIPES.push({ out: [C.LADDER, 3], shape: ['S S', 'SSS', 'S S'], keys: { S: 'stick' } });
   const ARMOR_IN = { leather: 'leather', iron: 'iron_ingot', gold: 'gold_ingot', diamond: 'diamond' };
   const ARMOR_SHAPES = { helmet: ['MMM', 'M M'], chestplate: ['M M', 'MMM', 'MMM'], leggings: ['MMM', 'M M', 'M M'], boots: ['M M', 'M M'] };
@@ -317,6 +322,7 @@
     cow: { name: 'Корова', hp: 10, speed: 1.1, w: 0.9, h: 1.4, drops: [['leather', 0, 2], ['raw_beef', 1, 3]], day: true, sound: 'cow' },
     chicken: { name: 'Курица', hp: 4, speed: 1.1, w: 0.4, h: 0.7, drops: [['feather', 0, 2], ['raw_chicken', 1, 1]], day: true, sound: 'chicken', flutter: true },
     skeleton: { name: 'Скелет', hp: 20, speed: 2.1, w: 0.6, h: 1.99, drops: [['bone', 0, 2], ['arrow', 0, 2]], hostile: true, dmg: 2, ranged: true, sound: 'skeleton', burns: true },
+    creeper: { name: 'Крипер', hp: 20, speed: 2.4, w: 0.6, h: 1.7, drops: [['gunpowder', 0, 2]], hostile: true, dmg: 0, explodes: true, fuse: 1.5, power: 3, sound: 'creeper' },
     spider: { name: 'Паук', hp: 16, speed: 2.8, w: 1.4, h: 0.9, drops: [['string', 0, 2]], hostile: true, dmg: 2, climber: true, sound: 'spider' },
   };
   for (const k in MOBS) MOBS[k].drops = MOBS[k].drops.map(([n, a, b]) => [idOf(n), a, b]);

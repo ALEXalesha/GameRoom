@@ -670,6 +670,7 @@
     if (VX.entities && held && VX.entities.interact(held)) return 'mob';
     if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
     if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
+    if (hi && hi.key === 'shield') return 'shield';
     if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
     const t = G.target();
     if (!t) return null;
@@ -843,6 +844,13 @@
     const a = VX.entities.shootArrow(p.pos.x + d.x * 0.4, p.eye() - 0.1 + d.y * 0.4, p.pos.z + d.z * 0.4, d.x * power * 60, d.y * power * 60, d.z * power * 60, 'player', Math.ceil(power * 6) + (power >= 1 ? 3 : 0));
     VX.audio.play('bow');
     return a;
+  };
+  // Щит принял удар: прочность 1 + целая часть урона, глухой звук
+  player.onShield = function (n) {
+    VX.audio.play('shield');
+    if (G.mode !== 'survival') return;
+    const k = 1 + Math.floor(n);
+    for (let i = 0; i < k; i++) { if (inv.wearHeld()) { VX.audio.play('break', { surface: 'wood' }); player.blocking = false; break; } }
   };
   G.eatHeld = function () {
     const held = inv.held();
@@ -1051,6 +1059,10 @@
     else if (G.state === 'play') {
       updateMining(dt);
       const hf = inv.held();
+      // щит поднят, пока держишь ПКМ (поднимается за четверть секунды, как в оригинале)
+      const shieldUp = G.mouse.r && hf && D.info(hf.id).key === 'shield';
+      G.blockT = shieldUp ? (G.blockT || 0) + dt : 0;
+      player.blocking = G.blockT >= 0.25;
       if (G.bowT > 0 && G.mouse.r) G.bowT += dt;
       if (G.mouse.r && G.eating !== undefined && hf && D.info(hf.id).food) {
         G.eating += dt; G.swing = Math.max(G.swing, 0.3);
@@ -1214,8 +1226,8 @@
       setHand(held ? held.id : 0);
       const sw = Math.sin(G.swing * Math.PI);
       const bx = Math.sin(bob) * 0.03 * bobA, by = -Math.abs(Math.cos(bob)) * 0.03 * bobA;
-      hand.position.set(0.52 + bx - sw * 0.18, -0.42 + by - sw * 0.1, -0.8 - sw * 0.1);
-      hand.rotation.set(-sw * 0.6, sw * 0.4, 0);
+      if (player.blocking) { hand.position.set(0.22 + bx, -0.3 + by, -0.62); hand.rotation.set(0, 1.05, 0); }       // щит перед собой
+      else { hand.position.set(0.52 + bx - sw * 0.18, -0.42 + by - sw * 0.1, -0.8 - sw * 0.1); hand.rotation.set(-sw * 0.6, sw * 0.4, 0); }
       const light = G.localLight ? G.localLight() : 1;
       handLight.intensity = 0.6 * light; handScene.children[1].intensity = 0.55 * Math.max(0.15, light);
       renderer.clearDepth();

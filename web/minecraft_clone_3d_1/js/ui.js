@@ -271,7 +271,8 @@
     const row = el('div', 'col');
     row.append(button('Возродиться', () => G.respawn()), button('В главное меню', () => { G.respawn(); G.exitToTitle(); }));
     s.append(t, cause, row);
-    const CAUSES = { fall: 'Разбился, упав с высоты', drown: 'Утонул', starve: 'Умер от голода', zombie: 'Убит зомби', void: 'Выпал из мира', burn: 'Сгорел' };
+    const CAUSES = { fall: 'Разбился, упав с высоты', drown: 'Утонул', starve: 'Умер от голода', zombie: 'Убит зомби', void: 'Выпал из мира', burn: 'Сгорел',
+      explosion: 'Взорван', skeleton: 'Застрелен скелетом', arrow: 'Застрелен', spider: 'Убит пауком', lava: 'Сгорел в лаве', fire: 'Сгорел', cactus: 'Исколот кактусом' };
     s.onShow = () => { const d = G.player.lastDamage; cause.textContent = CAUSES[d && d.cause] || 'Погиб'; };
   }
 
