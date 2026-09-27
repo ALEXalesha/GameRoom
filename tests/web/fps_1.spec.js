@@ -131,6 +131,23 @@ test.describe('fps_1: вкладка и окно', () => {
   }
 });
 
+test.describe('fps_1: автоматика', () => {
+  test('под автоматикой страница не захватывает мышь (requestPointerLock не зовётся)', async ({ page }) => {
+    await openTactical(page);
+    await startMatch(page, { mode: 'dm', map: 'quarry', ai: false });
+    const calls = await page.evaluate(() => {
+      let n = 0;
+      const c = __tactical.app.renderer.domElement;
+      c.requestPointerLock = () => { n++; return Promise.resolve(); };
+      __tactical.app.manual = false;
+      __tactical.app.pause('проверка'); __tactical.app.resume();
+      document.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      return n;
+    });
+    expect(calls).toBe(0);
+  });
+});
+
 test.describe('fps_1: разминка (тир)', () => {
   test('попадание сбивает мишень, через 0.8 с она снова стоит рядом с домом', async ({ page }) => {
     await openTactical(page);

@@ -406,7 +406,8 @@ test.describe('fps_1: статистика, звания, кампания', () 
     const r = await page.evaluate(() => {
       __tactical.app.manual = false; __tactical.app.paused = false;
       const out = {};
-      for (const code of ['KeyD', 'Digit1', 'KeyS', 'KeyF']) {
+      // P, H, O, J, 8 - не действия игры: их гасит именно правило про Ctrl
+      for (const code of ['KeyP', 'KeyH', 'KeyO', 'KeyJ', 'Digit8']) {
         const ev = new KeyboardEvent('keydown', { code, ctrlKey: true, bubbles: true, cancelable: true });
         document.dispatchEvent(ev); out[code] = ev.defaultPrevented;
       }
@@ -419,6 +420,6 @@ test.describe('fps_1: статистика, звания, кампания', () 
       out.unloadMenu = bu2.defaultPrevented;
       return out;
     });
-    expect(r).toEqual({ KeyD: true, Digit1: true, KeyS: true, KeyF: true, unload: true, unloadMenu: false });
+    expect(r).toEqual({ KeyP: true, KeyH: true, KeyO: true, KeyJ: true, Digit8: true, unload: true, unloadMenu: false });
   });
 });
