@@ -13,6 +13,39 @@ async function world(page, mode = 'survival', seed = 8) {
   await flatArena(page, 70, 7);
 }
 
+test.describe('minecraft_clone_3d_1: оболочки ОС', () => {
+  test('в <head> есть meta application-name «Кубический мир»', async ({ page }) => {
+    await openVoxel(page);
+    expect(await page.evaluate(() => { const m = document.head.querySelector('meta[name="application-name"]'); return m && m.content; })).toBe('Кубический мир');
+  });
+
+  test('postMessage {mix:"pause"} от оболочки: пауза, тики мира стоят, звук заглушен, клавиши отпущены; "resume" - пауза остаётся, звук снова есть', async ({ page }) => {
+    await world(page, 'survival');
+    await page.evaluate(() => { __voxel.game.testMode = false; __voxel.key('KeyW'); });
+    const t0 = await page.evaluate(() => __voxel.ticks);
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => __voxel.ticks)).toBeGreaterThan(t0 + 4);   // без паузы время идёт
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await page.waitForTimeout(150);
+    const r1 = await page.evaluate(() => ({ t: __voxel.ticks, s: __voxel.state, muted: __voxel.VX.audio.muted, w: !!__voxel.game.keys.KeyW, lock: !!document.pointerLockElement }));
+    expect(r1.s).toBe('paused');
+    expect(r1.muted).toBe(true);
+    expect(r1.w).toBe(false);
+    expect(r1.lock).toBe(false);
+    await page.waitForTimeout(1000);
+    expect(await page.evaluate(() => __voxel.ticks)).toBe(r1.t);                 // тики мира стоят
+    await expect(page.locator('#scr-pause')).toBeVisible();
+    await page.evaluate(() => window.postMessage({ mix: 'resume' }, '*'));
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => ({ s: __voxel.state, muted: __voxel.VX.audio.muted }))).toEqual({ s: 'paused', muted: false });
+    // чужие сообщения игру не трогают
+    await page.locator('#scr-pause').getByText('Вернуться к игре').click();
+    await page.evaluate(() => { window.postMessage('pause', '*'); window.postMessage({ type: 'pause' }, '*'); });
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => __voxel.state)).toBe('play');
+  });
+});
+
 test.describe('minecraft_clone_3d_1: Esc и бой', () => {
   test('Esc открывает паузу, второй Esc закрывает её: игра идёт, затемнения и большой надписи нет', async ({ page }) => {
     await world(page, 'creative');

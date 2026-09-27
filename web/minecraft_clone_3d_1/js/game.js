@@ -347,6 +347,17 @@
       G.saveWorld();
     } else VX.audio.mute(false);
   });
+  // Оболочки ОС (симуляторы Windows и macOS) держат игру в iframe и шлют {mix:'pause'|'resume'}:
+  // pause - как скрытая вкладка (пауза, звук заглушен, клавиши и мышь отпущены), resume - пауза остаётся
+  window.addEventListener('message', (e) => {
+    const cmd = e.data && typeof e.data === 'object' ? e.data.mix : null;
+    if (cmd === 'pause') {
+      if (G.state === 'play' || G.state === 'inv') G.pause();
+      releaseKeys(); unlock();
+      VX.audio.mute(true);
+      G.saveWorld();
+    } else if (cmd === 'resume') VX.audio.mute(false);
+  });
   window.addEventListener('pagehide', () => { G.saveWorld(); });
   window.addEventListener('blur', () => releaseKeys());
   // Ctrl+W в браузере закрывает вкладку: пока идёт игра, браузер переспросит (в Electron - нет)
