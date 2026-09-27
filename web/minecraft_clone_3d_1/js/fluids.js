@@ -133,6 +133,7 @@
     for (const [k, age] of fires) {
       const [x, y, z] = k.split(',').map(Number);
       if (get(x, y, z) !== B.fire) { fires.delete(k); continue; }
+      if (get(x, y - 1, z) === C.NETHERRACK) { fires.set(k, 0); continue; }          // на незераке огонь вечный
       const t = age + dt;
       fires.set(k, t);
       let fuel = null;
@@ -166,5 +167,7 @@
   function save(meta) { meta.fires = [...fires.keys()].slice(0, 500); }
   const pending = () => queues[1].size + queues[2].size;
 
-  VX.fluids = { tick, touch, wake, update, reset, save, pending, fires, FLAMMABLE, REPLACEABLE, isSource, flowing, SRC, FALL };
+  // огонь, поставленный не водой и не лавой (огниво, огненный шар, взрыв): тоже горит и гаснет по правилам
+  function addFire(x, y, z) { const ok = set(x, y, z, B.fire); if (ok) touch(x, y, z); return ok; }
+  VX.fluids = { addFire, tick, touch, wake, update, reset, save, pending, fires, FLAMMABLE, REPLACEABLE, isSource, flowing, SRC, FALL };
 })();

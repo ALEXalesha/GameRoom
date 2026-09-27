@@ -100,6 +100,12 @@
       tone(t, 0.9, 'sine', 70, 30, 0.6, 0.005);
     },
     shield(t) { noise(t, 0.08, 'bandpass', 500, 1.5, 0.5); tone(t, 0.1, 'sine', 160, 90, 0.2); },
+    portal(t) { const o = tone(t, 1.8, 'sawtooth', 110, 60, 0.08, 0.4); o.detune.linearRampToValueAtTime(600, t + 1.8); noise(t, 1.6, 'bandpass', 600, 2, 0.12, 0.4); },
+    ghast(t) { const o = tone(t, 1.3, 'triangle', 520, 380, 0.12, 0.2); o.detune.linearRampToValueAtTime(-400, t + 1.3); },
+    ghast_shoot(t) { tone(t, 0.35, 'sawtooth', 900, 300, 0.12); noise(t, 0.4, 'bandpass', 800, 1, 0.3, 0.05); },
+    blaze(t) { noise(t, 0.7, 'bandpass', 400, 0.8, 0.18, 0.2); tone(t, 0.5, 'sawtooth', 90, 70, 0.05, 0.2); },
+    blaze_shoot(t) { noise(t, 0.25, 'lowpass', 900, 0.8, 0.3, 0.01); },
+    pigman(t) { const o = tone(t, 0.4, 'sawtooth', 150, 110, 0.12, 0.03); o.detune.linearRampToValueAtTime(-300, t + 0.4); },
     achievement(t) { [523, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.09, 0.35, 'triangle', f, f, 0.16)); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };

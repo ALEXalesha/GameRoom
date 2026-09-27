@@ -26,13 +26,14 @@ test.describe('minecraft_clone_3d_1: находки ревьюера', () => {
         for (let k = 0; k < 20; k++) E.spawnMob(types[k % types.length], p.pos.x + (k % 5) * 2 - 4, 70, p.pos.z - 6 - ((k / 5) | 0) * 2);
       });
       await frames(page, 3);
-      const n = await page.evaluate(() => __voxel.game.renderer.info.memory.geometries);
+      // геометрии не мира: куски подгружаются в фоне и в счёт не идут
+      const n = await page.evaluate(() => { const v = __voxel; return v.game.renderer.info.memory.geometries - v.counts().draws - v.world.trash.length; });
       await page.evaluate(() => __voxel.entities.clear());
       await frames(page, 3);
       return n;
     };
     const a = await round(), b = await round(), c = await round();
-    const after = await page.evaluate(() => __voxel.game.renderer.info.memory.geometries);
+    const after = await page.evaluate(() => { const v = __voxel; return v.game.renderer.info.memory.geometries - v.counts().draws - v.world.trash.length; });
     expect(c - a).toBeLessThanOrEqual(5);            // раньше +420 за круг
     expect(b - a).toBeLessThanOrEqual(5);
     expect(after).toBeLessThan(a);                   // после очистки мобы ушли вместе с геометрией

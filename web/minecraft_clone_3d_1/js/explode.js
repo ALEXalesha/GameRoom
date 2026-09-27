@@ -69,6 +69,11 @@
         if (G.furnaces[k]) { for (const s of G.furnaces[k].slots) if (s) G.dropItem(s, false, bx + 0.5, by + 0.5, bz + 0.5); delete G.furnaces[k]; }
       }
       for (const k of gone.keys()) { const [bx, by, bz] = k.split(',').map(Number); G.afterChange(bx, by, bz); }
+      // огненный взрыв (шар гаста, кровать в Нижнем мире): треть пустых клеток над твёрдым загорается
+      if (opts.fire) for (const k of gone.keys()) {
+        const [bx, by, bz] = k.split(',').map(Number), below = w.getBlock(bx, by - 1, bz);
+        if (rnd() < 1 / 3 && w.getBlock(bx, by, bz) === 0 && below > 0 && C.SOLID[below] && C.RENDER[below] === 1) { if (VX.fluids) VX.fluids.addFire(bx, by, bz); }
+      }
     }
     // существа
     const p = G.player, E = VX.entities;

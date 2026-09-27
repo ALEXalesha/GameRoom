@@ -191,6 +191,7 @@
     const bar = el('div', 'progress'); const fill = el('div', 'fill'); bar.append(fill);
     s.append(t, sub, bar);
     UI.loadingFill = fill; UI.loadingSub = sub;
+    UI.loadingTitle = (dim) => { t.textContent = dim === 'nether' ? 'Нижний мир' : dim === 'end' ? 'Край' : 'Загрузка мира'; };
   }
   UI.loaded = function () { G.play(); };
 
@@ -272,7 +273,8 @@
     row.append(button('Возродиться', () => G.respawn()), button('В главное меню', () => { G.respawn(); G.exitToTitle(); }));
     s.append(t, cause, row);
     const CAUSES = { fall: 'Разбился, упав с высоты', drown: 'Утонул', starve: 'Умер от голода', zombie: 'Убит зомби', void: 'Выпал из мира', burn: 'Сгорел',
-      explosion: 'Взорван', skeleton: 'Застрелен скелетом', arrow: 'Застрелен', spider: 'Убит пауком', lava: 'Сгорел в лаве', fire: 'Сгорел', cactus: 'Исколот кактусом' };
+      explosion: 'Взорван', skeleton: 'Застрелен скелетом', arrow: 'Застрелен', spider: 'Убит пауком', lava: 'Сгорел в лаве', fire: 'Сгорел', cactus: 'Исколот кактусом',
+      fireball: 'Сражён огненным шаром', zombie_pigman: 'Убит зомби-свиночеловеком', blaze: 'Сожжён ифритом' };
     s.onShow = () => { const d = G.player.lastDamage; cause.textContent = CAUSES[d && d.cause] || 'Погиб'; };
   }
 
@@ -299,14 +301,30 @@
     const box = el('div', 'ach-box');
     const tree = el('div', 'ach-tree');
     box.append(tree);
+    // вкладки: обычный мир, Нижний мир и дальше - каждая со своим деревом
+    const TABS = [['', 'Обычный мир'], ['nether', 'Нижний мир'], ['end', 'Край'], ['magic', 'Чары и зелья']];
+    let tab = '';
+    const tabRow = el('div', 'ach-tabs');
     const row = el('div', 'row'); row.append(button('Готово', () => UI.back()));
-    s.append(title, count, box, row);
+    s.append(title, count, tabRow, box, row);
+    // перетаскивание дерева мышью (как карта достижений в оригинале)
+    let drag = null;
+    box.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, sl: box.scrollLeft, st: box.scrollTop }; });
+    window.addEventListener('mousemove', (e) => { if (drag) { box.scrollLeft = drag.sl - (e.clientX - drag.x); box.scrollTop = drag.st - (e.clientY - drag.y); } });
+    window.addEventListener('mouseup', () => { drag = null; });
     s.onShow = () => {
       const got = (G.meta && G.meta.ach && G.meta.ach.got) || {};
+      tabRow.innerHTML = '';
+      for (const [k, name] of TABS) {
+        if (!D.ACH.some((a) => (a.tab || '') === k)) continue;
+        const b = button(name, () => { tab = k; s.onShow(); });
+        b.classList.add('ach-tab'); if (k === tab) b.classList.add('on');
+        tabRow.append(b);
+      }
       tree.innerHTML = '';
       // раскладка дерева: глубина - столбец, порядок обхода - строка
       const kids = {};
-      for (const a of D.ACH) (kids[a.parent || '_'] = kids[a.parent || '_'] || []).push(a);
+      for (const a of D.ACH) if ((a.tab || '') === tab) (kids[a.parent || '_'] = kids[a.parent || '_'] || []).push(a);
       const pos = {};
       let row2 = 0;
       const walk = (a, depth) => {
@@ -320,7 +338,8 @@
       const CW = 66, RH = 42;
       let maxX = 0, maxY = 0;
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      for (const a of D.ACH) {
+      const shown = D.ACH.filter((a) => (a.tab || '') === tab);
+      for (const a of shown) {
         const [x, y] = pos[a.id]; maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
         if (a.parent) {
           const [px, py] = pos[a.parent];
@@ -334,7 +353,7 @@
       svg.setAttribute('width', maxX * CW + 48); svg.setAttribute('height', maxY * RH + 46);
       tree.style.width = (maxX * CW + 48) + 'px'; tree.style.height = (maxY * RH + 46) + 'px';
       tree.append(svg);
-      for (const a of D.ACH) {
+      for (const a of shown) {
         const [x, y] = pos[a.id];
         const n = el('div', 'ach' + (got[a.id] ? ' got' : '') + (a.final ? ' final' : ''));
         n.style.left = (x * CW + 4) + 'px'; n.style.top = (y * RH + 2) + 'px';
@@ -760,7 +779,7 @@
       let ready = 0, total = 0;
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { total++; const ch = w.chunk(pcx + dx, pcz + dz); if (ch && ch.data && !ch.needMesh && !ch.pending) ready++; }
       UI.loadingFill.style.width = Math.round(ready / total * 100) + '%';
-      UI.loadingSub.textContent = ready < total / 2 ? 'Строим рельеф…' : 'Сажаем деревья…';
+      UI.loadingSub.textContent = G.dim === 'nether' ? (ready < total / 2 ? 'Разливаем лаву…' : 'Строим крепости…') : ready < total / 2 ? 'Строим рельеф…' : 'Сажаем деревья…';
     }
   };
 

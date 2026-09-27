@@ -182,6 +182,8 @@
     else if (this.inWater) speed = SPEED.swim * (this.sprinting ? 1.3 : 1);
     else if (this.sneaking || this.blocking) speed = SPEED.sneak;
     else speed = this.sprinting ? SPEED.sprint : SPEED.walk;
+    // песок душ вязкий: идёшь в 2.5 раза медленнее
+    if (!this.flying && world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y - 0.05), Math.floor(this.pos.z)) === C.SOUL_SAND) speed *= 0.4;
     // разгон: на земле быстрый, в воздухе - по инерции
     const acc = this.flying ? 10 : this.onGround ? 22 : this.inWater ? 8 : 3.2;
     const k = 1 - Math.exp(-acc * dt);
@@ -331,7 +333,7 @@
   };
   // Урон. Возвращает true, если прошёл (после удара полсекунды неуязвимости)
   // from - откуда удар ({x, z}): щит спереди (в пределах 90° от взгляда) гасит удары мобов, стрелы и взрывы
-  const BLOCKABLE = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob']);
+  const BLOCKABLE = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'explosion', 'mob', 'fireball', 'zombie_pigman', 'blaze']);
   Player.prototype.damage = function (n, cause, ev, ignoreCool, from) {
     if (this.dead || n <= 0) return false;
     if (this.hurtCool > 0 && !ignoreCool && cause !== 'fall') return false;
@@ -350,7 +352,7 @@
   };
   // Броня по формуле оригинала: урон x (1 - min(20, max(броня/5, броня - урон/(2 + прочность/4)))/25).
   // Падение, утопление, голод, горение и пустота броней не гасятся.
-  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob', 'explosion']);
+  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob', 'explosion', 'fireball', 'zombie_pigman', 'blaze']);
   Player.prototype.armorPoints = function () {
     const a = this.armorSlots ? this.armorSlots() : null;
     let pts = 0, tough = 0;

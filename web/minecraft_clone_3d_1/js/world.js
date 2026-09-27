@@ -44,6 +44,7 @@
     attribute vec4 light;
     uniform float uDay;
     uniform float uSmooth;
+    uniform float uAmb;
     varying vec2 vUv;
     varying vec3 vCol;
     varying float vDist;
@@ -51,7 +52,7 @@
       vUv = uv;
       float sky = light.x * 15.0, blk = light.y * 15.0;
       float skyEff = max(0.0, sky - (1.0 - uDay) * 10.5);
-      float l = max(skyEff, blk) / 15.0;
+      float l = max(max(skyEff, blk) / 15.0, uAmb);
       // кривая яркости как в оригинале (f / (4 - 3f)), чуть приподнятая: свет факела быстро гаснет с расстоянием
       float b = 0.03 + 0.97 * mix(l / (4.0 - 3.0 * l), l, 0.35);
       float ao = mix(1.0, 0.52 + 0.48 * light.z, uSmooth);
@@ -81,7 +82,7 @@
   function makeMaterials(atlasTex) {
     const uni = {
       map: { value: atlasTex }, uDay: { value: 1 }, uSmooth: { value: 1 },
-      uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogNear: { value: 60 }, uFogFar: { value: 120 },
+      uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogNear: { value: 60 }, uFogFar: { value: 120 }, uAmb: { value: 0 },
     };
     const opaque = new THREE.ShaderMaterial({
       uniforms: Object.assign({}, uni, { uAlpha: { value: -1 }, uCut: { value: 0.5 } }),
@@ -94,6 +95,7 @@
     // общие значения: меняем их у обоих материалов разом
     trans.uniforms.map = opaque.uniforms.map; trans.uniforms.uDay = opaque.uniforms.uDay; trans.uniforms.uSmooth = opaque.uniforms.uSmooth;
     trans.uniforms.uFogColor = opaque.uniforms.uFogColor; trans.uniforms.uFogNear = opaque.uniforms.uFogNear; trans.uniforms.uFogFar = opaque.uniforms.uFogFar;
+    trans.uniforms.uAmb = opaque.uniforms.uAmb;
     return { opaque, trans, uniforms: opaque.uniforms };
   }
 
@@ -126,13 +128,27 @@
     this.fresh = [];
     this.trash = [];
   }
-  World.prototype.open = function (meta, persist) {
+  // Измерения: 'over' (обычный мир), 'nether', 'end'. У каждого свой генератор и свои куски в
+  // хранилище (ключи «мир|n|x|z» лежат внутри диапазона мира - удаляются вместе с ним)
+  const DIM_KEY = { over: '', nether: '|n', end: '|e' };
+  World.prototype.open = function (meta, persist, dim) {
     this.close();
     this.meta = meta;
     this.seed = meta.seedNum;
-    this.gen = meta.gen || '';
     this.persist = persist;
+    this.setDimFields(dim || 'over');
     this.epoch = (this.epoch || 0) + 1;
+  };
+  World.prototype.setDimFields = function (dim) {
+    this.dim = DIM_KEY[dim] !== undefined ? dim : 'over';
+    this.gen = this.dim === 'over' ? (this.meta.gen || '') : this.dim;
+    this.storeId = this.meta.id + DIM_KEY[this.dim];
+  };
+  // Сменить измерение: изменённые куски дописываются, всё выгружается, генерация - своим генератором
+  World.prototype.setDim = function (dim) {
+    this.saveDirty();
+    this.close();
+    this.setDimFields(dim);
   };
   World.prototype.close = function () {
     for (const ch of this.chunks.values()) this.dropMesh(ch);
@@ -186,7 +202,7 @@
   // Сохранить изменённые куски (вызывается каждый кадр, запись идёт в фоне)
   World.prototype.saveDirty = function () {
     if (!this.persist || !this.saveSet.size) { this.saveSet.clear(); return; }
-    for (const ch of this.saveSet) VX.store.putChunk(this.meta.id, ch.cx, ch.cz, ch.data);
+    for (const ch of this.saveSet) VX.store.putChunk(this.storeId, ch.cx, ch.cz, ch.data);
     this.saveSet.clear();
   };
 
@@ -209,7 +225,7 @@
       for (const [cx, cz] of batch) this.chunks.set(keyOf(cx, cz), { cx, cz, data: null, state: 1, needMesh: true, meshes: null, ver: 0 });
       const epoch = this.epoch;
       if (this.persist) {
-        VX.store.getChunks(this.meta.id, batch).then((found) => {
+        VX.store.getChunks(this.storeId, batch).then((found) => {
           if (epoch !== this.epoch) return;
           for (const [cx, cz] of batch) {
             const ch = this.chunks.get(keyOf(cx, cz));
@@ -225,7 +241,7 @@
     for (const [k, ch] of this.chunks) {
       const dx = ch.cx - pcx, dz = ch.cz - pcz;
       if (dx * dx + dz * dz > R2 * R2) {
-        if (this.saveSet.has(ch)) { VX.store.putChunk(this.meta.id, ch.cx, ch.cz, ch.data); this.saveSet.delete(ch); }
+        if (this.saveSet.has(ch)) { VX.store.putChunk(this.storeId, ch.cx, ch.cz, ch.data); this.saveSet.delete(ch); }
         this.dropMesh(ch);
         this.chunks.delete(k);
         if (this.cache === ch) this.cache = null;

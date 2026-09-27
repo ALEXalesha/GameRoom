@@ -439,6 +439,41 @@
         for (const y of [1, 5, 9, 13]) for (let x = 4; x < 12; x++) { t.px(x, y, '#9a7646'); t.px(x, y + 1, '#6b4f2a'); }
       });
     },
+    netherrack(t, r) {
+      t.noise(['#6e2a28', '#7e3230', '#5e2220', '#8a3a36', '#6a2624'], r, [4, 3, 3, 2, 3]);
+      for (let k = 0; k < 18; k++) { const x = (r() * 16) | 0, y = (r() * 16) | 0; t.px(x, y, '#4a1614'); t.px((x + 1) & 15, y, '#9a4642'); }
+    },
+    soul_sand(t, r) {
+      t.noise(['#54402f', '#4a3828', '#5e4836', '#40302a'], r, [4, 3, 2, 2]);
+      // лица в песке
+      for (const [x0, y0] of [[2, 3], [9, 9]]) { t.px(x0, y0, '#2a1e16'); t.px(x0 + 2, y0, '#2a1e16'); t.px(x0 + 1, y0 + 2, '#2a1e16'); t.px(x0, y0 + 2, '#34261c'); t.px(x0 + 2, y0 + 2, '#34261c'); }
+    },
+    nether_bricks(t, r) {
+      t.noise(['#3e1a20', '#482228', '#361820', '#522a32'], r);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const row = y >> 2, off = row % 2 ? 4 : 0; if (y % 4 === 3 || (x + off) % 8 === 7) t.px(x, y, '#1c0a0c'); }
+      for (let y = 0; y < 16; y += 4) for (let x = 0; x < 16; x++) if (r() < 0.3) t.px(x, y, '#643238');
+    },
+    quartz_ore(t, r) {
+      DRAW.netherrack(t, r);
+      for (const [cx, cy] of [[3, 4], [11, 3], [6, 11], [12, 12]]) for (let k = 0; k < 4; k++) t.px(cx + ((r() * 3) | 0) - 1, cy + ((r() * 3) | 0) - 1, r() < 0.5 ? '#f0ece4' : '#d8d0c4');
+    },
+    portal(t, r) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const a = Math.atan2(y - 7.5, x - 7.5), d = Math.hypot(x - 7.5, y - 7.5);
+        const w = Math.sin(a * 3 + d * 0.9);
+        t.px(x, y, w > 0.4 ? '#c070ff' : w > -0.3 ? '#8a30e0' : '#5a10a8', w > 0.4 ? 230 : 190);
+      }
+    },
+    nether_wart_0(t) { plant(t, () => { for (const x of [4, 8, 11]) { t.px(x, 15, '#7a1a20'); t.px(x, 14, '#9a2028'); t.px(x + 1, 14, '#7a1a20'); } }); },
+    nether_wart_1(t) { plant(t, () => { for (const x of [3, 7, 11]) for (let y = 11; y < 16; y++) { t.px(x + (y < 13 ? 1 : 0), y, y < 13 ? '#b02a30' : '#7a1a20'); if (y < 13) t.px(x + 2, y, '#9a2028'); } }); },
+    nether_wart_2(t) { plant(t, () => { for (const x of [2, 7, 11]) for (let y = 7; y < 16; y++) { t.px(x + (y < 11 ? 1 : 0), y, y < 11 ? '#c8303a' : '#8a1a22'); if (y < 11) { t.px(x, y, '#a82830'); t.px(x + 2, y, '#e04a50'); } } }); },
+    spawner(t) {
+      plant(t, () => {
+        for (let k = 0; k < 16; k++) { t.px(k, 0, '#1a2430'); t.px(k, 15, '#1a2430'); t.px(0, k, '#1a2430'); t.px(15, k, '#1a2430'); }
+        for (let k = 1; k < 15; k++) for (const g of [5, 10]) { t.px(g, k, '#2a3848'); t.px(k, g, '#2a3848'); }
+        for (let k = 2; k < 14; k += 4) t.px(k, k, '#ff8a10', 200);
+      });
+    },
     water_flow(t, r) {
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const w = Math.sin((x * 0.5 + y) * 0.9) + Math.sin(x * 0.3 - y * 0.2);
@@ -652,7 +687,7 @@
     },
     bed(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '...wwwwrrrrrrr..', '..#wwwwrrrrrrr#.', '..#############.', '..#p#.......#p#.', '..###.......###.'], { w: '#f0f0f0', r: '#b02828', '#': '#5a3a14', p: '#a8834f' }); },
     egg(t, r, mob) {
-      const c = { creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
+      const c = { zombie_pigman: ['#e8a0a0', '#5a8a3a'], ghast: ['#f4f4f4', '#b0b0b0'], blaze: ['#f0c020', '#f89a10'], creeper: ['#5aa83a', '#101010'], pig: ['#f0a0a0', '#d06a7a'], sheep: ['#e8e8e8', '#b8a898'], cow: ['#5a3a20', '#e8e8e8'], chicken: ['#f0f0f0', '#e02020'], zombie: ['#2aa6a6', '#4f8a3a'], skeleton: ['#c8c8c8', '#6a6a6a'], spider: ['#3a2a2a', '#c02020'] }[mob];
       for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.6, (y - 8.8) / 6.2); if (d < 1) t.px(x, y, d > 0.85 ? shadeHex(c[0], 0.65) : c[0]); }
       for (const [x, y] of [[6, 5], [9, 8], [5, 10], [8, 12], [10, 5]]) { t.px(x, y, c[1]); t.px(x + 1, y, c[1]); }
     },
@@ -663,6 +698,16 @@
       t.px(12, 4, c[1]);
     },
     gunpowder(t, r) { for (let k = 0; k < 40; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#5a5a5a', '#3a3a3a', '#7a7a7a', '#2a2a2a'][(r() * 4) | 0]); } },
+    flint_and_steel(t) {
+      ITEM_DRAW.tpl(t, ['', '', '..####..........', '.#iiii#.........', '.#i##i#.........', '.#i#.#i#........', '..#..#ii#.......', '......#ii#......', '.......###......', '.........##.....', '........#ff#....', '.......#ffff#...', '.......#fbff#...', '........#ff#....', '.........##.....'], { i: '#b8b8b8', '#': '#3a3a3a', f: '#4a4a4a', b: '#7a7a7a' });
+    },
+    quartz(t) { ITEM_DRAW.tpl(t, ['', '', '', '.....##.........', '....#ww#........', '...#wwgw#.......', '...#wgww##......', '..#wwwgwww#.....', '..#gwwwwgw#.....', '...#wwgwwww#....', '....##wwgw#.....', '......####......'], { w: '#f4f0e8', g: '#d8d0c4', '#': '#9a9088' }); },
+    nether_wart(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '.....##.##......', '....#rr#rr#.....', '...#rRrrrRr#....', '...#rrrRrrr#....', '....#rrrrr#.....', '.....##s##......', '.......s........', '.......s........'], { r: '#b02a30', R: '#e04a50', s: '#6a1a1e', '#': '#5a1014' }); },
+    blaze_rod(t) { for (let k = 0; k < 12; k++) { t.px(3 + k, 13 - k, '#f8c820'); t.px(4 + k, 13 - k, '#e89a10'); t.px(3 + k, 12 - k, '#fff080'); } },
+    blaze_powder(t, r) { for (let k = 0; k < 44; k++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 5; t.px(Math.round(7.5 + Math.cos(a) * d * 1.1), Math.round(9 + Math.sin(a) * d * 0.7), ['#f8c820', '#e89a10', '#fff080', '#d06008'][(r() * 4) | 0]); } },
+    ghast_tear(t) { ITEM_DRAW.tpl(t, ['', '', '', '.......#........', '......#w#.......', '.....#wbw#......', '....#wbbbw#.....', '....#bbbbb#.....', '....#bbwbb#.....', '.....#bbb#......', '......###.......'], { w: '#ffffff', b: '#c8e8f0', '#': '#7a9aa8' }); },
+    gold_nugget(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '......##........', '.....#gg#.......', '....#gyggg#.....', '....#ggggo#.....', '.....#gog#......', '......###.......'], { g: '#f5d13b', y: '#fff08a', o: '#b08a13', '#': '#7a5a0a' }); },
+    nether_brick(t) { ITEM_DRAW.ingot(t, null, ['#4a2026', '#2a1014', '#6a3038']); },
     shield(t) {
       ITEM_DRAW.tpl(t, ['', '..############..', '..#pppppppppp#..', '..#pppppppppp#..', '..#ppppiipppp#..', '..#pppiiiippp#..', '..#pppiiiippp#..', '..#ppppiipppp#..', '..#pppppppppp#..', '...#pppppppp#...', '....#pppppp#....', '.....#pppp#.....', '......####......'], { p: '#9a7646', i: '#c8c8c8', '#': '#6a6a6a' });
     },

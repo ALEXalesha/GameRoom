@@ -187,6 +187,23 @@
       g.fillRect(1, 2, 2, 2); g.fillRect(5, 2, 2, 2);                 // глаза
       g.fillRect(3, 4, 2, 3); g.fillRect(2, 5, 1, 3); g.fillRect(5, 5, 1, 3);   // рот
     }));
+    TEX.pigSkin = pixTex(8, 8, (g, w, h) => { noiseFill(g, w, h, ['#e8a0a0', '#d88c8c', '#f0b0b0'], 21); g.fillStyle = '#6a9a4a'; g.fillRect(1, 2, 2, 3); g.fillRect(5, 5, 2, 2); g.fillStyle = '#e8e0d0'; g.fillRect(3, 1, 1, 4); });
+    TEX.pigmanFace = pixTex(8, 8, face(['#e8a0a0', '#d88c8c'], [[1, 3, '#fff'], [2, 3, '#101010'], [5, 3, '#101010'], [6, 3, '#fff']], (g) => { g.fillStyle = '#c86a7a'; g.fillRect(2, 5, 4, 2); g.fillStyle = '#6a2a3a'; g.fillRect(3, 6, 1, 1); g.fillRect(5, 6, 1, 1); g.fillStyle = '#6a9a4a'; g.fillRect(6, 1, 2, 2); }));
+    TEX.loin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#6a4a2a', '#5a3e22', '#7a5632'], 22));
+    TEX.ghast = pixTex(16, 16, (g, w, h) => noiseFill(g, w, h, ['#f0f0f0', '#e4e4e4', '#fafafa', '#dcdcdc'], 23));
+    TEX.ghastFace = pixTex(16, 16, face(['#f0f0f0', '#e4e4e4', '#fafafa'], [], (g) => {
+      g.fillStyle = '#303030'; g.fillRect(3, 5, 3, 2); g.fillRect(10, 5, 3, 2);           // закрытые глаза
+      g.fillStyle = '#a0a0a0'; g.fillRect(3, 7, 3, 1); g.fillRect(10, 7, 3, 1);
+      g.fillStyle = '#202020'; g.fillRect(6, 10, 4, 2); g.fillRect(7, 12, 2, 1);          // рот
+    }));
+    TEX.ghastAngry = pixTex(16, 16, face(['#f0f0f0', '#e4e4e4', '#fafafa'], [], (g) => {
+      g.fillStyle = '#101010'; g.fillRect(3, 4, 3, 4); g.fillRect(10, 4, 3, 4); g.fillStyle = '#c02020'; g.fillRect(3, 7, 3, 1); g.fillRect(10, 7, 3, 1);
+      g.fillStyle = '#101010'; g.fillRect(5, 10, 6, 4); g.fillStyle = '#e04040'; g.fillRect(6, 11, 4, 2);
+    }));
+    TEX.blaze = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#f0c020', '#e0a010', '#f8d850', '#d08a08'], 24));
+    TEX.blazeFace = pixTex(8, 8, face(['#f0c020', '#e0a010', '#f8d850'], [[1, 3, '#3a1a00'], [2, 3, '#3a1a00'], [5, 3, '#3a1a00'], [6, 3, '#3a1a00'], [1, 4, '#ffffff'], [6, 4, '#ffffff']], (g) => { g.fillStyle = '#6a3a08'; g.fillRect(2, 6, 4, 1); }));
+    TEX.blazeRod = pixTex(2, 8, (g, w, h) => noiseFill(g, w, h, ['#f8c820', '#e89a10', '#fff080'], 25));
+    TEX.fireball = pixTex(8, 8, (g, w, h) => { const r = C.mulberry32(26); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const d = Math.hypot(x - 3.5, y - 3.5); g.fillStyle = d < 1.5 ? '#fff4a0' : d < 2.8 ? (r() < 0.5 ? '#ffb020' : '#ff8010') : '#c83a08'; g.fillRect(x, y, 1, 1); } });
     TEX.spiderFace = pixTex(8, 8, face(['#3a2e2a', '#2e2420'], [[1, 2, '#e02020'], [2, 3, '#e02020'], [5, 3, '#e02020'], [6, 2, '#e02020'], [3, 2, '#b01010'], [4, 2, '#b01010']]));
     // игрок: своя внешность (не как в оригинале) - бордовая рубаха, коричневые штаны
     TEX.pSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15));
@@ -247,6 +264,20 @@
       const wt = box(0.12, 0.12, 0.06, T.wattle); wt.position.set(0, -0.1, 0.12); head.add(wt);
       for (const x of [-0.09, 0.09]) { const l = limb(0.06, 0.28, 0.06, T.chickenLeg, x, 0.28, 0); body.add(l); legs.push(l); }
       for (const x of [-0.22, 0.22]) { const wg = limb(0.06, 0.25, 0.37, T.chicken, x, 0.6, 0); body.add(wg); extra.wings = (extra.wings || []).concat(wg); }
+    } else if (type === 'ghast') {
+      const b0 = box(4, 4, 4, T.ghast, T.ghastFace); b0.position.set(0, 2.2, 0); body.add(b0);
+      head = b0; extra.ghastBody = b0;
+      extra.tentacles = [];
+      for (let k = 0; k < 9; k++) {
+        const x = ((k % 3) - 1) * 1.1, z = (((k / 3) | 0) - 1) * 1.1, len = 1.2 + ((k * 37) % 5) * 0.3;
+        const t = limb(0.28, len, 0.28, T.ghast, x, 0.2, z); body.add(t); extra.tentacles.push(t);
+      }
+    } else if (type === 'blaze') {
+      head = box(0.5, 0.5, 0.5, T.blaze, T.blazeFace); head.position.set(0, 1.55, 0); body.add(head);
+      extra.rods = [];
+      for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 4; k++) {
+        const rod = box(0.125, 0.5, 0.125, T.blazeRod); rod.userData.ring = ring; rod.userData.k = k; body.add(rod); extra.rods.push(rod);
+      }
     } else if (type === 'creeper') {
       const torso = box(0.5, 0.75, 0.25, T.creeper); torso.position.set(0, 0.75, 0); body.add(torso);
       head = box(0.5, 0.5, 0.5, T.creeper, T.creeperFace); head.position.set(0, 1.375, 0); body.add(head);
@@ -264,8 +295,10 @@
       }
       extra.spiderLegs = true;
     } else {
-      const zombie = type === 'zombie', skel = type === 'skeleton';
-      const hm = zombie ? humanoid(T, T.zSkin, T.zFace, T.shirt, T.pants, body) : skel ? humanoid(T, T.bone, T.skull, T.bone, T.bone, body) : humanoid(T, T.pSkin, T.pFace, T.pShirt, T.pPants, body);
+      const zombie = type === 'zombie', skel = type === 'skeleton', pigman = type === 'zombie_pigman';
+      const hm = zombie ? humanoid(T, T.zSkin, T.zFace, T.shirt, T.pants, body) : skel ? humanoid(T, T.bone, T.skull, T.bone, T.bone, body)
+        : pigman ? humanoid(T, T.pigSkin, T.pigmanFace, T.pigSkin, T.loin, body) : humanoid(T, T.pSkin, T.pFace, T.pShirt, T.pPants, body);
+      if (pigman) { const sw = G.itemMesh(D.I.gold_sword, 0.5); sw.position.set(0, -0.7, 0.2); sw.rotation.set(0, Math.PI / 2, 0); hm.arms[1].add(sw); }
       if (skel) { hm.torso.scale.set(0.6, 1, 0.6); for (const l of hm.legs.concat(hm.arms)) l.userData.mesh.scale.set(0.5, 1, 0.5); }
       head = hm.head; legs = hm.legs; arms = hm.arms;
       if (zombie || skel) for (const a of arms) a.rotation.x = -Math.PI / 2;
@@ -304,12 +337,13 @@
     m.hurtT = 0.45;
     const dx = m.x - fromX, dz = m.z - fromZ, d = Math.hypot(dx, dz) || 1;
     if (cause !== 'burn' && cause !== 'cactus') { m.vx = dx / d * 6; m.vz = dz / d * 6; m.vy = 5; }
-    if (!m.def.hostile) m.panic = 4;
+    if (!m.def.hostile && !m.def.neutral) m.panic = 4;
+    if (m.def.neutral && (cause === 'player' || cause === 'arrow')) for (const o of mobs) if (o.type === m.type && Math.hypot(o.x - m.x, o.z - m.z) < 32) o.angry = 20 + rnd() * 20;
     VX.audio.play('mobhurt');
     if (m.hp <= 0) {
       m.deadT = 0.001;
       poof(m);
-      if (cause !== 'creative') {
+      if (cause !== 'creative' && !(m.def.playerDrops && cause !== 'player' && cause !== 'arrow' && cause !== 'fireball')) {
         for (const [id0, a, b] of m.def.drops) {
           let id = id0, n2 = a + Math.floor(rnd() * (b - a + 1));
           if (m.type === 'sheep' && id === B.wool_white) { if (m.sheared) n2 = 0; id = D.WOOL_OF[m.color] || id; }
@@ -317,7 +351,7 @@
         }
       }
       // в счёт игрока (достижения, статистика) - только его удары и стрелы
-      if (cause === 'player' || cause === 'arrow' || cause === 'creative') {
+      if (cause === 'player' || cause === 'arrow' || cause === 'creative' || cause === 'fireball') {
         G.emit('kill', { mob: m.type, cause });
         if (G.meta && G.meta.stats) G.meta.stats.kills++;
       }
@@ -339,10 +373,13 @@
   function updateMob(m, dt) {
     const p = G.player;
     if (m.deadT > 0) { m.deadT += dt; return; }
+    if (m.def.flying) return updateGhast(m, dt);
+    if (m.def.hover) return updateBlaze(m, dt);
+    if (m.angry > 0) m.angry -= dt;
     const water = inWater(m);
     const dxp = p.pos.x - m.x, dzp = p.pos.z - m.z, distP = Math.hypot(dxp, dzp);
     let speed = 0, targetYaw = m.yaw;
-    const hostileNow = m.def.hostile && !(m.type === 'spider' && (G.dayLight || 0) > 0.5 && m.hp === m.def.hp);   // паук днём мирный, пока не ударят
+    const hostileNow = (m.def.neutral ? m.angry > 0 : m.def.hostile) && !(m.type === 'spider' && (G.dayLight || 0) > 0.5 && m.hp === m.def.hp);   // паук днём мирный, пока не ударят
     const chase = hostileNow && G.mode === 'survival' && !p.dead && G.state !== 'dead' && distP < 24 && Math.abs(p.pos.y - m.y) < 10;
     let horiz = false;
     if (chase && m.def.ranged) {
@@ -413,7 +450,8 @@
     m.hurtT = Math.max(0, m.hurtT - dt);
     // огонь: зомби и скелеты горят на солнце; лава и огонь поджигают любого
     const mb = [m.x - m.w / 2, m.y, m.z - m.w / 2, m.x + m.w / 2, m.y + m.h, m.z + m.w / 2];
-    if (P.touching(G.world, mb, P.isLava, 0)) { m.fireT = 15; hurtMob(m, 4, m.x, m.z, 'burn'); }
+    if (m.def.fireImmune) m.fireT = 0;
+    else if (P.touching(G.world, mb, P.isLava, 0)) { m.fireT = 15; hurtMob(m, 4, m.x, m.z, 'burn'); }
     else if (P.touching(G.world, mb, P.isFire, 0)) { m.fireT = Math.max(m.fireT, 8); hurtMob(m, 1, m.x, m.z, 'burn'); }
     if (m.def.burns && inSun(m.x, m.y + m.h * 0.8, m.z) && !water) m.fireT = Math.max(m.fireT, 1.5);
     if (water && !P.touching(G.world, mb, P.isLava, 0)) m.fireT = 0;
@@ -428,10 +466,169 @@
     if (m.noiseT <= 0) { m.noiseT = 6 + rnd() * 10; if (distP < 16) VX.audio.play(m.def.sound); }
   }
 
+  // ---------- Гаст и ифрит, огненные шары ----------
+  const fireballs = [];
+  function shootFireball(x, y, z, vx, vy, vz, owner, small) {
+    const f = { x, y, z, vx, vy, vz, owner, small, age: 0, mesh: null };
+    fireballs.push(f);
+    VX.audio.play(small ? 'blaze_shoot' : 'ghast_shoot');
+    return f;
+  }
+  // Гаст: парит, меняет точку, видит героя до 40 блоков - стреляет раз в 3 с шаром, взрывающимся на силу 1
+  function freeAt(x, y, z, r) {
+    for (let dx = -r; dx <= r; dx++) for (let dy = 0; dy <= r * 2; dy++) for (let dz = -r; dz <= r; dz++) { const b = G.world.getBlock(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)); if (b !== 0) return false; }
+    return true;
+  }
+  function updateGhast(m, dt) {
+    const p = G.player;
+    const dx = p.pos.x - m.x, dz = p.pos.z - m.z, dy = p.eye() - (m.y + 2.2), dist = Math.hypot(dx, dy, dz);
+    m.wander -= dt;
+    if (m.wander <= 0 || !m.goal) { m.wander = 3 + rnd() * 5; m.goal = { x: m.x + (rnd() - 0.5) * 24, y: Math.max(C.NETHER_SEA + 4, Math.min(110, m.y + (rnd() - 0.5) * 12)), z: m.z + (rnd() - 0.5) * 24 }; }
+    const gx = m.goal.x - m.x, gy = m.goal.y - m.y, gz = m.goal.z - m.z, gl = Math.hypot(gx, gy, gz) || 1;
+    const sp = gl > 1 ? m.def.speed : 0;
+    m.vx += (gx / gl * sp - m.vx) * Math.min(1, dt * 1.5); m.vy += (gy / gl * sp - m.vy) * Math.min(1, dt * 1.5); m.vz += (gz / gl * sp - m.vz) * Math.min(1, dt * 1.5);
+    const hit = move(m, m.vx * dt, m.vy * dt, m.vz * dt);
+    if (hit.cx || hit.cz || m.vy === 0) m.goal = null;
+    const hunt = G.mode === 'survival' && !p.dead && dist < 40 && sees(m, p);
+    m.yaw = hunt ? Math.atan2(dx, dz) : Math.atan2(m.vx, m.vz) || m.yaw;
+    m.charge = hunt ? (m.charge || 0) + dt : Math.max(0, (m.charge || 0) - dt);
+    if (m.charge >= 3) {
+      m.charge = 0; m.shotT = 0.6;
+      const sx = m.x + dx / dist * 2.4, sy = m.y + 2.2 + dy / dist * 2.4, sz = m.z + dz / dist * 2.4;
+      shootFireball(sx, sy, sz, dx / dist * 14, dy / dist * 14, dz / dist * 14, m, false);
+    }
+    if (m.shotT > 0) m.shotT -= dt;
+    m.hurtT = Math.max(0, m.hurtT - dt);
+    m.noiseT -= dt;
+    if (m.noiseT <= 0) { m.noiseT = 5 + rnd() * 8; if (dist < 48) VX.audio.play('ghast'); }
+  }
+  // Ифрит: висит над землёй, держится на высоте героя, трижды стреляет малыми огненными шарами; вода ранит
+  function updateBlaze(m, dt) {
+    const p = G.player;
+    const dx = p.pos.x - m.x, dz = p.pos.z - m.z, dy = p.eye() - (m.y + 1.5), flat = Math.hypot(dx, dz), dist = Math.hypot(dx, dy, dz);
+    const hunt = G.mode === 'survival' && !p.dead && dist < 24 && sees(m, p);
+    let tx = 0, tz = 0;
+    if (hunt) { m.yaw = Math.atan2(dx, dz); if (flat > 8) { tx = dx / flat; tz = dz / flat; } else if (flat < 4) { tx = -dx / flat; tz = -dz / flat; } }
+    else { m.wander -= dt; if (m.wander <= 0) { m.wander = 2 + rnd() * 4; m.dirYaw = rnd() * Math.PI * 2; m.walking = rnd() < 0.5; } if (m.walking) { tx = Math.sin(m.dirYaw) * 0.5; tz = Math.cos(m.dirYaw) * 0.5; m.yaw = m.dirYaw; } }
+    const k = 1 - Math.exp(-4 * dt);
+    m.vx += (tx * m.def.speed - m.vx) * k; m.vz += (tz * m.def.speed - m.vz) * k;
+    // высота: над игроком на 1-2 блока, иначе медленно опускается
+    const wantUp = hunt && p.eye() + 1 > m.y + 1.5;
+    m.vy = wantUp ? Math.min(2, m.vy + 8 * dt) : Math.max(-1.2, m.vy - 3 * dt);
+    const hit = move(m, m.vx * dt, m.vy * dt, m.vz * dt);
+    if ((hit.cx || hit.cz) && m.onGround) m.vy = 4;
+    m.phase += dt * 3;
+    if (hunt && dist < 16) {
+      m.charge = (m.charge || 0) + dt;
+      if (m.charge >= 3) { m.volley = 3; m.volleyT = 0; m.charge = 0; }
+    } else m.charge = 0;
+    if (m.volley > 0) {
+      m.volleyT -= dt;
+      if (m.volleyT <= 0) {
+        m.volley--; m.volleyT = 0.3;
+        const sp = 12, ex = (rnd() - 0.5) * 0.12, ez = (rnd() - 0.5) * 0.12;
+        shootFireball(m.x + dx / dist * 0.8, m.y + 1.4, m.z + dz / dist * 0.8, (dx / dist + ex) * sp, dy / dist * sp, (dz / dist + ez) * sp, m, true);
+      }
+    }
+    m.hurtT = Math.max(0, m.hurtT - dt);
+    // вода ранит ифрита
+    if (inWater(m)) { m.wetT = (m.wetT || 0) + dt; if (m.wetT >= 1) { m.wetT = 0; m.hurtT = 0; hurtMob(m, 1, m.x, m.z, 'water'); } }
+    m.noiseT -= dt;
+    if (m.noiseT <= 0) { m.noiseT = 4 + rnd() * 6; if (dist < 24) VX.audio.play('blaze'); }
+  }
+  function updateFireballs(dt) {
+    const p = G.player;
+    for (let i = fireballs.length - 1; i >= 0; i--) {
+      const f = fireballs[i];
+      f.age += dt;
+      if (f.age > 12 || f.y < -10 || f.y > C.CH + 10) { dropFireball(i); continue; }
+      let hitAt = null, hitMob = null, hitPlayer = false;
+      const n = 4;
+      for (let s = 0; s < n && !hitAt; s++) {
+        const nx = f.x + f.vx * dt / n, ny = f.y + f.vy * dt / n, nz = f.z + f.vz * dt / n;
+        const r = f.small ? 0.15 : 0.5;
+        if (f.owner !== 'player' && !p.dead && hitBox(null, p.box().map((v, k) => v + (k < 3 ? -r : r)), nx, ny, nz)) { hitAt = [nx, ny, nz]; hitPlayer = true; break; }
+        for (const m of mobs) {
+          if (m.deadT > 0 || m === f.owner) continue;
+          if (hitBox(null, [m.x - m.w / 2 - r, m.y - r, m.z - m.w / 2 - r, m.x + m.w / 2 + r, m.y + m.h + r, m.z + m.w / 2 + r], nx, ny, nz)) { hitAt = [nx, ny, nz]; hitMob = m; break; }
+        }
+        if (hitAt) break;
+        const b = G.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz));
+        if (b !== 0 && (b < 0 || (C.SOLID[b] && hitBlock(b, nx, ny, nz)))) { hitAt = [f.x, f.y, f.z]; break; }
+        f.x = nx; f.y = ny; f.z = nz;
+      }
+      if (!hitAt) continue;
+      dropFireball(i);
+      if (f.small) {
+        // малый шар: 5 урона и поджог; в блок - огонь рядом
+        if (hitPlayer && G.mode === 'survival') { if (p.damage(5, 'fireball', playerEv, false, { x: f.x - f.vx, z: f.z - f.vz })) p.fireT = Math.max(p.fireT || 0, 5); }
+        else if (hitMob && !hitMob.def.fireImmune) { hurtMob(hitMob, 5, f.x, f.z, f.owner === 'player' ? 'fireball' : 'burn'); hitMob.fireT = 5; }
+        else if (!hitPlayer && !hitMob) {
+          const X = Math.floor(f.x), Y = Math.floor(f.y), Z = Math.floor(f.z);
+          if (G.world.getBlock(X, Y, Z) === 0 && C.SOLID[Math.max(0, G.world.getBlock(X, Y - 1, Z))]) { if (VX.fluids) VX.fluids.addFire(X, Y, Z); }
+        }
+      } else {
+        // шар гаста: прямое попадание 6 и взрыв силы 1 с огнём; отбитый игроком убивает гаста
+        if (hitMob && f.owner === 'player') { hitMob.hurtT = 0; hurtMob(hitMob, 1000, f.x, f.z, 'fireball'); }
+        else if (hitPlayer && G.mode === 'survival') p.damage(6, 'fireball', playerEv, false, { x: f.x - f.vx, z: f.z - f.vz });
+        if (VX.explode) VX.explode(hitAt[0], hitAt[1], hitAt[2], 1, { fire: true, ev: playerEv, source: f.owner === 'player' ? null : f.owner });
+      }
+    }
+  }
+  function dropFireball(i) { const f = fireballs[i]; if (f.mesh) group.remove(f.mesh); fireballs.splice(i, 1); }
+  // Удар по огненному шару отбивает его туда, куда смотрит герой
+  function deflect() {
+    const p = G.player, o = [p.pos.x, p.eye(), p.pos.z], d = p.forward();
+    for (const f of fireballs) {
+      if (f.owner === 'player') continue;
+      const r = f.small ? 0.4 : 0.9;
+      const px = f.x - o[0], py = f.y - o[1], pz = f.z - o[2];
+      const t = px * d.x + py * d.y + pz * d.z;
+      if (t < 0 || t > 4) continue;
+      const cx = o[0] + d.x * t - f.x, cy = o[1] + d.y * t - f.y, cz = o[2] + d.z * t - f.z;
+      if (Math.hypot(cx, cy, cz) > r) continue;
+      const sp = Math.hypot(f.vx, f.vy, f.vz) * 1.2;
+      f.vx = d.x * sp; f.vy = d.y * sp; f.vz = d.z * sp; f.owner = 'player'; f.age = 0;
+      VX.audio.play('hit', { surface: 'stone' });
+      G.swing = 1;
+      return true;
+    }
+    return false;
+  }
+
   // Появление: днём звери на траве, ночью (или в темноте) зомби, скелеты, пауки; вдали от игрока.
   // В творческом режиме тоже появляются (враги там не нападают).
   let spawnT = 0;
+  function trySpawnNether() {
+    const p = G.player, w = G.world;
+    const count = (t) => mobs.filter((m) => m.type === t && m.deadT === 0).length;
+    // ифриты у зала крепости с рассадником
+    const f = C.fortressNear(w.seed, p.pos.x, p.pos.z);
+    if (f && Math.hypot(f.x - p.pos.x, f.z - p.pos.z) < 48 && w.getBlock(f.x, f.y + 1, f.z) === C.SPAWNER && count('blaze') < 4 && rnd() < 0.5) {
+      const x = f.x + ((rnd() * 9) | 0) - 4, z = f.z + ((rnd() * 9) | 0) - 4;
+      if (w.getBlock(x, f.y + 1, z) === 0 && w.getBlock(x, f.y + 2, z) === 0) spawnMob('blaze', x + 0.5, f.y + 1, z + 0.5);
+    }
+    const a = rnd() * Math.PI * 2, r = 20 + rnd() * 28;
+    const x = Math.floor(p.pos.x + Math.cos(a) * r), z = Math.floor(p.pos.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    if (rnd() < 0.12 && count('ghast') < 3) {
+      const y = C.NETHER_SEA + 6 + ((rnd() * 50) | 0);
+      if (freeAt(x - 2, y, z - 2, 2)) spawnMob('ghast', x + 0.5, y, z + 0.5);
+      return;
+    }
+    if (count('zombie_pigman') >= 12) return;
+    let y = 30 + ((rnd() * 80) | 0);
+    for (let k = 0; k < 40 && y > 5; k++, y--) {
+      const g0 = w.getBlock(x, y - 1, z);
+      if (g0 > 0 && C.SOLID[g0] && C.RENDER[g0] === 1 && w.getBlock(x, y, z) === 0 && w.getBlock(x, y + 1, z) === 0) {
+        const n = 1 + ((rnd() * 3) | 0);
+        for (let j = 0; j < n; j++) spawnMob('zombie_pigman', x + 0.5 + j * 0.3, y, z + 0.5);
+        return;
+      }
+    }
+  }
   function trySpawn() {
+    if (G.dim === 'nether') return trySpawnNether();
     const p = G.player, w = G.world;
     const near = (hostile) => mobs.filter((m) => !!m.def.hostile === hostile && Math.hypot(m.x - p.pos.x, m.z - p.pos.z) < 96).length;
     const night = (G.dayLight || 0) < 0.35;
@@ -539,6 +736,7 @@
     updateItems(dt);
     updateParts(dt);
     updateArrows(dt);
+    updateFireballs(dt);
     const p = G.player;
     for (let i = mobs.length - 1; i >= 0; i--) {
       const m = mobs[i];
@@ -572,6 +770,7 @@
     return best ? { mob: best, dist: bd } : null;
   }
   function attack() {
+    if (deflect()) return true;
     const hit = rayMob(3.5);
     if (!hit) return false;
     const t = G.target();
@@ -687,6 +886,15 @@
       a.mesh.position.set(a.x, a.y, a.z);
       if (!a.stuck) a.mesh.lookAt(a.x + a.vx, a.y + a.vy, a.z + a.vz);
     }
+    for (const f of fireballs) {
+      if (!f.mesh) {
+        const s = f.small ? 0.3 : 1.0;
+        f.mesh = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), new THREE.MeshBasicMaterial({ map: textures().fireball }));
+        scene().add(f.mesh);
+      }
+      f.mesh.position.set(f.x, f.y, f.z);
+      f.mesh.rotation.set(f.age * 5, f.age * 7, 0);
+    }
     for (const m of mobs) {
       if (!m.model) m.model = buildModel(m.type, m.color);
       const md = m.model;
@@ -698,6 +906,9 @@
       if (m.type === 'zombie' || m.type === 'skeleton') md.arms.forEach((a, k) => { a.rotation.x = -Math.PI / 2 + (k ? sw : -sw) * 0.2 - (m.swingT > 0 ? 0.5 : 0); });
       if (md.wings) md.wings.forEach((wg, k) => { wg.rotation.z = (k ? 1 : -1) * (m.onGround ? 0 : Math.abs(Math.sin(m.phase * 6)) * 0.8); });
       if (md.wool) md.wool.visible = !m.sheared;
+      if (md.tentacles) md.tentacles.forEach((tn, k) => { tn.rotation.x = Math.sin(G.frameNo * 0.05 + k) * 0.3; tn.rotation.z = Math.cos(G.frameNo * 0.04 + k * 1.7) * 0.2; });
+      if (md.ghastBody) { const angry = (m.charge || 0) > 2.2 || m.shotT > 0; if (md.angry !== angry) { md.angry = angry; md.ghastBody.material[4].map = angry ? textures().ghastAngry : textures().ghastFace; } }
+      if (md.rods) md.rods.forEach((rod) => { const ring = rod.userData.ring, k = rod.userData.k, a = m.phase * (ring === 1 ? -1 : 1) + k * Math.PI / 2 + ring * 0.4, rad = [0.6, 0.5, 0.35][ring]; rod.position.set(Math.cos(a) * rad, 1.15 - ring * 0.42 + Math.sin(m.phase * 2 + k) * 0.05, Math.sin(a) * rad); });
       if (m.swingT > 0) m.swingT -= 0.016;
       md.body.rotation.z = m.deadT > 0 ? Math.min(Math.PI / 2, m.deadT * 4) : 0;
       md.fire.visible = m.fireT > 0 && m.deadT === 0;
@@ -716,6 +927,7 @@
 
   function bodies() { return mobs.filter((m) => m.deadT === 0).map((m) => [m.x - m.w / 2, m.y, m.z - m.w / 2, m.x + m.w / 2, m.y + m.h, m.z + m.w / 2]); }
   function clear() {
+    for (let i = fireballs.length - 1; i >= 0; i--) dropFireball(i);
     for (let i = items.length - 1; i >= 0; i--) removeItem(i);
     for (let i = mobs.length - 1; i >= 0; i--) removeMob(i);
     for (let i = arrows.length - 1; i >= 0; i--) dropArrow(i);
@@ -741,5 +953,5 @@
     };
   }
 
-  VX.entities = { blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

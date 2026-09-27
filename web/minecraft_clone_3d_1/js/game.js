@@ -230,13 +230,25 @@
     return meta;
   };
   const CREATIVE_START = [B.grass, B.dirt, B.stone, B.cobblestone, B.oak_planks, B.oak_log, B.glass, B.bricks, B.torch];
+  // Данные измерения (сундуки, печи, посевы, существа, огонь): у обычного мира - в самом мире
+  // (как раньше), у Нижнего мира и Края - в meta.dimData
+  function dimSlot(meta, dim) {
+    if (!dim || dim === 'over') return meta;
+    meta.dimData = meta.dimData || {};
+    const s = meta.dimData[dim] || (meta.dimData[dim] = {});
+    s.furnaces = s.furnaces || {}; s.chests = s.chests || {}; s.crops = s.crops || {};
+    return s;
+  }
+  G.dimSlot = () => dimSlot(G.meta, G.dim);
   async function startWorld(meta, persist) {
     sanitizeMeta(meta);
     G.meta = meta;
     G.mode = meta.mode;
     G.ticks = meta.ticks || 0;
     G.panorama = !persist;
-    world.open(meta, persist);
+    G.dim = persist && meta.dim ? meta.dim : 'over';
+    world.open(meta, persist, G.dim);
+    const slot = dimSlot(meta, G.dim);
     applySettings();
     sky.cloudMap = sky.makeCloudMap(meta.seedNum);
     sky.setClouds(G.settings.clouds);
@@ -250,13 +262,14 @@
     else { player.reset(); player.pos.set(meta.spawn.x, meta.spawn.y, meta.spawn.z); player.yaw = 0; player.pitch = 0; }
     if (meta.inv) inv.load(meta.inv);
     else { inv.clear(); if (meta.mode === 'creative') CREATIVE_START.forEach((id, i) => { inv.slots[i] = VX.inv.newStack(id, 64); }); }
-    if (VX.entities) VX.entities.reset(meta);
+    if (VX.entities) VX.entities.reset(slot);
     G.mining = null;
-    G.furnaces = meta.furnaces || (meta.furnaces = {});
-    G.chests = meta.chests || (meta.chests = {});
-    G.crops = meta.crops || (meta.crops = {});
-    G.sleeping = null; G.bowT = 0;
-    if (VX.fluids) VX.fluids.reset(meta);
+    G.furnaces = slot.furnaces || (slot.furnaces = {});
+    G.chests = slot.chests || (slot.chests = {});
+    G.crops = slot.crops || (slot.crops = {});
+    G.sleeping = null; G.bowT = 0; G.afterLoad = null; G.portalT = 0;
+    if (VX.fluids) VX.fluids.reset(slot);
+    if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.loadT = 0;
     G.saveT = 0;
@@ -282,8 +295,10 @@
     G.meta.player = player.toJSON();
     G.meta.inv = inv.toJSON();
     G.meta.lastPlayed = Date.now();
-    if (VX.entities) VX.entities.save(G.meta);
-    if (VX.fluids) VX.fluids.save(G.meta);
+    G.meta.dim = G.dim;
+    const slot = dimSlot(G.meta, G.dim);
+    if (VX.entities) VX.entities.save(slot);
+    if (VX.fluids) VX.fluids.save(slot);
     G.saveQuick();
     try { await VX.store.putWorld(G.meta); G.saveFailed = false; } catch (e) { saveFailed(e); }
   };
@@ -300,6 +315,30 @@
   G.saveQuick = function () {
     if (!G.meta || G.panorama) return;
     try { localStorage.setItem('cw2_quick_' + G.meta.id, JSON.stringify({ t: Date.now(), player: player.toJSON(), inv: inv.toJSON(), ticks: Math.round(G.ticks) })); } catch (e) { /* нет места - не страшно */ }
+  };
+  // Переход в другое измерение: куски и существа прежнего сохраняются, новое грузится вокруг pos;
+  // after() - когда куски вокруг готовы (найти или построить портал)
+  G.changeDim = function (dim, pos, after) {
+    if (!G.meta || G.panorama) return false;
+    const slot0 = dimSlot(G.meta, G.dim);
+    if (VX.entities) VX.entities.save(slot0);
+    if (VX.fluids) VX.fluids.save(slot0);
+    if (G.container) closeContainer();
+    world.setDim(dim);
+    G.dim = dim; G.meta.dim = dim;
+    const slot = dimSlot(G.meta, dim);
+    G.furnaces = slot.furnaces; G.chests = slot.chests; G.crops = slot.crops;
+    if (VX.entities) VX.entities.reset(slot);
+    if (VX.fluids) VX.fluids.reset(slot);
+    G.mining = null; G.sleeping = null; G.portalT = 0; G.portalWait = true;
+    player.pos.set(pos.x, pos.y, pos.z); player.vel.set(0, 0, 0); player.fallTop = null;
+    G.afterLoad = after || null;
+    G.state = 'loading'; G.loadT = 0;
+    releaseKeys();
+    if (VX.ui) { if (VX.ui.loadingTitle) VX.ui.loadingTitle(dim); VX.ui.show('loading'); }
+    G.emit('dimension', { dim });
+    G.saveWorld();
+    return true;
   };
   G.exitToTitle = async function () {
     if (G.meta && !G.panorama) {
@@ -516,6 +555,8 @@
     if (needsFloor(up) && !C.SOLID[here]) popBlock(x, y + 1, z);
     if (up >= 64 && up <= 71 && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
     if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
+    if (up >= C.NETHER_WART && up <= C.NETHER_WART + 3 && here !== C.SOUL_SAND) popBlock(x, y + 1, z);
+    if (VX.nether) VX.nether.after(x, y, z);
     const walls = [[0, 0, -1, 2], [1, 0, 0, 3], [0, 0, 1, 0], [-1, 0, 0, 1]];
     for (const [dx, , dz, r] of walls) {
       const id = world.getBlock(x + dx, y, z + dz);
@@ -619,6 +660,13 @@
   G.useBed = function (x, y, z) {
     const id = world.getBlock(x, y, z);
     const b = C.BLOCKS[id];
+    // в Нижнем мире и в Краю кровать взрывается (как в оригинале)
+    if (G.dim !== 'over') {
+      const pair = partnerOf(x, y, z, id);
+      world.setBlock(x, y, z, 0); if (pair) world.setBlock(pair.x, pair.y, pair.z, 0);
+      if (VX.explode) VX.explode(x + 0.5, y + 0.5, z + 0.5, 5, { fire: true, ev: playerEvent });
+      return 'explode';
+    }
     // точка возрождения - у кровати
     const head = b.bedHead ? { x, y, z } : (partnerOf(x, y, z, id) || { x, y, z });
     G.meta.bed = { x: head.x, y: head.y, z: head.z };
@@ -651,6 +699,7 @@
       const [x, y, z] = k.split(',').map(Number);
       const id = world.getBlock(x, y, z);
       if (id < 0) continue;
+      if (id >= C.NETHER_WART && id <= C.NETHER_WART + 3) { if (id < C.NETHER_WART + 3 && Math.random() < 1 / 20) world.setBlock(x, y, z, id + 1); continue; }
       if (id < 64 || id > 71) { delete G.crops[k]; continue; }
       if (id < 71 && Math.random() < 1 / 15) world.setBlock(x, y, z, id + 1);
     }
@@ -675,6 +724,7 @@
     const t = G.target();
     if (!t) return null;
     const tb = C.BLOCKS[t.id];
+    if (hi && hi.key === 'flint_and_steel' && VX.nether) return VX.nether.ignite(t, held);
     if (!player.sneaking || !held) {
       if (t.id === B.crafting_table) { G.openContainer('table', t); return 'table'; }
       if ((t.id >= B.furnace && t.id <= B.furnace + 3) || (t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
@@ -698,9 +748,9 @@
       }
       return null;
     }
-    // семена - только на грядку
+    // семена - только на грядку (адский нарост - на песок душ)
     if (hi.plant) {
-      if (t.id === B.farmland && t.n[1] === 1 && world.getBlock(t.x, t.y + 1, t.z) === 0) {
+      if (t.id === (hi.soil || B.farmland) && t.n[1] === 1 && world.getBlock(t.x, t.y + 1, t.z) === 0) {
         world.setBlock(t.x, t.y + 1, t.z, hi.plant);
         G.crops[t.x + ',' + (t.y + 1) + ',' + t.z] = 1;
         if (G.mode === 'survival') inv.takeHeld(1);
@@ -812,6 +862,12 @@
     if (!pos) return null;
     const cur = world.getBlock(pos.x, pos.y, pos.z);
     if (cur < 0 || (cur !== 0 && !C.FLUID[cur] && !C.BLOCKS[cur].replaceable)) return null;
+    // в Нижнем мире вода испаряется (ведро пустеет)
+    if (G.dim === 'nether' && hi.fluid === B.water) {
+      VX.audio.play('fizz');
+      if (G.mode === 'survival') { inv.takeHeld(1); const left = inv.add(D.I.bucket, 1); if (left) G.dropItem(VX.inv.newStack(D.I.bucket, 1), true); }
+      return 'evaporate';
+    }
     world.setBlock(pos.x, pos.y, pos.z, hi.fluid);
     VX.fluids.touch(pos.x, pos.y, pos.z);
     if (G.mode === 'survival') { const s = inv.held(); s.id = D.I.bucket; s.dmg = 0; }
@@ -1020,6 +1076,15 @@
   };
   G.respawn = function () {
     player.reset();
+    // из Нижнего мира и Края - домой, в обычный мир
+    if (G.dim !== 'over') {
+      const bd = G.meta.bed, sp0 = G.meta.spawn;
+      const at = bd ? { x: bd.x + 0.5, y: bd.y + 0.57, z: bd.z + 0.5 } : { x: sp0.x, y: sp0.y, z: sp0.z };
+      G.changeDim('over', at, () => {
+        if (bd) { const id = world.getBlock(bd.x, bd.y, bd.z); if (!(id > 0 && C.BLOCKS[id].bed)) { G.meta.bed = null; player.pos.set(sp0.x, sp0.y, sp0.z); G.say('Кровать не найдена: возрождение в начале мира'); } }
+      });
+      return;
+    }
     let sp = G.meta.spawn;
     // кровать: возрождение у неё, если она цела
     const bd = G.meta.bed;
@@ -1071,6 +1136,15 @@
       else G.eating = undefined;
     }
     if (VX.fluids) VX.fluids.tick(dt);
+    if (VX.nether && G.state === 'play') VX.nether.tick(dt);
+    if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
+      G.fortT = 0;
+      const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
+      if (f) {
+        const dx = Math.abs(player.pos.x - f.x), dz = Math.abs(player.pos.z - f.z), dy = player.pos.y - f.y;
+        if (dy >= 0 && dy < 6 && ((dx <= 6 && dz <= 6) || (dz <= 2.5 && dx <= f.arm) || (dx <= 2.5 && dz <= f.arm))) G.emit('fortress', {});
+      }
+    }
     cropsTick(dt);
     // печи
     for (const k in G.furnaces) {
@@ -1138,6 +1212,7 @@
     } else if (G.state === 'loading') {
       G.loadT += dt;
       if (world.readyAround(player.pos.x, player.pos.z, 2) || G.loadT > 25) {
+        if (G.afterLoad) { const f = G.afterLoad; G.afterLoad = null; f(); }
         // игрок не должен оказаться внутри земли: поднимаем до свободного места
         let guard = 0;
         while (VX.phys.boxHits(world, player.box()) && guard++ < 140) player.pos.y += 1;
@@ -1187,10 +1262,17 @@
     G.underwater = under;
     const far = world.radius * C.CS;
     const sk = sky.update(G.ticks, camera, under, far, renderer);
+    const nether = G.dim === 'nether';
+    if (nether) {
+      // Нижний мир: неба нет, красноватая дымка, свет только от лавы, светокамня и порталов
+      sky.group.visible = false; if (sky.clouds) sky.clouds.visible = false;
+      sk.day = 0; sk.fog = new THREE.Color(0x330808);
+    }
+    mats.uniforms.uAmb.value = nether ? 0.55 : 0;
     mats.uniforms.uDay.value = sk.day;
     mats.uniforms.uFogColor.value.copy(sk.fog);
-    mats.uniforms.uFogNear.value = under ? 2 : far * 0.62;
-    mats.uniforms.uFogFar.value = under ? 22 : far - 4;
+    mats.uniforms.uFogNear.value = under ? 2 : nether ? far * 0.3 : far * 0.62;
+    mats.uniforms.uFogFar.value = under ? 22 : nether ? far * 0.95 : far - 4;
     scene.fog = scene.fog || new THREE.Fog(0xffffff, 10, 100);
     scene.fog.color.copy(sk.fog); scene.fog.near = mats.uniforms.uFogNear.value; scene.fog.far = mats.uniforms.uFogFar.value;
     G.dayLight = sk.day;
@@ -1269,6 +1351,7 @@
       if (id > 0 && C.EMIT[id]) blk = Math.max(blk, (C.EMIT[id] - Math.abs(dx) - Math.abs(dz) - Math.abs(dy)) / 15);
     }
     const day = G.dayLight === undefined ? 1 : G.dayLight;
+    if (G.dim === 'nether') return Math.max(blk, 0.45);          // неба нет, но и полной тьмы тоже
     return Math.max(skyL * (0.25 + 0.75 * day), blk, 0.12);
   };
   let llT = 0, llV = 1;

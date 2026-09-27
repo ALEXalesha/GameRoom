@@ -345,6 +345,7 @@ test.describe('minecraft_clone_3d_1: достижения', () => {
         if (a.set) return [a.on, { id: a.set[0] }];
         if (a.on === 'kill') return ['kill', { mob: a.mob, cause: a.cause || 'player' }];
         if (a.on === 'depth') return ['depth', { y: a.below - 1 }];
+        if (a.on === 'dimension') return ['dimension', { dim: a.dim }];
         return [a.on, {}];
       };
       for (const a of D.ACH) {
@@ -371,7 +372,7 @@ test.describe('minecraft_clone_3d_1: достижения', () => {
       return { res, n: D.ACH.length, final: D.ACH.filter((a) => a.final).map((a) => a.id) };
     });
     expect(r.n).toBeGreaterThanOrEqual(15);
-    expect(r.n).toBeLessThanOrEqual(30);      // 24 первых + 6 за броню, лаву, обсидиан, сон, хлеб и лук
+    expect(r.n).toBeLessThanOrEqual(70);      // 30 прежних и новые к Нижнему миру, Краю, чарам и зельям
     expect(r.final).toEqual(['heart']);
     for (const a of r.res) {
       expect(a.ok, a.id).toBe(true);

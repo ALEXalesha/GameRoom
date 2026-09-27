@@ -26,6 +26,7 @@ function VoxelCore() {
     'door_wood_lower', 'door_wood_upper', 'door_iron_lower', 'door_iron_upper', 'chest_top', 'chest_side', 'chest_front', 'bed_head_top',
     'bed_foot_top', 'bed_side_head', 'bed_side_foot', 'lever', 'water_flow',
     'trapdoor', 'iron_trapdoor', 'ladder',
+    'netherrack', 'soul_sand', 'nether_bricks', 'quartz_ore', 'portal', 'nether_wart_0', 'nether_wart_1', 'nether_wart_2', 'spawner',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -204,6 +205,34 @@ function VoxelCore() {
   // id блоков: 0..255 и 1024..4095 (256..1023 - предметы); клетка куска - 16 бит
   const MAXID = 4096;
   const isBlock = (id) => (id < 256 || (id >= 1024 && id < MAXID)) && !!BLOCKS[id];
+  // ---- Нижний мир (id с 1158)
+  const NETHERRACK = 1158, SOUL_SAND = 1159, NETHER_BRICKS = 1160, NETHER_FENCE = 1161, QUARTZ_ORE = 1162, PORTAL = 1163, NETHER_WART = 1165, SPAWNER = 1169, NB_SLAB = 1170, NB_STAIRS = 1173;
+  const ITEM_QUARTZ = 404, ITEM_WART = 405;
+  def(NETHERRACK, 'netherrack', 'Незерак', { tex: 'netherrack', hardness: 0.4, tool: 'pickaxe', level: 0, group: 'nature', blast: 0.4 });
+  def(SOUL_SAND, 'soul_sand', 'Песок душ', { render: 'box', shape: [[0, 0, 0, 16, 14, 16]], tex: 'soul_sand', hardness: 0.5, tool: 'shovel', sound: 'sand', group: 'nature' });
+  def(NETHER_BRICKS, 'nether_bricks', 'Незер-кирпичи', { tex: 'nether_bricks', hardness: 2, tool: 'pickaxe', level: 0 });
+  def(NETHER_FENCE, 'nether_fence', 'Забор из незер-кирпича', { render: 'box', dyn: 3, tex: 'nether_bricks', shape: [[6, 0, 6, 10, 16, 10], [0, 6, 7, 6, 9, 9], [10, 6, 7, 16, 9, 9], [0, 12, 7, 6, 15, 9], [10, 12, 7, 16, 15, 9]], hardness: 2, tool: 'pickaxe', level: 0 });
+  def(QUARTZ_ORE, 'quartz_ore', 'Кварцевая руда', { tex: 'quartz_ore', hardness: 3, tool: 'pickaxe', level: 0, drop: ITEM_QUARTZ, group: 'nature' });
+  // портал: плоскость в клетке; 1163 - рамка вдоль X (тонкий по Z), 1164 - вдоль Z
+  def(PORTAL, 'portal', 'Портал', { render: 'box', shape: [[0, 0, 6, 16, 16, 10]], tex: 'portal', solid: false, hardness: -1, light: 11, drop: 0, creative: false, portal: 'x', transBox: true, sound: 'glass' });
+  def(PORTAL + 1, 'portal_z', 'Портал', { render: 'box', shape: [[6, 0, 0, 10, 16, 16]], tex: 'portal', solid: false, hardness: -1, light: 11, drop: 0, creative: false, portal: 'z', transBox: true, sound: 'glass' });
+  for (let st = 0; st < 4; st++) def(NETHER_WART + st, 'nether_wart_' + st, 'Адский нарост', { render: 'crop', tex: 'nether_wart_' + [0, 1, 1, 2][st], solid: false, hardness: 0, sound: 'grass', creative: false, wart: st, drop: 0 });
+  def(SPAWNER, 'spawner', 'Рассадник чудовищ', { render: 'glass', tex: 'spawner', hardness: 5, tool: 'pickaxe', level: 0, drop: 0, creative: false });
+  {
+    const s = BLOCKS[NETHER_BRICKS], id = NB_SLAB;
+    def(id, 'nether_brick_slab', 'Плита из незер-кирпича', like(s, { render: 'box', shape: [[0, 0, 0, 16, 8, 16]], slab: 8, half: 0, mat: NETHER_BRICKS }));
+    def(id + 1, 'nether_brick_slab_top', 'Плита из незер-кирпича', like(s, { render: 'box', shape: [[0, 8, 0, 16, 16, 16]], creative: false, item: id, slab: 8, half: 1, mat: NETHER_BRICKS }));
+    def(id + 2, 'nether_brick_slab_double', 'Двойная плита', like(s, { creative: false, item: id, drop: id, dropCount: 2, slab: 8, half: 2, mat: NETHER_BRICKS }));
+    for (let d = 0; d < 4; d++) for (let up = 0; up < 2; up++) {
+      const lo = [0, 0, 0, 16, 8, 16], hi = half(d).slice(); hi[1] = 8;
+      def(NB_STAIRS + d * 2 + up, 'nether_brick_stairs' + (d || up ? '_' + d + up : ''), 'Ступени из незер-кирпича',
+        like(s, { render: 'box', shape: up ? [flipY(lo), flipY(hi)] : [lo, hi], creative: !d && !up, item: NB_STAIRS, stairs: 8, dir: d, up: !!up, mat: NETHER_BRICKS }));
+    }
+  }
+  // плиты и ступени по номеру материала (8 - незер-кирпич, у него свой диапазон id)
+  const slabBase = (m) => (m < 8 ? SLAB + m * 3 : NB_SLAB);
+  const stairsBase = (m) => (m < 8 ? STAIRS + m * 8 : NB_STAIRS);
+
   // Быстрые таблицы свойств по id: мешер и свет читают только их
   const RENDER = new Uint8Array(MAXID);   // 0 нет, 1 куб, 2 листва, 3 стекло, 4 вода, 5 лёд, 6 крест, 7 факел, 8 коробки, 9 посев, 10 лава
   const RCODE = { none: 0, cube: 1, leaves: 2, glass: 3, water: 4, ice: 5, cross: 6, torch: 7, box: 8, crop: 9, lava: 10 };
@@ -212,7 +241,8 @@ function VoxelCore() {
   const FFALL = new Uint8Array(MAXID);
   const SHAPE = [];                     // коробки не во всю клетку, в шестнадцатых: [x0, y0, z0, x1, y1, z1]
   const CSHAPE = [];                    // своя коробка столкновения (калитка, лестница), [] - проходим
-  const DYN = new Uint8Array(MAXID);    // форма зависит от соседей: 1 забор, 2 стеклянная панель
+  const DYN = new Uint8Array(MAXID);    // форма зависит от соседей: 1 забор, 2 стеклянная панель, 3 забор из незер-кирпича
+  const TBOX = new Uint8Array(MAXID);   // коробки в прозрачной сетке (портал)
   const SOLID = new Uint8Array(MAXID);
   const EMIT = new Uint8Array(MAXID);
   const FILTER = new Uint8Array(MAXID);   // сколько света гасит клетка (15 - непрозрачная)
@@ -231,6 +261,7 @@ function VoxelCore() {
     if (b.shape) SHAPE[id] = b.shape;
     if (b.collide) CSHAPE[id] = b.collide;
     DYN[id] = b.dyn || 0;
+    TBOX[id] = b.transBox ? 1 : 0;
     for (let f = 0; f < 6; f++) {
       const t = b.tex || {};
       let name = t.all || (f === 3 ? t.top : f === 2 ? t.bottom : t.side);
@@ -249,12 +280,12 @@ function VoxelCore() {
     if (!k) return mode === 'collide' && CSHAPE[id] ? CSHAPE[id] : (SHAPE[id] || null);
     const full = (n) => n > 0 && RENDER[n] === 1 && SOLID[n] === 1;
     const out = [];
-    if (k === 1) {
+    if (k === 1 || k === 3) {
       const top = mode === 'collide' ? 24 : 16;
       out.push(mode === 'render' ? [6, 0, 6, 10, 16, 10] : [6, 0, 6, 10, top, 10]);
       for (let a = 0; a < 4; a++) {
         const n = nb(ARMS[a][0], 0, ARMS[a][1]);
-        if (!(full(n) || DYN[n] === 1 || (n > 0 && BLOCKS[n].gate))) continue;
+        if (!(full(n) || DYN[n] === k || (k === 1 && n > 0 && BLOCKS[n].gate))) continue;
         const span = [[7, 0, 9, 6], [0, 7, 6, 9], [7, 10, 9, 16], [10, 7, 16, 9]][a];   // x0, z0, x1, z1
         if (mode === 'render') { out.push([span[0], 6, span[1], span[2], 9, span[3]], [span[0], 12, span[1], span[2], 15, span[3]]); }
         else out.push([span[0], 0, span[1], span[2], top, span[3]]);
@@ -473,7 +504,136 @@ function VoxelCore() {
   }
 
   // ---------- Генерация куска ----------
+  // ---------- Нижний мир ----------
+  // Плотность из 3D-шума на решётке 4x8x4 с интерполяцией (как в оригинале), у пола и потолка гуще;
+  // лавовое море до высоты 31, песок душ у берегов, светокамень гроздьями с потолка, кварц,
+  // крепости из незер-кирпича: крест коридоров на опорах и зал с рассадником ифритов.
+  const NETHER_SEA = 31, FORT_CELL = 128;
+  function fortressAt(seed, cellX, cellZ) {
+    const r = hash3(cellX, 911, cellZ, seed ^ 0x1f2e3d4c);
+    if (r > 0.55) return null;
+    const fx = cellX * FORT_CELL + 32 + Math.floor(hash3(cellX, 1, cellZ, seed) * 64), fz = cellZ * FORT_CELL + 32 + Math.floor(hash3(cellX, 2, cellZ, seed) * 64);
+    return { x: fx, z: fz, y: 58 + Math.floor(hash3(cellX, 3, cellZ, seed) * 10), arm: 40 };
+  }
+  function fortressNear(seed, x, z) {
+    const cxl = Math.floor(x / FORT_CELL), czl = Math.floor(z / FORT_CELL);
+    let best = null, bd = Infinity;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const f = fortressAt(seed, cxl + dx, czl + dz);
+      if (!f) continue;
+      const d = Math.hypot(f.x - x, f.z - z);
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
+  function generateNether(seed, cx, cz) {
+    const w = worldOf(seed, 'nether');
+    const data = new Uint16Array(CVOL);
+    const X0 = cx * CS, Z0 = cz * CS;
+    // решётка плотности 5 x 17 x 5
+    const GX = 5, GY = 17, dens = new Float32Array(GX * GY * GX);
+    for (let gz = 0; gz < GX; gz++) for (let gx = 0; gx < GX; gx++) for (let gy = 0; gy < GY; gy++) {
+      const wx = X0 + gx * 4, wz = Z0 + gz * 4, y = gy * 8;
+      let d = w.cave.n3(wx / 64, y / 34, wz / 64) * 0.85 + w.cave2.n3(wx / 24, y / 14, wz / 24) * 0.35 + w.big.n3(wx / 140, y / 60, wz / 140) * 0.25;
+      d += Math.max(0, (26 - y) / 26) * 1.1 + Math.max(0, (y - 92) / 28) * 1.2;
+      dens[gy + GY * (gx + GX * gz)] = d;
+    }
+    const D = (gx, gy, gz) => dens[gy + GY * (gx + GX * gz)];
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z;
+      const gx = x >> 2, gz = z >> 2, fx = (x & 3) / 4, fz = (z & 3) / 4;
+      for (let y = 0; y < CH; y++) {
+        const i = cidx(x, y, z);
+        if (y === 0 || y === CH - 1 || (y < 5 && hash3(wx, y, wz, seed) < 0.9 - y * 0.2) || (y > CH - 6 && hash3(wx, y, wz, seed + 3) < 0.9 - (CH - 1 - y) * 0.2)) { data[i] = B.bedrock; continue; }
+        const gy = Math.min(GY - 2, y >> 3), fy = (y - gy * 8) / 8;
+        const a = D(gx, gy, gz) + (D(gx + 1, gy, gz) - D(gx, gy, gz)) * fx, b = D(gx, gy, gz + 1) + (D(gx + 1, gy, gz + 1) - D(gx, gy, gz + 1)) * fx;
+        const c2 = D(gx, gy + 1, gz) + (D(gx + 1, gy + 1, gz) - D(gx, gy + 1, gz)) * fx, d2 = D(gx, gy + 1, gz + 1) + (D(gx + 1, gy + 1, gz + 1) - D(gx, gy + 1, gz + 1)) * fx;
+        const lo = a + (b - a) * fz, hi = c2 + (d2 - c2) * fz, v = lo + (hi - lo) * fy;
+        if (v > 0.06) data[i] = NETHERRACK;
+        else if (y <= NETHER_SEA) data[i] = LAVA;
+      }
+      // песок душ и гравий у берегов лавового моря
+      const patch = w.floor.n2(wx / 18, wz / 18);
+      for (let y = NETHER_SEA - 2; y < NETHER_SEA + 8; y++) {
+        const i = cidx(x, y, z);
+        if (data[i] === NETHERRACK && data[i + 256] === 0) {
+          const kind = patch > 0.25 ? SOUL_SAND : patch < -0.45 ? B.gravel : 0;
+          if (kind) for (let k = 0; k < 3 && y - k > 4; k++) if (data[i - k * 256] === NETHERRACK) data[i - k * 256] = kind;
+        }
+      }
+    }
+    const orng = mulberry32((seed ^ Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663) ^ 0x7777) | 0);
+    // кварц
+    for (let v = 0; v < 14; v++) {
+      let x = (orng() * CS) | 0, z = (orng() * CS) | 0, y = 10 + ((orng() * 108) | 0);
+      const n = 2 + ((orng() * 10) | 0);
+      for (let k = 0; k < n; k++) {
+        if (x >= 0 && x < CS && z >= 0 && z < CS && y > 0 && y < CH && data[cidx(x, y, z)] === NETHERRACK) data[cidx(x, y, z)] = QUARTZ_ORE;
+        const d = (orng() * 6) | 0;
+        if (d === 0) x++; else if (d === 1) x--; else if (d === 2) z++; else if (d === 3) z--; else if (d === 4) y++; else y--;
+      }
+    }
+    // светокамень: гроздья с потолка пещер
+    for (let v = 0; v < 8; v++) {
+      const x0 = 2 + ((orng() * 12) | 0), z0 = 2 + ((orng() * 12) | 0);
+      let y0 = 50 + ((orng() * 60) | 0);
+      if (data[cidx(x0, y0, z0)] !== 0) continue;
+      while (y0 < CH - 6 && data[cidx(x0, y0 + 1, z0)] === 0) y0++;         // до потолка пещеры
+      if (y0 >= CH - 6 || data[cidx(x0, y0 + 1, z0)] !== NETHERRACK) continue;
+      data[cidx(x0, y0, z0)] = B.glowstone;
+      for (let k = 0; k < 40; k++) {
+        const x = x0 + ((orng() * 5) | 0) - 2, z = z0 + ((orng() * 5) | 0) - 2, y = y0 - ((orng() * 5) | 0);
+        if (x < 0 || x >= CS || z < 0 || z >= CS || y < 6) continue;
+        const i = cidx(x, y, z);
+        if (data[i] !== 0) continue;
+        const nbs = [i + 256, i - 256, x > 0 ? i - 1 : -1, x < CS - 1 ? i + 1 : -1, z > 0 ? i - 16 : -1, z < CS - 1 ? i + 16 : -1];
+        if (nbs.filter((j) => j >= 0 && data[j] === B.glowstone).length === 1) data[i] = B.glowstone;
+      }
+    }
+    // крепости
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const f = fortressAt(seed, Math.floor(X0 / FORT_CELL) + dx, Math.floor(Z0 / FORT_CELL) + dz);
+      if (f) buildFortress(data, X0, Z0, f);
+    }
+    return data;
+  }
+  function buildFortress(data, X0, Z0, f) {
+    const Y = f.y, A = f.arm;
+    const put = (x, y, z, id) => { if (y > 0 && y < CH - 1) data[cidx(x, y, z)] = id; };
+    for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+      const wx = X0 + x, wz = Z0 + z, dx = wx - f.x, dz = wz - f.z;
+      const room = Math.abs(dx) <= 6 && Math.abs(dz) <= 6;
+      const alongX = Math.abs(dz) <= 2 && Math.abs(dx) <= A, alongZ = Math.abs(dx) <= 2 && Math.abs(dz) <= A;
+      if (room) {
+        const edge = Math.abs(dx) === 6 || Math.abs(dz) === 6;
+        put(x, Y, z, NETHER_BRICKS);
+        for (let y = Y + 1; y <= Y + 5; y++) {
+          const door = edge && (Math.abs(dx) <= 1 || Math.abs(dz) <= 1) && y <= Y + 3;
+          put(x, y, z, edge && !door ? NETHER_BRICKS : 0);
+        }
+        put(x, Y + 6, z, NETHER_BRICKS);
+        // сад адского нароста у западной стены
+        if (dx === -4 && Math.abs(dz) <= 3) { put(x, Y, z, SOUL_SAND); put(x, Y + 1, z, NETHER_WART + 3); }
+        if (dx === 0 && dz === 0) put(x, Y + 1, z, SPAWNER);
+        // колонны зала до земли
+        if (Math.abs(dx) === 6 && Math.abs(dz) === 6) for (let y = Y - 1; y > 4 && (data[cidx(x, y, z)] === 0 || data[cidx(x, y, z)] === LAVA); y--) put(x, y, z, NETHER_BRICKS);
+        continue;
+      }
+      if (!alongX && !alongZ) continue;
+      const off = alongX ? Math.abs(dz) : Math.abs(dx), along = alongX ? dx : dz;
+      put(x, Y, z, NETHER_BRICKS);
+      for (let y = Y + 1; y <= Y + 3; y++) {
+        if (off === 2) put(x, y, z, y === Y + 2 && ((along % 4) + 4) % 4 === 0 ? NETHER_FENCE : NETHER_BRICKS);
+        else put(x, y, z, 0);
+      }
+      put(x, Y + 4, z, NETHER_BRICKS);
+      // опоры моста каждые 8 блоков
+      if (((along % 8) + 8) % 8 === 0 && off <= 1) for (let y = Y - 1; y > 4 && (data[cidx(x, y, z)] === 0 || data[cidx(x, y, z)] === LAVA); y--) put(x, y, z, NETHER_BRICKS);
+    }
+  }
+
   function generate(seed, cx, cz, gen) {
+    if (gen === 'nether') return generateNether(seed, cx, cz);
     const w = worldOf(seed, gen);
     const data = new Uint16Array(CVOL);
     const X0 = cx * CS, Z0 = cz * CS;
@@ -942,7 +1102,7 @@ function VoxelCore() {
               verts[k] = [lx * 16 + c[0], y * 16 + c[1], lz * 16 + c[2], u, v];
               lights[k] = L;
             }
-            emitQuad(opaque, verts, t, F.shade, lights, false);
+            emitQuad(TBOX[id] ? trans : opaque, verts, t, F.shade, lights, false);
           }
         }
         continue;
@@ -1028,7 +1188,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, shapeOf, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

@@ -99,6 +99,16 @@
   item(400, 'gunpowder', 'Порох');
   item(401, 'shield', 'Щит', { stack: 1, tool: { type: 'shield', speed: 1, level: 0, dur: 336, dmg: 1 } });
   item(402, 'egg_creeper', 'Яйцо призыва: крипер', { draw: 'egg:creeper', egg: 'creeper', creativeOnly: true });
+  // Нижний мир
+  item(403, 'flint_and_steel', 'Огниво', { stack: 1, tool: { type: 'igniter', speed: 1, level: 0, dur: 65, dmg: 1 } });
+  item(404, 'quartz', 'Кварц');
+  item(405, 'nether_wart', 'Адский нарост', { plant: C.NETHER_WART, soil: C.SOUL_SAND });
+  item(406, 'blaze_rod', 'Огненный стержень', { fuel: 120 });
+  item(407, 'blaze_powder', 'Огненный порошок');
+  item(408, 'ghast_tear', 'Слеза гаста');
+  item(409, 'gold_nugget', 'Золотой самородок');
+  item(410, 'nether_brick', 'Незер-кирпич');
+  [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
   // цвет шерсти по красителю
   const WOOL_OF = { white: B.wool_white, red: B.wool_red, yellow: B.wool_yellow, blue: B.wool_blue, green: B.wool_green, black: B.wool_black };
 
@@ -147,6 +157,7 @@
     if (b.key === 'oak_leaves' && rnd() < 0.06) return [[I.apple, 1]];
     if (b.key === 'tall_grass') return rnd() < 0.125 ? [[I.seeds, 1]] : [];
     if (b.key === 'gravel' && rnd() < 0.1) return [[I.flint, 1]];
+    if (b.wart !== undefined) return [[I.nether_wart, b.wart === 3 ? 2 + ((rnd() * 3) | 0) : 1]];
     if (b.crop !== undefined) return b.crop === 7 ? [[I.wheat, 1], [I.seeds, (rnd() * 4) | 0]].filter((d) => d[1] > 0) : [[I.seeds, 1]];
     const d = b.drop === undefined ? b.item : b.drop;
     return d ? [[d, b.dropCount || 1]] : [];
@@ -207,6 +218,13 @@
   RECIPES.push({ out: [C.TRAPDOOR, 2], shape: ['PPP', 'PPP'], keys: { P: '#planks' } });
   RECIPES.push({ out: [C.IRON_TRAPDOOR, 1], shape: ['II', 'II'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: [C.PANE, 16], shape: ['GGG', 'GGG'], keys: { G: 'glass' } });
+  RECIPES.push({ out: ['flint_and_steel', 1], shapeless: ['iron_ingot', 'flint'] });
+  RECIPES.push({ out: ['blaze_powder', 2], shapeless: ['blaze_rod'] });
+  RECIPES.push({ out: [C.NETHER_BRICKS, 1], shape: ['NN', 'NN'], keys: { N: 'nether_brick' } });
+  RECIPES.push({ out: [C.NETHER_FENCE, 6], shape: ['BNB', 'BNB'], keys: { B: C.NETHER_BRICKS, N: 'nether_brick' } });
+  RECIPES.push({ out: [C.NB_SLAB, 6], shape: ['MMM'], keys: { M: C.NETHER_BRICKS } });
+  RECIPES.push({ out: [C.NB_STAIRS, 4], shape: ['M  ', 'MM ', 'MMM'], keys: { M: C.NETHER_BRICKS } });
+  RECIPES.push({ out: ['gold_ingot', 1], shape: ['NNN', 'NNN', 'NNN'], keys: { N: 'gold_nugget' } });
   RECIPES.push({ out: ['shield', 1], shape: ['PIP', 'PPP', ' P '], keys: { P: '#planks', I: 'iron_ingot' } });
   RECIPES.push({ out: [C.LADDER, 3], shape: ['S S', 'SSS', 'S S'], keys: { S: 'stick' } });
   const ARMOR_IN = { leather: 'leather', iron: 'iron_ingot', gold: 'gold_ingot', diamond: 'diamond' };
@@ -282,7 +300,7 @@
     ['cobblestone', 'stone'], ['sand', 'glass'], ['iron_ore', 'iron_ingot'], ['gold_ore', 'gold_ingot'],
     ['oak_log', 'charcoal'], ['birch_log', 'charcoal'], ['spruce_log', 'charcoal'],
     ['raw_porkchop', 'cooked_porkchop'], ['raw_mutton', 'cooked_mutton'], ['clay', 'bricks'], ['cactus', 'green_dye'],
-    ['raw_beef', 'steak'], ['raw_chicken', 'cooked_chicken'],
+    ['raw_beef', 'steak'], ['raw_chicken', 'cooked_chicken'], ['netherrack', 'nether_brick'], ['quartz_ore', 'quartz'],
   ].map(([a, b]) => ({ in: idOf(a), out: idOf(b) }));
   const SMELT_TIME = 10;     // секунд на один предмет, как в оригинале
   const smeltOf = (id) => SMELT.find((s) => s.in === id) || null;
@@ -322,6 +340,9 @@
     cow: { name: 'Корова', hp: 10, speed: 1.1, w: 0.9, h: 1.4, drops: [['leather', 0, 2], ['raw_beef', 1, 3]], day: true, sound: 'cow' },
     chicken: { name: 'Курица', hp: 4, speed: 1.1, w: 0.4, h: 0.7, drops: [['feather', 0, 2], ['raw_chicken', 1, 1]], day: true, sound: 'chicken', flutter: true },
     skeleton: { name: 'Скелет', hp: 20, speed: 2.1, w: 0.6, h: 1.99, drops: [['bone', 0, 2], ['arrow', 0, 2]], hostile: true, dmg: 2, ranged: true, sound: 'skeleton', burns: true },
+    zombie_pigman: { name: 'Зомби-свиночеловек', hp: 20, speed: 2.3, w: 0.6, h: 1.95, drops: [['rotten_flesh', 0, 1], ['gold_nugget', 0, 1]], neutral: true, dmg: 8, fireImmune: true, sound: 'pigman' },
+    ghast: { name: 'Гаст', hp: 10, speed: 2.2, w: 4, h: 4, drops: [['ghast_tear', 0, 1], ['gunpowder', 0, 2]], hostile: true, dmg: 0, flying: true, fireImmune: true, sound: 'ghast' },
+    blaze: { name: 'Ифрит', hp: 20, speed: 2.3, w: 0.6, h: 1.8, drops: [['blaze_rod', 0, 1]], hostile: true, dmg: 6, hover: true, fireImmune: true, playerDrops: true, sound: 'blaze' },
     creeper: { name: 'Крипер', hp: 20, speed: 2.4, w: 0.6, h: 1.7, drops: [['gunpowder', 0, 2]], hostile: true, dmg: 0, explodes: true, fuse: 1.5, power: 3, sound: 'creeper' },
     spider: { name: 'Паук', hp: 16, speed: 2.8, w: 1.4, h: 0.9, drops: [['string', 0, 2]], hostile: true, dmg: 2, climber: true, sound: 'spider' },
   };
@@ -359,6 +380,12 @@
     { id: 'sleep', parent: 'wool', name: 'Сладких снов', desc: 'Проспать ночь в кровати', on: 'sleep', icon: I.bed },
     { id: 'bread', parent: 'root', name: 'Хлеб насущный', desc: 'Вырастить пшеницу и сделать хлеб', on: 'craft', items: ['bread'], icon: I.bread },
     { id: 'archer', parent: 'sword', name: 'Меткий стрелок', desc: 'Победить скелета стрелой из лука', on: 'kill', mob: 'skeleton', cause: 'arrow', icon: I.bow },
+    // вкладка «Нижний мир»
+    { id: 'nether', tab: 'nether', name: 'Мы должны углубиться', desc: 'Войти в Нижний мир через портал', on: 'dimension', dim: 'nether', icon: B.obsidian },
+    { id: 'fortress', tab: 'nether', parent: 'nether', name: 'Страшная крепость', desc: 'Войти в крепость Нижнего мира', on: 'fortress', icon: C.NETHER_BRICKS },
+    { id: 'blaze_rod', tab: 'nether', parent: 'fortress', name: 'В огонь', desc: 'Добыть огненный стержень', on: 'pickup', items: ['blaze_rod'], icon: I.blaze_rod },
+    { id: 'return_sender', tab: 'nether', parent: 'nether', name: 'Возврат отправителю', desc: 'Сразить гаста его же огненным шаром', on: 'kill', mob: 'ghast', cause: 'fireball', icon: I.ghast_tear },
+    { id: 'wart', tab: 'nether', parent: 'fortress', name: 'Адский урожай', desc: 'Собрать адский нарост', on: 'pickup', items: ['nether_wart'], icon: I.nether_wart },
     { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart, final: true },
   ];
   for (const a of ACH) {
@@ -377,6 +404,7 @@
       else if (ev === 'kill') ok = data.mob === a.mob && (!a.cause || data.cause === a.cause) && progress['kill:' + a.mob] >= (a.count || 1);
       else if (ev === 'biome') ok = (progress.biomes || []).length >= (a.count || 1);
       else if (ev === 'depth') ok = data.y < a.below;
+      else if (ev === 'dimension') ok = data.dim === a.dim;
       else ok = true;
       if (ok) out.push(a);
     }
