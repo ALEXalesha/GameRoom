@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="application-name" content="Огненные джунгли">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Огненные джунгли (фан-версия, не связана с правообладателем)</title>
 <style>
@@ -9,10 +10,19 @@
   html, body { height: 100%; overflow: hidden; background: #07090d; }
   #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
   #c { display: block; image-rendering: pixelated; touch-action: none; box-shadow: 0 0 40px #000; }
+  /* Окна меню - тем же пиксельным шрифтом, что и игра (pixel-font.js); размеры кратны 8 - точки шрифта целые */
+  #app .kit-panel { border-radius: 0; border-width: 4px; box-shadow: 8px 8px 0 rgba(0,0,0,.6); }
+  #app .kit-panel h2 { font-size: 24px; line-height: 32px; letter-spacing: 0; font-weight: normal; }
+  #app .kit-btn, #app .kit-btn.small { font-size: 16px; font-weight: normal; border-radius: 0; }
+  #app .kit-body, #app .kit-toast div, #app .kit-modal p { font-size: 16px; line-height: 24px; }
+  #app .kit-sec { font-size: 16px; letter-spacing: 0; }
+  #app .kit-grid small, #app .kit-ach small, #app .kit-body small, #app .kit-row small { font-size: 16px; }
+  #app .kit-toast div { border-radius: 0; }
 </style>
 </head>
 <body>
 <div id="app"><canvas id="c" aria-label="Игровое поле"></canvas></div>
+<script src="pixel-font.js"></script>
 <script src="kit.js"></script>
 <script>
 'use strict';
@@ -888,7 +898,7 @@ function drawPickups() {
 }
 function updateParticles() { for (let i = particles.length - 1; i >= 0; i--) { const q = particles[i]; q.x += q.vx; q.y += q.vy; q.vy += 0.12; if (--q.life <= 0) particles.splice(i, 1); } }
 function txt(t, x, y, c, size = 8, align = 'left') {
-  ctx.font = `${size}px Consolas, "Courier New", monospace`; ctx.textBaseline = 'top'; ctx.textAlign = align;
+  ctx.font = `${size}px JunglePixel, Consolas, monospace`; ctx.textBaseline = 'top'; ctx.textAlign = align;
   ctx.fillStyle = '#000'; ctx.fillText(t, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(t, x, y); ctx.textAlign = 'left';
 }
 let bannerRect = null;
@@ -911,7 +921,7 @@ function drawHud() {
   }
   bannerRect = null;
   if (G.banner && kit.mode === 'play') {             // под паузой и окнами надпись не рисуется
-    ctx.globalAlpha = Math.min(1, G.banner.t / 20); px(0, 70, 'rgba(0,0,0,0.5)', W, 22); txt(G.banner.text, W / 2, 75, '#ffffff', 12, 'center'); ctx.globalAlpha = 1;
+    ctx.globalAlpha = Math.min(1, G.banner.t / 20); px(0, 70, 'rgba(0,0,0,0.5)', W, 22); txt(G.banner.text, W / 2, 74, '#ffffff', 16, 'center'); ctx.globalAlpha = 1;
     bannerRect = { x: 0, y: 70, w: W, h: 22 };
   }
 }
@@ -969,7 +979,7 @@ const MUSIC = {
 kit = GameKit.create({
   id: 'jungle',
   root: document.getElementById('app'),
-  theme: { accent: '#ffd040', accent2: '#c83030', panel: 'rgba(16,20,14,0.95)', shade: 'rgba(0,0,0,.3)', font: '"Segoe UI", Arial, sans-serif' },
+  theme: { accent: '#ffd040', accent2: '#c83030', panel: 'rgba(16,20,14,0.97)', shade: 'rgba(0,0,0,.3)', font: '"JunglePixel", Consolas, monospace' },
   actions: {
     left: { label: 'Влево', keys: ['KeyA', 'ArrowLeft'], pad: ['b14', 'a0-'] },
     right: { label: 'Вправо', keys: ['KeyD', 'ArrowRight'], pad: ['b15', 'a0+'] },
@@ -999,7 +1009,7 @@ kit = GameKit.create({
   drawLogo(g, w, h, t) {
     g.imageSmoothingEnabled = false;
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = 'bold 46px Consolas, "Courier New", monospace';
+    g.font = '40px JunglePixel, Consolas, monospace';
     const fl = 0.5 + 0.5 * Math.sin(t * 6);
     g.fillStyle = '#400000'; g.fillText('ОГНЕННЫЕ', w / 2 + 3, h * 0.33 + 3); g.fillText('ДЖУНГЛИ', w / 2 + 3, h * 0.73 + 3);
     g.fillStyle = `rgb(255,${120 + fl * 80},40)`; g.fillText('ОГНЕННЫЕ', w / 2, h * 0.33);

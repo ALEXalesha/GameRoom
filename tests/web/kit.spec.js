@@ -231,3 +231,39 @@ for (const game of Object.keys(DEFEAT)) {
     expect(await page.evaluate(() => [__game.kit.mode, __game.kit.topId()])).toEqual(['menu', 'main']);
   });
 }
+
+// Протокол оболочки «Игротеки»: игра во фрейме симулятора ОС получает {mix:'pause'} / {mix:'resume'}
+const SHELL = {
+  dino: { start: '[data-id=endless]', frame: '__game.state.stats.steps', name: 'Дино-бег' },
+  space_shooter: { start: '[data-id=campaign]', frame: '__game.S.frame', name: 'Космический стрелок' },
+  'jungle-strike': { start: '[data-id=campaign]', frame: '__game.G.t', name: 'Огненные джунгли' },
+  mario: { start: '[data-id=play]', frame: '__game.state.timer', name: 'Прыг-скок' },
+};
+for (const game of Object.keys(SHELL)) {
+  test(`${game}: сообщение оболочки {mix:'pause'} останавливает игру и звук, {mix:'resume'} паузу не снимает`, async ({ page }) => {
+    await openGame(page, game, 'seed=1');
+    const s = SHELL[game];
+    await page.click('[data-screen=main] ' + s.start);
+    await page.evaluate(() => { __game.kit.audioCtx(); return __game.kit.ctx.resume(); });
+    const f0 = await page.evaluate(s.frame);
+    await page.waitForTimeout(300);
+    const f1 = await page.evaluate(s.frame);
+    expect(f1, 'до сообщения игра идёт').toBeGreaterThan(f0);
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await page.waitForTimeout(100);
+    const a = await page.evaluate(s.frame);
+    await page.waitForTimeout(1000);
+    const r = await page.evaluate(([expr]) => ({ frame: eval(expr), mode: __game.kit.mode, audio: __game.kit.ctx.state }), [s.frame]);
+    expect(r).toEqual({ frame: a, mode: 'paused', audio: 'suspended' });
+    await page.evaluate(() => window.postMessage({ mix: 'resume' }, '*'));
+    await page.waitForFunction(() => __game.kit.ctx.state === 'running', null, { timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    const b = await page.evaluate(([expr]) => ({ frame: eval(expr), mode: __game.kit.mode, audio: __game.kit.ctx.state, top: __game.kit.topId() }), [s.frame]);
+    expect(b).toEqual({ frame: a, mode: 'paused', audio: 'running', top: 'pause' });
+  });
+
+  test(`${game}: в заголовке страницы есть короткое имя для оболочки`, async ({ page }) => {
+    await openGame(page, game, 'seed=1');
+    expect(await page.evaluate(() => (document.querySelector('meta[name="application-name"]') || {}).content)).toBe(SHELL[game].name);
+  });
+}

@@ -366,3 +366,29 @@ test.describe('jungle-strike: по ревью', () => {
     expect(r).toEqual({ phase: 'done', campaign: true, hard: false });
   });
 });
+
+test.describe('jungle-strike: пиксельный шрифт', () => {
+  test('меню и надписи игры - пиксельным шрифтом, в нём есть все буквы из текстов игры', async ({ page }) => {
+    const errors = await openGame(page, 'jungle-strike', 'seed=1&fast');
+    const r = await page.evaluate(async () => {
+      await PixelFont.ready;
+      const k = __game.kit, texts = [];
+      const grab = () => texts.push(document.querySelector('#app .kit-layer').innerText);
+      grab();
+      for (const id of ['settings', 'achievements', 'howto', 'credits', 'missions']) { k.closeAll(); k.showMain(); document.querySelector(`[data-screen=main] [data-id=${id}]`).click(); grab(); }
+      k.closeAll(); __game.startMission(0, false); k.pause(); grab();
+      for (const m of __game.MISSIONS) texts.push(m.name, m.intro);
+      const font = getComputedStyle(document.querySelector('[data-screen=pause] .kit-btn')).fontFamily;
+      const c = document.createElement('canvas').getContext('2d');
+      c.font = '16px JunglePixel'; const w = c.measureText('ИГРА').width;
+      const missing = new Set();
+      for (const t of texts) for (const ch of t) if (!/\s/.test(ch) && !PixelFont.chars.has(ch) && !'🏆🔒↺'.includes(ch)) missing.add(ch);
+      return { status: PixelFont.face.status, font, w, missing: [...missing].join('') };
+    });
+    expect(r.status).toBe('loaded');
+    expect(r.font).toMatch(/^"?JunglePixel/);
+    expect(r.w).toBe(48);                  // 4 буквы по 5 точек + промежуток, точка = 2 px при 16 px
+    expect(r.missing).toBe('');
+    expect(errors).toEqual([]);
+  });
+});
