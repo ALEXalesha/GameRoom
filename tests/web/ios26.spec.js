@@ -375,6 +375,11 @@ test('папка «Игры» на рабочем столе, игра на ве
   const gb = await scr.locator('.game-bar').boundingBox();
   await dragFrom(page, gb.x + gb.width / 2, gb.y + gb.height / 2, 0, -300);
   await expect(scr).toBeHidden();
+  // нажатие на полоску в игре тоже ведёт домой
+  await page.evaluate((id) => openApp(id), 'game-' + g.id);
+  await expect(scr).toBeVisible();
+  await scr.locator('.game-bar .home-indicator').click();
+  await expect(scr).toBeHidden();
   expect(errors).toEqual([]);
 });
 

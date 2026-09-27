@@ -1874,7 +1874,8 @@ function openApp(id, arg) {
 let homeTap = null;
 $('screen').addEventListener('click', e => {
   // полоска «Домой»: одно нажатие - домой, двойное - переключатель программ (первое нажатие ждёт второго)
-  if (e.target.closest('.home-indicator') && !$('lock-page').classList.contains('active')) {
+  // в игре полоска захватывает указатель (жест над рамкой), поэтому щелчок приходит самой полосе .game-bar
+  if (e.target.closest('.home-indicator, .game-bar') && !$('lock-page').classList.contains('active')) {
     if (homeTap) { clearTimeout(homeTap); homeTap = null; openSwitcher(); } else homeTap = setTimeout(() => { homeTap = null; showHome(); }, 260);
     return;
   }
@@ -2879,7 +2880,10 @@ function gamePost(sc, msg) { const f = sc.el.querySelector('iframe'); if (f) try
 function initGame(sc, g) {
   sc.el.innerHTML = '<iframe class="game-frame" title="' + esc(g.title) + '" src="' + (g.src || '../' + g.dir + '/index.html') + '" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe><div class="game-bar"><div class="home-indicator" title="Домой"></div></div>';
   // жест «Домой» уходит над рамкой игры: захват указателя, чтобы отпускание пришло телефону, а не игре
-  sc.el.querySelector('.game-bar').addEventListener('pointerdown', e => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ } });
+  const bar = sc.el.querySelector('.game-bar'); let downY = null;
+  bar.addEventListener('pointerdown', e => { downY = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ } });
+  // смахивание с захватом тоже рождает щелчок по полосе: его не считаем нажатием (иначе с следующим выйдет «двойное»)
+  bar.addEventListener('click', e => { if (downY !== null && Math.abs(e.clientY - downY) > 10) e.stopPropagation(); downY = null; });
   sc.onShow = () => gamePost(sc, 'resume');
   sc.onHide = () => gamePost(sc, 'pause');
   sc.onKill = () => { gamePost(sc, 'pause'); setTimeout(() => { if (current !== sc.el.id.slice(4)) { sc.el.innerHTML = ''; sc.inited = false; } }, 150); };
