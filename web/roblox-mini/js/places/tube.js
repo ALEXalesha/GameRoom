@@ -33,37 +33,48 @@
   }
   const lateral = (th) => ({ x: Math.cos(th), z: -Math.sin(th) });   // u > 0 - налево по ходу
 
-  function ribbon(pts) {
-    const pos = [], uv = [], nor = [], idx = [], wpos = [], widx = [], wnor = [];
-    pts.forEach((p, i) => {
-      const L = lateral(p.th);
-      for (const sgn of [1, -1]) {
-        pos.push(p.x + L.x * W / 2 * sgn, p.y, p.z + L.z * W / 2 * sgn);
-        uv.push(sgn * W / 8, p.s / 4); nor.push(0, 1, 0);
-      }
-      if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-      // бортики
-      for (const sgn of [1, -1]) {
-        const bx = p.x + L.x * W / 2 * sgn, bz = p.z + L.z * W / 2 * sgn;
-        wpos.push(bx, p.y - 0.4, bz, bx, p.y + 1.6, bz);
-        wnor.push(-L.x * sgn, 0, -L.z * sgn, -L.x * sgn, 0, -L.z * sgn);
-      }
-      if (i > 0) {
-        const a = (i - 1) * 4;
-        widx.push(a, a + 4, a + 1, a + 1, a + 4, a + 5);
-        widx.push(a + 2, a + 3, a + 6, a + 3, a + 7, a + 6);
-      }
-    });
+  // Жёлоб - сплошной короб: дно, внутренние стенки, бортик сверху, наружные стенки и низ толщиной
+  // CHUTE.depth. Сечение (u поперёк, v вверх от дна) обходится по кругу, каждая грань - полоса вдоль
+  // трассы со своим цветом; поперечные полосы через 10 шагов, чтобы жёлоб читался на снегу.
+  const CHUTE = { wall: 1.8, t: 0.6, depth: 1.2, outer: '#2f74d0', outer2: '#2a63b8', inner: '#5aa9ef', floor: '#8fc8f7', floor2: '#b3dbfb', rim: '#ffd23f', rim2: '#f2f3f3', bottom: '#1e4f96' };
+  function chuteGeometry(pts) {
+    const hw = W / 2, C = CHUTE, t = C.t;
+    // [u, v] по кругу; цвет грани по индексу ребра
+    const sec = [[-hw, 0], [hw, 0], [hw, C.wall], [hw + t, C.wall], [hw + t, -C.depth], [-hw - t, -C.depth], [-hw - t, C.wall], [-hw, C.wall]];
+    const kind = ['floor', 'inner', 'rim', 'outer', 'bottom', 'outer', 'rim', 'inner'];
+    const pos = [], nor = [], col = [], idx = [];
+    const c = new THREE.Color();
+    const colorOf = (k, band) => (k === 'floor' ? (band ? C.floor2 : C.floor) : k === 'rim' ? (band ? C.rim2 : C.rim) : k === 'outer' ? (band ? C.outer2 : C.outer) : k === 'inner' ? C.inner : C.bottom);
+    for (let e = 0; e < sec.length; e++) {
+      const [u1, v1] = sec[e], [u2, v2] = sec[(e + 1) % sec.length];
+      const len = Math.hypot(u2 - u1, v2 - v1), nu = -(v2 - v1) / len, nv = (u2 - u1) / len;   // наружу
+      const base = pos.length / 3;
+      pts.forEach((p, i) => {
+        const L = lateral(p.th), band = Math.floor(p.s / 10) % 2 === 1;
+        c.set(colorOf(kind[e], band));
+        for (const [u, v] of [[u1, v1], [u2, v2]]) {
+          pos.push(p.x + L.x * u, p.y + v, p.z + L.z * u);
+          nor.push(L.x * nu, nv, L.z * nu);
+          col.push(c.r, c.g, c.b);
+        }
+        if (i > 0) { const a = base + (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }   // лицевая сторона - наружу (по нормали)
+      });
+    }
+    // торцы в начале и в конце: то же сечение, закрашено
+    const tri = THREE.ShapeUtils.triangulateShape(sec.map(([u, v]) => new THREE.Vector2(u, v)), []);
+    for (const [p, sgn] of [[pts[0], -1], [pts[pts.length - 1], 1]]) {
+      const L = lateral(p.th), f = { x: Math.sin(p.th) * sgn, z: Math.cos(p.th) * sgn }, base = pos.length / 3;
+      c.set(C.outer);
+      for (const [u, v] of sec) { pos.push(p.x + L.x * u, p.y + v, p.z + L.z * u); nor.push(f.x, 0, f.z); col.push(c.r, c.g, c.b); }
+      for (const [a, b2, d] of tri) idx.push(base + a, base + b2, base + d);
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.setIndex(idx);
-    const wg = new THREE.BufferGeometry();
-    wg.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
-    wg.setAttribute('normal', new THREE.Float32BufferAttribute(wnor, 3));
-    wg.setIndex(widx);
-    return { g, wg };
+    g.computeBoundingSphere();
+    return g;
   }
 
   // Состояние ватрушки: s, u, v (вдоль), vu (поперёк)
@@ -127,19 +138,21 @@
         if (pts.some((p) => Math.hypot(p.x - x, p.z - z) < 14)) continue;
         K.pine(game, x, 0, z, 1 + rnd() * 0.8, true);
       }
-      // опоры под жёлобом
+      // опоры: две ноги под краями жёлоба, от земли до самого низа короба (держат, а не стоят рядом)
       for (let i = 10; i < pts.length; i += 14) {
-        const p = pts[i];
-        if (p.y < 6) continue;
-        w.add({ top: [p.x, p.y - 0.6, p.z], size: [2, p.y - 0.6, 2], color: '#8e5a3a', mat: 'smooth', solid: false });
+        const p = pts[i], topY = p.y - CHUTE.depth, L = lateral(p.th);
+        if (topY < 4) continue;
+        for (const sgn of [1, -1]) {
+          const x = p.x + L.x * (W / 2 - 1.2) * sgn, z = p.z + L.z * (W / 2 - 1.2) * sgn;
+          w.add({ top: [x, topY, z], size: [1.4, topY, 1.4], color: '#8e5a3a', mat: 'smooth', solid: false, tag: 'post' });
+        }
+        w.add({ top: [p.x, topY, p.z], size: [2.2, 1, 2.2], color: '#6b4128', mat: 'smooth', solid: false, tag: 'post' });   // подушка под дном
       }
-      // сам жёлоб
-      const rb = ribbon(pts);
-      const surf = new THREE.Mesh(rb.g, new THREE.MeshLambertMaterial({ map: B.tex.snow() }));
-      surf.receiveShadow = true;
-      const walls = new THREE.Mesh(rb.wg, new THREE.MeshPhongMaterial({ color: 0xbfe3ff, side: THREE.DoubleSide, shininess: 60 }));
-      walls.castShadow = true; walls.receiveShadow = true;
-      w.scene.add(surf, walls);
+      // сам жёлоб: одна сетка с цветами вершин (одна отрисовка)
+      const chute = new THREE.Mesh(chuteGeometry(pts), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+      chute.castShadow = true; chute.receiveShadow = true;
+      w.scene.add(chute);
+      st.chute = [chute]; st.chuteColor = CHUTE.outer; st.chuteDepth = CHUTE.depth;
       // старт: площадка и синяя плита «Садись»
       const top = pts[0];
       w.add({ top: [top.x, top.y, top.z - 12], size: [20, 2, 16], color: '#c9ccd1', tag: 'topdeck' });
