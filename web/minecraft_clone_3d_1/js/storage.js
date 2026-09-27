@@ -44,14 +44,15 @@
   function tx(store, mode, fn) {
     return new Promise((resolve, reject) => {
       begin();
-      let t;
-      try { t = db.transaction(store, mode); } catch (e) { done(); reject(e); return; }
-      const os = t.objectStore(store);
-      let result;
-      Promise.resolve(fn(os, (r) => { result = r; })).catch(() => {});
-      t.oncomplete = () => { done(); resolve(result); };
-      t.onerror = () => { done(); reject(t.error); };
-      t.onabort = () => { done(); reject(t.error); };
+      let t, finished = false, result;
+      // счётчик незаконченных записей уменьшается ровно один раз, что бы ни случилось:
+      // иначе flush() ждал бы вечно, и выйти в меню было бы нельзя
+      const end = (ok, v) => { if (finished) return; finished = true; done(); if (ok) resolve(v); else reject(v); };
+      try { t = db.transaction(store, mode); } catch (e) { end(false, e); return; }
+      t.oncomplete = () => end(true, result);
+      t.onerror = () => end(false, t.error);
+      t.onabort = () => end(false, t.error || new Error('запись отменена'));
+      try { fn(t.objectStore(store), (r) => { result = r; }); } catch (e) { try { t.abort(); } catch (e2) { /* уже закрыта */ } end(false, e); }
     });
   }
   const req = (r, set) => { r.onsuccess = () => set(r.result); };
@@ -80,9 +81,11 @@
     if (kind === 'local') { try { return JSON.parse(localStorage.getItem(LS + 'w_' + id)); } catch (e) { return null; } }
     const w = mem.worlds.get(id); return w ? JSON.parse(JSON.stringify(w)) : null;
   }
+  // Ошибка записи (нет места, база закрыта) не роняет игру: сообщаем и идём дальше
+  const report = (e) => { if (VX.onStorageError) VX.onStorageError(e); return false; };
   async function putWorld(w) {
     const copy = JSON.parse(JSON.stringify(w));
-    if (kind === 'idb') return tx('worlds', 'readwrite', (os) => { os.put(copy); });
+    if (kind === 'idb') return tx('worlds', 'readwrite', (os) => { os.put(copy); }).then(() => true, report);
     if (kind === 'local') { try { localStorage.setItem(LS + 'w_' + w.id, JSON.stringify(copy)); } catch (e) { VX.onStorageFull && VX.onStorageFull(); } return; }
     mem.worlds.set(w.id, copy);
   }
@@ -141,7 +144,7 @@
   async function putChunk(w, cx, cz, data) {
     const packed = C.rleEncode(data);
     const k = chunkKey(w, cx, cz);
-    if (kind === 'idb') return tx('chunks', 'readwrite', (os) => { os.put(packed, k); });
+    if (kind === 'idb') return tx('chunks', 'readwrite', (os) => { os.put(packed, k); }).then(() => true, report);
     if (kind === 'local') { try { localStorage.setItem(LS + 'c_' + k, toB64(packed)); } catch (e) { VX.onStorageFull && VX.onStorageFull(); } return; }
     mem.chunks.set(k, packed);
   }

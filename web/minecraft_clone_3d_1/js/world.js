@@ -97,6 +97,11 @@
     return { opaque, trans, uniforms: opaque.uniforms };
   }
 
+  // Кусок с диска: неизвестные id блоков (другая версия, битая запись) становятся камнем
+  const KNOWN = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) KNOWN[i] = C.BLOCKS[i] ? 1 : 0;
+  function sanitize(d) { for (let i = 0; i < d.length; i++) if (!KNOWN[d[i]]) d[i] = C.B.stone; return d; }
+
   // ---------- Мир ----------
   function World(scene, materials) {
     this.scene = scene;
@@ -107,7 +112,7 @@
     this.pool = makePool(wp !== null ? Math.max(0, Math.min(8, +wp || 0)) : Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 1)));
     this.jobs = new Map();
     this.jobId = 1;
-    this.pool.forEach((w) => { w.onmessage = (e) => this.onResult(w, e.data); w.onerror = () => { w.dead = true; }; });
+    this.pool.forEach((w) => { w.onmessage = (e) => this.onResult(w, e.data); w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); this.workerDied(w); }; });
     this.syncMode = this.pool.length === 0;
     this.meta = null;
     this.radius = 8;
@@ -210,7 +215,7 @@
             const ch = this.chunks.get(keyOf(cx, cz));
             if (!ch) continue;
             const d = found.get(cx + ',' + cz);
-            if (d) { ch.data = d; ch.state = 2; ch.modified = true; this.stats.loadedFromDisk++; this.touchNeighbours(cx, cz); }
+            if (d) { sanitize(d); ch.data = d; ch.state = 2; ch.modified = true; this.stats.loadedFromDisk++; this.touchNeighbours(cx, cz); }
             else ch.state = 3;     // ждёт генерации
           }
         }).catch(() => { for (const [cx, cz] of batch) { const ch = this.chunks.get(keyOf(cx, cz)); if (ch && ch.state === 1) ch.state = 3; } });
@@ -296,6 +301,17 @@
       w.postMessage({ id, type: 'gen', seed: this.seed, gen: this.gen, cx: ch.cx, cz: ch.cz });
     }
   };
+  // Поток упал: его задания раздаются заново; если упали все - работа идёт на странице
+  World.prototype.workerDied = function (w) {
+    w.dead = true;
+    for (const [id, job] of this.jobs) {
+      if (job.w !== w) continue;
+      this.jobs.delete(id);
+      const ch = job.ch;
+      if (job.type === 'gen') ch.state = 3; else { ch.pending = false; ch.needMesh = true; }
+    }
+    if (this.pool.every((x) => x.dead)) this.syncMode = true;
+  };
   World.prototype.onResult = function (w, m) {
     w.busy = Math.max(0, w.busy - 1);
     const job = this.jobs.get(m.id);
@@ -347,7 +363,7 @@
     for (const m of this.fresh) m.frustumCulled = true;
     this.fresh.length = 0;
     this.frameNo = (this.frameNo || 0) + 1;
-    if (this.frameNo % 3 === 0) this.collect(this.trash.length > 400);
+    if (this.frameNo % 3 === 0 || this.trash.length > 40) this.collect(this.trash.length > 400);
   };
   // Старая сетка убирается со сцены сразу, а буферы видеокарты освобождаются позже и по одному:
   // пачка удалений в одном кадре останавливает ANGLE/Direct3D на десятки миллисекунд (рывки на ходу)
@@ -359,7 +375,8 @@
   World.prototype.collect = function (all) {
     const now = performance.now();
     let n = 0;
-    while (this.trash.length && (all || (n < 1 && now - this.trash[0][0] > 1500))) { this.trash.shift()[1].dispose(); n++; }
+    const batch = this.trash.length > 40 ? 4 : 1;       // очередь большая - освобождаем быстрее
+    while (this.trash.length && (all || (n < batch && now - this.trash[0][0] > 1500))) { this.trash.shift()[1].dispose(); n++; }
   };
   // Пересобрать все сетки (сменились настройки графики)
   World.prototype.remeshAll = function () { for (const ch of this.chunks.values()) if (ch.data) ch.needMesh = true; };
