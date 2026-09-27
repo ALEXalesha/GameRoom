@@ -33,7 +33,11 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-let rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+// ?seed=N - повторяемая очередь. Зерно задаётся заново в начале каждого режима: заставка в меню тратит
+// случайные числа сколько угодно, а очередь партии с тем же зерном всегда та же
+const SEED = params.has('seed') ? Number(params.get('seed')) || 1 : null;
+const freshRnd = () => (SEED !== null ? mulberry32(SEED) : Math.random);
+let rnd = freshRnd();
 let fxRnd = mulberry32(99);                                      // для частиц: не сбивает очередь фигур
 
 const COLORS = { I: '#2fd7f0', O: '#f7d046', T: '#b060f0', S: '#58d860', Z: '#f05060', J: '#4a78f0', L: '#f59a3a', G: '#5a6078' };
@@ -414,6 +418,7 @@ function resetBoard() {
   das = { dir: 0, t: 0, arr: 0, charged: false };
 }
 function startMode(mode) {
+  rnd = freshRnd();
   if (state.phase === 'play' && state.mode !== 'demo' && !state.over && state.stats && state.stats.pieces) saveResult(false);
   resetBoard();
   state.mode = mode;

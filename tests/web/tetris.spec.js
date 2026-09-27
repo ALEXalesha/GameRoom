@@ -536,3 +536,15 @@ test.describe('Блоки: по второму ревью', () => {
     await expect(page.locator('[data-screen=finish] tr:has-text("Линии") td').nth(1)).toHaveText('40');
   });
 });
+
+test.describe('Блоки: очередь не зависит от заставки', () => {
+  test('заставка в меню тратит случайные числа, но очередь режима с тем же зерном та же', async ({ page }) => {
+    const seq = () => page.evaluate(() => { const g = __game; g.startMode('zen'); const q = [g.current.type, ...g.queue.slice(0, 13)]; g.kit.toMenu(); return q.join(''); });
+    await open(page, 'seed=9&fast');
+    const fresh = await seq();
+    await open(page, 'seed=9&fast');
+    await page.evaluate(() => { __game.step(3000, false); });          // заставка сыграла много фигур
+    const afterDemo = await seq();
+    expect(afterDemo).toBe(fresh);
+  });
+});
