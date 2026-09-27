@@ -172,7 +172,8 @@ test.describe('horizon_drift_offline: открытый мир', () => {
         if (e) {
           const ti = (e.tunnelRange[0] + e.tunnelRange[1]) >> 1, nx = -M.TZ[ti], nz = M.TX[ti];
           const tr = drive(M.X[ti] + nx * 45, M.Z[ti] + nz * 45, Math.atan2(-nx, -nz), 12, 900, { thr: 0.4 });
-          out.over = { road: M.Y[ti], minY: Math.min(...tr.map((t) => t.y)) };
+          // машина всё время на склоне горы: не падает в прорезь над тоннелем и не взлетает над ней
+          out.over = { road: M.Y[ti], minY: Math.min(...tr.map((t) => t.y)), maxSink: Math.max(...tr.map((t) => M.terrainHeight(t.x, t.z) - t.y)) };
           let it = e.i0; while (it < e.i1 && !(M.FL[it] & 2)) it++;            // первая точка под горой
           const i0 = Math.max(e.i0, it - 60);
           w.placeAt(M.X[i0], M.Z[i0], Math.atan2(M.TX[i0], M.TZ[i0])); w.setAutopilot(20);
@@ -209,7 +210,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
         return out;
       });
       if (r.bridge) { expect(r.bridge.maxY).toBeLessThan(r.bridge.deck - 2); expect(r.bridge.maxDy).toBeLessThan(0.5); }
-      if (r.over) { expect(r.over.minY).toBeGreaterThan(r.over.road + 5); expect(r.through.reached).toBe(true); expect(r.through.worst).toBeLessThan(0.05); }
+      if (r.over) { expect(r.over.minY).toBeGreaterThan(r.over.road + 5); expect(r.over.maxSink).toBeLessThan(0.3); expect(r.through.reached).toBe(true); expect(r.through.worst).toBeLessThan(0.05); }
       expect(r.mesh.onRoad).toBeGreaterThan(1000);
       expect(r.mesh.buried).toBe(0);
       expect(r.mesh.p95).toBeLessThan(0.6);
@@ -488,7 +489,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
     }
   });
 
-  test('ночью фары заметно освещают полотно перед машиной; фонари дают пятна света', async ({ page }) => {
+  test('ночью фары заметно освещают свою полосу перед машиной', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 500 });
     await openDrift(page);
     await startWorld(page, 'mountains');
@@ -499,19 +500,34 @@ test.describe('horizon_drift_offline: открытый мир', () => {
       const e = M.edges.find((x) => x.type === 'highway'); let i = e.i0 + 200; for (let k = e.i0 + 100; k < e.i1 - 100; k += 10) if (M.K[k] < 0.002 && !M.FL[k]) { i = k; break; }
       w.placeAt(M.X[i], M.Z[i], Math.atan2(M.TX[i], M.TZ[i])); w.save.autoTime = false; w.save.weather = 'clear';
       for (let k = 0; k < 40; k++) W.stream(true);
+      // точки на своей полосе (мимо осевой разметки) на 20-30 м впереди, дальний участок за пределом фар (70 м) и обочина - все в кадре
+      const cam = __drift.render.camera, cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight;
+      const lum = (x, z) => { const v = new THREE.Vector3(x, M.groundAt(x, z).y + 0.05, z).project(cam); const X = Math.round((v.x + 1) / 2 * cw), Y = Math.round((v.y + 1) / 2 * ch); if (X < 0 || X >= cw || Y < 0 || Y >= ch || v.z > 1) return null; const b = new Uint8Array(4); gl.readPixels(X, Y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b); return (b[0] * 0.2126 + b[1] * 0.7152 + b[2] * 0.0722) / 255; };
+      const avg = (a) => a.reduce((s, v) => s + v, 0) / a.length;
       const measure = (tod) => {
         w.save.tod = tod; __drift.stepWorld(2); W.cam.init = false; for (let k = 0; k < 8; k++) W.frame(1 / 60, 1, 'chase');
         const p = w.player, fx = Math.sin(p.h), fz = Math.cos(p.h), hw = M.edges[M.E[i]].hw;
-        const px = (x, z) => { const v = new THREE.Vector3(x, M.groundAt(x, z).y + 0.05, z).project(__drift.render.camera); const cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight; const X = Math.round((v.x + 1) / 2 * cw), Y = Math.round((v.y + 1) / 2 * ch); const b = new Uint8Array(4); gl.readPixels(X, Y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b); return (b[0] * 0.2126 + b[1] * 0.7152 + b[2] * 0.0722) / 255; };
+        const at = (d, lat) => lum(p.x + fx * d + (-fz) * lat, p.z + fz * d + fx * lat);
         W.frame(1 / 60, 1, 'chase');
-        const road = px(p.x + fx * 14, p.z + fz * 14), side = px(p.x + fx * 14 + (-fz) * (hw + 16), p.z + fz * 14 + fx * (hw + 16));
-        return { road, side };
+        const lit = [], far = [], side = [], edge = [], edgeFar = [];
+        for (const d of [20, 24, 28]) for (const lat of [-2.5, 2.5]) lit.push(at(d, lat));
+        for (const lat of [-2.5, 2.5]) far.push(at(70, lat));
+        for (const d of [20, 24, 28]) side.push(at(d, hw + 5), at(d, -hw - 5));
+        // настоящий свет прожектора ложится и на обочину у кромки, не только на полосу под конусом
+        for (const d of [20, 24, 28]) edge.push(at(d, hw + 3), at(d, -hw - 3));
+        edgeFar.push(at(70, hw + 3), at(70, -hw - 3));
+        const all = lit.concat(far, side, edge, edgeFar);
+        return { visible: all.every((v) => v !== null), road: avg(lit), far: avg(far), side: avg(side), edge: avg(edge), edgeFar: avg(edgeFar) };
       };
       const night = measure(23.5), day = measure(13);
-      return { night, day, poolOpacity: W.mat.pool.opacity };
+      return { night, day };
     });
-    expect(r.night.road).toBeGreaterThan(0.12);                 // полотно в свете фар хорошо видно
-    expect(r.night.road).toBeGreaterThan(r.night.side * 2);     // и заметно ярче обочины вне пятна
+    expect(r.night.visible && r.day.visible).toBe(true);           // все точки замера в кадре
+    expect(r.night.road).toBeGreaterThan(0.12);                    // полоса в свете фар хорошо видна
+    expect(r.night.road).toBeGreaterThan(r.night.far * 2.5);       // и заметно ярче той же дороги дальше, куда фары не достают
+    expect(r.night.road).toBeGreaterThan(r.night.side * 1.5);      // и ярче обочины рядом
+    expect(r.day.road).toBeGreaterThan(r.night.far);               // днём дорога светлее ночной
+    expect(r.night.edge).toBeGreaterThan(r.night.edgeFar * 1.3);   // кромка в свете фар светлее кромки вдали
   });
 
   test('зона дрифта считается только по ходу зоны; призовые за дуэль с бродячим соперником раз в игровые сутки', async ({ page }) => {
