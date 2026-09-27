@@ -159,10 +159,15 @@
     upd();
     form.append(nameL, name, seedL, seed, modeB, modeDesc);
     const row = el('div', 'row');
+    let creating = false;
     const create = async () => {
-      const meta = await G.createWorld({ name: name.value, seed: seed.value, mode });
-      selectedWorld = meta.id;
-      await G.openWorld(meta.id);
+      if (creating) return;                    // двойной щелчок не создаёт два мира
+      creating = true;
+      try {
+        const meta = await G.createWorld({ name: name.value, seed: seed.value, mode });
+        selectedWorld = meta.id;
+        await G.openWorld(meta.id);
+      } finally { creating = false; }
     };
     row.append(button('Создать мир', create), button('Отмена', () => UI.show('worlds')));
     s.append(form, row);
@@ -447,7 +452,8 @@
           // броня: шлем, нагрудник, поножи, ботинки - столбик слева, как в оригинале
           const col = el('div', 'armorcol');
           for (let k = 0; k < 4; k++) { const d = slotEl(40 + k, v.get(40 + k), 'armor a' + k); col.append(d); }
-          top.append(col);
+          const pvBox = el('div', 'pvbox'); pvBox.append(VX.entities.previewCanvas());
+          top.append(col, pvBox);
         }
         top.append(g, el('div', 'arrow'), slotEl(200, v.get(200), 'big'));
         invPanel.append(top, el('div', 'ptitle', 'Инвентарь'), mainGrid());
@@ -727,6 +733,7 @@
 
   UI.frame = function (dt) {
     if (G.meta && !G.panorama) renderHud(dt);
+    if (UI.current === 'inv' && G.container && G.container.size === 2) VX.entities.renderPreview();
     if (UI.current === 'inv' && G.container) {
       UI.slotT = (UI.slotT || 0) - dt;
       if (G.container.f && UI.slotT <= 0) { UI.slotT = 0.2; refreshSlots(); }
@@ -755,6 +762,9 @@
     document.documentElement.style.setProperty('--btn', `url(${btnN})`);
     document.documentElement.style.setProperty('--btn-hover', `url(${btnH})`);
     document.documentElement.style.setProperty('--btn-off', `url(${btnO})`);
+    document.documentElement.style.setProperty('--dirt', `url(${VX.tex.darkTile()})`);
+    document.documentElement.style.setProperty('--flame-off', `url(${VX.tex.flameIcon(false)})`);
+    document.documentElement.style.setProperty('--flame-on', `url(${VX.tex.flameIcon(true)})`);
     makeHudIcons();
     buildHud();
     buildStart(); buildTitle(); buildWorlds(); buildCreate(); buildConfirm(); buildLoading(); buildPause(); buildSettings(); buildControls(); buildDeath(); buildAch(); buildVictory(); buildInv();

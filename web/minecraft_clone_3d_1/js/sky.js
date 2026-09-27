@@ -149,6 +149,8 @@
     const sunDir = new THREE.Vector3(Math.cos(s.ang), Math.sin(s.ang), 0.15).normalize();
     this.domeU.sunDir.value.copy(sunDir);
     this.group.position.copy(cam.position);
+    this.group.visible = !underwater;           // под водой - только туман: ни неба, ни солнца, ни облаков
+    if (this.clouds) this.clouds.visible = !underwater;
     this.sun.position.copy(sunDir).multiplyScalar(380);
     this.sun.lookAt(cam.position);
     this.moon.position.copy(sunDir).multiplyScalar(-380);

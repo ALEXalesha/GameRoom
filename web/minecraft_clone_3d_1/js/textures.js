@@ -765,5 +765,14 @@
     return c;
   }
 
-  VX.tex = { buildBlockAtlas, buildItemAtlas, isoIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
+  // Пламя в окне печи: пиксельный огонёк (горящий) и его серый контур (печь не горит)
+  function flameIcon(lit) {
+    const rows = ['......#......', '.....###.....', '....#####....', '....#####.#..', '...###o###...', '..####o####..', '..###ooo###..', '.###ooyoo###.', '.##ooyyyoo##.', '.#ooyyyyyoo#.', '.#ooyyyyyoo#.', '..#oooyooo#..', '...#######...'];
+    const c = document.createElement('canvas'); c.width = c.height = 13;
+    const g = c.getContext('2d');
+    const pal = lit ? { '#': '#e0400a', o: '#ff8a10', y: '#ffe060' } : { '#': '#6f6f6f', o: '#7b7b7b', y: '#7b7b7b' };
+    rows.forEach((r, y) => { for (let x = 0; x < 13; x++) if (pal[r[x]]) { g.fillStyle = pal[r[x]]; g.fillRect(x, y, 1, 1); } });
+    return c.toDataURL();
+  }
+  VX.tex = { flameIcon, buildBlockAtlas, buildItemAtlas, isoIcon, flatIcon, tileCanvas, drawCracks, buttonTexture, darkTile, titleCanvas, Tile, DRAW };
 })();

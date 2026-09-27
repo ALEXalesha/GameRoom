@@ -30,15 +30,23 @@
     VX.audio.play('victory');
     G.saveWorld();
     if (G.mode !== 'survival') return;        // финал с титрами - цель выживания
-    G.victoryT = setTimeout(() => {
-      if (G.state !== 'play' && G.state !== 'inv') return;
-      if (G.state === 'inv') G.closeContainer();
-      G.state = 'victory';
-      G.releaseKeys();
-      G.unlock();
-      if (VX.ui) VX.ui.show('victory');
-    }, G.testMode ? 0 : 1500);
+    // экран победы ждёт своей очереди: если за полторы секунды игрок ушёл в паузу или скрыл
+    // вкладку, титры покажутся при возврате в игру, а не потеряются
+    G.victoryPending = true;
+    G.victoryT = setTimeout(showVictory, G.testMode ? 0 : 1500);
   }
+  function showVictory() {
+    if (!G.victoryPending) return false;
+    if (G.state !== 'play' && G.state !== 'inv') return false;
+    G.victoryPending = false;
+    if (G.state === 'inv') G.closeContainer();
+    G.state = 'victory';
+    G.releaseKeys();
+    G.unlock();
+    if (VX.ui) VX.ui.show('victory');
+    return true;
+  }
+  G.showVictory = showVictory;
 
   // Дом: из клетки игрока заливка по проходимым клеткам; комната закрыта (заливка
   // не вырвалась наружу), в ней от 6 клеток, а стены, пол и крыша - больше чем наполовину

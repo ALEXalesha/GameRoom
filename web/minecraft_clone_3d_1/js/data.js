@@ -282,9 +282,12 @@
   ];
   const MATERIAL_KEYS = ['stick', 'coal', 'charcoal', 'iron_ingot', 'gold_ingot', 'diamond', 'world_heart', 'bucket', 'water_bucket', 'lava_bucket', 'arrow', 'string', 'feather', 'flint', 'leather'];
   const groupOf = (it) => (it.group || (it.tool || it.armor || MATERIAL_KEYS.includes(it.key) ? 'tools' : 'food'));
+  // во «Строительство» - ещё и то, из чего строят чаще всего (как во вкладке оригинала)
+  const BUILD_EXTRA = ['stone', 'oak_log', 'birch_log', 'spruce_log', 'wool_white', 'wool_red', 'glowstone', 'clay', 'snow', 'sand', 'gravel', 'pumpkin'];
   function tabItems(key, query) {
     const out = [];
     for (const b of C.BLOCKS) if (b && b.creative && (key === 'search' || b.group === key)) out.push(b.id);
+    if (key === 'build') for (const k of BUILD_EXTRA) out.push(B[k]);
     for (const it of ITEMS) if (key === 'search' || groupOf(it) === key) out.push(it.id);
     if (key === 'search' && query && query.trim()) {
       const q = query.trim().toLowerCase();
