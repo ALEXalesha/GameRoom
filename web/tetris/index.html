@@ -2,100 +2,29 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="application-name" content="Блоки">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Блоки (фан-версия игры с падающими фигурами, не связана с правообладателями)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    background: #0a0a12;
-    color: #e0e0f0;
-    font-family: Consolas, 'Courier New', monospace;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    user-select: none;
-    overflow: hidden;
-  }
-  .game { display: flex; gap: 20px; align-items: flex-start; }
-  .panel { background: #14141e; border: 2px solid #2a2a3a; padding: 12px; border-radius: 4px; }
-  .panel h3 { font-size: 12px; color: #888; margin-bottom: 8px; letter-spacing: 2px; }
-  .stat-value { font-size: 22px; color: #fff; margin-bottom: 12px; font-weight: bold; }
-  .stat-value:last-child { margin-bottom: 0; }
-  canvas { display: block; background: #000; border: 2px solid #2a2a3a; }
-  .side { display: flex; flex-direction: column; gap: 12px; width: 150px; }
-  .controls { font-size: 11px; color: #888; line-height: 1.6; }
-  .controls span { color: #ddd; }
-  .board-wrap { position: relative; }
-  .overlay {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.88); padding: 20px 30px; border: 2px solid #2a2a3a;
-    text-align: center; font-size: 24px; pointer-events: none; white-space: nowrap;
-  }
-  .overlay small { display: block; font-size: 14px; margin-top: 8px; color: #aaa; }
-  .flash {
-    position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
-    color: #f0a; font-size: 22px; font-weight: bold; text-shadow: 0 0 10px #f0a;
-    opacity: 0; pointer-events: none; transition: opacity 0.3s; white-space: nowrap;
-  }
-  .note { font-size: 11px; color: #666; }
+  html, body { height: 100%; overflow: hidden; background: #070812; }
+  #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
+  #bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #game { position: relative; display: block; touch-action: none; }
+  #app .kit-grid.modes { grid-template-columns: repeat(4, 1fr); }
 </style>
 </head>
 <body>
-<div class="game">
-  <div class="side">
-    <div class="panel">
-      <h3>ЗАПАС</h3>
-      <canvas id="hold" width="120" height="80"></canvas>
-    </div>
-    <div class="panel">
-      <h3>ОЧКИ</h3>
-      <div class="stat-value" id="score">0</div>
-      <h3>РЕКОРД</h3>
-      <div class="stat-value" id="best">0</div>
-      <h3>УРОВЕНЬ</h3>
-      <div class="stat-value" id="level">1</div>
-      <h3>ЛИНИИ</h3>
-      <div class="stat-value" id="lines">0</div>
-    </div>
-    <div class="panel controls">
-      <h3>УПРАВЛЕНИЕ</h3>
-      <span>← →</span> сдвиг<br>
-      <span>↓</span> вниз<br>
-      <span>Пробел</span> сбросить<br>
-      <span>↑ / X</span> поворот ↻<br>
-      <span>Z</span> поворот ↺<br>
-      <span>C / Shift</span> в запас<br>
-      <span>P / Esc</span> пауза<br>
-      <span>R</span> заново · <span>M</span> звук
-    </div>
-  </div>
-  <div class="board-wrap">
-    <canvas id="board" width="300" height="600"></canvas>
-    <div id="flash" class="flash"></div>
-    <div id="overlay" class="overlay" style="display:none"></div>
-  </div>
-  <div class="side">
-    <div class="panel">
-      <h3>ДАЛЕЕ</h3>
-      <canvas id="next" width="120" height="400"></canvas>
-    </div>
-  </div>
-</div>
-<div class="note">Фан-версия, не связана с правообладателями похожих игр. Клавиши работают в любой раскладке.</div>
-
+<div id="app"><canvas id="bg"></canvas><canvas id="game" aria-label="Игровое поле"></canvas></div>
+<script src="kit.js"></script>
 <script>
 'use strict';
-const COLS = 10, ROWS = 20, CELL = 30;
-const board = document.getElementById('board').getContext('2d');
-const holdCv = document.getElementById('hold').getContext('2d');
-const nextCv = document.getElementById('next').getContext('2d');
-const BEST_KEY = 'tetris_best';
-
-// ?seed=N - повторяемая последовательность фигур (для проверок).
+// ================= Поле и фигуры =================
+// Поле 10x22: два верхних ряда скрыты (там появляются фигуры), видно 20. Логика - шагами по 1/60 с.
+const COLS = 10, ROWS = 22, HIDDEN = 2, VISIBLE = ROWS - HIDDEN, STEP_MS = 1000 / 60;
+const W = 960, H = 720, CELL = 32, BX = 320, BY = 44;          // холст и положение стакана
 const params = new URLSearchParams(location.search);
+const FAST = params.has('fast');
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -104,575 +33,793 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+// ?seed=N - повторяемая очередь. Зерно задаётся заново в начале каждого режима: заставка в меню тратит
+// случайные числа сколько угодно, а очередь партии с тем же зерном всегда та же
+const SEED = params.has('seed') ? Number(params.get('seed')) || 1 : null;
+const freshRnd = () => (SEED !== null ? mulberry32(SEED) : Math.random);
+let rnd = freshRnd();
+let fxRnd = mulberry32(99);                                      // для частиц: не сбивает очередь фигур
 
-const COLORS = {
-  I: '#00e0e0', O: '#e8e000', T: '#a000f0',
-  S: '#00d000', Z: '#e00000', J: '#2040f0', L: '#f0a000',
-  empty: '#0a0a0a'
-};
-
+const COLORS = { I: '#2fd7f0', O: '#f7d046', T: '#b060f0', S: '#58d860', Z: '#f05060', J: '#4a78f0', L: '#f59a3a', G: '#5a6078' };
 const SHAPES = {
-  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
-  O: [[1,1],[1,1]],
-  T: [[0,1,0],[1,1,1],[0,0,0]],
-  S: [[0,1,1],[1,1,0],[0,0,0]],
-  Z: [[1,1,0],[0,1,1],[0,0,0]],
-  J: [[1,0,0],[1,1,1],[0,0,0]],
-  L: [[0,0,1],[1,1,1],[0,0,0]]
+  I: [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]],
+  O: [[1, 1], [1, 1]],
+  T: [[0, 1, 0], [1, 1, 1], [0, 0, 0]],
+  S: [[0, 1, 1], [1, 1, 0], [0, 0, 0]],
+  Z: [[1, 1, 0], [0, 1, 1], [0, 0, 0]],
+  J: [[1, 0, 0], [1, 1, 1], [0, 0, 0]],
+  L: [[0, 0, 1], [1, 1, 1], [0, 0, 0]],
 };
-
-// Отскоки от стен по системе SRS
-const KICKS_JLSTZ = {
-  '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
-  '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
-  '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
-  '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
-  '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
-  '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
-  '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
-  '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+// Отскоки от стен по SRS: [dx, dy] с y вверх, как в описании системы
+const KICKS = {
+  '0>1': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], '1>0': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  '1>2': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], '2>1': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  '2>3': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], '3>2': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  '3>0': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], '0>3': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
 };
 const KICKS_I = {
-  '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
-  '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
-  '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
-  '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
-  '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
-  '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
-  '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
-  '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+  '0>1': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], '1>0': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  '1>2': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], '2>1': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  '2>3': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], '3>2': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  '3>0': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], '0>3': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
 };
-
-let grid, current, hold, canHold, queue, score, lines, level, gameOver, paused, best;
-let dropTimer, dropInterval;
-let lockTimer, lockResets, isLocking, lowestY;
-let lastMoveWasRotation, lastKickIndex;
-
-const DAS = 133, ARR = 10, SOFT_DROP_MS = 30, LOCK_MS = 500, MAX_LOCK_RESETS = 15;
-const keys = {};
-const keyTimers = {};
-
-function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
-function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
-
-// ---------- Звук (синтез, без файлов) ----------
-let actx = null, muted = false;
-function beep(freq, dur, type = 'square', vol = 0.04) {
-  if (muted) return;
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
-  } catch (e) { /* звук недоступен */ }
+function rotateShape(s, dir) {
+  const n = s.length, r = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { if (dir > 0) r[x][n - 1 - y] = s[y][x]; else r[n - 1 - x][y] = s[y][x]; }
+  return r;
 }
-const SFX = {
-  rotate: () => beep(660, 0.04, 'triangle'),
-  lock: () => beep(180, 0.06, 'square', 0.03),
-  clear: (n) => { for (let i = 0; i < n; i++) setTimeout(() => beep(520 + i * 130, 0.09), i * 70); },
-  over: () => { beep(300, 0.2, 'sawtooth'); setTimeout(() => beep(200, 0.35, 'sawtooth'), 180); },
+function shapeFor(type, rot) { let s = SHAPES[type].map((r) => r.slice()); for (let i = 0; i < rot; i++) s = rotateShape(s, 1); return s; }
+
+// ================= Режимы =================
+const MODES = {
+  marathon: { name: 'Марафон', goal: '150 линий, 15 уровней', desc: 'Классика: с каждыми 10 линиями уровень выше и падение быстрее. Пройдите все 150.' },
+  sprint: { name: 'Спринт', goal: '40 линий на время', desc: 'Уберите 40 линий как можно быстрее. Скорость падения не растёт.' },
+  ultra: { name: 'Ультра', goal: '2 минуты на очки', desc: 'Две минуты, чтобы набрать как можно больше очков: T-вращения, четвёрки, серии.' },
+  zen: { name: 'Дзен', goal: 'без проигрыша', desc: 'Спокойная игра без конца: переполненное поле просто очищается.' },
 };
+const MARATHON_LINES = 150, SPRINT_LINES = 40, ULTRA_FRAMES = 120 * 60, MAX_LEVEL = 15;
+const LOCK_FRAMES = 30, MAX_RESETS = 15;
 
-function newGrid() {
-  return Array.from({length: ROWS}, () => Array(COLS).fill(0));
-}
+// ================= Состояние =================
+const state = {
+  mode: 'demo', phase: 'play', level: 1, startLevel: 1, lines: 0, score: 0, frames: 0, ready: 0,
+  combo: -1, b2b: -1, label: null, banner: null, stats: null, over: false,
+};
+let grid = [], current = null, queue = [], hold = null, canHold = true, pieceId = 0;
+let gravAcc = 0, lockT = 0, lockResets = 0, lowestY = 0, lastRotate = false, lastKick = 0;
+let das = { dir: 0, t: 0, arr: 0, charged: false };
+let lastLock = null, autopilot = false, plan = null, planWait = 0, planning = false;
+const flashes = [], particles = [], trails = [];
+let kit, records, stats;
 
-function shuffleBag() {
-  const bag = ['I','O','T','S','Z','J','L'];
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
-  }
-  return bag;
-}
-
+function newGrid() { return Array.from({ length: ROWS }, () => Array(COLS).fill(0)); }
 function fillQueue() {
-  while (queue.length < 7) queue.push(...shuffleBag());
+  while (queue.length < 7) {
+    const bag = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    queue.push(...bag);
+  }
 }
-
-function spawnPiece(type) {
-  const shape = SHAPES[type].map(r => [...r]);
-  return {
-    type, shape,
-    x: Math.floor((COLS - shape[0].length) / 2),
-    y: type === 'I' ? -1 : 0,
-    rot: 0
-  };
-}
-
-function resetLockState() {
-  isLocking = false;
-  lockTimer = 0;
-  lockResets = 0;
-  lastMoveWasRotation = false;
-  dropTimer = 0;
-  lowestY = current.y;
-}
-
-function setCurrent(piece) {
-  current = piece;
-  resetLockState();
-  if (collides(current, 0, 0)) endGame();   // новой фигуре некуда встать - конец
-}
-
-function nextPiece() {
-  fillQueue();
-  canHold = true;
-  setCurrent(spawnPiece(queue.shift()));
-}
-
-function endGame() {
-  gameOver = true;
-  if (score > best) { best = score; saveBest(best); }
-  updateStats();
-  showOverlay('КОНЕЦ ИГРЫ<small>R или Enter - заново</small>');
-  SFX.over();
-}
-
-function collides(p, dx, dy, shape) {
-  const s = shape || p.shape;
-  for (let y = 0; y < s.length; y++) {
-    for (let x = 0; x < s[y].length; x++) {
-      if (!s[y][x]) continue;
-      const nx = p.x + x + dx, ny = p.y + y + dy;
-      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
-      if (ny >= 0 && grid[ny][nx]) return true;
-    }
+function makePiece(type, x, y, rot = 0) { return { type, shape: shapeFor(type, rot), x, y, rot }; }
+function collides(p, dx = 0, dy = 0, shape = p.shape) {
+  for (let y = 0; y < shape.length; y++) for (let x = 0; x < shape[y].length; x++) {
+    if (!shape[y][x]) continue;
+    const nx = p.x + x + dx, ny = p.y + y + dy;
+    if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+    if (ny >= 0 && grid[ny][nx]) return true;
   }
   return false;
 }
+// Появление: в скрытых рядах, по центру; если можно - сразу на ряд ниже (как в серии)
+function spawn(type) {
+  const p = makePiece(type, type === 'O' ? 4 : 3, 0);          // длинная строка любой фигуры - во втором скрытом ряду
+  current = p;
+  pieceId++;
+  gravAcc = 0; lockT = 0; lockResets = 0; lastRotate = false; lastKick = 0;
+  if (collides(p)) { topOut(type); return; }
+  if (!collides(p, 0, 1)) p.y++;
+  lowestY = p.y;
+  plan = null;
+}
+function nextPiece() { fillQueue(); canHold = true; spawn(queue.shift()); }
 
-function rotate(shape, dir) {
-  const n = shape.length;
-  const r = Array.from({length: n}, () => Array(n).fill(0));
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      if (dir === 1) r[x][n-1-y] = shape[y][x];
-      else r[n-1-x][y] = shape[y][x];
-    }
-  }
-  return r;
+function gravityMs(level = state.level) {
+  if (state.mode === 'sprint' || state.mode === 'ultra' || state.mode === 'zen' || state.mode === 'demo') level = 1;
+  return Math.max(1000 * Math.pow(0.8 - (level - 1) * 0.007, level - 1), 4);   // формула скорости серии
 }
 
-function tryRotate(dir) {
-  if (current.type === 'O') return false;
-  const newRot = (current.rot + (dir === 1 ? 1 : 3)) % 4;
-  const newShape = rotate(current.shape, dir);
-  const key = `${current.rot}>${newRot}`;
-  const kicks = current.type === 'I' ? KICKS_I[key] : KICKS_JLSTZ[key];
+// ================= Движение =================
+function onGroundMove() {
+  // сдвиг или поворот на земле продлевает задержку фиксации, но не больше 15 раз за фигуру
+  if (collides(current, 0, 1) && lockResets < MAX_RESETS) { lockT = 0; lockResets++; }
+}
+function move(dx) {
+  if (!current || collides(current, dx, 0)) return false;
+  current.x += dx; lastRotate = false; onGroundMove();
+  return true;
+}
+function rotate(dir) {
+  const c = current;
+  if (!c || c.type === 'O') return false;
+  const to = (c.rot + (dir > 0 ? 1 : 3)) % 4, shape = rotateShape(c.shape, dir);
+  const kicks = (c.type === 'I' ? KICKS_I : KICKS)[c.rot + '>' + to];
   for (let i = 0; i < kicks.length; i++) {
     const [kx, ky] = kicks[i];
-    if (!collides(current, kx, -ky, newShape)) {
-      current.shape = newShape;
-      current.rot = newRot;
-      current.x += kx;
-      current.y += -ky;
-      lastMoveWasRotation = true;
-      lastKickIndex = i;
-      onSuccessfulMove();
-      SFX.rotate();
+    if (!collides(c, kx, -ky, shape)) {
+      c.shape = shape; c.rot = to; c.x += kx; c.y -= ky;
+      lastRotate = true; lastKick = i;
+      if (c.y > lowestY) { lowestY = c.y; lockResets = 0; lockT = 0; }   // отскок вниз - новая глубина
+      else onGroundMove();
+      if (state.mode !== 'demo' && !planning) SFX.rotate();
       return true;
     }
   }
   return false;
 }
-
-// Сдвиг или поворот на земле продлевает задержку фиксации, но не больше 15 раз.
-function onSuccessfulMove() {
-  if (isLocking && lockResets < MAX_LOCK_RESETS) {
-    lockTimer = 0;
-    lockResets++;
-  }
+function softStep() {
+  if (collides(current, 0, 1)) return false;
+  current.y++; lastRotate = false;
+  if (current.y > lowestY) { lowestY = current.y; lockResets = 0; }
+  return true;
 }
-
-function move(dx) {
-  if (!collides(current, dx, 0)) {
-    current.x += dx;
-    lastMoveWasRotation = false;
-    onSuccessfulMove();
-    return true;
-  }
-  return false;
-}
-
-function drop(soft) {
-  if (!collides(current, 0, 1)) {
-    current.y++;
-    lastMoveWasRotation = false;
-    if (soft) { score += 1; updateStats(); }
-    if (current.y > lowestY) { lowestY = current.y; lockResets = 0; }  // новая глубина - счётчик сначала
-    return true;
-  }
-  return false;
-}
-
 function hardDrop() {
+  if (!current || state.phase !== 'play') return;
   let d = 0;
+  const y0 = current.y;
   while (!collides(current, 0, 1)) { current.y++; d++; }
-  score += d * 2;
-  if (d > 0) lastMoveWasRotation = false;
+  if (d > 0) { lastRotate = false; if (!autopilot && kit.settings.effects) trails.push({ piece: { ...current, shape: current.shape }, y0: Math.max(y0, current.y - 5), t: 8 }); }
+  state.score += d * 2;
   lockPiece();
 }
+function holdPiece() {
+  if (!canHold || !current || state.phase !== 'play') return false;
+  const t = current.type;
+  if (hold) { const h = hold; hold = t; spawn(h); } else { hold = t; fillQueue(); spawn(queue.shift()); }
+  canHold = false;
+  if (state.mode !== 'demo') SFX.hold();
+  return true;
+}
+function ghostY() { let d = 0; while (!collides(current, 0, d + 1)) d++; return current.y + d; }
 
-function isTSpin() {
-  if (current.type !== 'T' || !lastMoveWasRotation) return 0;
-  const cx = current.x + 1, cy = current.y + 1;
-  const corners = [[cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1]];
-  let filled = 0;
-  for (const [x,y] of corners) {
-    if (x < 0 || x >= COLS || y >= ROWS || (y >= 0 && grid[y][x])) filled++;
-  }
-  if (filled < 3) return 0;
-  const facing = [
-    [[0,0],[2,0]],
-    [[2,0],[2,2]],
-    [[0,2],[2,2]],
-    [[0,0],[0,2]]
-  ][current.rot];
-  let frontFilled = 0;
-  for (const [fx, fy] of facing) {
-    const x = current.x + fx, y = current.y + fy;
-    if (x < 0 || x >= COLS || y >= ROWS || (y >= 0 && grid[y][x])) frontFilled++;
-  }
-  if (frontFilled === 2) return 2;
-  if (lastKickIndex === 4) return 2;
+// T-вращение: последний ход - поворот, заняты 3 угла вокруг центра T. Полное - если заняты оба
+// угла со стороны «носа» или поворот прошёл через пятый отскок; иначе - мини.
+function tSpinKind() {
+  const c = current;
+  if (c.type !== 'T' || !lastRotate) return 0;
+  const cx = c.x + 1, cy = c.y + 1;
+  const filled = (x, y) => x < 0 || x >= COLS || y >= ROWS || (y >= 0 && !!grid[y][x]);
+  const corners = [[cx - 1, cy - 1], [cx + 1, cy - 1], [cx + 1, cy + 1], [cx - 1, cy + 1]];
+  const n = corners.filter(([x, y]) => filled(x, y)).length;
+  if (n < 3) return 0;
+  const front = [[0, 1], [1, 2], [2, 3], [3, 0]][c.rot].map((i) => corners[i]);
+  if (front.every(([x, y]) => filled(x, y)) || lastKick === 4) return 2;
   return 1;
 }
 
+// ================= Фиксация, очистка, очки =================
+const LINE_PTS = [0, 100, 300, 500, 800], TSPIN_PTS = [400, 800, 1200, 1600], MINI_PTS = [100, 200, 400, 400], PC_PTS = [0, 800, 1200, 1800, 2000];
+const COUNT_NAMES = ['', 'ОДИНАРНОЕ', 'ДВОЙНОЕ', 'ТРОЙНОЕ'];
 function lockPiece() {
-  const tspin = isTSpin();
-  let above = false;
-  for (let y = 0; y < current.shape.length; y++) {
-    for (let x = 0; x < current.shape[y].length; x++) {
-      if (!current.shape[y][x]) continue;
-      const ny = current.y + y;
-      if (ny < 0) { above = true; continue; }
-      grid[ny][current.x + x] = current.type;
-    }
+  const c = current, ts = tSpinKind();
+  let above = true;
+  for (let y = 0; y < c.shape.length; y++) for (let x = 0; x < c.shape[y].length; x++) {
+    if (!c.shape[y][x]) continue;
+    const gy = c.y + y;
+    if (gy >= HIDDEN) above = false;
+    if (gy >= 0) grid[gy][c.x + x] = c.type;
   }
-  SFX.lock();
-  const cleared = clearLines(tspin);
-  // Фигура зафиксировалась выше поля и ничего не очистила - поле переполнено.
-  if (above && cleared === 0) { endGame(); return; }
+  lastLock = { type: c.type, x: c.x, y: c.y, rot: c.rot };
+  state.stats.pieces++;
+  if (state.mode !== 'demo') SFX.lock();
+  const cleared = clearLines(ts);
+  current = null;
+  if (above && !cleared) { topOut(); return; }                 // фигура целиком над полем - переполнение
+  if (state.phase !== 'play') return;
   nextPiece();
 }
-
-const LINE_POINTS = [0, 100, 300, 500, 800];
-
-function clearLines(tspin) {
-  let cleared = 0;
-  for (let y = ROWS - 1; y >= 0; y--) {
-    if (grid[y].every(c => c)) {
-      grid.splice(y, 1);
-      grid.unshift(Array(COLS).fill(0));
-      cleared++;
-      y++;
-    }
+function clearLines(ts) {
+  const full = [];
+  for (let y = 0; y < ROWS; y++) if (grid[y].every(Boolean)) full.push(y);
+  for (const y of full) { flashes.push({ y, t: 14 }); burstRow(y); }
+  for (const y of full) { grid.splice(y, 1); grid.unshift(Array(COLS).fill(0)); }
+  const n = full.length, lv = state.level;
+  let pts = 0;
+  const lines = [];
+  if (ts === 2) { pts = TSPIN_PTS[n]; lines.push('T-ВРАЩЕНИЕ'); if (n) lines.push(COUNT_NAMES[n]); state.stats.tspins++; if (n === 2) kit.unlock('tsd'); }
+  else if (ts === 1) { pts = MINI_PTS[n]; lines.push('МИНИ T-ВРАЩЕНИЕ'); if (n) lines.push(COUNT_NAMES[n]); state.stats.tspins++; }
+  else if (n) { pts = LINE_PTS[n]; if (n === 4) { lines.push('ЧЕТЫРЕ ЛИНИИ!'); state.stats.quads++; kit.unlock('quad'); } else if (n > 1) lines.push(['', '', 'ДВЕ ЛИНИИ', 'ТРИ ЛИНИИ'][n]); }
+  const hard = n > 0 && (n === 4 || ts > 0);
+  if (n > 0) {
+    if (hard) { state.b2b++; if (state.b2b > 0) { pts *= 1.5; lines.push('СЕРИЯ ×' + state.b2b); if (state.b2b >= 3) kit.unlock('b2b3'); } }
+    else state.b2b = -1;
+    state.combo++;
+    if (state.combo > 0) { pts += 50 * state.combo; lines.push('КОМБО ×' + state.combo); state.stats.maxCombo = Math.max(state.stats.maxCombo, state.combo); if (state.combo >= 5) kit.unlock('combo5'); }
+    if (grid.every((row) => row.every((v) => !v))) { pts += (n === 4 && state.b2b > 0 ? 3200 : PC_PTS[n]); lines.push('ЧИСТОЕ ПОЛЕ!'); state.stats.pcs++; kit.unlock('pc'); }
+  } else state.combo = -1;
+  state.score += Math.round(pts * lv);
+  if (lines.length) state.label = { lines, t: 110 };
+  if (n) {
+    state.lines += n; state.stats.lines += n;
+    if (state.mode !== 'demo') SFX.clear(n, ts);
+    if (kit.settings.shake && n === 4) state.shake = 8;
+    if (state.mode === 'marathon') {
+      const lvl = Math.min(MAX_LEVEL, state.startLevel + Math.floor(state.lines / 10));
+      if (lvl > state.level) { state.level = lvl; state.banner = { text: 'УРОВЕНЬ ' + lvl, t: 90 }; SFX.level(); }
+      if (state.lines >= MARATHON_LINES) finish(true);
+    } else if (state.mode === 'sprint' && state.lines >= SPRINT_LINES) finish(true);
+    else if (state.mode === 'demo' && state.lines % 10 === 0) state.level = state.level % MAX_LEVEL + 1;
   }
-  let pts = 0, label = '';
-  if (tspin === 2) {
-    pts = [400, 800, 1200, 1600][cleared] * level;
-    label = ['T-ВРАЩЕНИЕ', 'T-ВРАЩЕНИЕ: 1', 'T-ВРАЩЕНИЕ: 2', 'T-ВРАЩЕНИЕ: 3'][cleared];
-  } else if (tspin === 1) {
-    pts = [100, 200, 400, 400][cleared] * level;
-    label = 'МИНИ T-ВРАЩЕНИЕ';
-  } else if (cleared) {
-    pts = LINE_POINTS[cleared] * level;
-    label = ['', '', 'ДВЕ ЛИНИИ', 'ТРИ ЛИНИИ', 'ЧЕТЫРЕ ЛИНИИ!'][cleared];
-  }
-  score += pts;
-  lines += cleared;
-  const newLevel = Math.floor(lines / 10) + 1;
-  if (newLevel !== level) {
-    level = newLevel;
-    dropInterval = computeGravity(level);
-  }
-  if (cleared) SFX.clear(cleared);
-  if (label) flash(label);
-  updateStats();
-  return cleared;
+  return n;
 }
-
-function computeGravity(lv) {
-  // Формула скорости падения из правил серии (в миллисекундах на клетку)
-  const sec = Math.pow(0.8 - (lv - 1) * 0.007, lv - 1);
-  return Math.max(sec * 1000, 50);
-}
-
-function holdPiece() {
-  if (!canHold) return false;
-  const t = hold;
-  hold = current.type;
-  if (t) {
-    setCurrent(spawnPiece(t));
-  } else {
-    fillQueue();
-    setCurrent(spawnPiece(queue.shift()));
-  }
-  canHold = false;
-  return true;
-}
-
-function getGhostY() {
-  let dy = 0;
-  while (!collides(current, 0, dy + 1)) dy++;
-  return current.y + dy;
-}
-
-function drawCell(ctx, x, y, color, size = CELL) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x * size, y * size, size, size);
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillRect(x * size, y * size, size, 3);
-  ctx.fillRect(x * size, y * size, 3, size);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.fillRect(x * size, y * size + size - 3, size, 3);
-  ctx.fillRect(x * size + size - 3, y * size, 3, size);
-}
-
-function drawBoard() {
-  board.fillStyle = COLORS.empty;
-  board.fillRect(0, 0, COLS * CELL, ROWS * CELL);
-  board.strokeStyle = '#1a1a2a';
-  board.lineWidth = 1;
-  board.beginPath();
-  for (let x = 1; x < COLS; x++) { board.moveTo(x * CELL + 0.5, 0); board.lineTo(x * CELL + 0.5, ROWS * CELL); }
-  for (let y = 1; y < ROWS; y++) { board.moveTo(0, y * CELL + 0.5); board.lineTo(COLS * CELL, y * CELL + 0.5); }
-  board.stroke();
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      if (grid[y][x]) drawCell(board, x, y, COLORS[grid[y][x]]);
-    }
-  }
-  if (current && !gameOver) {
-    const gy = getGhostY();
-    board.strokeStyle = COLORS[current.type];
-    board.lineWidth = 2;
-    for (let y = 0; y < current.shape.length; y++) {
-      for (let x = 0; x < current.shape[y].length; x++) {
-        if (!current.shape[y][x]) continue;
-        const py = gy + y;
-        if (py >= 0) board.strokeRect((current.x + x) * CELL + 2, py * CELL + 2, CELL - 4, CELL - 4);
-      }
-    }
-    for (let y = 0; y < current.shape.length; y++) {
-      for (let x = 0; x < current.shape[y].length; x++) {
-        if (!current.shape[y][x]) continue;
-        const py = current.y + y;
-        if (py >= 0) drawCell(board, current.x + x, py, COLORS[current.type]);
-      }
-    }
-  }
-}
-
-function drawMini(ctx, type, w, offsetY = 0) {
-  if (!type) return;
-  const shape = SHAPES[type];
-  const size = 18;
-  const ox = (w - shape[0].length * size) / 2;
-  const oy = offsetY + (type === 'I' ? -size/2 : type === 'O' ? size/2 : 0);
-  for (let y = 0; y < shape.length; y++) {
-    for (let x = 0; x < shape[y].length; x++) {
-      if (!shape[y][x]) continue;
-      ctx.fillStyle = COLORS[type];
-      ctx.fillRect(ox + x * size, oy + y * size, size, size);
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(ox + x * size, oy + y * size, size, 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(ox + x * size, oy + y * size + size - 2, size, 2);
-    }
-  }
-}
-
-function drawHold() {
-  holdCv.fillStyle = '#000';
-  holdCv.fillRect(0, 0, 120, 80);
-  if (hold) {
-    holdCv.globalAlpha = canHold ? 1 : 0.4;
-    drawMini(holdCv, hold, 120, 20);
-    holdCv.globalAlpha = 1;
-  }
-}
-
-function drawNext() {
-  nextCv.fillStyle = '#000';
-  nextCv.fillRect(0, 0, 120, 400);
-  for (let i = 0; i < 5 && i < queue.length; i++) drawMini(nextCv, queue[i], 120, i * 80 + 20);
-}
-
-function updateStats() {
-  document.getElementById('score').textContent = score;
-  document.getElementById('best').textContent = Math.max(best, score);
-  document.getElementById('level').textContent = level;
-  document.getElementById('lines').textContent = lines;
-}
-
-function showOverlay(html) {
-  const o = document.getElementById('overlay');
-  o.innerHTML = html;
-  o.style.display = 'block';
-}
-function hideOverlay() {
-  document.getElementById('overlay').style.display = 'none';
-}
-
-let flashTimer = 0;
-function flash(text) {
-  const el = document.getElementById('flash');
-  el.textContent = text;
-  el.style.opacity = '1';
-  clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => { el.style.opacity = '0'; }, 800);
-}
-
-function clearKeys() {
-  for (const k in keys) keys[k] = false;
-  for (const k in keyTimers) keyTimers[k] = 0;
-}
-
-function reset() {
-  grid = newGrid();
-  queue = [];
-  fillQueue();
-  hold = null;
-  score = 0;
-  lines = 0;
-  level = 1;
-  gameOver = false;
-  paused = false;
-  dropInterval = computeGravity(1);
-  clearKeys();
-  hideOverlay();
-  nextPiece();
-  updateStats();
-}
-
-function setPaused(p) {
-  if (gameOver) return;
-  paused = p;
-  clearKeys();
-  if (paused) showOverlay('ПАУЗА<small>P или Esc - продолжить</small>'); else hideOverlay();
-}
-
-// Логика за dt миллисекунд. dt ограничен, чтобы после сворачивания окна фигура не падала сразу на дно.
-function tick(dt) {
-  if (gameOver || paused) return;
-  dt = Math.min(dt, 100);
-  handleAutoRepeat(dt);
-  const grav = keys.ArrowDown ? Math.min(SOFT_DROP_MS, dropInterval) : dropInterval;
-  dropTimer += dt;
-  while (dropTimer >= grav && !gameOver) {
-    dropTimer -= grav;
-    if (!drop(keys.ArrowDown)) { dropTimer = 0; break; }
-  }
-  if (collides(current, 0, 1)) {
-    if (!isLocking) { isLocking = true; lockTimer = 0; }
-    lockTimer += dt;
-    if (lockTimer >= LOCK_MS || lockResets >= MAX_LOCK_RESETS) lockPiece();
-  } else {
-    isLocking = false;
-  }
-}
-
-function draw() {
-  drawBoard();
-  drawHold();
-  drawNext();
-}
-
-let lastTime = null;
-function loop(time) {
-  if (lastTime === null) lastTime = time;
-  tick(time - lastTime);
-  lastTime = time;
-  draw();
-  requestAnimationFrame(loop);
-}
-
-function handleAutoRepeat(dt) {
-  for (const k of ['ArrowLeft', 'ArrowRight']) {
-    if (!keys[k]) continue;
-    keyTimers[k] = (keyTimers[k] || 0) + dt;
-    if (keyTimers[k] >= DAS) {
-      const arr = keyTimers[k] - DAS;
-      const steps = Math.floor(arr / ARR);
-      if (steps > 0) {
-        for (let i = 0; i < steps; i++) move(k === 'ArrowLeft' ? -1 : 1);
-        keyTimers[k] = DAS + (arr % ARR);
-      }
-    }
-  }
-}
-
-// Клавиши по физическому коду (e.code): Z, X, C, P, R работают и в русской раскладке.
-document.addEventListener('keydown', e => {
-  const code = e.code;
-  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'].includes(code)) e.preventDefault();
-  if (code === 'KeyM') { muted = !muted; return; }
-  if (gameOver) {
-    if (code === 'KeyR' || code === 'Enter') reset();
+function topOut(retryType) {
+  if (state.mode === 'zen' || state.mode === 'demo') {
+    // без проигрыша: поле уходит, игра идёт
+    for (let y = 0; y < ROWS; y++) if (grid[y].some(Boolean)) flashes.push({ y, t: 20 });
+    grid = newGrid();
+    state.banner = { text: 'ПОЛЕ ОЧИЩЕНО', t: 80 };
+    current = null;
+    if (retryType) spawn(retryType); else nextPiece();        // та же фигура снова: очередь «мешка» не сбивается
     return;
   }
-  if (code === 'KeyP' || code === 'Escape') { setPaused(!paused); return; }
-  if (code === 'KeyR') { reset(); return; }
-  if (paused || e.repeat) return;
-  switch (code) {
-    case 'ArrowLeft':
-    case 'ArrowRight':
-      keys[code] = true;
-      keyTimers[code] = 0;
-      move(code === 'ArrowLeft' ? -1 : 1);
-      break;
-    case 'ArrowDown':
-      keys.ArrowDown = true;
-      break;
-    case 'ArrowUp':
-    case 'KeyX':
-      tryRotate(1);
-      break;
-    case 'KeyZ':
-    case 'ControlLeft':
-      tryRotate(-1);
-      break;
-    case 'Space':
-      hardDrop();
-      break;
-    case 'KeyC':
-    case 'ShiftLeft':
-    case 'ShiftRight':
-      holdPiece();
-      break;
-  }
-});
-document.addEventListener('keyup', e => {
-  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { keys[e.code] = false; keyTimers[e.code] = 0; }
-  if (e.code === 'ArrowDown') keys.ArrowDown = false;
-});
-// Потеря фокуса: пауза и отпускание клавиш (иначе фигура «уезжает» сама).
-window.addEventListener('blur', () => { if (!gameOver && !paused) setPaused(true); else clearKeys(); });
+  state.phase = 'over';
+  current = null;
+  if (kit.settings.shake) state.shake = 14;
+  SFX.over();
+  saveResult(false);
+  kit.later(showOver, FAST ? 0 : 900);
+}
 
-best = loadBest();
-reset();
+// ================= Шаг мира =================
+function update() {
+  state.frame = (state.frame || 0) + 1;
+  for (const f of flashes) f.t--;
+  for (let i = flashes.length - 1; i >= 0; i--) if (flashes[i].t <= 0) flashes.splice(i, 1);
+  for (const t of trails) t.t--;
+  for (let i = trails.length - 1; i >= 0; i--) if (trails[i].t <= 0) trails.splice(i, 1);
+  for (const q of particles) { q.x += q.vx; q.y += q.vy; q.vy += 0.25; q.life--; }
+  for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
+  if (state.shake > 0) state.shake *= 0.85;
+  if (state.label && --state.label.t <= 0) state.label = null;
+  if (state.banner && --state.banner.t <= 0) state.banner = null;
+  if (state.phase !== 'play') return;
+  if (state.ready > 0) { if (!autopilot) chargeDas(); state.ready--; if (state.ready === 45) SFX.go(false); if (state.ready === 0) SFX.go(true); return; }
+  state.frames++;
+  if (state.mode === 'ultra' && state.frames >= ULTRA_FRAMES) { finish(true); return; }
+  if (!current) return;
+  if (autopilot) runPilot(); else handleInput();
+  if (!current || state.phase !== 'play') return;
+  // гравитация (мягкое падение - в SDF раз быстрее; SDF 41 - мгновенно)
+  const soft = !autopilot && kit.isDown('soft');
+  const sdf = kit.settings.sdf;
+  if (soft && sdf >= 41) { while (softStep()) state.score += 1; }
+  else {
+    const ms = soft ? Math.max(1, gravityMs() / sdf) : gravityMs();
+    gravAcc += STEP_MS / ms;
+    while (gravAcc >= 1) { gravAcc -= 1; if (!softStep()) { gravAcc = 0; break; } if (soft) state.score += 1; }
+  }
+  // задержка фиксации
+  if (collides(current, 0, 1)) {
+    lockT++;
+    if (lockT >= LOCK_FRAMES || lockResets >= MAX_RESETS) lockPiece();
+  } else lockT = 0;
+}
+// Задержка и повтор - целыми кадрами (1/60 с) с округлением: 167 мс по умолчанию - ровно 10 кадров
+const dasFrames = () => Math.max(1, Math.round(kit.settings.das / STEP_MS));
+const arrFrames = () => Math.round(kit.settings.arr / STEP_MS);
+// Клавиша, зажатая во время «Приготовьтесь», заряжает DAS: после старта фигура сразу бежит
+function chargeDas() {
+  const L = kit.isDown('left'), R = kit.isDown('right');
+  const dir = L && !R ? -1 : R && !L ? 1 : 0;
+  if (dir !== das.dir) das = { dir, t: 0, arr: 0, charged: false };
+  if (dir) das.t = Math.min(das.t + 1, dasFrames());
+}
+function handleInput() {
+  if (kit.wasPressed('hold')) holdPiece();
+  if (kit.wasPressed('cw')) rotate(1);
+  if (kit.wasPressed('ccw')) rotate(-1);
+  // DAS/ARR: нажатие - шаг сразу; держишь дольше DAS - повтор каждые ARR мс (0 - сразу до стены)
+  const L = kit.isDown('left'), R = kit.isDown('right');
+  if (kit.wasPressed('left')) { das = { dir: -1, t: 0, arr: 0, charged: false }; move(-1); }
+  else if (kit.wasPressed('right')) { das = { dir: 1, t: 0, arr: 0, charged: false }; move(1); }
+  else if (das.dir === -1 && !L && R) das = { dir: 1, t: 0, arr: 0, charged: false };
+  else if (das.dir === 1 && !R && L) das = { dir: -1, t: 0, arr: 0, charged: false };
+  else if (das.dir !== 0 && ((das.dir < 0 && L) || (das.dir > 0 && R))) {
+    das.t++;
+    if (das.t >= dasFrames()) {
+      const A = arrFrames();
+      if (A === 0) { while (move(das.dir)); }
+      else if (!das.charged) { das.charged = true; das.arr = 0; move(das.dir); }
+      else if (++das.arr >= A) { das.arr = 0; move(das.dir); }
+    }
+  } else if (!L && !R) das.dir = 0;
+  if (kit.wasPressed('hard')) hardDrop();
+}
+
+// ================= Автопилот =================
+// Для заставки и проверки Марафона. Для каждой фигуры (и фигуры из запаса) перебирает повороты и
+// столбцы, доводит фигуру туда настоящими ходами (с отскоками, проверкой стен) и оценивает поле
+// после фиксации по признакам Деллашери: высота посадки, убранные линии, переходы, дыры, колодцы.
+function evalGrid(g, landing, cleared) {
+  let rowT = 0, colT = 0, holes = 0, wells = 0;
+  for (let y = 0; y < ROWS; y++) { let prev = 1; for (let x = 0; x < COLS; x++) { const v = g[y][x] ? 1 : 0; if (v !== prev) rowT++; prev = v; } if (!prev) rowT++; }
+  for (let x = 0; x < COLS; x++) {
+    let prev = 0;
+    for (let y = 0; y < ROWS; y++) { const v = g[y][x] ? 1 : 0; if (v !== prev) colT++; if (!v && prev) holes++; prev = v; }
+    if (!prev) colT++;
+    let depth = 0;
+    for (let y = 0; y < ROWS; y++) {
+      const l = x === 0 || g[y][x - 1], r = x === COLS - 1 || g[y][x + 1];
+      if (!g[y][x] && l && r) { depth++; wells += depth; } else depth = 0;
+    }
+  }
+  return -4.5 * landing + 3.42 * cleared - 3.22 * rowT - 9.35 * colT - 7.9 * holes - 3.39 * wells;
+}
+function placements(type) {
+  const out = [];
+  const saved = current;
+  for (let r = 0; r < 4; r++) {
+    for (let dx = -5; dx <= 5; dx++) {
+      const p = makePiece(type, type === 'O' ? 4 : 3, 0);
+      if (!collides(p, 0, 1)) p.y++;
+      current = p;
+      const moves = [];
+      let ok = true;
+      for (let i = 0; i < r && ok; i++) { const before = p.rot; rotate(1); if (p.rot === before) ok = false; else moves.push('cw'); }
+      if (type === 'O' && r > 0) ok = false;
+      for (let i = 0; i < Math.abs(dx) && ok; i++) { if (!move(Math.sign(dx))) ok = false; else moves.push(dx < 0 ? 'left' : 'right'); }
+      if (!ok) continue;
+      let y = p.y; while (!collides(p, 0, y - p.y + 1)) y++;
+      const g = grid.map((row) => row.slice());
+      let landingTop = ROWS;
+      p.shape.forEach((row, yy) => row.forEach((v, xx) => { if (v && y + yy >= 0) { g[y + yy][p.x + xx] = type; landingTop = Math.min(landingTop, y + yy); } }));
+      let cleared = 0;
+      for (let yy = ROWS - 1; yy >= 0; yy--) if (g[yy].every(Boolean)) { g.splice(yy, 1); g.unshift(Array(COLS).fill(0)); cleared++; yy++; }
+      const landing = ROWS - landingTop;
+      out.push({ moves, score: evalGrid(g, landing, cleared) - (landingTop < HIDDEN ? 1e6 : 0) });
+    }
+  }
+  current = saved;
+  return out;
+}
+function planMoves() {
+  const savedRot = lastRotate, savedKick = lastKick, savedLock = [lockT, lockResets];
+  planning = true;
+  let best = null;
+  for (const c of placements(current.type)) if (!best || c.score > best.score) best = c;
+  if (canHold) {
+    const alt = hold || queue[0];
+    for (const c of placements(alt)) if (!best || c.score > best.score + 1) best = { ...c, moves: ['hold', ...c.moves] };
+  }
+  lastRotate = savedRot; lastKick = savedKick; [lockT, lockResets] = savedLock;
+  planning = false;
+  return best ? best.moves.concat('hard') : ['hard'];
+}
+function runPilot() {
+  if (!plan || plan.id !== pieceId) { plan = { id: pieceId, moves: planMoves() }; planWait = state.mode === 'demo' ? 10 : 0; }
+  const slow = state.mode === 'demo';
+  while (plan.moves.length) {
+    if (slow && planWait-- > 0) return;
+    const m = plan.moves.shift();
+    if (m === 'hold') { const rest = plan.moves; holdPiece(); plan = { id: pieceId, moves: rest }; }
+    else if (m === 'cw') rotate(1);
+    else if (m === 'left') move(-1);
+    else if (m === 'right') move(1);
+    else if (m === 'hard') { hardDrop(); return; }
+    if (slow) planWait = 5;
+  }
+}
+
+// ================= Начало, конец, рекорды =================
+function freshStats() { return { pieces: 0, lines: 0, quads: 0, tspins: 0, pcs: 0, maxCombo: 0 }; }
+function resetBoard() {
+  grid = newGrid(); queue = []; hold = null; canHold = true; current = null;
+  flashes.length = 0; particles.length = 0; trails.length = 0;
+  Object.assign(state, { phase: 'play', lines: 0, score: 0, frames: 0, combo: -1, b2b: -1, label: null, banner: null, shake: 0, stats: freshStats(), over: false });
+  das = { dir: 0, t: 0, arr: 0, charged: false };
+}
+function startMode(mode) {
+  rnd = freshRnd();
+  if (state.phase === 'play' && state.mode !== 'demo' && !state.over && state.stats && state.stats.pieces) saveResult(false);
+  resetBoard();
+  state.mode = mode;
+  state.startLevel = mode === 'marathon' ? kit.settings.startLevel : 1;
+  state.level = state.startLevel;
+  state.ready = FAST ? 0 : 90;
+  state.banner = { text: MODES[mode].name.toUpperCase() + (mode === 'marathon' ? ' · УРОВЕНЬ ' + state.level : ''), t: FAST ? 100 : 180 };
+  autopilot = false;
+  stats.games++; saveAll();
+  nextPiece();
+  kit.play();
+}
+function startDemo() {
+  resetBoard();
+  state.mode = 'demo'; state.level = 1; state.ready = 0;
+  autopilot = true;
+  nextPiece();
+}
+function saveAll() { kit.save('records', records); kit.save('stats', stats); }
+// Итог партии идёт в статистику, а в рекорды - если режим пройден (Спринт, Ультра) или всегда (Марафон, Дзен)
+function saveResult(completed) {
+  if (state.over) return;
+  state.over = true;
+  const s = state.stats;
+  stats.lines += s.lines; stats.pieces += s.pieces; stats.quads += s.quads; stats.tspins += s.tspins; stats.pcs += s.pcs;
+  stats.maxCombo = Math.max(stats.maxCombo, s.maxCombo); stats.time += state.frames;
+  if (state.mode === 'zen') { stats.zenLines += s.lines; if (stats.zenLines >= 100) kit.unlock('zen100'); }
+  if (stats.lines >= 1000) kit.unlock('lines1000');
+  const e = { score: state.score, lines: state.mode === 'sprint' ? Math.min(state.lines, SPRINT_LINES) : state.lines, level: state.level, time: state.frames, done: completed, date: Date.now() };
+  const list = records[state.mode];
+  if (list && (e.score > 0 || e.lines > 0) && (state.mode === 'marathon' || state.mode === 'zen' || completed)) {   // пустая партия - не рекорд
+    list.push(e);
+    if (state.mode === 'sprint') list.sort((a, b) => a.time - b.time); else list.sort((a, b) => b.score - a.score || b.lines - a.lines);
+    list.length = Math.min(list.length, 5);
+  }
+  saveAll();
+}
+function finish(completed) {
+  state.phase = 'done';
+  if (state.mode === 'sprint') state.lines = Math.min(state.lines, SPRINT_LINES);
+  current = null;
+  saveResult(completed);
+  if (state.mode === 'marathon') { kit.unlock('marathon'); if (state.startLevel === 1 && state.score >= 300000) kit.unlock('marathon300k'); }
+  if (state.mode === 'sprint') { if (state.frames <= 180 * 60) kit.unlock('sprint3'); if (state.frames <= 120 * 60) kit.unlock('sprint2'); }
+  if (state.mode === 'ultra' && state.score >= 40000) kit.unlock('ultra40k');
+  SFX.win();
+  kit.later(state.mode === 'marathon' ? showVictory : showFinish, FAST ? 0 : 900);
+}
+function fmtTime(frames) {
+  const cs = Math.round(frames * 100 / 60), m = Math.floor(cs / 6000), s = Math.floor(cs / 100) % 60, c = cs % 100;
+  return `${m}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
+}
+function resultTable() {
+  const s = state.stats, pps = state.frames ? (s.pieces / (state.frames / 60)).toFixed(2) : '0';
+  return `<table><tr><td>Очки</td><td><b>${state.score.toLocaleString('ru')}</b></td></tr>
+    <tr><td>Линии</td><td>${state.lines}</td></tr><tr><td>Уровень</td><td>${state.level}</td></tr>
+    <tr><td>Время</td><td>${fmtTime(state.frames)}</td></tr>
+    <tr><td>Фигур · в секунду</td><td>${s.pieces} · ${pps}</td></tr>
+    <tr><td>Четыре линии · T-вращения</td><td>${s.quads} · ${s.tspins}</td></tr>
+    <tr><td>Лучшее комбо · чистое поле</td><td>${Math.max(0, s.maxCombo)} · ${s.pcs}</td></tr></table>`;
+}
+function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
+function bestLine(mode) {
+  const r = records[mode][0];
+  if (!r) return 'ещё нет';
+  return mode === 'sprint' ? fmtTime(r.time) : mode === 'zen' ? r.lines + ' ' + plural(r.lines, 'линия', 'линии', 'линий') : r.score.toLocaleString('ru') + ' очков';
+}
+const again = () => ({ label: 'Ещё раз', primary: true, id: 'again', onClick: () => startMode(state.mode) });
+const toMenuBtn = () => ({ label: 'В меню', id: 'menu', onClick: () => kit.toMenu() });
+function showOver() {
+  kit.mode = 'menu';
+  kit.show({ id: 'over', title: 'Поле переполнено', html: resultTable() + `<p>Рекорд режима «${MODES[state.mode].name}»: <b>${bestLine(state.mode)}</b></p>`, row: true,
+    buttons: [again(), { label: 'Режимы', id: 'modes', onClick: showModes }, toMenuBtn()] });
+}
+function showFinish() {
+  kit.mode = 'menu';
+  const first = records[state.mode][0] && records[state.mode][0].date === (records[state.mode].find((r) => r.time === state.frames && r.score === state.score) || {}).date;
+  const title = state.mode === 'sprint' ? `40 линий за ${fmtTime(state.frames)}` : `Время вышло: ${state.score.toLocaleString('ru')} очков`;
+  kit.show({ id: 'finish', title, html: (first ? '<p style="text-align:center"><b>Новый рекорд!</b></p>' : '') + resultTable() + `<p>Рекорд: <b>${bestLine(state.mode)}</b></p>`, row: true,
+    buttons: [again(), { label: 'Режимы', id: 'modes', onClick: showModes }, toMenuBtn()] });
+}
+function showVictory() {
+  kit.mode = 'menu';
+  kit.show({ id: 'victory', title: 'Марафон пройден!', wide: true,
+    html: `<p>Все 150 линий и 15 уровней позади - скорость падения была почти предельной.</p>${resultTable()}
+      <p>Рекорд Марафона: <b>${bestLine('marathon')}</b></p>
+      <p style="color:var(--kit-dim)">«Блоки» - часть «Игротеки». Фигуры и музыка сделаны прямо в коде страницы. Спасибо за игру!</p>`,
+    row: true, buttons: [{ label: 'Другой режим', primary: true, id: 'modes', onClick: showModes }, toMenuBtn()] });
+}
+function showModes() {
+  const node = document.createElement('div');
+  const grid2 = document.createElement('div');
+  grid2.className = 'kit-grid modes';
+  for (const m of Object.keys(MODES)) {
+    const d = MODES[m];
+    const b = kit.btn(`${d.name}<small>${d.goal}</small><small>рекорд: ${bestLine(m)}</small>`, () => startMode(m));
+    b.dataset.mode = m; b.title = d.desc;
+    grid2.appendChild(b);
+  }
+  node.appendChild(grid2);
+  const p = document.createElement('p');
+  p.style.color = 'var(--kit-dim)'; p.style.marginTop = '10px';
+  p.textContent = 'Стартовый уровень Марафона, задержка повтора (DAS), скорость повтора (ARR) и мягкого падения (SDF) - в настройках.';
+  node.appendChild(p);
+  kit.show({ id: 'modes', title: 'Режим игры', node, wide: true, buttons: [{ label: 'Назад', onClick: () => kit.pop() }] });
+}
+
+// ================= Звук =================
+const SFX = {
+  rotate: () => kit.tone(700, 0.035, { type: 'triangle', vol: 0.05 }),
+  lock: () => kit.tone(170, 0.06, { type: 'square', vol: 0.05 }),
+  hold: () => kit.tone(440, 0.07, { type: 'triangle', vol: 0.06, slide: 660 }),
+  clear: (n, ts) => { for (let i = 0; i < n; i++) kit.tone(523 * Math.pow(1.26, i + (ts ? 2 : 0)), 0.12, { type: 'square', vol: 0.06, delay: i * 0.06 }); if (n === 4 || ts) kit.noise(0.3, { vol: 0.08, freq: 3000, filter: 'highpass' }); },
+  level: () => [523, 659, 784, 1047].forEach((f, i) => kit.tone(f, 0.12, { type: 'square', vol: 0.06, delay: i * 0.08 })),
+  over: () => { kit.tone(330, 0.3, { type: 'sawtooth', vol: 0.08, slide: 110 }); kit.noise(0.5, { vol: 0.12, freq: 600 }); },
+  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => kit.tone(f, 0.18, { type: 'triangle', vol: 0.08, delay: i * 0.1 })),
+  go: (last) => kit.tone(last ? 880 : 440, last ? 0.25 : 0.12, { type: 'square', vol: 0.06 }),
+};
+
+// ================= Рисование =================
+const cv = document.getElementById('game'), bg = document.getElementById('bg');
+let ctx = cv.getContext('2d'), bgx = bg.getContext('2d');
+function fitCanvas() {
+  const s = Math.min(innerWidth / W, innerHeight / H), dpr = devicePixelRatio || 1;
+  const cssW = Math.floor(W * s), cssH = Math.floor(H * s);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  bg.width = Math.round(innerWidth * dpr); bg.height = Math.round(innerHeight * dpr);
+}
+// Оттенок оформления меняется с уровнем
+function hue() { return (220 + (state.level - 1) * 23) % 360; }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function cell(x, y, color, size = CELL, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color; ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x + 1, y + 1, size - 2, size * 0.18);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + 1, y + 1, size * 0.18, size - 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x + 1, y + size * 0.82, size - 2, size * 0.18 - 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x + size * 0.25, y + size * 0.3, size * 0.14, size * 0.14);
+  ctx.globalAlpha = 1;
+}
+function panel(x, y, w, h, title) {
+  rr(x, y, w, h, 10);
+  ctx.fillStyle = 'rgba(12,14,30,0.78)'; ctx.fill();
+  ctx.strokeStyle = `hsla(${hue()},70%,60%,0.55)`; ctx.lineWidth = 2; ctx.stroke();
+  if (title) { text(title, x + 16, y + 26, 14, `hsl(${hue()},80%,72%)`, 'left', 700, 3); }
+}
+function text(t, x, y, size, color, align = 'left', weight = 700, spacing = 0) {
+  ctx.font = `${weight} ${size}px "Segoe UI", Arial, sans-serif`;
+  ctx.textAlign = align; ctx.fillStyle = color;
+  if (spacing && ctx.letterSpacing !== undefined) ctx.letterSpacing = spacing + 'px';
+  ctx.fillText(t, x, y);
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+  ctx.textAlign = 'left';
+}
+function mini(type, cx, cy, size, alpha = 1) {
+  if (!type) return;
+  const s = SHAPES[type];
+  let minX = 9, maxX = 0, minY = 9, maxY = 0;
+  s.forEach((r, y) => r.forEach((v, x) => { if (v) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); } }));
+  const w = (maxX - minX + 1) * size, h = (maxY - minY + 1) * size;
+  s.forEach((r, y) => r.forEach((v, x) => { if (v) cell(cx - w / 2 + (x - minX) * size, cy - h / 2 + (y - minY) * size, COLORS[type], size, alpha); }));
+}
+function burstRow(y) {
+  if (!kit.settings.effects) return;
+  for (let x = 0; x < COLS; x++) {
+    const c = COLORS[grid[y][x]] || '#fff';
+    for (let k = 0; k < 3; k++) particles.push({ x: BX + x * CELL + 16, y: BY + (y - HIDDEN) * CELL + 16, vx: (fxRnd() - 0.5) * 7, vy: -fxRnd() * 5 - 1, life: 30 + fxRnd() * 20, color: c });
+  }
+}
+let bannerRect = null;
+function render() {
+  const k = cv.width / W;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (state.shake > 0.5) ctx.translate(Math.round((fxRnd() - 0.5) * state.shake), Math.round((fxRnd() - 0.5) * state.shake));
+  const hu = hue();
+  // стакан
+  rr(BX - 8, BY - 8, COLS * CELL + 16, VISIBLE * CELL + 16, 12);
+  ctx.fillStyle = 'rgba(6,8,20,0.9)'; ctx.fill();
+  ctx.strokeStyle = `hsl(${hu},80%,62%)`; ctx.lineWidth = 3; ctx.stroke();
+  if (kit.settings.gridLines) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 1; x < COLS; x++) { ctx.moveTo(BX + x * CELL + 0.5, BY); ctx.lineTo(BX + x * CELL + 0.5, BY + VISIBLE * CELL); }
+    for (let y = 1; y < VISIBLE; y++) { ctx.moveTo(BX, BY + y * CELL + 0.5); ctx.lineTo(BX + COLS * CELL, BY + y * CELL + 0.5); }
+    ctx.stroke();
+  }
+  const gy = (y) => BY + (y - HIDDEN) * CELL;
+  const hide = kit.mode === 'paused';               // на паузе поле не подсмотреть
+  if (!hide) for (let y = HIDDEN; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x]) cell(BX + x * CELL, gy(y), COLORS[grid[y][x]], CELL);
+  if (!hide) for (const f of flashes) { ctx.fillStyle = `rgba(255,255,255,${f.t / 14 * 0.8})`; ctx.fillRect(BX, gy(f.y) + CELL / 2 - (f.t / 14) * CELL / 2, COLS * CELL, (f.t / 14) * CELL); }
+  for (const t of trails) {
+    const grd = ctx.createLinearGradient(0, gy(t.y0), 0, gy(t.piece.y));
+    grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(1, `rgba(255,255,255,${t.t / 8 * 0.18})`);
+    ctx.fillStyle = grd;
+    t.piece.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v && (yy === r.length - 1 || !t.piece.shape[yy + 1] || !t.piece.shape[yy + 1][xx])) ctx.fillRect(BX + (t.piece.x + xx) * CELL + 8, gy(t.y0 + yy), CELL - 16, (t.piece.y - t.y0) * CELL); }));
+  }
+  if (current && state.phase === 'play' && !hide) {
+    if (kit.settings.ghost) {
+      const g = ghostY();
+      ctx.strokeStyle = COLORS[current.type]; ctx.lineWidth = 2;
+      current.shape.forEach((r, yy) => r.forEach((v, xx) => {
+        if (!v || g + yy < HIDDEN) return;
+        ctx.globalAlpha = 0.18; ctx.fillStyle = COLORS[current.type]; ctx.fillRect(BX + (current.x + xx) * CELL + 2, gy(g + yy) + 2, CELL - 4, CELL - 4);
+        ctx.globalAlpha = 0.7; ctx.strokeRect(BX + (current.x + xx) * CELL + 3, gy(g + yy) + 3, CELL - 6, CELL - 6); ctx.globalAlpha = 1;
+      }));
+    }
+    const lockFade = collides(current, 0, 1) ? 1 - 0.35 * (lockT / LOCK_FRAMES) : 1;
+    current.shape.forEach((r, yy) => r.forEach((v, xx) => { if (v && current.y + yy >= HIDDEN - 1) cell(BX + (current.x + xx) * CELL, gy(current.y + yy), COLORS[current.type], CELL, (current.y + yy < HIDDEN ? 0.55 : 1) * lockFade); }));
+  }
+  if (!hide) for (const q of particles) { ctx.globalAlpha = Math.max(0, q.life / 40); ctx.fillStyle = q.color; ctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
+  ctx.globalAlpha = 1;
+  // левая колонка: запас и счёт
+  panel(56, BY - 8, 232, 150, 'ЗАПАС');
+  if (!hide) mini(hold, 172, BY + 78, 28, canHold ? 1 : 0.35);
+  panel(56, BY + 160, 232, 300, MODES[state.mode] ? MODES[state.mode].name.toUpperCase() : 'ЗАСТАВКА');
+  const rows = [];
+  rows.push(['ОЧКИ', state.score.toLocaleString('ru')]);
+  if (state.mode === 'marathon') rows.push(['УРОВЕНЬ', `${state.level} / ${MAX_LEVEL}`], ['ЛИНИИ', `${state.lines} / ${MARATHON_LINES}`]);
+  else if (state.mode === 'sprint') rows.push(['ОСТАЛОСЬ ЛИНИЙ', String(Math.max(0, SPRINT_LINES - state.lines))]);
+  else rows.push(['ЛИНИИ', String(state.lines)]);
+  rows.push([state.mode === 'ultra' ? 'ОСТАЛОСЬ' : 'ВРЕМЯ', fmtTime(state.mode === 'ultra' ? Math.max(0, ULTRA_FRAMES - state.frames) : state.frames)]);
+  rows.push(['ФИГУР В СЕКУНДУ', state.frames > 60 ? (state.stats.pieces / (state.frames / 60)).toFixed(2) : '—']);
+  rows.forEach(([l, v], i) => { text(l, 74, BY + 214 + i * 50, 12, 'rgba(200,210,255,0.6)', 'left', 700, 2); text(v, 74, BY + 238 + i * 50, 22, '#ffffff', 'left', 700); });
+  // надписи очисток
+  if (state.label) {
+    const a = Math.min(1, state.label.t / 20), sc = 1 + Math.max(0, (state.label.t - 95) / 15) * 0.3;
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(172, BY + 520); ctx.scale(sc, sc);
+    state.label.lines.forEach((t, i) => text(t, 0, i * 30, i === 0 ? 22 : 18, i === 0 ? `hsl(${hu + 40},95%,70%)` : '#ffffff', 'center', 800));
+    ctx.restore();
+  }
+  // правая колонка: следующие 5
+  panel(672, BY - 8, 232, 480, 'ДАЛЕЕ');
+  if (!hide) for (let i = 0; i < 5; i++) mini(queue[i], 788, BY + (i === 0 ? 86 : 110 + i * 78), i === 0 ? 30 : 22, i === 0 ? 1 : 0.85);
+  // баннер (уровень, начало, поле очищено) - только в игре, под окнами его нет
+  bannerRect = null;
+  if (kit.mode === 'play' || state.mode === 'demo') {
+    let t = null;
+    if (state.ready > 0) t = state.ready > 45 ? 'ПРИГОТОВЬТЕСЬ' : 'ВПЕРЁД!';
+    else if (state.banner) t = state.banner.text;
+    if (t && kit.mode === 'play') {
+      // сбоку от стакана, под счётом: ни место появления фигур, ни место приземления не закрыто
+      const y = BY + 640, x0 = 56, w = 232;
+      rr(x0, y - 34, w, 48, 10); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
+      text(t, x0 + w / 2, y, t.length > 12 ? 18 : 24, `hsl(${hu + 40},95%,72%)`, 'center', 800);
+      bannerRect = { x: x0, y: y - 34, w, h: 48 };
+    }
+  }
+}
+// Фон окна: медленно падающие силуэты фигур
+const BGP = Array.from({ length: 22 }, (_, i) => ({ t: 'IOTSZJL'[i % 7], x: (i * 0.137 + 0.05) % 1, y: (i * 0.291) % 1, s: 0.5 + (i % 5) * 0.18, v: 0.0004 + (i % 4) * 0.00018, r: i % 4 }));
+function renderBg(tms) {
+  const w = bg.width, h = bg.height, hu = hue();
+  const g = bgx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, `hsl(${hu},45%,9%)`); g.addColorStop(1, `hsl(${(hu + 60) % 360},45%,6%)`);
+  bgx.fillStyle = g; bgx.fillRect(0, 0, w, h);
+  const u = Math.max(w, h) / 40;
+  for (const p of BGP) {
+    p.y += p.v; if (p.y > 1.1) { p.y = -0.1; }
+    const s = shapeFor(p.t, p.r), sz = u * p.s;
+    bgx.fillStyle = COLORS[p.t]; bgx.globalAlpha = 0.07;
+    s.forEach((row, yy) => row.forEach((v, xx) => { if (v) bgx.fillRect(p.x * w + xx * sz, p.y * h + yy * sz, sz - 2, sz - 2); }));
+  }
+  bgx.globalAlpha = 1;
+  void tms;
+}
+
+// ================= Каркас: меню, настройки, клавиши =================
+const MUSIC = {
+  menu: { bpm: 96, voices: [
+    { type: 'triangle', vol: 0.07, notes: 'A4 . C5 . E5 . D5 . C5 . B4 . A4 - - . E4 . A4 . C5 . B4 . G4 . A4 - - - . .' },
+    { type: 'sine', vol: 0.12, notes: 'A2 - - - F2 - - - C3 - - - E2 - - -' } ], drums: 'k.......s.......' },
+  game: { bpm: 138, voices: [
+    { type: 'square', vol: 0.04, notes: 'E5 . B4 C5 D5 . C5 B4 A4 . A4 C5 E5 . D5 C5 B4 . . C5 D5 . E5 . C5 . A4 . A4 . . . D5 . . F5 A5 . G5 F5 E5 . . C5 E5 . D5 C5 B4 . B4 C5 D5 . E5 . C5 . A4 . A4 . . .' },
+    { type: 'triangle', vol: 0.12, notes: 'A2 A3 A2 A3 E2 E3 E2 E3 A2 A3 A2 A3 E2 E3 G#2 G#3 D2 D3 D2 D3 A2 A3 A2 A3 E2 E3 E2 E3 A2 A3 A2 A3' } ], drums: 'k.h.s.h.k.h.s.hh' },
+  fast: { bpm: 168, voices: [
+    { type: 'square', vol: 0.04, notes: 'A5 . E5 . C5 . E5 . B4 . G#4 . B4 . E5 . A5 . E5 . C5 . E5 . D5 C5 B4 . A4 - - .' },
+    { type: 'sawtooth', vol: 0.05, notes: 'A2 A2 A3 A2 E2 E2 E3 E2 F2 F2 F3 F2 E2 E2 G#2 E2' } ], drums: 'k.hsk.hsk.hsk.ss' },
+  zen: { bpm: 72, voices: [
+    { type: 'sine', vol: 0.08, notes: 'E5 - - . B4 - - . C5 - - . G4 - - . A4 - - . E4 - - . F4 - - . G4 - - .' },
+    { type: 'sine', vol: 0.1, notes: 'C3 - - - - - - - A2 - - - - - - - F2 - - - - - - - G2 - - - - - - -' } ], drums: '' },
+};
+kit = GameKit.create({
+  id: 'blocks',
+  root: document.getElementById('app'),
+  theme: { accent: '#7fd8ff', accent2: '#6a4cff', panel: 'rgba(14,16,36,0.97)', shade: 'rgba(3,4,12,.45)' },
+  noDifficulty: true,
+  actions: {
+    left: { label: 'Влево', keys: ['ArrowLeft', 'Numpad4'], pad: ['b14', 'a0-'] },
+    right: { label: 'Вправо', keys: ['ArrowRight', 'Numpad6'], pad: ['b15', 'a0+'] },
+    soft: { label: 'Мягкое падение', keys: ['ArrowDown', 'Numpad2'], pad: ['b13', 'a1+'] },
+    hard: { label: 'Жёсткий сброс', keys: ['Space', 'Numpad8'], pad: ['b12'] },
+    cw: { label: 'Поворот по часовой', keys: ['ArrowUp', 'KeyX'], pad: ['b0', 'b3'] },
+    ccw: { label: 'Поворот против часовой', keys: ['KeyZ', 'ControlLeft'], pad: ['b1', 'b2'] },
+    hold: { label: 'В запас', keys: ['KeyC', 'ShiftLeft'], pad: ['b4', 'b5'] },
+    pause: { label: 'Пауза', keys: ['KeyP', 'F1'], pad: [] },
+  },
+  extraSettings: [
+    { name: 'startLevel', label: 'Стартовый уровень Марафона', type: 'range', min: 1, max: 15, step: 1, default: 1 },
+    { name: 'ghost', label: 'Призрак фигуры', default: true },
+    { name: 'gridLines', label: 'Сетка в стакане', default: true, section: 'Графика' },
+    { name: 'das', label: 'Задержка повтора (DAS)', type: 'range', min: 50, max: 300, step: 5, default: 167, unit: ' мс', section: 'Управление' },
+    { name: 'arr', label: 'Скорость повтора (ARR)', type: 'range', min: 0, max: 100, step: 5, default: 33, fmt: (v) => (v ? v + ' мс' : 'мгновенно'), section: 'Управление' },
+    { name: 'sdf', label: 'Мягкое падение (SDF)', type: 'range', min: 5, max: 41, step: 1, default: 20, fmt: (v) => (v >= 41 ? 'мгновенно' : '×' + v), section: 'Управление' },
+  ],
+  music: MUSIC,
+  achievements: [
+    { id: 'quad', name: 'Четыре разом', desc: 'Убрать четыре линии одной фигурой' },
+    { id: 'tsd', name: 'T-мастер', desc: 'Сделать двойное T-вращение' },
+    { id: 'combo5', name: 'Цепная реакция', desc: 'Комбо ×5: шесть очисток подряд' },
+    { id: 'b2b3', name: 'Серия', desc: 'Четыре сложные очистки подряд (серия ×3)' },
+    { id: 'pc', name: 'Чистое поле', desc: 'Очистить стакан полностью' },
+    { id: 'marathon', name: 'Марафонец', desc: 'Пройти Марафон: 150 линий' },
+    { id: 'marathon300k', name: 'Большой марафон', desc: '300 000 очков в Марафоне с первого уровня' },
+    { id: 'sprint3', name: 'Спринтер', desc: 'Спринт 40 линий быстрее 3 минут' },
+    { id: 'sprint2', name: 'Молния', desc: 'Спринт 40 линий быстрее 2 минут' },
+    { id: 'ultra40k', name: 'Ультра', desc: '40 000 очков за 2 минуты' },
+    { id: 'zen100', name: 'Дзен', desc: '100 линий в Дзене за все игры' },
+    { id: 'lines1000', name: 'Тысяча линий', desc: 'Убрать 1000 линий за все игры' },
+  ],
+  howto: `<p><b>Цель</b> - складывать падающие фигуры так, чтобы ряды заполнялись: полный ряд исчезает.</p>
+    <p><b>Режимы.</b> Марафон - 150 линий и 15 уровней, каждые 10 линий быстрее. Спринт - 40 линий на время. Ультра - очки за 2 минуты. Дзен - без проигрыша.</p>
+    <p><b>Управление</b> (меняется в настройках): ← → сдвиг, ↓ мягкое падение, Пробел - жёсткий сброс, ↑ или X - поворот по часовой, Z - против, C или Shift - в запас, Esc или P - пауза. Геймпад: крестовина, A/B - повороты, LB/RB - запас.</p>
+    <p><b>Очки.</b> Одна линия - 100, две - 300, три - 500, четыре - 800 (умножается на уровень). T-вращение - поворот T в тесную щель: 400-1600. Серия сложных очисток (четвёрки и T-вращения подряд) - ×1,5. Комбо - очистки фигурами подряд, +50 за шаг. Чистое поле - большой бонус.</p>
+    <p><b>Тонкости.</b> Призрак показывает, куда упадёт фигура. На земле фигура ждёт полсекунды; сдвиг или поворот продлевает ожидание, но не больше 15 раз. Фигура из запаса берётся раз за ход.</p>`,
+  credits: `<p><b>Блоки</b> - фан-версия, не связана с правообладателями похожих игр.</p>
+    <p>Правила вращения - по открытому описанию системы SRS, очередь - «мешок» из семи фигур. Рисунки, музыка и звуки сделаны прямо в коде страницы, без файлов из сети.</p><p>Часть «Игротеки».</p>`,
+  drawLogo(g, w, h, t) {
+    const letters = 'БЛОКИ', cols = ['#2fd7f0', '#f7d046', '#b060f0', '#58d860', '#f05060'];
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 70px "Segoe UI", Arial, sans-serif';
+    for (let i = 0; i < letters.length; i++) {
+      const x = w / 2 + (i - 2) * 72, y = h / 2 + Math.sin(t * 2.4 + i * 0.8) * 6;
+      g.fillStyle = cols[i]; g.globalAlpha = 0.25; g.fillRect(x - 32, y - 34, 64, 64); g.globalAlpha = 1;
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillText(letters[i], x + 3, y + 4);
+      g.fillStyle = cols[i]; g.fillText(letters[i], x, y);
+    }
+  },
+  game: {
+    menuItems() { return [{ label: 'Играть', primary: true, id: 'play', onClick: showModes }]; },
+    musicFor() { return state.mode === 'zen' ? 'zen' : state.level >= 10 ? 'fast' : 'game'; },
+    onRestart() { startMode(state.mode); },
+    onQuit() { if (state.phase === 'play' && state.mode !== 'demo') saveResult(false); startDemo(); },
+    onResetProgress() { loadAll(); },
+    recordsHtml() {
+      const rows = Object.keys(MODES).map((m) => `<tr><td>${MODES[m].name}</td><td><b>${bestLine(m)}</b></td></tr>`).join('');
+      return `<table>${rows}
+        <tr><td>Партий</td><td>${stats.games}</td></tr><tr><td>Линий всего</td><td>${stats.lines}</td></tr>
+        <tr><td>Фигур всего</td><td>${stats.pieces}</td></tr><tr><td>Четвёрок · T-вращений</td><td>${stats.quads} · ${stats.tspins}</td></tr>
+        <tr><td>Лучшее комбо · чистых полей</td><td>${stats.maxCombo} · ${stats.pcs}</td></tr><tr><td>Время в игре</td><td>${fmtTime(stats.time).replace(/\.\d+$/, '')}</td></tr></table>`;
+    },
+  },
+});
+// Рекорды и статистика - по схеме: испорченное хранилище не роняет игру
+function loadAll() {
+  const Z = GameKit.S, N = 1e12;
+  const entry = Z.obj({ score: Z.int(0, 0, N), lines: Z.int(0, 0, N), level: Z.int(1, 1, MAX_LEVEL), time: Z.int(0, 0, N), done: Z.bool(false), date: Z.num(0, 0, 1e15) });
+  records = kit.loadSafe('records', Z.obj({ marathon: Z.arr(entry, 5), sprint: Z.arr(entry, 5), ultra: Z.arr(entry, 5), zen: Z.arr(entry, 5) }));
+  stats = kit.loadSafe('stats', Z.obj({ games: Z.int(0, 0, N), lines: Z.int(0, 0, N), pieces: Z.int(0, 0, N), quads: Z.int(0, 0, N), tspins: Z.int(0, 0, N), pcs: Z.int(0, 0, N), maxCombo: Z.int(0, 0, N), time: Z.int(0, 0, N), zenLines: Z.int(0, 0, N) }));
+}
+
+let last = performance.now(), acc = 0;
+function loop(now) {
+  const dt = Math.min(100, now - last); last = now;
+  acc += dt;
+  while (acc >= STEP_MS) {
+    acc -= STEP_MS;
+    if ((kit.mode === 'play' && state.mode !== 'demo') || (kit.mode === 'menu' && state.mode === 'demo')) update();
+    kit.endStep();
+  }
+  render(); renderBg(now);
+  kit.countFrame();
+  requestAnimationFrame(loop);
+}
+addEventListener('resize', fitCanvas);
+loadAll();
+fitCanvas();
+startDemo();
+kit.showMain();
 requestAnimationFrame(loop);
 
-// Крючок для проверок: не влияет на обычную игру.
+// ================= Крючок для проверок =================
 window.__game = {
-  ready: true,
-  get grid() { return grid; }, set grid(g) { grid = g; },
-  get current() { return current; },
-  get queue() { return queue; },
-  get hold() { return hold; },
-  get score() { return score; },
-  get lines() { return lines; },
-  get level() { return level; },
-  get best() { return best; },
-  get gameOver() { return gameOver; },
-  get paused() { return paused; },
-  COLS, ROWS,
-  reset, tick, move, drop, hardDrop, tryRotate, holdPiece, collides,
-  setPiece(type) { canHold = true; setCurrent(spawnPiece(type)); },
+  ready: true, COLS, ROWS, HIDDEN, W, H, MODES,
+  state, get kit() { return kit; },
+  get grid() { return grid; }, get current() { return current; }, get queue() { return queue; }, get hold() { return hold; },
+  get pieceId() { return pieceId; }, get lastLock() { return lastLock; }, get records() { return records; }, get stats() { return stats; },
+  get autopilot() { return autopilot; }, setAutopilot(v) { autopilot = v; plan = null; },
+  step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
+  startMode, startDemo, move, rotate, hardDrop, holdPiece, ghostY, gravityMs, collides, tSpinKind, spawnPiece: (t) => spawn(t), KICKS, KICKS_I, BX, BY, CELL, VISIBLE, plural, bestLine,
+  get lockResets() { return lockResets; }, setLockResets(n) { lockResets = n; },
+  // Поле из строк (последняя - нижний ряд), X - занято
+  setGrid(rows) {
+    grid = newGrid();
+    rows.forEach((r, i) => { const y = ROWS - rows.length + i; [...r].forEach((ch, x) => { if (ch !== '.') grid[y][x] = 'G'; }); });
+  },
+  setPiece(type, x, y, rot = 0) { current = makePiece(type, x, y, rot); pieceId++; lockT = 0; lockResets = 0; lastRotate = false; gravAcc = 0; lowestY = y; canHold = true; plan = null; },
+  bannerCss() {
+    if (!bannerRect) return null;
+    const c = cv.getBoundingClientRect(), k = c.width / W;
+    return { left: c.left + bannerRect.x * k, top: c.top + bannerRect.y * k, right: c.left + (bannerRect.x + bannerRect.w) * k, bottom: c.top + (bannerRect.y + bannerRect.h) * k };
+  },
 };
 </script>
 </body>

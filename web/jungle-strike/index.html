@@ -2,61 +2,37 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="application-name" content="Огненные джунгли">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Огненные джунгли (фан-версия, не связана с правообладателем)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    background: #000;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: Consolas, 'Courier New', monospace;
-    color: #fff;
-    overflow: hidden;
-    user-select: none;
-  }
-  h1 {
-    color: #ff5050;
-    font-size: 22px;
-    letter-spacing: 6px;
-    margin-bottom: 6px;
-    text-shadow: 2px 2px 0 #800;
-  }
-  #wrap { position: relative; border: 4px solid #444; box-shadow: 0 0 30px #000a; }
-  canvas {
-    display: block;
-    background: #000;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-  }
-  #info { margin-top: 8px; color: #aaa; font-size: 12px; text-align: center; line-height: 1.5; }
-  #info b { color: #ffcc00; }
-  #info .pw { color: #80ffc0; }
-  #info .note { color: #666; font-size: 11px; }
+  html, body { height: 100%; overflow: hidden; background: #07090d; }
+  #app { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; }
+  #c { display: block; image-rendering: pixelated; touch-action: none; box-shadow: 0 0 40px #000; }
+  /* Окна меню - тем же пиксельным шрифтом, что и игра (pixel-font.js); размеры кратны 8 - точки шрифта целые */
+  #app .kit-panel { border-radius: 0; border-width: 4px; box-shadow: 8px 8px 0 rgba(0,0,0,.6); }
+  #app .kit-panel h2 { font-size: 24px; line-height: 32px; letter-spacing: 0; font-weight: normal; }
+  #app .kit-btn, #app .kit-btn.small { font-size: 16px; font-weight: normal; border-radius: 0; }
+  #app .kit-body, #app .kit-toast div, #app .kit-modal p { font-size: 16px; line-height: 24px; }
+  #app .kit-sec { font-size: 16px; letter-spacing: 0; }
+  #app .kit-grid small, #app .kit-ach small, #app .kit-body small, #app .kit-row small { font-size: 16px; }
+  #app .kit-toast div { border-radius: 0; }
 </style>
 </head>
 <body>
-<h1>ОГНЕННЫЕ ДЖУНГЛИ</h1>
-<div id="wrap"><canvas id="c" width="256" height="240"></canvas></div>
-<div id="info">
-  <b>A/D ← →</b> ходить · <b>W ↑</b> прицел вверх · <b>S ↓</b> лечь / спрыгнуть с платформы · <b>Пробел</b> прыжок · <b>J/X</b> огонь · <b>P/Esc</b> пауза · <b>R</b> заново · <b>M</b> звук<br>
-  Бонусы: <span class="pw">S</span> веер из трёх · <span class="pw">R</span> быстрый огонь · <span class="pw">щит</span> один удар<br>
-  <span class="note">Фан-версия, не связана с правообладателем. Всё нарисовано в коде, звуки синтезированы.</span>
-</div>
-
+<div id="app"><canvas id="c" aria-label="Игровое поле"></canvas></div>
+<script src="pixel-font.js"></script>
+<script src="kit.js"></script>
 <script>
 'use strict';
-const cv = document.getElementById('c');
-const ctx = cv.getContext('2d');
-ctx.imageSmoothingEnabled = false;
-const STEP_MS = 1000 / 60;         // шаг физики: скорость не зависит от частоты экрана
-const START_LIVES = 3;
-const BEST_KEY = 'jungle_best';
-
-// ?seed=N - повторяемая игра (для проверок)
+// ================= Мир: пиксельная картинка 400x225, масштабируется целым кратным =================
+const W = 400, H = 225, GROUND = 186, STEP_MS = 1000 / 60;
+const PHY = { g: 0.38, jump: -6.8, speed: 1.6, maxFall: 7 };
+const JUMP_H = PHY.jump * PHY.jump / (2 * PHY.g);               // ~61 пиксель вверх
+const JUMP_DIST = -2 * PHY.jump / PHY.g * PHY.speed;             // ~57 пикселей вперёд
+const MAX_PIT = 46;                                               // ямы уже прыжка - уровень всегда проходим
+const BULLET_SPEED = 4.5;
 const params = new URLSearchParams(location.search);
 function mulberry32(a) {
   return function () {
@@ -66,1334 +42,1168 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rnd = params.has('seed') ? mulberry32(Number(params.get('seed')) || 1) : Math.random;
+// ?seed=N - повторяемость. Зерно задаётся заново в начале миссии: заставка в меню не сдвигает случайности партии
+const SEED = params.has('seed') ? Number(params.get('seed')) || 1 : null;
+const freshRnd = (k = 0) => (SEED !== null ? mulberry32(SEED * 31 + k) : Math.random);
+let rnd = freshRnd();
+const pick = (a) => a[Math.floor(rnd() * a.length)];
 
-function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
-function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* нет хранилища */ } }
-
-// Звук: синтез WebAudio, без файлов
-let actx = null, muted = false, lastShot = 0;
-function beep(freq, dur, type = 'square', vol = 0.04, slide) {
-  if (muted) return;
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
-  } catch (e) { /* звук недоступен */ }
-}
-const SFX = {
-  shot: () => { const n = performance.now(); if (n - lastShot > 70) { lastShot = n; beep(700, 0.04, 'square', 0.02, 300); } },
-  kill: () => beep(160, 0.15, 'sawtooth', 0.05, 60),
-  hurt: () => beep(240, 0.25, 'square', 0.06, 80),
-  pickup: () => { beep(600, 0.07, 'triangle', 0.06); setTimeout(() => beep(900, 0.1, 'triangle', 0.06), 60); },
-  boom: () => beep(90, 0.5, 'sawtooth', 0.07, 30),
+// ================= Палитры миссий =================
+const PALS = {
+  jungle: { sky: ['#3060a0', '#5090d0', '#a0c0e0'], far: '#406080', near: '#284060', jFar: '#1a4a2a', jNear: '#0a3018', ground: '#5a3820', groundDk: '#3a2010', grass: '#2a8030', grassDk: '#185020', water: '#1860a0', waterDk: '#0a3060', plat: '#806040', platTop: '#a08060', platDk: '#503020', far2: 'mountains', mid: 'jungle', trees: true },
+  river: { sky: ['#2a2a5a', '#b0506a', '#f0a060'], far: '#5a3a5a', near: '#3a2a4a', jFar: '#1e3a2e', jNear: '#12281e', ground: '#4a3a28', groundDk: '#2c2218', grass: '#3a6a30', grassDk: '#244a20', water: '#2a5a8a', waterDk: '#18385a', plat: '#6a5038', platTop: '#8a6a4a', platDk: '#3e2c1c', far2: 'hills', mid: 'reeds', trees: true },
+  cave: { sky: ['#07070d', '#0e0e18', '#161624'], far: '#1c1a2a', near: '#15131f', jFar: '#23202f', jNear: '#1a1724', ground: '#3a3448', groundDk: '#24202e', grass: '#5a4a7a', grassDk: '#3e3258', water: '#2a2060', waterDk: '#18123e', plat: '#4a4458', platTop: '#6a6278', platDk: '#2a2634', far2: 'stalactites', mid: 'rocks', trees: false },
+  base: { sky: ['#0c1424', '#1a2a44', '#2a3e5e'], far: '#26324a', near: '#1c2638', jFar: '#222c3e', jNear: '#171f2d', ground: '#4a4e58', groundDk: '#2e323a', grass: '#7a8088', grassDk: '#565c66', water: '#1e5a7a', waterDk: '#123a50', plat: '#5a606a', platTop: '#8a9098', platDk: '#34383f', far2: 'city', mid: 'pipes', trees: false },
+  storm: { sky: ['#12151e', '#2a3040', '#4a5262'], far: '#262c3a', near: '#1c2230', jFar: '#1f3326', jNear: '#132219', ground: '#4e3e2e', groundDk: '#30261c', grass: '#35603a', grassDk: '#224028', water: '#24466a', waterDk: '#142a44', plat: '#6a5a48', platTop: '#8a7a64', platDk: '#3e3428', far2: 'cliffs', mid: 'jungle', trees: true, rain: true },
 };
 
-const W = 256, H = 240;
-const GROUND_Y = 184;
-const GRAVITY = 0.4;
-const JUMP_V = -6.4;
-const PLAYER_SPEED = 1.4;
-const BULLET_SPEED = 4;
-const LEVEL_W = 4200;
-const BOSS_X = LEVEL_W - 200;
+// ================= Кампания: 5 миссий, у каждой свои враги и босс =================
+const MISSIONS = [
+  { name: 'Лесной форт', pal: 'jungle', len: 2600, pitRate: 0.45, spawnEvery: 95, max: 5, mix: { soldier: 5, turret: 2, drone: 2 }, boss: 'fort', intro: 'Прорваться через джунгли к форту.' },
+  { name: 'Река на закате', pal: 'river', len: 2800, pitRate: 0.6, spawnEvery: 90, max: 5, mix: { soldier: 3, grenadier: 3, drone: 3 }, boss: 'boat', intro: 'Вдоль реки до причала с катером.' },
+  { name: 'Пещеры', pal: 'cave', len: 2800, pitRate: 0.5, spawnEvery: 80, max: 6, mix: { crawler: 5, turret: 2, sniper: 2 }, boss: 'drill', intro: 'Во тьме ползают пауки-роботы и сидят снайперы.' },
+  { name: 'Секретная база', pal: 'base', len: 3000, pitRate: 0.4, spawnEvery: 85, max: 6, mix: { soldier: 3, sniper: 3, mine: 2, tankette: 1 }, boss: 'walker', intro: 'Мины, снайперы и шагоход охраны.' },
+  { name: 'Штурм вышки', pal: 'storm', len: 3000, pitRate: 0.55, spawnEvery: 75, max: 6, mix: { jetpack: 4, grenadier: 2, drone: 3, tankette: 1 }, boss: 'heli', intro: 'Гроза, ракетчики и вертолёт «Коршун».' },
+];
+const ETYPES = {
+  soldier: { hp: 1, w: 12, h: 22, score: 100 },
+  turret: { hp: 3, w: 14, h: 12, score: 200 },
+  drone: { hp: 1, w: 14, h: 10, score: 150, fly: true },
+  grenadier: { hp: 2, w: 12, h: 22, score: 250 },
+  crawler: { hp: 2, w: 16, h: 9, score: 120 },
+  sniper: { hp: 2, w: 12, h: 22, score: 300 },
+  mine: { hp: 1, w: 10, h: 4, score: 50 },
+  jetpack: { hp: 2, w: 12, h: 20, score: 250, fly: true },
+  tankette: { hp: 8, w: 30, h: 18, score: 500 },
+};
+const ENEMY_CAP = { jetpack: 2, tankette: 1 }, MAX_FLYERS = 2;
+const BOSSES = {
+  fort: { name: 'Лесной форт', hp: 55, w: 60, h: 90 },
+  boat: { name: 'Катер «Щука»', hp: 65, w: 72, h: 30 },
+  drill: { name: 'Буровой танк', hp: 75, w: 58, h: 34 },
+  walker: { name: 'Шагоход', hp: 85, w: 44, h: 56 },
+  heli: { name: 'Вертолёт «Коршун»', hp: 100, w: 84, h: 30 },
+};
+const WEAPON_NAMES = { normal: 'Автомат', spread: 'Веер', rapid: 'Скорострел', laser: 'Лазер' };
 
-const keys = {};
-const justPressed = {};
-addEventListener('keydown', e => {
-  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyM') { muted = !muted; return; }
-  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
-  if (e.code === 'KeyR') { startGame(); return; }
-  if ((phase === 'ready' || phase === 'over' || phase === 'won') && (e.code === 'Enter' || e.code === 'Space')) {
-    if (!e.repeat) startGame();
-    return;
+// Уровень строится из номера миссии (одинаково при каждом запуске): ямы, платформы, точки
+function buildLevel(mi) {
+  const m = MISSIONS[mi], r = mulberry32(1000 + mi * 77);
+  const pits = [], plats = [], pods = [];
+  const arena = m.len - W;
+  let skipped = 0;
+  for (let x = 420; x < arena - 120; x += 240 + Math.floor(r() * 180)) {
+    if (r() < m.pitRate || skipped >= 2) { pits.push({ x, w: 30 + Math.floor(r() * (MAX_PIT - 30)) }); skipped = 0; }   // не больше двух участков подряд без ямы
+    else skipped++;
   }
-  if (!keys[e.code]) justPressed[e.code] = true;
-  keys[e.code] = true;
-});
-addEventListener('keyup', e => { keys[e.code] = false; });
-// Потеря фокуса: пауза и отпускание клавиш (иначе герой бежит сам)
-addEventListener('blur', () => { for (const c in keys) keys[c] = false; if (phase === 'play') togglePause(); });
-
-const k = (...codes) => codes.some(c => keys[c]);
-const kp = (...codes) => codes.some(c => justPressed[c]);
-
-const palette = {
-  skyTop: '#3060a0',
-  skyMid: '#5090d0',
-  skyLow: '#a0c0e0',
-  mtnFar: '#406080',
-  mtnNear: '#284060',
-  jungleFar: '#1a4a2a',
-  jungleNear: '#0a3018',
-  ground: '#5a3820',
-  groundDk: '#3a2010',
-  grass: '#2a8030',
-  grassDk: '#185020',
-  water: '#1860a0',
-  waterDk: '#0a3060',
-  platform: '#806040',
-  platformDk: '#503020',
-  platformTop: '#a08060',
-  trunk: '#4a3018',
-  leaves: '#2a6028',
-  leavesDk: '#184018',
-  bodyA: '#d8a060',
-  bodyB: '#a06038',
-  pants: '#306030',
-  bandana: '#c02020',
-  skin: '#f0c090',
-  hair: '#402010',
-  enemyShirt: '#a83030',
-  enemyPants: '#403028',
-  droneBody: '#606878',
-  droneLight: '#ff4040',
-  bossBody: '#704040',
-  bossDk: '#382020',
-  bossEye: '#ffc040',
-  bullet: '#fff080',
-  bulletEnemy: '#ff6040',
-  blood: '#c02020',
-  spark: '#ffd040',
-  uiRed: '#ff5050',
-  uiYellow: '#ffd040',
-  uiWhite: '#ffffff',
-  uiDark: '#101820',
-  pwS: '#80c0ff',
-  pwR: '#ffa040',
-  pwShield: '#80ff80',
-  shield: '#80ffc0',
-};
-
-let cameraX = 0;
-
-const platforms = [];
-const pits = [];
-
-function buildLevel() {
-  platforms.length = 0;
-  pits.length = 0;
-  pits.push({ x: 600, w: 60 });
-  pits.push({ x: 1100, w: 50 });
-  pits.push({ x: 1700, w: 80 });
-  pits.push({ x: 2400, w: 70 });
-  pits.push({ x: 3100, w: 90 });
-
-  platforms.push({ x: 380, y: 140, w: 60 });
-  platforms.push({ x: 580, y: 130, w: 80 });
-  platforms.push({ x: 800, y: 150, w: 50 });
-  platforms.push({ x: 1080, y: 130, w: 80 });
-  platforms.push({ x: 1300, y: 145, w: 60 });
-  platforms.push({ x: 1500, y: 120, w: 60 });
-  platforms.push({ x: 1690, y: 135, w: 90 });
-  platforms.push({ x: 1900, y: 145, w: 50 });
-  platforms.push({ x: 2150, y: 130, w: 70 });
-  platforms.push({ x: 2380, y: 140, w: 100 });
-  platforms.push({ x: 2600, y: 120, w: 60 });
-  platforms.push({ x: 2820, y: 135, w: 70 });
-  platforms.push({ x: 3080, y: 130, w: 110 });
-  platforms.push({ x: 3300, y: 145, w: 60 });
-  platforms.push({ x: 3500, y: 130, w: 80 });
+  for (let x = 260; x < arena - 60; x += 170 + Math.floor(r() * 150)) {
+    plats.push({ x, y: GROUND - 34 - Math.floor(r() * 16), w: 46 + Math.floor(r() * 50) });
+    if (r() < 0.35) pods.push({ x: x + 20, y: GROUND - 70 });
+  }
+  const safe = (x) => { for (const p of pits) if (x > p.x - 20 && x < p.x + p.w + 20) return p.x + p.w + 24; return x; };
+  const checkpoints = [safe(Math.round(m.len * 0.33)), safe(Math.round(m.len * 0.66))];
+  const water = m.boss === 'boat' ? m.len - 150 : Infinity;      // у катера - вода в конце арены
+  return { pits, plats, pods, checkpoints, arena, len: m.len, water };
 }
 
-function pitAt(x) {
-  for (const p of pits) if (x > p.x && x < p.x + p.w) return p;
-  return null;
-}
-
-const player = {
-  x: 60, y: GROUND_Y, vx: 0, vy: 0,
-  w: 12, h: 22,
-  dir: 1,
-  aimUp: false,
-  prone: false,
-  onGround: true,
-  jumping: false,
-  shootCooldown: 0,
-  invuln: 0,
-  alive: true,
-  walkFrame: 0,
-  walkTimer: 0,
-  weapon: 'normal',
-  weaponTimer: 0,
-  shieldTimer: 0,
-  onPlatform: null,
-  dropThrough: 0,
+// ================= Состояние =================
+const G = {
+  mode: 'demo', mission: 0, phase: 'run', t: 0, cam: 0, score: 0, lives: 3, checkpoint: 0,
+  spawnT: 60, level: null, bossSpawned: false, clearT: 0, banner: null, shake: 0, flash: 0, lightning: 0,
+  stats: { kills: 0, deaths: 0, shots: 0, hits: 0, steps: 0 }, total: null,
 };
-
-const bullets = [];
-const enemyBullets = [];
-const enemies = [];
-const particles = [];
-const powerups = [];
-
-let score = 0;
-let best = loadBest();
-let lives = START_LIVES;
-let phase = 'ready';           // ready | play | paused | over | won
-let gameOver = false;
-let gameWon = false;
-let spawnTimer = 0;
-let levelTime = 0;
+const player = { x: 60, y: GROUND, vx: 0, vy: 0, dir: 1, onGround: true, plat: null, drop: 0, prone: false, aimUp: false, cd: 0, invuln: 0, weapon: 'normal', shield: 0, walk: 0, alive: true };
+let bullets = [], ebullets = [], enemies = [], particles = [], pickups = [], hazards = [];
 let boss = null;
-let bossSpawned = false;
+let kit;
+let progress = { unlocked: 0, done: false, best: {} };
+let shotsFired = 0;
+let mouseFire = false, fireQueued = false, autopilot = false;
+let mouseQueued = false;                      // очередной выстрел заказан кликом - летит в курсор
+const aim = { x: 0, y: 0 };                   // курсор в точках поля (экранных, без камеры)
 
-function spawnEnemy() {
-  if (boss) return;
-  const fromRight = rnd() < 0.85;
-  let ex = fromRight ? cameraX + W + 20 : cameraX - 20;
-  const r = rnd();
-  let type;
-  if (r < 0.25) type = 'turret';
-  else if (r < 0.45) type = 'drone';
-  else if (r < 0.6) type = 'grenadier';
-  else type = 'soldier';
-
-  // Не ставить пеших врагов в воду: сдвинуть на ближайшую сушу
-  if (type !== 'drone') {
-    for (let guard = 0; pitAt(ex) && guard < 20; guard++) ex += fromRight ? 12 : -12;
-  }
-  if (type === 'soldier') {
-    enemies.push({
-      type: 'soldier',
-      x: ex, y: GROUND_Y, vx: fromRight ? -0.6 : 0.6,
-      w: 12, h: 22, hp: 1,
-      dir: fromRight ? -1 : 1,
-      shootTimer: 30 + rnd() * 60,
-      walkFrame: 0, walkTimer: 0,
-      alive: true,
-      onGround: true, vy: 0,
-    });
-  } else if (type === 'turret') {
-    let tx = cameraX + W + rnd() * 80;
-    for (let guard = 0; (pitAt(tx) || pitAt(tx - 8) || pitAt(tx + 8)) && guard < 20; guard++) tx += 16;
-    enemies.push({
-      type: 'turret',
-      x: tx, y: GROUND_Y - 6, vx: 0,
-      w: 14, h: 12, hp: 2,
-      dir: -1,
-      shootTimer: 60 + rnd() * 40,
-      alive: true,
-    });
-  } else if (type === 'drone') {
-    enemies.push({
-      type: 'drone',
-      x: ex, y: 70 + rnd()*40,
-      vx: fromRight ? -1.0 : 1.0,
-      w: 14, h: 10, hp: 1,
-      dir: fromRight ? -1 : 1,
-      shootTimer: 50 + rnd() * 30,
-      bobPhase: rnd()*Math.PI*2,
-      bobBase: 70 + rnd()*40,
-      alive: true,
-    });
-  } else if (type === 'grenadier') {
-    enemies.push({
-      type: 'grenadier',
-      x: ex, y: GROUND_Y, vx: 0,
-      w: 12, h: 22, hp: 2,
-      dir: fromRight ? -1 : 1,
-      shootTimer: 90 + rnd() * 40,
-      alive: true,
-    });
-  }
+// ================= Звуки =================
+let lastShot = 0;
+const SFX = {
+  shot: () => { const n = performance.now(); if (n - lastShot > 70) { lastShot = n; kit.tone(700, 0.04, { vol: 0.03, slide: 300 }); } },
+  kill: () => kit.noise(0.15, { vol: 0.12, freq: 1400 }),
+  boom: (big) => kit.noise(big ? 0.8 : 0.35, { vol: big ? 0.3 : 0.16, freq: big ? 400 : 800 }),
+  hurt: () => kit.tone(240, 0.3, { vol: 0.08, slide: 70 }),
+  pickup: () => { kit.tone(600, 0.07, { type: 'triangle', vol: 0.08 }); kit.tone(900, 0.1, { type: 'triangle', vol: 0.08, delay: 0.06 }); },
+  flag: () => [523, 784].forEach((f, i) => kit.tone(f, 0.12, { type: 'triangle', vol: 0.08, delay: i * 0.1 })),
+  win: () => [523, 659, 784, 1047].forEach((f, i) => kit.tone(f, 0.16, { type: 'triangle', vol: 0.1, delay: i * 0.12 })),
+};
+function shake(v) { if (kit.settings.shake) G.shake = Math.max(G.shake, v); }
+function burst(x, y, color, n, sp = 1.5, life = 20) {
+  if (!kit.settings.effects || particles.length > 400) return;
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (rnd() - 0.5) * sp * 2, vy: -rnd() * sp * 1.5 - 0.3, life: life * (0.6 + rnd() * 0.6), color });
+}
+function explode(x, y, big) {
+  burst(x, y, '#ffd040', big ? 26 : 12, big ? 2.6 : 1.6, big ? 34 : 22);
+  burst(x, y, '#ff6030', big ? 16 : 8, big ? 2 : 1.2, big ? 30 : 18);
+  SFX.boom(big); shake(big ? 6 : 2);
 }
 
-function spawnBoss() {
-  boss = {
-    type: 'boss',
-    x: BOSS_X + 100,
-    y: GROUND_Y - 4,
-    w: 50, h: 56,
-    hp: 30,
-    maxHp: 30,
-    phase: 'enter',
-    dir: -1,
-    shootTimer: 60,
-    cannonTimer: 0,
-    alive: true,
-    flash: 0,
-    bobPhase: 0,
-  };
-  enemies.push(boss);
-}
-
-function platformBelow(x, y) {
+// ================= Геометрия уровня =================
+// Граница кадра для врагов и пуль одна: враг за краем не живёт дольше пули, которой его можно сбить
+const EDGE = 20;
+const onScreen = (x) => x > G.cam - 4 && x < G.cam + W + 4;
+function pitAt(x) { for (const p of G.level.pits) if (x > p.x && x < p.x + p.w) return p; return x > G.level.water ? { x: G.level.water, w: 1e6 } : null; }
+function groundUnder(x, y) {                // ближайшая опора под точкой (платформа или земля)
   let best = null;
-  for (const p of platforms) {
-    if (x >= p.x && x <= p.x + p.w && p.y >= y - 1) {
-      if (!best || p.y < best.y) best = p;
-    }
-  }
-  if (!pitAt(x) && GROUND_Y >= y - 1 && (!best || GROUND_Y < best.y)) {
-    return { y: GROUND_Y, isGround: true };
-  }
+  for (const p of G.level.plats) if (x >= p.x - 2 && x <= p.x + p.w + 2 && p.y >= y - 1 && (!best || p.y < best.y)) best = p;
+  if (!pitAt(x) && GROUND >= y - 1 && (!best || GROUND < best.y)) return { y: GROUND, ground: true };
   return best;
 }
 
+// ================= Запуск =================
+function clearArena() { bullets = []; ebullets = []; enemies = []; particles = []; pickups = []; hazards = []; boss = null; }
+function resetPlayer(x) {
+  Object.assign(player, { x, y: GROUND, vx: 0, vy: 0, dir: 1, onGround: true, plat: null, drop: 0, prone: false, aimUp: false, cd: 0, invuln: 120, shield: 0, walk: 0, alive: true });
+}
+function startMission(mi, fromCheckpoint) {
+  rnd = freshRnd(mi + 1);
+  clearArena();
+  G.mode = 'mission'; G.mission = mi; G.level = buildLevel(mi);
+  G.phase = 'run'; G.t = 0; G.bossSpawned = false; G.clearT = 0; G.flash = 0; G.shake = 0;
+  G.lives = kit.diff({ easy: 5, normal: 3, hard: 2 });
+  if (!fromCheckpoint) { G.checkpoint = 0; G.score = 0; G.stats = { kills: 0, deaths: 0, shots: 0, hits: 0, steps: 0 }; player.weapon = 'normal'; }
+  const x = G.checkpoint ? G.level.checkpoints[G.checkpoint - 1] : 60;
+  G.cam = Math.max(0, x - 60);
+  resetPlayer(x);
+  G.spawnT = 90;
+  G.banner = { text: `Миссия ${mi + 1}: ${MISSIONS[mi].name}`, t: 150 };
+  mouseFire = false; fireQueued = false;
+  autopilot = false;
+  pilotState.bestX = 0; pilotState.still = 0;
+  kit.play();
+}
+function startDemo() {
+  clearArena();
+  G.mode = 'demo'; G.mission = 0; G.level = buildLevel(0); G.phase = 'run'; G.t = 0; G.cam = 0; G.bossSpawned = false; G.checkpoint = 0;
+  G.lives = 99; G.score = 0; G.stats = { kills: 0, deaths: 0, shots: 0, hits: 0, steps: 0 };
+  resetPlayer(60); player.weapon = 'spread';
+  autopilot = true;
+}
+
+// ================= Игрок =================
+function input(name) {
+  if (autopilot) return pilotInput[name];
+  if (name === 'fire') return kit.isDown('fire') || mouseFire;
+  return kit.isDown(name);
+}
+const pilotInput = {};
+const pilotState = { bestX: 0, still: 0 };
+function pilot() {
+  // «Рука» для заставки и для честной проверки проходимости (без неуязвимости): перед решением пилот
+  // проигрывает в уме несколько вариантов на 40 кадров вперёд - идти, стоять, отступить, прыгнуть, лечь - по тем же
+  // законам движения, с полётом вражеских пуль и гранат, врагами, минами, камнями, волнами и боссом, и выбирает
+  // вариант без попаданий, который больше продвигает к цели. Стреляет всегда, вверх - по летающим.
+  const p = player;
+  Object.assign(pilotInput, { left: false, right: false, up: false, down: false, jump: false, fire: true });
+  const flyer = enemies.find((e) => ETYPES[e.type].fly && Math.abs(e.x - p.x) < 40 && e.y < p.y - 30) || (boss && boss.kind === 'heli' && boss.state !== 'enter' && Math.abs(boss.x - p.x) < 34 ? boss : null);
+  const plans = p.onGround
+    ? [[1, 0, 0], [0, 0, 0], [-1, 0, 0], [1, 1, 0], [0, 1, 0], [-1, 1, 0], [0, 0, 1], [1, 2, 0], [0, 2, 0]]      // [ход, прыжок: 0/1 высокий/2 короткий/3 спрыгнуть вниз, лечь]
+    : [[1, 1, 0], [0, 1, 0], [-1, 1, 0], [1, 2, 0], [0, 2, 0], [-1, 2, 0]];
+  if (p.onGround && p.plat && !p.plat.ground) plans.push([0, 3, 0], [1, 3, 0]);
+  // застой: долго нет продвижения - дальние опасности не в счёт, сначала шаг вперёд (дальше пилот снова уклоняется)
+  if (p.x > pilotState.bestX + 2) { pilotState.bestX = p.x; pilotState.still = 0; } else pilotState.still++;
+  const horizon = pilotState.still > 240 ? 16 : 40;
+  // низкие цели (ползуны, мины) стоя не достать: пули идут над ними - надо лечь
+  const lowTarget = enemies.some((e) => (e.type === 'crawler' || e.type === 'mine') && Math.abs(e.x - p.x) < 220 && Math.abs(e.y - p.y) < 6);
+  let best = null;
+  for (const pl of plans) {
+    const r = pilotSim(pl[0], pl[1], pl[2], horizon);
+    const goal = pilotGoal();
+    // яма - верная потеря жизни; предсказание пуль и гранат бывает неточным, поэтому яма хуже любой из них
+    const value = (r.pit ? -30000 : r.hit ? -10000 + r.hit * 100 : 0) - Math.abs(goal - r.x) * 0.6 - (pl[2] ? (lowTarget && pilotState.still < 240 ? -40 : 4) : 0) - (pl[1] && !r.needJump ? 2 : 0);
+    if (!best || value > best.value) best = { value, pl };
+  }
+  const [mv, jump, prone] = best.pl;
+  pilotInput.left = mv < 0; pilotInput.right = mv > 0;
+  pilotInput.jump = jump === 1 ? (p.onGround || p.vy < 0) : jump === 2 || jump === 3 ? p.onGround : false;
+  pilotInput.down = (!!prone && !flyer) || jump === 3;
+  pilotInput.up = !!flyer && !prone;
+  // смотреть и стрелять в сторону ближайшего наземного врага (если стоим на месте)
+  if (!mv) {
+    const near = enemies.filter((e) => !ETYPES[e.type].fly).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+    if (near && Math.abs(near.x - p.x) < 260) p.dir = near.x < p.x ? -1 : 1;
+    else if (boss) p.dir = boss.x < p.x ? -1 : 1;
+    else p.dir = 1;                                    // никого рядом - лицом вперёд (раньше мог застыть, стреляя назад)
+  }
+}
+// Куда стремиться: вперёд по уровню; у босса - на удобное для стрельбы расстояние
+function pilotGoal() {
+  const p = player;
+  if (!boss) return p.x + 200;
+  if (boss.kind === 'heli') return boss.state === 'enter' ? G.cam + 60 : boss.x - 12;
+  if (boss.kind === 'boat') return Math.min(G.level.water - 20, G.cam + W / 2);
+  if (boss.kind === 'drill') return G.cam + 12;           // бур таранит до края экрана и останавливается в 50 точках от него
+  return Math.max(G.cam + 20, boss.x - boss.w / 2 - 120);
+}
+// Проиграть вариант: ход mv, прыжок (1 - держать до верхней точки, 2 - короткий), лечь; вернуть момент первого попадания
+function pilotSim(mv, jump, prone, frames, onlyMove) {
+  // сначала - только движение: ведёт ли вариант в яму (пуля может «попасть» раньше, но яма - хуже)
+  if (!onlyMove) { const m = pilotSim(mv, jump, prone, frames, true); if (m.pit) return m; }
+  const p = player;
+  const o = { x: p.x, y: p.y, vy: p.vy, onGround: p.onGround, drop: p.drop };
+  let cam = G.cam, needJump = false;
+  const eb = ebullets.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, grenade: b.grenade, missile: b.missile, bomb: b.bomb, dead: false }));
+  const en = enemies.map((e) => ({ type: e.type, x: e.x, y: e.y, vx: e.vx, w: e.w, h: e.h, armed: e.armed || 0, aim: e.aim || 0, lockX: e.lockX, lockY: e.lockY, base: e.base, t: e.t }));
+  const hz = hazards.map((h) => ({ kind: h.kind, x: h.x, y: h.y, vy: h.vy || 0, vx: h.vx || 0, warn: h.warn || 0 }));
+  const bs = boss && { x: boss.x, y: boss.y, vx: boss.kind === 'drill' && boss.state === 'charge' ? -3.4 : boss.state === 'jump' ? boss.vx : 0, vy: boss.state === 'jump' ? boss.vy : 0, w: boss.w, h: boss.h, kind: boss.kind, jump: boss.state === 'jump', rumble: boss.kind === 'drill' && boss.state === 'rumble' ? boss.timer : 0 };
+  const hitBox = (x, y, lying) => ({ l: x - 5, r: x + 5, t: y - (lying ? 8 : 22), b: y });
+  for (let k = 1; k <= frames; k++) {
+    // герой - по тем же законам, что в updatePlayer
+    const lying = prone && o.onGround;
+    const vx = lying ? 0 : mv * PHY.speed;
+    if (k === 1 && jump === 3 && o.onGround) { o.drop = 10; o.y += 2; o.onGround = false; }
+    else if (k === 1 && jump && o.onGround) { o.vy = PHY.jump; o.onGround = false; }
+    if (o.drop > 0) o.drop--;
+    const hold = jump === 1 && o.vy < 0;
+    if (!hold && o.vy < -3) o.vy = -3;
+    o.vy = Math.min(PHY.maxFall, o.vy + PHY.g);
+    const prevY = o.y;
+    o.x += vx; o.y += o.vy;
+    const target = o.x - W * 0.4; if (target > cam) cam = Math.min(target, G.level.arena);
+    o.x = Math.max(cam + 6, Math.min(o.x, G.level.len - 8, G.level.water - 8));
+    if (bs && bs.kind !== 'heli' && o.x > bs.x - bs.w / 2 - 4) o.x = bs.x - bs.w / 2 - 4;
+    o.onGround = false;
+    if (o.vy >= 0 && !o.drop) for (const pl of G.level.plats) if (o.x >= pl.x - 3 && o.x <= pl.x + pl.w + 3 && prevY <= pl.y + 0.5 && o.y >= pl.y) { o.y = pl.y; o.vy = 0; o.onGround = true; break; }
+    if (!o.onGround && o.y >= GROUND && !pitAt(o.x) && prevY <= GROUND + 2) { o.y = GROUND; o.vy = 0; o.onGround = true; }
+    if (o.y > H + 20) return { hit: k, x: o.x, pit: true };
+    if (onlyMove) continue;
+    const box = hitBox(o.x, o.y, prone && o.onGround);
+    // пули и гранаты
+    for (const b of eb) {
+      if (b.dead) continue;
+      b.x += b.vx; b.y += b.vy;
+      if (b.grenade) b.vy += 0.15;
+      if (b.missile) { const d = Math.hypot(o.x - b.x, o.y - 12 - b.y) || 1; b.vx += (o.x - b.x) / d * 0.04; b.vy += (o.y - 12 - b.y) / d * 0.04; }
+      if (b.grenade && b.y >= GROUND && !pitAt(b.x)) { b.dead = true; if (Math.abs(o.x - b.x) < (b.bomb ? 22 : 19) && o.y > GROUND - 26) return { hit: k, x: o.x }; continue; }
+      if (b.x > box.l - 2 && b.x < box.r + 2 && b.y > box.t - 2 && b.y < box.b + 1) return { hit: k, x: o.x };
+    }
+    // враги: касание, мины, снайперский выстрел
+    for (const e of en) {
+      if (e.type === 'drone') e.y = e.base + Math.sin((e.t + k) * 0.08) * 8;                  // дрон качается вверх-вниз
+      if (e.type === 'crawler' && (e.t + k) % 50 === 0) e.vx = (o.x < e.x ? -1 : 1) * 1.3;     // паук раз в 50 кадров поворачивает к герою
+      if (e.type === 'soldier' || e.type === 'crawler' || e.type === 'tankette' || e.type === 'drone') e.x += e.vx;
+      if (e.type === 'jetpack') { e.x += Math.sign(o.x + 30 * Math.sin((e.t + k) / 60) - e.x) * 0.9; e.y = e.base + Math.sin((e.t + k) * 0.05) * 10; }
+      if (e.type === 'mine') {
+        if (!e.armed && Math.abs(e.x - o.x) < 14 && Math.abs(e.y - o.y) < 20) e.armed = 24;
+        if (e.armed && --e.armed === 0) { e.type = 'gone'; if (Math.abs(e.x - o.x) < 25 && Math.abs(e.y - o.y) < 28) return { hit: k, x: o.x }; }
+        continue;
+      }
+      if (e.type === 'sniper' && e.aim > 0 && --e.aim === 0) {
+        const dx = e.lockX - e.x, dy = e.lockY - (e.y - 14), d = Math.hypot(dx, dy) || 1;
+        eb.push({ x: e.x, y: e.y - 14, vx: dx / d * 5.5, vy: dy / d * 5.5 });
+      }
+      if (e.type !== 'turret' && e.type !== 'sniper' && e.type !== 'gone' && Math.abs(e.x - o.x) < e.w / 2 + 7 && o.y > e.y - e.h - 3 && o.y - (prone && o.onGround ? 8 : 22) < e.y + 1) return { hit: k, x: o.x };
+    }
+    // камни и волны
+    for (const h of hz) {
+      if (h.kind === 'rock') {
+        if (h.warn > 0) { h.warn--; continue; }
+        h.vy += 0.3; h.y += h.vy;
+        if (h.y < GROUND + 10 && Math.abs(h.x - o.x) < 12 && Math.abs(h.y - (o.y - 12)) < 14) return { hit: k, x: o.x };
+      } else if (h.kind === 'wave') {
+        h.x += h.vx;
+        if (Math.abs(h.x - o.x) < 10 && o.y > GROUND - 10) { needJump = true; return { hit: k, x: o.x, needJump }; }
+      }
+    }
+    // босс: касание (катер не касается)
+    if (bs && bs.kind !== 'boat') {
+      if (bs.rumble && --bs.rumble === 0) bs.vx = -3.4;               // после дрожи бур идёт на таран
+      if (bs.vx < 0 && bs.kind === 'drill' && bs.x < cam + 50) bs.vx = 0;
+      if (bs.jump) { bs.vy += 0.3; bs.x += bs.vx; bs.y = Math.min(GROUND, bs.y + bs.vy); } else bs.x += bs.vx;
+      if (Math.abs(bs.x - o.x) < bs.w / 2 + 6 && o.y > bs.y - bs.h - 2 && o.y - 22 < bs.y) return { hit: k, x: o.x };
+    }
+  }
+  return { hit: 0, x: o.x, needJump };
+}
+
 function updatePlayer() {
-  if (!player.alive) return;
-  if (player.invuln > 0) player.invuln--;
-  if (player.weaponTimer > 0) {
-    player.weaponTimer--;
-    if (player.weaponTimer === 0) player.weapon = 'normal';
-  }
-  if (player.shieldTimer > 0) player.shieldTimer--;
-  if (player.dropThrough > 0) player.dropThrough--;
-
-  const left = k('KeyA','ArrowLeft');
-  const right = k('KeyD','ArrowRight');
-  const up = k('KeyW','ArrowUp');
-  const down = k('KeyS','ArrowDown');
-  const downPressed = kp('KeyS','ArrowDown');
-  const jump = k('Space');
-  const fire = k('KeyJ','KeyX');
-
-  player.aimUp = up && !down;
-
-  if (downPressed && player.onGround && player.onPlatform && !player.onPlatform.isGround) {
-    player.dropThrough = 8;
-    player.onGround = false;
-    player.onPlatform = null;
-    player.y += 2;
-  }
-
-  player.prone = down && player.onGround && !player.aimUp;
-
-  let move = 0;
-  if (!player.prone) {
-    if (left) move = -1;
-    if (right) move = 1;
-  }
-  player.vx = move * PLAYER_SPEED;
-  if (move !== 0) player.dir = move;
-
-  if (move !== 0 && player.onGround) {
-    player.walkTimer++;
-    if (player.walkTimer > 6) {
-      player.walkTimer = 0;
-      player.walkFrame = (player.walkFrame + 1) % 4;
-    }
-  } else {
-    player.walkFrame = 0;
-  }
-
-  if (jump && player.onGround && !player.jumping && !player.prone) {
-    player.vy = JUMP_V;
-    player.onGround = false;
-    player.jumping = true;
-    player.onPlatform = null;
-  }
-  if (!jump) player.jumping = false;
-
-  player.vy += GRAVITY;
-  if (player.vy > 8) player.vy = 8;
-
-  player.x += player.vx;
-  player.y += player.vy;
-
-  if (player.x < cameraX + 4) player.x = cameraX + 4;
-  if (player.x > LEVEL_W - 20) player.x = LEVEL_W - 20;
-
-  player.onGround = false;
-  player.onPlatform = null;
-
-  if (player.vy >= 0 && player.dropThrough === 0) {
-    for (const p of platforms) {
-      if (player.x >= p.x - 4 && player.x <= p.x + p.w + 4) {
-        const prevY = player.y - player.vy;
-        if (prevY <= p.y + 1 && player.y >= p.y) {
-          player.y = p.y;
-          player.vy = 0;
-          player.onGround = true;
-          player.onPlatform = p;
-          break;
-        }
-      }
+  const p = player;
+  if (p.invuln > 0) p.invuln--;
+  if (p.shield > 0) p.shield--;
+  if (p.drop > 0) p.drop--;
+  if (autopilot) pilot();
+  const left = input('left'), right = input('right'), up = input('up'), down = input('down'), jump = input('jump');
+  const jumpPressed = autopilot ? jump : kit.wasPressed('jump');
+  p.aimUp = up && !down;
+  if (down && jumpPressed && p.onGround && p.plat && !p.plat.ground) { p.drop = 10; p.onGround = false; p.y += 2; }
+  p.prone = down && p.onGround && !p.aimUp && !jumpPressed;
+  let mv = 0;
+  if (!p.prone) { if (left) mv = -1; if (right) mv = 1; }
+  p.vx = mv * PHY.speed;
+  if (mv) p.dir = mv;
+  if (jumpPressed && p.onGround && !down) { p.vy = PHY.jump; p.onGround = false; p.plat = null; }
+  if (!jump && p.vy < -3) p.vy = -3;                       // отпустил - прыжок ниже
+  p.vy = Math.min(PHY.maxFall, p.vy + PHY.g);
+  const prevY = p.y;
+  p.x += p.vx; p.y += p.vy;
+  p.x = Math.max(G.cam + 6, Math.min(p.x, G.level.len - 8, G.level.water - 8));
+  if (boss && boss.kind !== 'heli' && p.x > boss.x - boss.w / 2 - 4) p.x = boss.x - boss.w / 2 - 4;   // сквозь босса не пройти
+  if (mv && p.onGround) p.walk += 0.2; else if (!mv) p.walk = 0;
+  p.onGround = false; p.plat = null;
+  if (p.vy >= 0 && p.drop === 0) {
+    for (const pl of G.level.plats) {
+      if (p.x >= pl.x - 3 && p.x <= pl.x + pl.w + 3 && prevY <= pl.y + 0.5 && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.onGround = true; p.plat = pl; break; }
     }
   }
-
-  if (!player.onGround) {
-    if (player.y >= GROUND_Y && !pitAt(player.x)) {
-      player.y = GROUND_Y;
-      player.vy = 0;
-      player.onGround = true;
-      player.onPlatform = { isGround: true, y: GROUND_Y };
-    } else if (player.y > H + 20) {
-      // Упал в воду: жизнь теряется всегда (даже во время мигания после удара),
-      // а герой встаёт на берег перед ямой, а не снова над водой.
-      player.invuln = 0;
-      hitPlayer(true);
-      if (player.alive) {
-        const pit = pitAt(player.x) || pits.find(p => player.x >= p.x - 16 && player.x <= p.x + p.w + 16);
-        player.x = pit ? Math.max(cameraX + 8, pit.x - 14) : Math.max(cameraX + 30, player.x - 20);
-        if (pit && pitAt(player.x)) player.x = pit.x + pit.w + 14;
-        player.y = GROUND_Y;
-        player.vy = 0;
-        player.onGround = true;
-        player.onPlatform = { isGround: true, y: GROUND_Y };
-      }
-    }
+  if (!p.onGround && p.y >= GROUND && !pitAt(p.x) && prevY <= GROUND + 2) { p.y = GROUND; p.vy = 0; p.onGround = true; p.plat = { ground: true }; }
+  if (p.y > H + 20) fellInPit();
+  // стрельба: клавиша, ЛКМ и короткий клик - один общий темп
+  if (p.cd > 0) p.cd--;
+  if (!autopilot && kit.wasPressed('fire')) { fireQueued = true; mouseQueued = false; }
+  const rate = p.weapon === 'rapid' ? 4 : p.weapon === 'laser' ? 10 : p.weapon === 'spread' ? 9 : 8;
+  if ((input('fire') || fireQueued) && p.cd === 0) {
+    // мышью - в курсор (герой поворачивается к нему), клавишей - по направлению взгляда
+    const byMouse = !autopilot && !kit.isDown('fire') && (mouseFire || mouseQueued);
+    p.cd = rate; fireQueued = false; mouseQueued = false;
+    shoot(byMouse ? { x: aim.x + G.cam, y: aim.y } : null);
   }
-
-  if (player.shootCooldown > 0) player.shootCooldown--;
-  const fireRate = player.weapon === 'rapid' ? 4 : 8;
-  if (fire && player.shootCooldown === 0) {
-    player.shootCooldown = fireRate;
-    fireBullets();
-    SFX.shot();
-  }
-
-  const halfScreen = W / 2 - 30;
-  const targetCam = player.x - halfScreen;
-  if (targetCam > cameraX) cameraX = Math.min(targetCam, LEVEL_W - W);
-  if (cameraX < 0) cameraX = 0;
-
-  if (cameraX >= LEVEL_W - W - 1 && !bossSpawned) {
-    bossSpawned = true;
-    spawnBoss();
+  // камера идёт только вперёд; у арены босса останавливается
+  const target = p.x - W * 0.4;
+  if (target > G.cam) G.cam = Math.min(target, G.level.arena);
+  if (G.cam >= G.level.arena && !G.bossSpawned) spawnBoss();
+  // контрольные точки
+  const cps = G.level.checkpoints;
+  if (G.checkpoint < cps.length && p.x >= cps[G.checkpoint]) {
+    G.checkpoint++;
+    G.banner = { text: 'Контрольная точка', t: 90 };
+    if (G.mode === 'mission') SFX.flag();
   }
 }
-
-function fireBullets() {
+function shoot(target) {
+  const p = player;
   let bx, by, vx, vy;
-  const move = player.vx;
-
-  if (player.prone) {
-    bx = player.x + player.dir * 6;
-    by = player.y - 4;
-    vx = player.dir * BULLET_SPEED; vy = 0;
-  } else if (player.aimUp && Math.abs(move) > 0.1) {
-    bx = player.x + player.dir * 4;
-    by = player.y - 18;
-    vx = player.dir * BULLET_SPEED * 0.707;
-    vy = -BULLET_SPEED * 0.707;
-  } else if (player.aimUp) {
-    bx = player.x + 1;
-    by = player.y - 22;
-    vx = 0; vy = -BULLET_SPEED;
-  } else {
-    bx = player.x + player.dir * 6;
-    by = player.y - 11;
-    vx = player.dir * BULLET_SPEED; vy = 0;
-  }
-
-  if (player.weapon === 'spread') {
-    const speed = Math.hypot(vx, vy) || BULLET_SPEED;
-    const baseAng = Math.atan2(vy, vx);
-    for (const off of [-0.25, 0, 0.25]) {
-      const a = baseAng + off;
-      bullets.push({
-        x: bx, y: by,
-        vx: Math.cos(a)*speed, vy: Math.sin(a)*speed,
-        life: 80, type: 'spread',
-      });
-    }
-  } else {
-    bullets.push({ x: bx, y: by, vx, vy, life: 80, type: player.weapon });
-  }
+  if (target) {
+    p.dir = target.x < p.x ? -1 : 1;
+    bx = p.x + p.dir * (p.prone ? 8 : 6); by = p.y - (p.prone ? 4 : 12);
+    vx = target.x - bx; vy = target.y - by;
+    if (!vx && !vy) vx = p.dir;
+  } else if (p.prone) { bx = p.x + p.dir * 8; by = p.y - 4; vx = p.dir; vy = 0; }
+  else if (p.aimUp && p.vx) { bx = p.x + p.dir * 5; by = p.y - 19; vx = p.dir * 0.707; vy = -0.707; }
+  else if (p.aimUp) { bx = p.x + 1; by = p.y - 24; vx = 0; vy = -1; }
+  else { bx = p.x + p.dir * 9; by = p.y - 12; vx = p.dir; vy = 0; }
+  const add = (a, extra = {}) => bullets.push({ x: bx, y: by, vx: Math.cos(a) * BULLET_SPEED, vy: Math.sin(a) * BULLET_SPEED, life: 90, dmg: 1, ...extra });
+  const a = Math.atan2(vy, vx);
+  if (p.weapon === 'spread') for (const off of [-0.28, 0, 0.28]) add(a + off);
+  else if (p.weapon === 'laser') add(a, { dmg: 2, pierce: true, laser: true, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6 });
+  else add(a);
+  shotsFired++; G.stats.shots++;
+  if (G.mode !== 'demo') SFX.shot();
+  burst(bx, by, '#fff080', 2, 0.6, 5);
+}
+function hurtPlayer() {
+  const p = player;
+  if (p.invuln > 0 || !p.alive || G.mode === 'demo') return;
+  if (p.shield > 0) { p.shield = 0; p.invuln = 40; burst(p.x, p.y - 12, '#80ffc0', 12, 2); return; }
+  loseLife();
+  p.invuln = 120; p.vy = -3;
+  ebullets = [];
+}
+function loseLife() {
+  G.lives--; G.stats.deaths++;
+  player.weapon = 'normal';
+  burst(player.x, player.y - 10, '#c02020', 14, 1.6);
+  SFX.hurt(); shake(5);
+  if (G.lives <= 0) gameOver();
+}
+function fellInPit() {
+  const p = player;
+  if (G.mode === 'demo') { const pit = pitAt(p.x - 2) || G.level.pits.find((q) => p.x >= q.x - 30 && p.x <= q.x + q.w + 30); p.x = pit ? pit.x + pit.w + 14 : p.x + 20; p.y = GROUND; p.vy = 0; return; }
+  const pit = G.level.pits.find((q) => p.x >= q.x - 30 && p.x <= q.x + q.w + 30);
+  p.invuln = 0;
+  loseLife();
+  if (G.phase !== 'run') return;
+  p.x = pit ? Math.max(G.cam + 8, pit.x - 14) : Math.max(G.cam + 30, p.x - 30);
+  if (pitAt(p.x)) p.x = pit.x + pit.w + 14;
+  p.y = GROUND; p.vy = 0; p.onGround = true; p.invuln = 120;
 }
 
-function updateBullets() {
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    b.x += b.vx;
-    b.y += b.vy;
-    b.life--;
-    if (b.life <= 0 || b.x < cameraX - 10 || b.x > cameraX + W + 10 || b.y < 0 || b.y > H) {
-      bullets.splice(i, 1);
-      continue;
-    }
-    let hit = false;
-    for (let j = enemies.length - 1; j >= 0; j--) {
-      const e = enemies[j];
-      if (!e.alive) continue;
-      const ew = e.w, eh = e.h;
-      const ex0 = e.x - ew/2, ex1 = e.x + ew/2;
-      const ey0 = e.y - eh, ey1 = e.y;
-      if (b.x > ex0 && b.x < ex1 && b.y > ey0 && b.y < ey1) {
-        e.hp--;
-        if (e.type === 'boss') e.flash = 4;
-        hit = true;
-        for (let p = 0; p < 3; p++) {
-          particles.push({
-            x: b.x, y: b.y,
-            vx: -b.vx*0.2 + (rnd()-0.5),
-            vy: (rnd()-0.5)*1.5,
-            life: 10, color: palette.spark,
-          });
-        }
-        if (e.hp <= 0) {
-          e.alive = false;
-          if (e.type === 'boss') {
-            score += 5000;
-            SFX.boom();
-            finish('won');
-            for (let p = 0; p < 30; p++) {
-              particles.push({
-                x: e.x + (rnd()-0.5)*40,
-                y: e.y - 20 + (rnd()-0.5)*40,
-                vx: (rnd()-0.5)*4,
-                vy: -rnd()*3 - 1,
-                life: 40 + rnd()*20,
-                color: rnd()<0.5 ? palette.spark : palette.bulletEnemy,
-              });
-            }
-          } else {
-            score += e.type === 'turret' ? 200 : (e.type === 'grenadier' ? 250 : (e.type === 'drone' ? 150 : 100));
-            SFX.kill();
-            for (let p = 0; p < 6; p++) {
-              particles.push({
-                x: e.x, y: e.y - e.h/2,
-                vx: (rnd()-0.5)*2,
-                vy: -rnd()*2 - 0.5,
-                life: 20 + rnd()*10,
-                color: palette.blood,
-              });
-            }
-            if (rnd() < 0.18) dropPowerup(e.x, e.y - 10);
-          }
+// ================= Враги =================
+function spawnEnemy(type, x, y) {
+  const d = ETYPES[type];
+  if (x === undefined) {
+    const fromRight = type === 'soldier' || type === 'crawler' ? rnd() < 0.85 : true;
+    x = fromRight ? G.cam + W + 12 : G.cam - 12;
+    if (!d.fly) for (let k = 0; k < 20 && (pitAt(x) || pitAt(x - 8) || pitAt(x + 8)); k++) x += fromRight ? 14 : -14;
+  }
+  if (y === undefined) {
+    if (type === 'drone') y = 60 + rnd() * 50;
+    else if (type === 'jetpack') y = 70 + rnd() * 40;
+    else if (type === 'turret' || type === 'sniper') { const pl = G.level.plats.find((q) => x >= q.x && x <= q.x + q.w); y = pl && rnd() < 0.6 ? pl.y : GROUND; }
+    else y = GROUND;
+  }
+  if (!d.fly && pitAt(x)) return null;
+  const e = { type, x, y, vx: 0, vy: 0, hp: Math.max(1, Math.round(d.hp * kit.diff({ easy: 1, normal: 1, hard: 1.3 }))), w: d.w, h: d.h, dir: x > player.x ? -1 : 1, t: Math.floor(rnd() * 40), cd: 40 + Math.floor(rnd() * 60), flash: 0, base: y, aim: 0 };
+  if (type === 'soldier' || type === 'crawler' || type === 'tankette') e.vx = e.dir * (type === 'crawler' ? 1.3 : type === 'tankette' ? 0.35 : 0.6);
+  if (type === 'drone') e.vx = e.dir * 1.0;
+  enemies.push(e);
+  return e;
+}
+function fireAt(e, sx, sy, speed, extra = {}) {
+  const dx = player.x - sx, dy = (player.y - 11) - sy, d = Math.hypot(dx, dy) || 1;
+  const sp = speed * kit.diff({ easy: 0.8, normal: 1, hard: 1.15 });
+  ebullets.push({ x: sx, y: sy, vx: dx / d * sp, vy: dy / d * sp, life: 160, ...extra });
+}
+function cdScale() { return kit.diff({ easy: 1.4, normal: 1, hard: 0.8 }); }
+function updateEnemies() {
+  const p = player;
+  for (const e of enemies) {
+    e.t++; if (e.flash > 0) e.flash--;
+    const near = onScreen(e.x);                     // стреляют только те, кого видно: из-за края кадра - нечестно
+    switch (e.type) {
+      case 'soldier':
+      case 'crawler':
+      case 'tankette':
+        e.x += e.vx;
+        if (pitAt(e.x + e.dir * 6)) { e.vx = -e.vx; e.dir = -e.dir; }
+        if (e.type === 'crawler' && e.t % 50 === 0) { e.dir = p.x < e.x ? -1 : 1; e.vx = e.dir * 1.3; }
+        if (e.type !== 'crawler' && --e.cd <= 0 && near) {
+          e.cd = Math.round((e.type === 'tankette' ? 110 : 90 + rnd() * 60) * cdScale());
+          if (e.type === 'tankette') ebullets.push({ x: e.x + e.dir * 16, y: e.y - 10, vx: e.dir * 2.4, vy: 0, life: 200, shell: true });
+          else fireAt(e, e.x + e.dir * 6, e.y - 12, 2);
         }
         break;
+      case 'turret':
+        e.dir = p.x < e.x ? -1 : 1;
+        if (--e.cd <= 0 && near) { e.cd = Math.round((100 + rnd() * 40) * cdScale()); fireAt(e, e.x, e.y - 8, 1.9); }
+        break;
+      case 'drone':
+        e.x += e.vx; e.y = e.base + Math.sin(e.t * 0.08) * 8;
+        if (--e.cd <= 0 && near) { e.cd = Math.round((70 + rnd() * 30) * cdScale()); fireAt(e, e.x, e.y + 4, 2.2); }
+        break;
+      case 'grenadier':
+        e.dir = p.x < e.x ? -1 : 1;
+        if (--e.cd <= 0 && near) {
+          e.cd = Math.round((120 + rnd() * 40) * cdScale());
+          const dx = p.x - e.x;
+          ebullets.push({ x: e.x + e.dir * 6, y: e.y - 18, vx: Math.sign(dx) * Math.min(2.4, Math.abs(dx) / 50), vy: -3.4, life: 240, grenade: true });
+        }
+        break;
+      case 'sniper':
+        e.dir = p.x < e.x ? -1 : 1;
+        if (e.aim > 0) { if (--e.aim === 0) { const dx = e.lockX - e.x, dy = e.lockY - (e.y - 14), d = Math.hypot(dx, dy) || 1; ebullets.push({ x: e.x, y: e.y - 14, vx: dx / d * 5.5, vy: dy / d * 5.5, life: 120, fast: true }); e.cd = Math.round(140 * cdScale()); } }
+        else if (--e.cd <= 0 && near) { e.aim = 50; e.lockX = p.x; e.lockY = p.y - 11; }
+        break;
+      case 'mine':
+        if (!e.armed && Math.abs(e.x - p.x) < 14 && Math.abs(e.y - p.y) < 20) e.armed = 24;
+        if (e.armed && --e.armed === 0) {
+          e.hp = 0; e.exploded = true; explode(e.x, e.y - 2, false);
+          if (Math.abs(e.x - p.x) < 22 && Math.abs(e.y - p.y) < 26) hurtPlayer();
+        }
+        break;
+      case 'jetpack':
+        e.x += Math.sign(p.x + 30 * Math.sin(e.t / 60) - e.x) * 0.9; e.y = e.base + Math.sin(e.t * 0.05) * 10;
+        e.dir = p.x < e.x ? -1 : 1;
+        if (--e.cd <= 0 && near) { e.cd = Math.round(110 * cdScale()); ebullets.push({ x: e.x, y: e.y, vx: (p.x - e.x) / 60, vy: 0, life: 200, grenade: true }); }
+        break;
+    }
+    if (e.type !== 'mine' && e.type !== 'turret' && e.type !== 'sniper' && Math.abs(e.x - p.x) < (e.w / 2 + 5) && p.y > e.y - e.h - 2 && p.y - (p.prone ? 8 : 22) < e.y) hurtPlayer();
+  }
+  enemies = enemies.filter((e) => {
+    if (e.hp <= 0) {
+      const killed = e.type !== 'mine' || !e.exploded;          // мина, взорвавшаяся сама, - не победа: ни очков, ни трофея
+      if (killed) { G.stats.kills++; G.score += ETYPES[e.type].score; }
+      explode(e.x, e.y - e.h / 2, e.type === 'tankette');
+      if (killed && G.mode === 'mission' && rnd() < 0.12) dropPickup(e.x, e.y - e.h);
+      return false;
+    }
+    return e.x > G.cam - EDGE && e.x < G.cam + W + 220;   // ушёл за левый край - исчез (там его и пуля не достанет)
+  });
+}
+function dropPickup(x, y) { pickups.push({ x, y, vy: -2, kind: pick(['spread', 'rapid', 'laser', 'shield', 'spread', 'rapid']), t: 0 }); }
+
+// ================= Боссы =================
+function spawnBoss() {
+  G.bossSpawned = true;
+  const kind = MISSIONS[G.mission].boss, d = BOSSES[kind], L = G.level;
+  const hp = Math.round(d.hp * kit.diff({ easy: 0.8, normal: 1, hard: 1.25 }));
+  boss = { kind, name: d.name, w: d.w, h: d.h, hp, maxHp: hp, t: 0, flash: 0, x: L.len - 40, y: GROUND, vx: 0, vy: 0, dir: -1, state: 'enter', charge: false };
+  if (kind === 'fort') boss.state = 'fight';                        // форт стоит на месте - уязвим сразу
+  if (kind === 'boat') { boss.x = L.len - 70; boss.y = GROUND + 6; boss.state = 'fight'; }
+  if (kind === 'drill') { boss.x = L.len + 40; }
+  if (kind === 'walker') { boss.x = L.len + 30; }
+  if (kind === 'heli') { boss.x = L.len + 60; boss.y = 70; }
+  G.banner = { text: 'Босс: ' + d.name, t: 120 };
+  enemies = enemies.filter((e) => ETYPES[e.type].fly || e.x < L.arena + W - 60);
+  kit.refreshMusic();
+}
+function updateBoss() {
+  const b = boss, p = player, L = G.level, cs = cdScale();
+  b.t++; if (b.flash > 0) b.flash--;
+  const home = L.len - 40;
+  if (b.kind === 'fort') {
+    if (b.t % Math.round(70 * cs) === 0) fireAt(b, b.x - 14, b.y - 60, 2.4);
+    if (b.t % Math.round(150 * cs) === 0) for (const a of [-0.35, 0, 0.35]) ebullets.push({ x: b.x - 30, y: b.y - 30, vx: -2.6 * Math.cos(a), vy: 2.6 * Math.sin(a), life: 160 });
+    if (b.t % Math.round(260 * cs) === 0 && enemies.length < 4) spawnEnemy('soldier', b.x - 34, GROUND);
+  } else if (b.kind === 'boat') {
+    b.x = L.len - 80 + Math.sin(b.t / 90) * 40; b.y = GROUND + 6 + Math.sin(b.t / 12) * 1.5;
+    if (b.t % Math.round(90 * cs) === 0) { const dx = p.x - b.x; ebullets.push({ x: b.x - 20, y: b.y - 24, vx: Math.max(-3.2, dx / 55), vy: -4, life: 240, grenade: true }); }
+    if (b.t % Math.round(160 * cs) === 0) for (let i = 0; i < 5; i++) ebullets.push({ x: b.x - 34, y: b.y - 14, vx: -2.6, vy: -0.4 + i * 0.2, life: 200 });
+  } else if (b.kind === 'drill') {
+    if (b.state === 'enter') { b.x -= 0.8; if (b.x <= home) { b.x = home; b.state = 'idle'; } }
+    else if (b.state === 'idle') {
+      if (b.t % Math.round(100 * cs) === 0) ebullets.push({ x: b.x - 20, y: b.y - 30, vx: -2 - rnd(), vy: -3.2, life: 240, grenade: true });
+      if (b.t % Math.round(260 * cs) === 0) { b.state = 'rumble'; b.timer = 50; }
+    } else if (b.state === 'rumble') { shake(1.5); if (--b.timer <= 0) { b.state = 'charge'; b.charge = true; } }
+    else if (b.state === 'charge') { b.x -= 3.4; burst(b.x + 20, GROUND, '#8a7a9a', 1, 0.8, 12); if (b.x < G.cam + 50) { b.state = 'back'; b.charge = false; } }
+    else if (b.state === 'back') { b.x += 1.6; if (b.x >= home) { b.x = home; b.state = 'idle'; } }
+    if (b.t % Math.round(130 * cs) === 0) hazards.push({ kind: 'rock', x: p.x, y: 0, vy: 0, warn: 45 });
+  } else if (b.kind === 'walker') {
+    if (b.state === 'enter') { b.x -= 0.8; if (b.x <= home) { b.x = home; b.state = 'idle'; } }
+    else if (b.state === 'idle') {
+      if (b.t % Math.round(120 * cs) === 0) ebullets.push({ x: b.x - 14, y: b.y - 50, vx: -1.2, vy: -1.5, life: 260, missile: true });
+      if (b.t % Math.round(200 * cs) === 0) { b.state = 'jump'; b.vy = -6.5; b.vx = Math.max(-2.4, (p.x - b.x) / 50); b.charge = true; }
+    } else if (b.state === 'jump') {
+      b.vy += 0.3; b.x += b.vx; b.y += b.vy;
+      b.x = Math.max(G.cam + 30, Math.min(b.x, home));
+      if (b.y >= GROUND) {
+        b.y = GROUND; b.state = 'land'; b.timer = 40; shake(6); SFX.boom(true);
+        hazards.push({ kind: 'wave', x: b.x - 22, y: GROUND, vx: -3 }, { kind: 'wave', x: b.x + 22, y: GROUND, vx: 3 });
+      }
+    } else if (b.state === 'land') { if (--b.timer <= 0) { b.state = 'return'; b.charge = false; } }
+    else if (b.state === 'return') { b.x += 1; if (b.x >= home) { b.x = home; b.state = 'idle'; } }
+  } else if (b.kind === 'heli') {
+    if (b.state === 'enter') { b.x -= 1.2; if (b.x <= home - 60) b.state = 'fly'; }
+    else {
+      b.x = G.cam + W / 2 + Math.sin(b.t / 120) * (W / 2 - 60); b.y = 62 + Math.sin(b.t / 30) * 6;
+      if (b.t % Math.round(60 * cs) === 0) ebullets.push({ x: b.x, y: b.y + 4, vx: 0, vy: 0.5, life: 260, grenade: true, bomb: true });
+      if (b.t % Math.round(150 * cs) === 0) for (let i = -1; i <= 1; i++) fireAt(b, b.x - 20, b.y, 2.4 + i * 0.3);
+      if (b.hp < b.maxHp * 0.4 && b.t % Math.round(200 * cs) === 0) for (let i = 0; i < 5; i++) ebullets.push({ x: b.x, y: b.y, vx: -2 + i, vy: 2.2, life: 200 });
+    }
+  }
+  // касание босса
+  if (b.kind !== 'boat' && Math.abs(b.x - p.x) < b.w / 2 + 4 && p.y > b.y - b.h && p.y - 22 < b.y) hurtPlayer();
+}
+function updateHazards() {
+  const p = player;
+  for (const h of hazards) {
+    if (h.kind === 'rock') {
+      if (h.warn > 0) { h.warn--; if (kit.settings.effects && h.warn % 6 === 0) particles.push({ x: h.x + (rnd() - 0.5) * 8, y: 16, vx: 0, vy: 1, life: 14, color: '#6a6278' }); continue; }
+      h.vy += 0.3; h.y += h.vy;
+      if (Math.abs(h.x - p.x) < 9 && Math.abs(h.y - (p.y - 12)) < 12) { hurtPlayer(); h.dead = true; }
+      if (h.y >= GROUND) { h.dead = true; burst(h.x, GROUND, '#8a7a9a', 8, 1.4); }
+    } else if (h.kind === 'wave') {
+      h.x += h.vx;
+      if (Math.abs(h.x - p.x) < 8 && p.y > GROUND - 8) hurtPlayer();
+      if (h.x < G.cam - 20 || h.x > G.cam + W + 20) h.dead = true;
+    }
+  }
+  hazards = hazards.filter((h) => !h.dead);
+}
+
+// ================= Пули =================
+function updateBullets() {
+  const p = player;
+  for (const b of bullets) {
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if (b.x < G.cam - EDGE || b.x > G.cam + W + EDGE || b.y < 0 || b.y > H) b.life = 0;
+    for (const e of enemies) {
+      if (b.life <= 0 || (b.hitSet && b.hitSet.has(e))) continue;
+      if (b.x > e.x - e.w / 2 && b.x < e.x + e.w / 2 && b.y >= e.y - e.h - 1 && b.y <= e.y) {     // включительно: пуля лёжа идёт ровно по верху мины
+        e.hp -= b.dmg; e.flash = 4; G.stats.hits++;
+        burst(b.x, b.y, '#ffd040', 3, 1, 8);
+        if (e.type === 'mine') e.exploded = false;
+        if (b.pierce) (b.hitSet = b.hitSet || new Set()).add(e); else b.life = 0;
       }
     }
-    if (hit) bullets.splice(i, 1);
+    if (boss && b.life > 0 && b.x > boss.x - boss.w / 2 && b.x < boss.x + boss.w / 2 && b.y > boss.y - boss.h && b.y < boss.y && boss.state !== 'enter') {
+      boss.hp -= b.dmg; boss.flash = 3; G.stats.hits++; burst(b.x, b.y, '#fff', 3, 1, 8);
+      b.life = 0;
+    }
+    for (const pd of G.level.pods) {
+      if (!pd.dead && b.life > 0 && Math.abs(b.x - pd.x) < 7 && Math.abs(b.y - pd.y) < 6) { pd.dead = true; b.life = 0; explode(pd.x, pd.y, false); dropPickup(pd.x, pd.y); }
+    }
   }
-
-  for (let i = enemyBullets.length - 1; i >= 0; i--) {
-    const b = enemyBullets[i];
-    b.x += b.vx;
-    b.y += b.vy;
-    if (b.gravity) b.vy += 0.15;
-    b.life--;
-
-    if (b.gravity && b.y >= GROUND_Y && !pitAt(b.x)) {
-      enemyBullets.splice(i, 1);
-      for (let p = 0; p < 10; p++) {
-        particles.push({
-          x: b.x, y: GROUND_Y - 2,
-          vx: (rnd()-0.5)*3,
-          vy: -rnd()*2.5 - 0.5,
-          life: 15 + rnd()*10,
-          color: palette.spark,
-        });
-      }
-      if (player.alive && player.invuln === 0) {
-        const dx = player.x - b.x;
-        const dy = (player.y - 10) - GROUND_Y;
-        if (Math.hypot(dx, dy) < 22) hitPlayer();
-      }
+  bullets = bullets.filter((b) => b.life > 0);
+  for (const b of ebullets) {
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if (b.grenade) b.vy += 0.15;
+    if (b.missile) { const d = Math.hypot(p.x - b.x, p.y - 12 - b.y) || 1; b.vx += (p.x - b.x) / d * 0.04; b.vy += (p.y - 12 - b.y) / d * 0.04; }
+    if (b.grenade && b.y >= GROUND && !pitAt(b.x)) {
+      b.life = 0; explode(b.x, GROUND - 2, false);
+      if (Math.abs(p.x - b.x) < (b.bomb ? 18 : 15) && p.y > GROUND - 24) hurtPlayer();
       continue;
     }
-
-    if (b.life <= 0 || b.x < cameraX - 10 || b.x > cameraX + W + 10 || b.y > H + 10) {
-      enemyBullets.splice(i, 1);
-      continue;
-    }
-    if (player.alive && player.invuln === 0) {
-      const ph = player.prone ? 8 : 22;
-      const pTop = player.y - ph;
-      if (b.x > player.x - 5 && b.x < player.x + 5 && b.y > pTop && b.y < player.y) {
-        enemyBullets.splice(i, 1);
-        hitPlayer();
-      }
-    }
+    if (b.life <= 0 || b.x < G.cam - 20 || b.x > G.cam + W + 20 || b.y > H + 10 || b.y < -20) { b.life = 0; continue; }
+    const top = p.y - (p.prone ? 8 : 22);
+    if (b.x > p.x - 5 && b.x < p.x + 5 && b.y > top && b.y < p.y) { b.life = 0; hurtPlayer(); }
   }
+  ebullets = ebullets.filter((b) => b.life > 0);
 }
 
-function dropPowerup(x, y) {
-  const r = rnd();
-  let kind;
-  if (r < 0.45) kind = 'spread';
-  else if (r < 0.8) kind = 'rapid';
-  else kind = 'shield';
-  powerups.push({ x, y, vy: -2, kind, life: 600, onGround: false });
-}
-
-function updatePowerups() {
-  for (let i = powerups.length - 1; i >= 0; i--) {
-    const p = powerups[i];
-    p.life--;
-    if (!p.onGround) {
-      p.vy += GRAVITY * 0.7;
-      p.y += p.vy;
-      const surf = platformBelow(p.x, p.y);
-      if (surf && p.y >= surf.y - 1) {
-        p.y = surf.y - 1;
-        p.vy = 0;
-        p.onGround = true;
-      }
-    }
-    if (p.life <= 0 || p.x < cameraX - 30) {
-      powerups.splice(i, 1);
-      continue;
-    }
-    if (player.alive) {
-      const dx = p.x - player.x;
-      const dy = (p.y - 4) - (player.y - 11);
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 14) {
-        applyPowerup(p.kind);
-        SFX.pickup();
-        powerups.splice(i, 1);
-        score += 50;
-      }
-    }
-  }
-}
-
-function applyPowerup(kind) {
-  if (kind === 'spread') {
-    player.weapon = 'spread';
-    player.weaponTimer = 600;
-  } else if (kind === 'rapid') {
-    player.weapon = 'rapid';
-    player.weaponTimer = 600;
-  } else if (kind === 'shield') {
-    player.shieldTimer = 480;
-  }
-}
-
-function updateEnemies() {
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const e = enemies[i];
-    if (!e.alive) {
-      enemies.splice(i, 1);
-      if (e === boss) boss = null;
-      continue;
-    }
-    if (e.flash > 0) e.flash--;
-
-    if (e.type === 'soldier') {
-      e.x += e.vx;
-      e.walkTimer++;
-      if (e.walkTimer > 8) { e.walkTimer = 0; e.walkFrame = (e.walkFrame + 1) % 4; }
-      if (pitAt(e.x)) {
-        e.vx = -e.vx;
-        e.dir = -e.dir;
-        e.x += e.vx * 2;
-      }
-      e.shootTimer--;
-      if (e.shootTimer <= 0 && Math.abs(e.x - player.x) < W) {
-        e.shootTimer = 70 + rnd()*50;
-        const dx = player.x - e.x;
-        const dy = (player.y - 10) - (e.y - 12);
-        const d = Math.hypot(dx, dy) || 1;
-        enemyBullets.push({
-          x: e.x + e.dir * 6, y: e.y - 12,
-          vx: (dx/d)*2, vy: (dy/d)*2,
-          life: 100,
-        });
-      }
-    } else if (e.type === 'turret') {
-      e.shootTimer--;
-      if (e.shootTimer <= 0 && Math.abs(e.x - player.x) < W) {
-        e.shootTimer = 90 + rnd()*40;
-        const dx = player.x - e.x;
-        const dy = (player.y - 10) - (e.y - 6);
-        const d = Math.hypot(dx, dy) || 1;
-        enemyBullets.push({
-          x: e.x, y: e.y - 6,
-          vx: (dx/d)*1.8, vy: (dy/d)*1.8,
-          life: 120,
-        });
-      }
-    } else if (e.type === 'drone') {
-      e.x += e.vx;
-      e.bobPhase += 0.08;
-      e.y = e.bobBase + Math.sin(e.bobPhase) * 8;
-      e.shootTimer--;
-      if (e.shootTimer <= 0 && Math.abs(e.x - player.x) < W) {
-        e.shootTimer = 60 + rnd()*30;
-        const dx = player.x - e.x;
-        const dy = (player.y - 10) - e.y;
-        const d = Math.hypot(dx, dy) || 1;
-        enemyBullets.push({
-          x: e.x, y: e.y + 4,
-          vx: (dx/d)*2.2, vy: (dy/d)*2.2,
-          life: 100,
-        });
-      }
-    } else if (e.type === 'grenadier') {
-      e.dir = player.x < e.x ? -1 : 1;
-      e.shootTimer--;
-      if (e.shootTimer <= 0 && Math.abs(e.x - player.x) < W) {
-        e.shootTimer = 110 + rnd()*40;
-        const dx = player.x - e.x;
-        const horiz = Math.sign(dx) * Math.min(2.4, Math.abs(dx) / 50);
-        enemyBullets.push({
-          x: e.x + e.dir * 6, y: e.y - 18,
-          vx: horiz, vy: -3.2,
-          life: 200, gravity: true, grenade: true,
-        });
-      }
-    } else if (e.type === 'boss') {
-      updateBoss(e);
-    }
-
-    if (e.type !== 'boss' && (e.x < cameraX - 60 || e.x > cameraX + W + 200)) {
-      enemies.splice(i, 1);
-      continue;
-    }
-    if (player.alive && player.invuln === 0 && e.type === 'soldier') {
-      const ph = player.prone ? 8 : 22;
-      if (Math.abs(e.x - player.x) < 10 && Math.abs((e.y - 11) - (player.y - ph/2)) < 14) {
-        hitPlayer();
-      }
-    }
-    if (player.alive && player.invuln === 0 && e.type === 'drone') {
-      const ph = player.prone ? 8 : 22;
-      if (Math.abs(e.x - player.x) < 10 && Math.abs((e.y + 4) - (player.y - ph/2)) < 14) {
-        hitPlayer();
-      }
-    }
-  }
-}
-
-function updateBoss(b) {
-  b.bobPhase += 0.04;
-  if (b.phase === 'enter') {
-    b.x -= 0.6;
-    if (b.x <= BOSS_X) {
-      b.x = BOSS_X;
-      b.phase = 'fight';
-    }
-  } else if (b.phase === 'fight') {
-    b.x = BOSS_X + Math.sin(b.bobPhase) * 6;
-    b.shootTimer--;
-    if (b.shootTimer <= 0) {
-      b.shootTimer = 35;
-      const cx = b.x - 18, cy = b.y - 30;
-      const dx = player.x - cx;
-      const dy = (player.y - 10) - cy;
-      const d = Math.hypot(dx, dy) || 1;
-      enemyBullets.push({
-        x: cx, y: cy,
-        vx: (dx/d)*2.4, vy: (dy/d)*2.4,
-        life: 120,
-      });
-    }
-    b.cannonTimer--;
-    if (b.cannonTimer <= 0) {
-      b.cannonTimer = 140;
-      for (let i = -1; i <= 1; i++) {
-        const ang = Math.PI + i*0.35;
-        enemyBullets.push({
-          x: b.x - 22, y: b.y - 18,
-          vx: Math.cos(ang)*2.6, vy: Math.sin(ang)*2.6,
-          life: 140,
-        });
-      }
-    }
-  }
-  if (player.alive && player.invuln === 0) {
-    if (player.x > b.x - b.w/2 - 4 && player.x < b.x + b.w/2 + 4 &&
-        player.y > b.y - b.h - 4 && player.y < b.y + 4) {
-      hitPlayer();
-    }
-  }
-}
-
-function updateParticles() {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.2;
-    p.life--;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-}
-
-function hitPlayer(fromPit) {
-  if (player.invuln > 0) return;
-  if (player.shieldTimer > 0 && !fromPit) {
-    player.shieldTimer = 0;
-    player.invuln = 30;
-    for (let p = 0; p < 12; p++) {
-      particles.push({
-        x: player.x, y: player.y - 12,
-        vx: (rnd()-0.5)*4,
-        vy: (rnd()-0.5)*4,
-        life: 20, color: palette.shield,
-      });
-    }
-    return;
-  }
-  lives--;
-  SFX.hurt();
-  player.invuln = 90;
-  player.vy = -3;
-  player.weapon = 'normal';
-  player.weaponTimer = 0;
-  for (let p = 0; p < 8; p++) {
-    particles.push({
-      x: player.x, y: player.y - 10,
-      vx: (rnd()-0.5)*3,
-      vy: -rnd()*2 - 1,
-      life: 25, color: palette.blood,
-    });
-  }
-  // Жизней ровно столько, сколько значков в углу: на нуле - конец (раньше была лишняя четвёртая)
-  if (lives <= 0) {
-    lives = 0;
-    player.alive = false;
-    finish('over');
-  }
-}
-
-function drawSky() {
-  ctx.fillStyle = palette.skyTop;
-  ctx.fillRect(0, 0, W, 60);
-  ctx.fillStyle = palette.skyMid;
-  ctx.fillRect(0, 60, W, 40);
-  ctx.fillStyle = palette.skyLow;
-  ctx.fillRect(0, 100, W, 20);
-}
-
-function drawMountains() {
-  const off1 = -Math.floor(cameraX * 0.15) % 80;
-  ctx.fillStyle = palette.mtnFar;
-  for (let i = -1; i < 5; i++) {
-    const bx = i * 80 + off1;
-    ctx.beginPath();
-    ctx.moveTo(bx, 120);
-    ctx.lineTo(bx + 30, 80);
-    ctx.lineTo(bx + 50, 95);
-    ctx.lineTo(bx + 70, 75);
-    ctx.lineTo(bx + 90, 120);
-    ctx.fill();
-  }
-  const off2 = -Math.floor(cameraX * 0.3) % 100;
-  ctx.fillStyle = palette.mtnNear;
-  for (let i = -1; i < 5; i++) {
-    const bx = i * 100 + off2;
-    ctx.beginPath();
-    ctx.moveTo(bx, 130);
-    ctx.lineTo(bx + 25, 100);
-    ctx.lineTo(bx + 45, 110);
-    ctx.lineTo(bx + 65, 95);
-    ctx.lineTo(bx + 90, 115);
-    ctx.lineTo(bx + 110, 130);
-    ctx.fill();
-  }
-}
-
-function drawJungle() {
-  const off1 = -Math.floor(cameraX * 0.5) % 32;
-  ctx.fillStyle = palette.jungleFar;
-  ctx.fillRect(0, 130, W, 30);
-  for (let i = -1; i < 10; i++) {
-    const bx = i * 32 + off1;
-    ctx.beginPath();
-    ctx.arc(bx + 10, 130, 14, 0, Math.PI*2);
-    ctx.arc(bx + 22, 128, 12, 0, Math.PI*2);
-    ctx.fill();
-  }
-  const off2 = -Math.floor(cameraX * 0.75) % 40;
-  ctx.fillStyle = palette.jungleNear;
-  for (let i = -1; i < 8; i++) {
-    const bx = i * 40 + off2;
-    ctx.beginPath();
-    ctx.arc(bx + 12, 152, 16, 0, Math.PI*2);
-    ctx.arc(bx + 28, 150, 14, 0, Math.PI*2);
-    ctx.fill();
-  }
-  // Подлесок до самой земли: раньше между кустами и травой оставалась чёрная полоса
-  ctx.fillRect(0, 158, W, GROUND_Y - 158);
-}
-
-function drawGround() {
-  for (let x = 0; x < W; x++) {
-    const wx = x + cameraX;
-    if (pitAt(wx)) continue;
-    ctx.fillStyle = palette.grass;
-    ctx.fillRect(x, GROUND_Y, 1, 4);
-    if ((wx % 8) < 2) {
-      ctx.fillStyle = palette.grassDk;
-      ctx.fillRect(x, GROUND_Y, 1, 2);
-    }
-    ctx.fillStyle = palette.ground;
-    ctx.fillRect(x, GROUND_Y + 4, 1, H - GROUND_Y - 4);
-    if ((wx % 16) < 4 && (wx % 32) < 16) {
-      ctx.fillStyle = palette.groundDk;
-      const yOff = ((wx * 7) % 24) + 8;
-      ctx.fillRect(x, GROUND_Y + yOff, 1, 1);
-    }
-  }
-  for (const p of pits) {
-    const sx = p.x - cameraX;
-    if (sx + p.w < 0 || sx > W) continue;
-    const drawX = Math.max(0, sx);
-    const drawW = Math.min(W, sx + p.w) - drawX;
-    ctx.fillStyle = palette.water;
-    ctx.fillRect(drawX, GROUND_Y + 2, drawW, H - GROUND_Y - 2);
-    ctx.fillStyle = palette.waterDk;
-    const off = (Math.floor(levelTime/4)) % 8;
-    for (let x = drawX + off; x < drawX + drawW; x += 8) {
-      ctx.fillRect(x, GROUND_Y + 6, 4, 1);
-      ctx.fillRect(x + 4, GROUND_Y + 14, 3, 1);
-      ctx.fillRect(x, GROUND_Y + 22, 4, 1);
-    }
-    ctx.fillStyle = palette.groundDk;
-    ctx.fillRect(drawX - (sx >= 0 ? 1 : 0), GROUND_Y, 1, 4);
-    if (sx + p.w < W) ctx.fillRect(sx + p.w, GROUND_Y, 1, 4);
-  }
-}
-
-function drawPlatforms() {
-  for (const p of platforms) {
-    const sx = p.x - cameraX;
-    if (sx + p.w < 0 || sx > W) continue;
-    ctx.fillStyle = palette.platform;
-    ctx.fillRect(sx, p.y, p.w, 6);
-    ctx.fillStyle = palette.platformTop;
-    ctx.fillRect(sx, p.y, p.w, 1);
-    ctx.fillStyle = palette.platformDk;
-    ctx.fillRect(sx, p.y + 5, p.w, 1);
-    for (let i = 4; i < p.w - 2; i += 8) {
-      ctx.fillRect(sx + i, p.y + 2, 1, 3);
-    }
-  }
-}
-
-function drawTreesForeground() {
-  for (let i = 0; i < 22; i++) {
-    const tx = 200 + i * 200 + (i*73)%80;
-    if (Math.abs(tx - BOSS_X) < 80) continue;
-    const sx = tx - cameraX;
-    if (sx < -40 || sx > W + 40) continue;
-    ctx.fillStyle = palette.trunk;
-    ctx.fillRect(sx, 100, 6, 88);
-    ctx.fillStyle = palette.leavesDk;
-    ctx.beginPath();
-    ctx.arc(sx + 3, 100, 18, 0, Math.PI*2);
-    ctx.arc(sx - 8, 105, 14, 0, Math.PI*2);
-    ctx.arc(sx + 14, 105, 14, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = palette.leaves;
-    ctx.beginPath();
-    ctx.arc(sx + 3, 96, 14, 0, Math.PI*2);
-    ctx.arc(sx - 6, 102, 10, 0, Math.PI*2);
-    ctx.arc(sx + 12, 102, 10, 0, Math.PI*2);
-    ctx.fill();
-  }
-}
-
-function px(x, y, c, w=1, h=1) {
-  ctx.fillStyle = c;
-  ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
-}
-
-function drawPlayer() {
-  if (!player.alive) return;
-  if (player.invuln > 0 && Math.floor(player.invuln/4) % 2 === 0) return;
-
-  const sx = Math.floor(player.x - cameraX);
-  const sy = Math.floor(player.y);
-  const d = player.dir;
-
-  if (player.shieldTimer > 0) {
-    const a = (Math.floor(levelTime/3)) % 2 === 0 ? 1 : 0.5;
-    ctx.globalAlpha = a;
-    ctx.strokeStyle = palette.shield;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(sx, sy - 11, 14, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  if (player.prone) {
-    px(sx - 7 + (d>0?0:1), sy - 6, palette.pants, 14, 4);
-    px(sx - 3 + (d>0?0:1), sy - 10, palette.bodyA, 12, 4);
-    px(sx + (d>0?7:-6), sy - 12, palette.skin, 4, 4);
-    px(sx + (d>0?7:-6), sy - 13, palette.bandana, 4, 1);
-    px(sx + (d>0?9:-4), sy - 11, palette.uiDark, 1, 1);
-    px(sx + (d>0?11:-16), sy - 10, palette.uiDark, 6, 1);
-    return;
-  }
-
-  const f = player.walkFrame;
-  const legA = (f === 1) ? 1 : (f === 3 ? -1 : 0);
-  px(sx - 2, sy - 4, palette.pants, 3, 4);
-  px(sx + 1, sy - 4, palette.pants, 3, 4);
-  if (player.onGround && Math.abs(player.vx) > 0.1) {
-    px(sx - 2, sy - 1 + Math.abs(legA), palette.pants, 3, 1);
-    px(sx + 1, sy - 1 - Math.abs(legA), palette.pants, 3, 1);
-  }
-  px(sx - 3, sy - 14, palette.bodyA, 8, 10);
-  px(sx - 3, sy - 14, palette.bodyB, 8, 1);
-  px(sx - 1, sy - 18, palette.skin, 4, 4);
-  px(sx - 1, sy - 19, palette.bandana, 4, 1);
-  px(sx + (d>0?4:-2), sy - 19, palette.bandana, 1, 1);
-  px(sx + (d>0?-2:5), sy - 17, palette.hair, 1, 1);
-  px(sx + (d>0?2:0), sy - 16, palette.uiDark, 1, 1);
-
-  if (player.aimUp && Math.abs(player.vx) > 0.1) {
-    px(sx + d*3, sy - 16, palette.uiDark, 2, 2);
-    px(sx + d*5, sy - 18, palette.uiDark, 2, 2);
-    px(sx + d*6, sy - 20, palette.bullet, 1, 1);
-  } else if (player.aimUp) {
-    px(sx + 1, sy - 22, palette.uiDark, 2, 4);
-    px(sx + 1, sy - 24, palette.bullet, 2, 1);
-  } else {
-    if (d > 0) {
-      px(sx + 3, sy - 11, palette.uiDark, 6, 2);
-      px(sx + 9, sy - 11, palette.bullet, 1, 2);
-    } else {
-      px(sx - 8, sy - 11, palette.uiDark, 6, 2);
-      px(sx - 9, sy - 11, palette.bullet, 1, 2);
-    }
-  }
-}
-
-function drawEnemy(e) {
-  const sx = Math.floor(e.x - cameraX);
-  const sy = Math.floor(e.y);
-  if (e.type === 'soldier') {
-    const dirSign = e.dir;
-    px(sx - 2, sy - 4, palette.enemyPants, 3, 4);
-    px(sx + 1, sy - 4, palette.enemyPants, 3, 4);
-    px(sx - 3, sy - 14, palette.enemyShirt, 8, 10);
-    px(sx - 1, sy - 18, palette.skin, 4, 4);
-    px(sx - 2, sy - 19, palette.uiDark, 6, 1);
-    px(sx + (dirSign>0?2:0), sy - 16, palette.uiDark, 1, 1);
-    if (dirSign > 0) px(sx + 3, sy - 11, palette.uiDark, 5, 2);
-    else px(sx - 7, sy - 11, palette.uiDark, 5, 2);
-  } else if (e.type === 'turret') {
-    px(sx - 7, sy - 4, palette.uiDark, 14, 4);
-    px(sx - 7, sy - 4, '#404040', 14, 1);
-    px(sx - 4, sy - 10, palette.enemyShirt, 8, 6);
-    px(sx - 4, sy - 11, '#601010', 8, 1);
-    px(sx + (e.dir>0?4:-8), sy - 8, palette.uiDark, 4, 2);
-    px(sx - 5, sy - 5, palette.bullet, 1, 1);
-    px(sx + 4, sy - 5, palette.bullet, 1, 1);
-  } else if (e.type === 'drone') {
-    px(sx - 6, sy, palette.droneBody, 12, 5);
-    px(sx - 6, sy, '#808898', 12, 1);
-    px(sx - 6, sy + 4, palette.bossDk, 12, 1);
-    px(sx - 4, sy + 5, palette.uiDark, 2, 2);
-    px(sx + 2, sy + 5, palette.uiDark, 2, 2);
-    const blink = (Math.floor(levelTime/8)) % 2;
-    if (blink) px(sx, sy + 1, palette.droneLight, 2, 1);
-    const propOff = (Math.floor(levelTime/3)) % 2;
-    px(sx - 6 + propOff, sy - 1, '#a0a8b8', 4, 1);
-    px(sx + 2 + propOff, sy - 1, '#a0a8b8', 4, 1);
-  } else if (e.type === 'grenadier') {
-    px(sx - 2, sy - 4, palette.bossDk, 3, 4);
-    px(sx + 1, sy - 4, palette.bossDk, 3, 4);
-    px(sx - 4, sy - 14, '#406048', 9, 10);
-    px(sx - 1, sy - 18, palette.skin, 4, 4);
-    px(sx - 3, sy - 19, '#508058', 8, 2);
-    px(sx + (e.dir>0?2:0), sy - 16, palette.uiDark, 1, 1);
-    if (e.dir > 0) {
-      px(sx + 3, sy - 13, palette.uiDark, 7, 3);
-      px(sx + 10, sy - 14, palette.bossDk, 2, 4);
-    } else {
-      px(sx - 9, sy - 13, palette.uiDark, 7, 3);
-      px(sx - 11, sy - 14, palette.bossDk, 2, 4);
-    }
-  } else if (e.type === 'boss') {
-    drawBoss(e, sx, sy);
-  }
-}
-
-function drawBoss(e, sx, sy) {
-  const flashCol = e.flash > 0 ? palette.uiWhite : null;
-  ctx.fillStyle = flashCol || palette.bossDk;
-  ctx.fillRect(sx - 25, sy - 56, 50, 56);
-  ctx.fillStyle = flashCol || palette.bossBody;
-  ctx.fillRect(sx - 22, sy - 53, 44, 50);
-  ctx.fillStyle = flashCol || '#503030';
-  ctx.fillRect(sx - 22, sy - 53, 44, 4);
-  ctx.fillStyle = flashCol || palette.bossDk;
-  ctx.fillRect(sx - 22, sy - 8, 44, 4);
-
-  ctx.fillStyle = flashCol || palette.uiDark;
-  ctx.fillRect(sx - 14, sy - 42, 12, 10);
-  ctx.fillRect(sx + 2, sy - 42, 12, 10);
-  ctx.fillStyle = flashCol || palette.bossEye;
-  ctx.fillRect(sx - 11, sy - 39, 6, 4);
-  ctx.fillRect(sx + 5, sy - 39, 6, 4);
-  ctx.fillStyle = flashCol || '#ff8000';
-  ctx.fillRect(sx - 9, sy - 38, 2, 2);
-  ctx.fillRect(sx + 7, sy - 38, 2, 2);
-
-  ctx.fillStyle = flashCol || palette.bossDk;
-  ctx.fillRect(sx - 26, sy - 25, 4, 12);
-  ctx.fillRect(sx - 30, sy - 22, 6, 8);
-  ctx.fillStyle = flashCol || palette.uiDark;
-  ctx.fillRect(sx - 38, sy - 20, 8, 4);
-
-  ctx.fillStyle = flashCol || palette.bossBody;
-  ctx.fillRect(sx + 22, sy - 25, 4, 12);
-  ctx.fillStyle = flashCol || palette.uiDark;
-  ctx.fillRect(sx + 24, sy - 32, 6, 6);
-
-  ctx.fillStyle = flashCol || palette.bossDk;
-  for (let i = 0; i < 5; i++) {
-    ctx.fillRect(sx - 20 + i*9, sy - 18, 6, 6);
-  }
-}
-
-function drawPowerup(p) {
-  const sx = Math.floor(p.x - cameraX);
-  const sy = Math.floor(p.y);
-  const blink = (Math.floor(levelTime/4)) % 2;
-  let fill;
-  if (p.kind === 'spread') fill = palette.pwS;
-  else if (p.kind === 'rapid') fill = palette.pwR;
-  else fill = palette.pwShield;
-  ctx.fillStyle = palette.uiDark;
-  ctx.fillRect(sx - 5, sy - 9, 10, 10);
-  ctx.fillStyle = blink ? palette.uiWhite : fill;
-  ctx.fillRect(sx - 4, sy - 8, 8, 8);
-  ctx.fillStyle = palette.uiDark;
-  if (p.kind === 'spread') {
-    ctx.fillRect(sx - 3, sy - 7, 6, 1);
-    ctx.fillRect(sx - 3, sy - 6, 1, 2);
-    ctx.fillRect(sx - 3, sy - 4, 6, 1);
-    ctx.fillRect(sx + 2, sy - 3, 1, 2);
-    ctx.fillRect(sx - 3, sy - 1, 6, 1);
-  } else if (p.kind === 'rapid') {
-    ctx.fillRect(sx - 3, sy - 7, 5, 1);
-    ctx.fillRect(sx - 3, sy - 6, 1, 5);
-    ctx.fillRect(sx - 3, sy - 4, 4, 1);
-    ctx.fillRect(sx, sy - 3, 1, 4);
-    ctx.fillRect(sx + 2, sy - 3, 1, 4);
-  } else {
-    ctx.fillRect(sx - 1, sy - 7, 2, 1);
-    ctx.fillRect(sx - 2, sy - 6, 1, 1);
-    ctx.fillRect(sx + 1, sy - 6, 1, 1);
-    ctx.fillRect(sx - 3, sy - 5, 1, 2);
-    ctx.fillRect(sx + 2, sy - 5, 1, 2);
-    ctx.fillRect(sx - 1, sy - 3, 2, 1);
-    ctx.fillRect(sx, sy - 2, 1, 2);
-  }
-}
-
-function drawBullet(b, color) {
-  const sx = Math.floor(b.x - cameraX);
-  const sy = Math.floor(b.y);
-  if (b.grenade) {
-    ctx.fillStyle = palette.bossDk;
-    ctx.fillRect(sx - 2, sy - 2, 4, 4);
-    ctx.fillStyle = palette.spark;
-    ctx.fillRect(sx - 1, sy - 1, 1, 1);
-    return;
-  }
-  ctx.fillStyle = color;
-  ctx.fillRect(sx - 1, sy - 1, 3, 2);
-}
-
-function drawParticle(p) {
-  const sx = Math.floor(p.x - cameraX);
-  const sy = Math.floor(p.y);
-  ctx.fillStyle = p.color;
-  ctx.fillRect(sx, sy, 2, 2);
-}
-
-function drawUI() {
-  ctx.fillStyle = palette.uiDark;
-  ctx.fillRect(0, 0, W, 14);
-  ctx.fillStyle = palette.uiRed;
-  ctx.fillRect(0, 13, W, 1);
-
-  ctx.fillStyle = palette.uiYellow;
-  ctx.font = '8px "Courier New", monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillText('ОЧКИ', 6, 3);
-  ctx.fillStyle = palette.uiWhite;
-  ctx.fillText(String(score).padStart(6, '0'), 36, 3);
-
-  ctx.fillStyle = palette.uiYellow;
-  ctx.fillText('ЖИЗНИ', 96, 3);
-  for (let i = 0; i < Math.max(0, lives); i++) {
-    ctx.fillStyle = palette.uiRed;
-    ctx.fillRect(126 + i*8, 4, 4, 6);
-    ctx.fillStyle = palette.bandana;
-    ctx.fillRect(126 + i*8, 3, 4, 1);
-  }
-
-  if (player.weapon !== 'normal') {
-    const col = player.weapon === 'spread' ? palette.pwS : palette.pwR;
-    ctx.fillStyle = col;
-    ctx.fillText(player.weapon === 'spread' ? 'ВЕЕР' : 'БЫСТР', 168, 3);
-    const t = Math.ceil(player.weaponTimer / 60);
-    ctx.fillStyle = palette.uiWhite;
-    ctx.fillText(t+'s', 210, 3);
-  }
-  if (player.shieldTimer > 0) {
-    ctx.fillStyle = palette.shield;
-    ctx.fillText('Щ'+Math.ceil(player.shieldTimer/60), 232, 3);
-  }
-
-  if (boss && boss.phase === 'fight') {
-    ctx.fillStyle = palette.uiDark;
-    ctx.fillRect(40, 22, W - 80, 6);
-    ctx.fillStyle = palette.bossDk;
-    ctx.fillRect(41, 23, W - 82, 4);
-    const w = Math.floor((W - 82) * (boss.hp / boss.maxHp));
-    ctx.fillStyle = palette.uiRed;
-    ctx.fillRect(41, 23, w, 4);
-    ctx.fillStyle = palette.bossEye;
-    ctx.fillText('БОСС', 8, 22);
-  }
-}
-
-function drawMessage(text, sub) {
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(0, 80, W, 80);
-  ctx.fillStyle = palette.uiRed;
-  ctx.font = '16px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, W/2, 100);
-  if (sub) {
-    ctx.fillStyle = palette.uiWhite;
-    ctx.font = '8px "Courier New", monospace';
-    ctx.fillText(sub, W/2, 130);
-  }
-  ctx.textAlign = 'left';
-}
-
-function reset() {
-  player.x = 60; player.y = GROUND_Y;
-  player.vx = 0; player.vy = 0;
-  player.dir = 1; player.alive = true;
-  player.invuln = 60;
-  player.weapon = 'normal';
-  player.weaponTimer = 0;
-  player.shieldTimer = 0;
-  player.onGround = true;
-  player.onPlatform = { isGround: true, y: GROUND_Y };
-  bullets.length = 0;
-  enemyBullets.length = 0;
-  enemies.length = 0;
-  particles.length = 0;
-  powerups.length = 0;
-  score = 0;
-  lives = START_LIVES;
-  cameraX = 0;
-  gameOver = false;
-  gameWon = false;
-  spawnTimer = 0;
-  levelTime = 0;
-  boss = null;
-  bossSpawned = false;
-  for (const c in keys) keys[c] = false;
-  buildLevel();
-}
-
-function startGame() {
-  reset();
-  phase = 'play';
-}
-
-function finish(kind) {
-  if (kind === 'won') gameWon = true; else gameOver = true;
-  phase = kind;
-  if (score > best) { best = score; saveBest(best); }
-}
-
-function togglePause() {
-  if (phase === 'play') phase = 'paused';
-  else if (phase === 'paused') phase = 'play';
-  for (const c in keys) keys[c] = false;
-}
-
-// Один шаг мира (1/60 секунды)
+// ================= Шаг мира =================
 function update() {
-  if (phase === 'play') {
-    levelTime++;
-    if (!boss) {
-      spawnTimer--;
-      if (spawnTimer <= 0 && enemies.length < 5) {
-        spawnTimer = 80 + rnd() * 60;
-        spawnEnemy();
-      }
-    }
-    updatePlayer();
-    updateBullets();
-    updateEnemies();
-    updatePowerups();
-    updateParticles();
-  } else if (phase === 'over' || phase === 'won') {
-    updateParticles();
+  G.t++;
+  if (G.shake > 0) G.shake *= 0.85;
+  if (G.flash > 0) G.flash--;
+  updateParticles();
+  if (G.phase === 'clear') {
+    if (G.t % 10 === 0 && G.clearT > 40) explode(G.level.len - 60 + (rnd() - 0.5) * 60, GROUND - 30 - rnd() * 40, true);
+    if (--G.clearT <= 0) missionComplete();
+    return;
   }
-  for (const code in justPressed) justPressed[code] = false;
+  if (G.phase !== 'run') return;
+  G.stats.steps++;
+  if (MISSIONS[G.mission].pal === 'storm' && G.t % 400 === 0) G.lightning = 8;
+  if (G.lightning > 0) G.lightning--;
+  updatePlayer();
+  if (G.phase !== 'run') return;
+  if (!G.bossSpawned && --G.spawnT <= 0 && enemies.length < MISSIONS[G.mission].max) {
+    G.spawnT = Math.round((MISSIONS[G.mission].spawnEvery + rnd() * 50) * kit.diff({ easy: 1.35, normal: 1, hard: 0.8 }));
+    // не больше двух летающих (ракетчики и дроны вместе) и одной танкетки сразу: иначе на трудной их стая не оставляла выхода
+    const mix = MISSIONS[G.mission].mix, bag = [];
+    const count = (t) => enemies.filter((e) => e.type === t).length;
+    const flyers = enemies.filter((e) => ETYPES[e.type].fly).length;
+    for (const t in mix) if (count(t) < (ENEMY_CAP[t] || 99) && !(ETYPES[t].fly && flyers >= MAX_FLYERS)) for (let i = 0; i < mix[t]; i++) bag.push(t);
+    if (bag.length) spawnEnemy(pick(bag));
+  }
+  updateBullets();
+  updateEnemies();
+  updateHazards();
+  if (boss) {
+    updateBoss();
+    if (boss.hp <= 0) {
+      G.score += 5000; G.stats.kills++;
+      explode(boss.x, boss.y - boss.h / 2, true);
+      if (G.mode === 'demo') { boss = null; G.bossSpawned = false; startDemo(); return; }
+      kit.unlock('boss' + (G.mission + 1));
+      boss = null; ebullets = []; hazards = [];
+      G.phase = 'clear'; G.clearT = 150; G.flash = 12;
+      SFX.win();
+    }
+  }
+  for (const pk of pickups) {
+    pk.t++;
+    if (pk.vy !== 0) { pk.vy += 0.2; pk.y += pk.vy; const s = groundUnder(pk.x, pk.y - 4); if (s && pk.y >= s.y - 1) { pk.y = s.y - 1; pk.vy = 0; } if (pk.y > H) pk.t = 1e9; }
+    if (Math.abs(pk.x - player.x) < 10 && Math.abs(pk.y - (player.y - 10)) < 16) {
+      pk.t = 1e9;
+      if (pk.kind === 'shield') player.shield = 480; else player.weapon = pk.kind;
+      G.score += 50;
+      if (G.mode === 'mission') SFX.pickup();
+    }
+  }
+  pickups = pickups.filter((pk) => pk.t < 900 && pk.x > G.cam - 30);
+  if (G.banner && --G.banner.t <= 0) G.banner = null;
 }
 
-function render() {
-  ctx.clearRect(0, 0, W, H);
-  drawSky();
-  drawMountains();
-  drawJungle();
-  drawTreesForeground();
-  drawGround();
-  drawPlatforms();
-
-  for (const e of enemies) drawEnemy(e);
-  for (const p of powerups) drawPowerup(p);
-  if (phase !== 'ready') drawPlayer();
-  for (const b of bullets) drawBullet(b, palette.bullet);
-  for (const b of enemyBullets) drawBullet(b, palette.bulletEnemy);
-  for (const p of particles) drawParticle(p);
-
-  drawUI();
-
-  if (phase === 'ready') drawMessage('ОГНЕННЫЕ ДЖУНГЛИ', 'Пробел или Enter - в бой. Дойди до крепости');
-  else if (phase === 'paused') drawMessage('ПАУЗА', 'P или Esc - продолжить');
-  else if (phase === 'over') drawMessage('КОНЕЦ ИГРЫ', 'Очки ' + score + ' · рекорд ' + best + ' · Enter - заново');
-  else if (phase === 'won') drawMessage('ЗАДАНИЕ ВЫПОЛНЕНО', 'Очки ' + score + ' · рекорд ' + best + ' · Enter - ещё');
-  if (muted) { ctx.fillStyle = palette.uiWhite; ctx.font = '8px Consolas, monospace'; ctx.textBaseline = 'top'; ctx.fillText('звук выкл', 4, H - 10); }
+// ================= Итоги =================
+function gameOver() {
+  G.phase = 'over';
+  G.banner = null;
+  player.alive = false;
+  explode(player.x, player.y - 10, true);
+  kit.later(() => {
+    kit.mode = 'menu';
+    const cp = G.checkpoint;
+    kit.show({ id: 'over', title: 'Задание провалено', html: statsHtml() + `<p>${cp ? 'Продолжить можно с контрольной точки ' + cp + ' с полным запасом жизней.' : 'Контрольных точек ещё не было - миссия сначала.'}</p>`, row: true,
+      buttons: [{ label: cp ? 'С контрольной точки' : 'Заново', primary: true, id: 'again', onClick: () => startMission(G.mission, true) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
+  }, params.has('fast') ? 0 : 1100);
+}
+function fmtTime(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function statsHtml() {
+  const s = G.stats, acc = s.shots ? Math.round(100 * s.hits / s.shots) : 0;
+  return `<table><tr><td>Очки</td><td><b>${G.score}</b></td></tr><tr><td>Уничтожено</td><td>${s.kills}</td></tr><tr><td>Точность</td><td>${acc}%</td></tr>
+    <tr><td>Потеряно жизней</td><td>${s.deaths}</td></tr><tr><td>Время</td><td>${fmtTime(Math.round(s.steps / 60))}</td></tr></table>`;
+}
+function missionComplete() {
+  G.phase = 'done';
+  kit.mode = 'menu';
+  const mi = G.mission, secs = Math.round(G.stats.steps / 60);
+  const b = progress.best[mi] || {};
+  progress.best[mi] = { score: Math.max(b.score || 0, G.score), time: b.time ? Math.min(b.time, secs) : secs };
+  progress.unlocked = Math.max(progress.unlocked, Math.min(mi + 1, MISSIONS.length - 1));
+  if (G.stats.deaths === 0) kit.unlock('flawless');
+  if (kit.settings.difficulty === 'hard') progress.hard[mi] = true;
+  G.total = G.total || { score: 0, kills: 0, deaths: 0, steps: 0 };
+  if (mi === 0) G.total = { score: 0, kills: 0, deaths: 0, steps: 0 };
+  for (const k of ['kills', 'deaths', 'steps']) G.total[k] += G.stats[k];
+  G.total.score += G.score;
+  if (mi === MISSIONS.length - 1) {
+    progress.done = true;
+    kit.save('progress', progress);
+    // Кампания засчитывается, когда пройдены все миссии, а не только последняя из «Выбора миссии»
+    if (MISSIONS.every((_, i) => progress.best[i])) kit.unlock('campaign');
+    if (MISSIONS.every((_, i) => progress.hard[i])) kit.unlock('campaignHard');
+    const t = G.total;
+    kit.show({ id: 'victory', title: 'Задание выполнено - вышка взята!', wide: true,
+      html: `<p>Форт, река, пещеры, база и вышка позади. Джунгли свободны.</p>${statsHtml()}
+        ${t && t.steps ? `<p>Вся кампания: очков <b>${t.score}</b>, уничтожено ${t.kills}, потеряно жизней ${t.deaths}, время ${fmtTime(Math.round(t.steps / 60))}.</p>` : ''}
+        <p style="color:var(--kit-dim)">«Огненные джунгли» - часть «Игротеки». Всё нарисовано в коде, звуки синтезированы. Спасибо за игру!</p>`,
+      row: true, buttons: [{ label: 'Выбор миссии', primary: true, onClick: showMissionSelect }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
+    return;
+  }
+  kit.save('progress', progress);
+  kit.show({ id: 'missionClear', title: `Миссия ${mi + 1} выполнена!`, html: statsHtml() + `<p>Дальше: <b>${MISSIONS[mi + 1].name}</b> - ${MISSIONS[mi + 1].intro}</p>`, row: true,
+    buttons: [{ label: 'Следующая миссия', primary: true, id: 'next', onClick: () => startMission(mi + 1, false) }, { label: 'В меню', id: 'menu', onClick: () => kit.toMenu() }] });
+}
+function showMissionSelect() {
+  const node = document.createElement('div');
+  node.innerHTML = '<p>Миссия открывается, когда пройдена предыдущая.</p>';
+  const grid = document.createElement('div');
+  grid.className = 'kit-grid';
+  MISSIONS.forEach((m, i) => {
+    const open = i <= progress.unlocked, best = progress.best[i];
+    const b = kit.btn(`${open ? '' : '🔒 '}${i + 1}. ${m.name}<small>${best ? 'рекорд ' + best.score + ' · ' + fmtTime(best.time) : 'босс: ' + BOSSES[m.boss].name}</small>`, () => { if (open) { G.checkpoint = 0; startMission(i, false); } });
+    b.disabled = !open; b.dataset.mission = i;
+    grid.appendChild(b);
+  });
+  node.appendChild(grid);
+  kit.show({ id: 'missions', title: 'Выбор миссии', node, wide: true, buttons: [{ label: 'Назад', onClick: () => kit.pop() }] });
 }
 
-// Холст 256x240 масштабируется под окно (раньше был прибит к 768x720 и не влезал в 800 по высоте)
+// ================= Рисование =================
+const cv = document.getElementById('c');
+let ctx = cv.getContext('2d');
+let pal = PALS.jungle;
+// Размер на экране - целое кратное 400x225 в пикселях экрана, остальное - поля.
+// Так все пиксели игры одного размера (при дробном масштабе одни были в 3, другие в 4 точки).
 function fitCanvas() {
-  const header = 34, info = 76, pad = 16;
-  const maxW = Math.min(window.innerWidth - 2 * pad, (window.innerHeight - header - info - pad) * W / H);
-  const cssW = Math.max(256, Math.floor(maxW));
-  cv.style.width = cssW + 'px';
-  cv.style.height = Math.round(cssW * H / W) + 'px';
-  // Внутреннее разрешение - целое кратное 256x240: пиксели остаются квадратными,
-  // а мелкий текст (кириллица 8px) рисуется чётко, а не размытой кашей.
-  const k = Math.max(1, Math.round(cssW * (window.devicePixelRatio || 1) / W));
-  cv.width = W * k;
-  cv.height = H * k;
+  const dpr = devicePixelRatio || 1;
+  const fitK = Math.min(innerWidth * dpr / W, innerHeight * dpr / H);
+  const k = fitK >= 1 ? Math.floor(fitK) : fitK;
+  cv.style.width = (W * k / dpr) + 'px'; cv.style.height = (H * k / dpr) + 'px';
+  const kb = Math.max(1, Math.round(k));
+  cv.width = W * kb; cv.height = H * kb;
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.imageSmoothingEnabled = false;
+}
+function px(x, y, c, w = 1, h = 1) { ctx.fillStyle = c; ctx.fillRect(Math.floor(x), Math.floor(y), w, h); }
+
+function drawSky() {
+  const s = pal.sky;
+  px(0, 0, s[2], W, H);                                  // весь кадр: иначе в пещере просвечивал прошлый кадр
+  px(0, 0, s[0], W, 70); px(0, 70, s[1], W, 45); px(0, 115, s[2], W, 30);
+  if (pal.far2 !== 'stalactites') for (let i = 0; i < 18; i++) { const x = ((i * 67 - G.cam * 0.05) % W + W) % W; px(x, 12 + (i * 37) % 60, 'rgba(255,255,255,0.5)', 1, 1); }
+  if (G.lightning > 0) px(0, 0, `rgba(255,255,255,${G.lightning / 12})`, W, GROUND);
+}
+function drawFar() {
+  const off = G.cam * 0.15;
+  ctx.fillStyle = pal.far;
+  ctx.beginPath(); ctx.moveTo(0, 150);
+  for (let x = 0; x <= W; x += 4) {
+    const wx = x + off; let h;
+    if (pal.far2 === 'mountains') h = 40 + Math.abs(Math.sin(wx * 0.013)) * 36 + Math.sin(wx * 0.05) * 3;
+    else if (pal.far2 === 'hills') h = 26 + Math.sin(wx * 0.01) * 12 + Math.sin(wx * 0.031) * 5;
+    else if (pal.far2 === 'city') h = 30 + (Math.floor(wx / 26) * 7919 % 5) * 12;
+    else if (pal.far2 === 'cliffs') h = 44 + (Math.sin(wx * 0.008) > 0.2 ? 26 : 0) + Math.sin(wx * 0.04) * 4;
+    else h = 0;
+    ctx.lineTo(x, 150 - h);
+  }
+  ctx.lineTo(W, 150); ctx.fill();
+  if (pal.far2 === 'city') for (let x = 0; x < W; x += 13) { const wx = x + off; if ((Math.floor(wx / 13) * 31) % 3 === 0) px(x, 118 + (Math.floor(wx / 13) * 17) % 24, '#ffd070', 2, 2); }
+  if (pal.far2 === 'stalactites') {
+    const o2 = G.cam * 0.3;
+    ctx.fillStyle = pal.far;
+    for (let x = -20; x < W + 20; x += 18) { const wx = x + o2 - (o2 % 18), h = 10 + ((Math.floor(wx / 18) * 13) % 5) * 7; ctx.beginPath(); ctx.moveTo(x - (o2 % 18), 0); ctx.lineTo(x - (o2 % 18) + 9, h); ctx.lineTo(x - (o2 % 18) + 18, 0); ctx.fill(); }
+    px(0, 0, pal.near, W, 8);
+  }
+}
+function drawMid() {
+  const off = G.cam * 0.5;
+  if (pal.mid === 'jungle') {
+    ctx.fillStyle = pal.jFar; ctx.fillRect(0, 150, W, GROUND - 150);
+    for (let i = -1; i < 14; i++) { const bx = i * 32 - (off % 32); ctx.beginPath(); ctx.arc(bx + 10, 150, 14, 0, 7); ctx.arc(bx + 22, 148, 12, 0, 7); ctx.fill(); }
+    const o2 = G.cam * 0.75;
+    ctx.fillStyle = pal.jNear;
+    for (let i = -1; i < 12; i++) { const bx = i * 40 - (o2 % 40); ctx.beginPath(); ctx.arc(bx + 12, 172, 16, 0, 7); ctx.arc(bx + 28, 170, 14, 0, 7); ctx.fill(); }
+    ctx.fillRect(0, 172, W, GROUND - 172);
+  } else if (pal.mid === 'reeds') {
+    ctx.fillStyle = pal.jFar; ctx.fillRect(0, 160, W, GROUND - 160);
+    for (let x = -(off % 6); x < W; x += 6) { const h = 8 + (Math.floor((x + off) / 6) * 7) % 10; px(x, 160 - h, pal.jNear, 1, h); }
+  } else if (pal.mid === 'rocks') {
+    ctx.fillStyle = pal.jFar;
+    ctx.beginPath(); ctx.moveTo(0, GROUND);
+    for (let x = 0; x <= W; x += 6) ctx.lineTo(x, 158 - Math.abs(Math.sin((x + off) * 0.04)) * 14);
+    ctx.lineTo(W, GROUND); ctx.fill();
+  } else if (pal.mid === 'pipes') {
+    px(0, 150, pal.jFar, W, GROUND - 150);
+    for (let x = -(off % 60); x < W; x += 60) { px(x, 140, pal.jNear, 8, GROUND - 140); px(x - 2, 140, pal.grassDk, 12, 3); }
+    px(0, 160, pal.grassDk, W, 3);
+  }
+}
+function drawGround() {
+  const L = G.level;
+  for (let x = 0; x < W; x++) {
+    const wx = x + G.cam;
+    if (pitAt(wx)) continue;
+    px(x, GROUND, pal.grass, 1, 4);
+    if (Math.floor(wx) % 8 < 2) px(x, GROUND, pal.grassDk, 1, 2);
+    px(x, GROUND + 4, pal.ground, 1, H - GROUND - 4);
+    if (Math.floor(wx) % 16 < 4 && Math.floor(wx) % 32 < 16) px(x, GROUND + 8 + (Math.floor(wx) * 7) % 24, pal.groundDk, 1, 1);
+  }
+  const waterFrom = Math.max(0, L.water - G.cam);
+  const pools = L.pits.map((p) => [p.x - G.cam, p.w]).concat(waterFrom < W ? [[waterFrom, W]] : []);
+  for (const [sx, w] of pools) {
+    if (sx + w < 0 || sx > W) continue;
+    const x0 = Math.max(0, sx), x1 = Math.min(W, sx + w);
+    px(x0, GROUND + 3, pal.water, x1 - x0, H - GROUND - 3);
+    for (let x = x0 + (Math.floor(G.t / 4) % 8); x < x1; x += 8) { px(x, GROUND + 7, pal.waterDk, 4, 1); px(x + 3, GROUND + 15, pal.waterDk, 3, 1); }
+  }
+  for (const p of L.plats) {
+    const sx = p.x - G.cam;
+    if (sx + p.w < 0 || sx > W) continue;
+    px(sx, p.y, pal.plat, p.w, 6); px(sx, p.y, pal.platTop, p.w, 1); px(sx, p.y + 5, pal.platDk, p.w, 1);
+    for (let i = 4; i < p.w - 2; i += 8) px(sx + i, p.y + 2, pal.platDk, 1, 3);
+  }
+  // флажки контрольных точек
+  L.checkpoints.forEach((cx, i) => {
+    const sx = cx - G.cam;
+    if (sx < -10 || sx > W + 10) return;
+    px(sx, GROUND - 24, '#d8d8d8', 1, 24);
+    px(sx + 1, GROUND - 24, i < G.checkpoint ? '#40d060' : '#d04040', 8, 5);
+  });
+  for (const pd of L.pods) {
+    if (pd.dead) continue;
+    const sx = pd.x - G.cam;
+    if (sx < -10 || sx > W + 10) continue;
+    const bob = Math.sin((G.t + pd.x) / 20) * 2;
+    px(sx - 6, pd.y - 4 + bob, '#a0a8b8', 12, 8); px(sx - 4, pd.y - 2 + bob, '#ff5050', 8, 4); px(sx - 7, pd.y - 1 + bob, '#606878', 1, 2); px(sx + 6, pd.y - 1 + bob, '#606878', 1, 2);
+  }
+}
+function drawTrees() {
+  if (!pal.trees) return;
+  for (let i = 0; i < 30; i++) {
+    const tx = 200 + i * 190 + (i * 73) % 80, sx = tx - G.cam;
+    if (sx < -40 || sx > W + 40 || tx > G.level.arena + 40) continue;
+    px(sx, 100, '#4a3018', 6, GROUND - 100 + 2);
+    ctx.fillStyle = pal.jNear; ctx.beginPath(); ctx.arc(sx + 3, 100, 18, 0, 7); ctx.arc(sx - 8, 105, 14, 0, 7); ctx.arc(sx + 14, 105, 14, 0, 7); ctx.fill();
+    ctx.fillStyle = pal.grass; ctx.beginPath(); ctx.arc(sx + 3, 96, 13, 0, 7); ctx.arc(sx - 6, 102, 9, 0, 7); ctx.arc(sx + 12, 102, 9, 0, 7); ctx.fill();
+  }
+}
+
+const COL = { skin: '#f0c090', band: '#c02020', body: '#d8a060', bodyDk: '#a06038', pants: '#306030', boot: '#2a2018', gun: '#1a1a22', flash: '#fff080' };
+function drawPlayer() {
+  const p = player;
+  if (!p.alive) return;
+  if (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 === 0 && G.mode !== 'demo') return;
+  const sx = Math.floor(p.x - G.cam), sy = Math.floor(p.y), d = p.dir;
+  if (p.shield > 0) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(G.t / 4); ctx.strokeStyle = '#80ffc0'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy - 11, 14, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+  if (p.prone) {
+    px(sx - 8, sy - 5, COL.pants, 12, 4); px(sx - 3 * d - 1, sy - 9, COL.body, 10, 4);
+    px(sx + (d > 0 ? 5 : -9), sy - 11, COL.skin, 5, 5); px(sx + (d > 0 ? 5 : -9), sy - 12, COL.band, 5, 1);
+    px(sx + (d > 0 ? 9 : -17), sy - 9, COL.gun, 8, 2);
+    return;
+  }
+  const air = !p.onGround;
+  const f = Math.floor(p.walk) % 4;
+  // ноги
+  if (air) { px(sx - 3, sy - 7, COL.pants, 3, 4); px(sx + 1, sy - 6, COL.pants, 3, 3); px(sx - 4, sy - 4, COL.boot, 3, 2); px(sx + 2, sy - 4, COL.boot, 3, 2); }
+  else {
+    const a = [0, 2, 0, -2][f];
+    px(sx - 3 + (p.vx ? a / 2 : 0), sy - 6, COL.pants, 3, 5); px(sx + 1 - (p.vx ? a / 2 : 0), sy - 6, COL.pants, 3, 5);
+    px(sx - 4 + (p.vx ? a / 2 : 0), sy - 2, COL.boot, 4, 2); px(sx + 1 - (p.vx ? a / 2 : 0), sy - 2, COL.boot, 4, 2);
+  }
+  // тело и голова
+  px(sx - 3, sy - 15, COL.body, 8, 9); px(sx - 3, sy - 15, COL.bodyDk, 8, 1); px(sx - 3, sy - 9, COL.bodyDk, 8, 1);
+  px(sx - 1, sy - 20, COL.skin, 5, 5); px(sx - 1, sy - 21, COL.band, 5, 2); px(sx + (d > 0 ? -3 : 4), sy - 20, COL.band, 2, 1);
+  px(sx + (d > 0 ? 3 : -1), sy - 18, '#101010', 1, 1);
+  // оружие
+  if (p.aimUp && p.vx) { px(sx + d * 3, sy - 17, COL.gun, 2, 2); px(sx + d * 5, sy - 19, COL.gun, 2, 2); }
+  else if (p.aimUp) { px(sx + 1, sy - 26, COL.gun, 2, 7); }
+  else { px(d > 0 ? sx + 3 : sx - 9, sy - 13, COL.gun, 7, 2); px(d > 0 ? sx + 1 : sx - 1, sy - 12, COL.skin, 2, 2); }
+  if (p.cd > (p.weapon === 'rapid' ? 2 : 5)) {
+    const fx = p.aimUp ? (p.vx ? sx + d * 8 : sx + 2) : (d > 0 ? sx + 11 : sx - 11), fy = p.aimUp ? (p.vx ? sy - 22 : sy - 28) : sy - 13;
+    px(fx - 1, fy - 1, COL.flash, 3, 3);
+  }
+}
+function soldierSprite(sx, sy, d, shirt, helmet, gun = true) {
+  px(sx - 3, sy - 6, '#403028', 3, 6); px(sx + 1, sy - 6, '#403028', 3, 6);
+  px(sx - 3, sy - 15, shirt, 8, 9); px(sx - 1, sy - 19, COL.skin, 4, 4); px(sx - 2, sy - 21, helmet, 6, 3);
+  px(sx + (d > 0 ? 2 : 0), sy - 17, '#101010', 1, 1);
+  if (gun) px(d > 0 ? sx + 3 : sx - 8, sy - 12, COL.gun, 5, 2);
+}
+function drawEnemy(e) {
+  const sx = Math.floor(e.x - G.cam), sy = Math.floor(e.y), fl = e.flash > 0;
+  switch (e.type) {
+    case 'soldier': soldierSprite(sx, sy, e.dir, fl ? '#fff' : '#a83030', '#3a4a2a'); break;
+    case 'grenadier': soldierSprite(sx, sy, e.dir, fl ? '#fff' : '#406048', '#508058'); px(e.dir > 0 ? sx + 3 : sx - 9, sy - 14, '#382020', 7, 3); break;
+    case 'sniper':
+      soldierSprite(sx, sy, e.dir, fl ? '#fff' : '#3a3a5a', '#22223a', false); px(e.dir > 0 ? sx + 3 : sx - 11, sy - 14, COL.gun, 9, 1);
+      if (e.aim > 0) { ctx.strokeStyle = `rgba(255,40,40,${0.35 + (50 - e.aim) / 80})`; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(sx, sy - 14); ctx.lineTo(e.lockX - G.cam, e.lockY); ctx.stroke(); }
+      break;
+    case 'turret':
+      px(sx - 7, sy - 4, '#202028', 14, 4); px(sx - 7, sy - 4, '#404048', 14, 1);
+      px(sx - 4, sy - 10, fl ? '#fff' : '#a83030', 8, 6); px(sx + (e.dir > 0 ? 4 : -8), sy - 8, COL.gun, 4, 2);
+      break;
+    case 'drone':
+      px(sx - 7, sy, fl ? '#fff' : '#606878', 14, 5); px(sx - 7, sy + 4, '#382020', 14, 1);
+      if (Math.floor(G.t / 8) % 2) px(sx - 1, sy + 1, '#ff4040', 2, 2);
+      px(sx - 7 + (G.t % 4 < 2 ? 1 : 0), sy - 1, '#a0a8b8', 5, 1); px(sx + 2 + (G.t % 4 < 2 ? 1 : 0), sy - 1, '#a0a8b8', 5, 1);
+      break;
+    case 'crawler': {
+      const l = Math.floor(G.t / 5) % 2;
+      px(sx - 6, sy - 7, fl ? '#fff' : '#5a3a7a', 12, 5); px(sx - 4, sy - 8, '#7a5aa0', 8, 1);
+      px(sx + (e.dir > 0 ? 4 : -6), sy - 6, '#ff5050', 2, 2);
+      for (let i = 0; i < 3; i++) { px(sx - 7 + i * 5, sy - 2 - (i + l) % 2, '#2a1a3a', 1, 2 + (i + l) % 2); px(sx - 5 + i * 5, sy - 2 - (i + l + 1) % 2, '#2a1a3a', 1, 2); }
+      break;
+    }
+    case 'mine': {
+      const blink = e.armed ? Math.floor(G.t / 3) % 2 : Math.floor(G.t / 20) % 2;
+      px(sx - 5, sy - 3, '#40444a', 10, 3); px(sx - 1, sy - 4, blink ? '#ff3030' : '#602020', 2, 1);
+      break;
+    }
+    case 'jetpack':
+      soldierSprite(sx, sy, e.dir, fl ? '#fff' : '#5a4a2a', '#2a2a2a', false);
+      px(sx - (e.dir > 0 ? 6 : -3), sy - 16, '#707070', 3, 8);
+      px(sx - (e.dir > 0 ? 6 : -3), sy - 8 + (G.t % 4 < 2 ? 0 : 1), '#ffa040', 3, 3);
+      break;
+    case 'tankette':
+      px(sx - 15, sy - 6, '#2a2a22', 30, 6); for (let i = 0; i < 5; i++) px(sx - 13 + i * 6, sy - 4, '#555', 3, 3);
+      px(sx - 13, sy - 14, fl ? '#fff' : '#5a6a3a', 26, 8); px(sx - 6, sy - 18, '#4a5a2a', 12, 4);
+      px(e.dir > 0 ? sx + 6 : sx - 16, sy - 16, COL.gun, 10, 2);
+      break;
+  }
+}
+function drawBoss() {
+  const b = boss, sx = Math.floor(b.x - G.cam), sy = Math.floor(b.y), fl = b.flash > 0, W2 = b.w / 2;
+  const c = (col) => (fl ? '#ffffff' : col);
+  if (b.kind === 'fort') {
+    px(sx - W2, sy - b.h, c('#503838'), b.w, b.h); px(sx - W2 + 3, sy - b.h + 3, c('#6e4a44'), b.w - 6, b.h - 6);
+    for (let i = 0; i < 5; i++) px(sx - W2 + 2 + i * 12, sy - b.h - 6, c('#503838'), 8, 6);
+    px(sx - 18, sy - 70, '#101820', 22, 14); px(sx - 14, sy - 66, c('#ffc040'), 14, 6); px(sx - 9, sy - 65, '#ff8000', 4, 4);
+    px(sx - W2 - 10, sy - 34, c('#382020'), 12, 6); px(sx - W2 - 16, sy - 33, COL.gun, 8, 4);
+    px(sx - 12, sy - 22, '#1a1010', 18, 22);
+  } else if (b.kind === 'boat') {
+    px(sx - W2, sy - 12, c('#3a4a5a'), b.w, 12); px(sx - W2 + 6, sy - 4, c('#2a3a4a'), b.w - 12, 4);
+    px(sx - 18, sy - 26, c('#5a6a7a'), 30, 14); px(sx - 14, sy - 24, '#9fdcff', 8, 4); px(sx + 2, sy - 24, '#9fdcff', 8, 4);
+    px(sx - W2 - 6, sy - 16, COL.gun, 12, 3); px(sx - 24, sy - 34, '#707a84', 4, 8);
+    px(sx - W2 - 4, sy - 1, '#cfe8ff', b.w + 8, 1);
+  } else if (b.kind === 'drill') {
+    px(sx - W2 + 10, sy - 26, c('#6a5a3a'), b.w - 10, 20); px(sx - W2 + 12, sy - 34, c('#4a4030'), 22, 8);
+    for (let i = 0; i < 6; i++) px(sx - W2 + 12 + i * 8, sy - 6, '#303030', 5, 5);
+    const spin = Math.floor(G.t / 3) % 2;
+    ctx.fillStyle = c('#b0b8c0'); ctx.beginPath(); ctx.moveTo(sx - W2 + 10, sy - 28); ctx.lineTo(sx - W2 - 12, sy - 16); ctx.lineTo(sx - W2 + 10, sy - 4); ctx.fill();
+    for (let i = 0; i < 3; i++) px(sx - W2 - 6 + i * 6, sy - 20 + spin * 2, '#707880', 2, 8 - i * 2);
+  } else if (b.kind === 'walker') {
+    const l = b.state === 'jump' ? 4 : 0;
+    px(sx - 14, sy - 20 + l, c('#4a4e58'), 6, 20 - l); px(sx + 8, sy - 20 + l, c('#4a4e58'), 6, 20 - l);
+    px(sx - 18, sy - 2, '#2e323a', 12, 2); px(sx + 4, sy - 2, '#2e323a', 12, 2);
+    px(sx - W2, sy - b.h, c('#6a707a'), b.w, 34); px(sx - W2 + 4, sy - b.h + 6, '#101820', 16, 8); px(sx - W2 + 6, sy - b.h + 8, '#ff3030', 10, 4);
+    px(sx + W2 - 10, sy - b.h - 6, c('#565c66'), 10, 10); px(sx - W2 - 8, sy - b.h + 20, COL.gun, 10, 4);
+  } else if (b.kind === 'heli') {
+    const r = Math.floor(G.t / 2) % 2;
+    px(sx - W2, sy - 22, c('#3a4a2a'), 60, 18); px(sx - W2 + 4, sy - 20, '#9fdcff', 14, 8);
+    px(sx + 10, sy - 18, c('#3a4a2a'), 32, 6); px(sx + 38, sy - 26, c('#3a4a2a'), 4, 12);
+    px(sx - W2 - 6, sy - 30, '#202020', b.w + 12, 1 + r); px(sx - 4, sy - 30, '#202020', 4, 8);
+    px(sx - W2 + 6, sy - 4, '#202020', 40, 2); px(sx - W2 + 10, sy - 6, '#202020', 2, 3); px(sx - W2 + 40, sy - 6, '#202020', 2, 3);
+    px(sx - W2 - 4, sy - 14, COL.gun, 6, 3);
+  }
+}
+function drawHazards() {
+  for (const h of hazards) {
+    const sx = Math.floor(h.x - G.cam);
+    if (h.kind === 'rock') { if (h.warn > 0) { if (Math.floor(G.t / 4) % 2) px(sx - 5, GROUND + 1, '#ff4040', 10, 1); } else { px(sx - 5, h.y - 5, '#6a6278', 10, 10); px(sx - 3, h.y - 5, '#8a82a0', 5, 3); } }
+    else { px(sx - 4, GROUND - 7, '#ffd040', 8, 7); px(sx - 2, GROUND - 10, '#ff8030', 4, 3); }
+  }
+}
+function drawBullets() {
+  for (const b of bullets) { const sx = Math.floor(b.x - G.cam); if (b.laser) px(sx - 3, b.y, '#ff60ff', 6, 1); else px(sx - 1, b.y - 1, '#fff080', 3, 2); }
+  for (const b of ebullets) {
+    const sx = Math.floor(b.x - G.cam);
+    if (b.grenade) { px(sx - 2, b.y - 2, b.bomb ? '#202020' : '#382020', 4, 4); px(sx - 1, b.y - 1, '#ffd040', 1, 1); }
+    else if (b.missile) { px(sx - 3, b.y - 1, '#d0d0d0', 6, 2); px(sx + 3, b.y - 1, '#ff8030', 2, 2); }
+    else if (b.shell) px(sx - 2, b.y - 1, '#ffb060', 5, 3);
+    else px(sx - 1, b.y - 1, b.fast ? '#ff3030' : '#ff6040', 3, 2);
+  }
+}
+function drawPickups() {
+  const col = { spread: '#80c0ff', rapid: '#ffa040', laser: '#ff60ff', shield: '#80ff80' }, letter = { spread: 'В', rapid: 'С', laser: 'Л', shield: 'Щ' };
+  for (const pk of pickups) {
+    const sx = Math.floor(pk.x - G.cam), sy = Math.floor(pk.y);
+    px(sx - 6, sy - 11, '#101820', 12, 11); px(sx - 5, sy - 10, Math.floor(G.t / 6) % 2 ? '#ffffff' : col[pk.kind], 10, 9);
+    ctx.fillStyle = '#101820'; ctx.font = 'bold 8px Consolas, "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(letter[pk.kind], sx, sy - 10); ctx.textAlign = 'left';
+  }
+}
+function updateParticles() { for (let i = particles.length - 1; i >= 0; i--) { const q = particles[i]; q.x += q.vx; q.y += q.vy; q.vy += 0.12; if (--q.life <= 0) particles.splice(i, 1); } }
+function txt(t, x, y, c, size = 8, align = 'left') {
+  ctx.font = `${size}px JunglePixel, Consolas, monospace`; ctx.textBaseline = 'top'; ctx.textAlign = align;
+  ctx.fillStyle = '#000'; ctx.fillText(t, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(t, x, y); ctx.textAlign = 'left';
+}
+let bannerRect = null;
+function drawHud() {
+  bannerRect = null;
+  if (G.mode === 'demo') return;
+  px(0, 0, 'rgba(8,12,18,0.8)', W, 13); px(0, 13, '#ff5050', W, 1);
+  txt('ОЧКИ ' + String(G.score).padStart(6, '0'), 4, 3, '#ffd040');
+  for (let i = 0; i < Math.min(G.lives, 6); i++) { px(96 + i * 9, 3, COL.skin, 5, 5); px(96 + i * 9, 2, COL.band, 5, 2); px(96 + i * 9, 8, COL.body, 5, 3); }
+  txt(WEAPON_NAMES[player.weapon] + (player.shield > 0 ? ' +щит' : ''), 156, 3, '#80ffc0');
+  const L = G.level, x0 = 250, x1 = 396;
+  px(x0, 5, '#2a3040', x1 - x0, 3);
+  px(x0, 5, '#ffd040', (x1 - x0) * Math.min(1, player.x / L.len), 3);
+  for (const c of L.checkpoints) px(x0 + (x1 - x0) * c / L.len, 3, '#40d060', 1, 7);
+  px(x1 - 2, 2, '#ff5050', 3, 9);
+  if (boss) {
+    px(80, 18, '#101820', W - 160, 6); px(81, 19, '#382020', W - 162, 4);
+    px(81, 19, '#ff5050', Math.floor((W - 162) * Math.max(0, boss.hp / boss.maxHp)), 4);
+    txt(boss.name, W / 2, 26, '#ffc040', 8, 'center');
+  }
+  bannerRect = null;
+  if (G.banner && kit.mode === 'play') {             // под паузой и окнами надпись не рисуется
+    ctx.globalAlpha = Math.min(1, G.banner.t / 20); px(0, 70, 'rgba(0,0,0,0.5)', W, 22); txt(G.banner.text, W / 2, 74, '#ffffff', 16, 'center'); ctx.globalAlpha = 1;
+    bannerRect = { x: 0, y: 70, w: W, h: 22 };
+  }
+}
+function render() {
+  pal = PALS[MISSIONS[G.mission].pal];
+  const k = cv.width / W;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  px(0, 0, pal.sky[2], W, H);                            // до сдвига тряски: у края не остаётся полоса прошлого кадра
+  if (G.shake > 0.5) ctx.translate(Math.round((rnd() - 0.5) * G.shake), Math.round((rnd() - 0.5) * G.shake));
+  drawSky(); drawFar(); drawMid(); drawTrees(); drawGround();
+  for (const e of enemies) drawEnemy(e);
+  if (boss) drawBoss();
+  drawPickups();
+  drawPlayer();
+  drawHazards();
+  drawBullets();
+  for (const q of particles) px(q.x - G.cam, q.y, q.color, 2, 2);
+  if (pal.rain && kit.settings.effects) { ctx.fillStyle = 'rgba(180,200,230,0.5)'; for (let i = 0; i < 60; i++) { const x = (i * 53 + G.t * 3) % W, y = (i * 29 + G.t * 7) % H; ctx.fillRect(x, y, 1, 4); } }
+  if (G.flash > 0 && kit.settings.effects) px(0, 0, `rgba(255,255,255,${G.flash / 24})`, W, H);
+  drawHud();
+}
+
+// ================= Мышь: огонь ЛКМ только по полю, тем же темпом =================
+// Курсор - в точки поля: учитываются положение и масштаб холста (камера - при выстреле)
+function trackAim(e) {
+  const r = cv.getBoundingClientRect();
+  aim.x = (e.clientX - r.left) / r.width * W;
+  aim.y = (e.clientY - r.top) / r.height * H;
+}
+addEventListener('pointermove', trackAim);
+cv.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  trackAim(e);
+  if (kit.mode !== 'play') return;
+  mouseFire = true; fireQueued = true; mouseQueued = true;
+});
+addEventListener('pointerup', (e) => { if (e.button === 0) mouseFire = false; });
+addEventListener('pointercancel', () => { mouseFire = false; });
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+addEventListener('blur', () => { mouseFire = false; });
+
+// ================= Каркас =================
+const MUSIC = {
+  menu: { bpm: 100, voices: [
+    { type: 'square', vol: 0.05, notes: 'E4 . E4 G4 . E4 D4 . C4 . D4 . E4 - - . E4 . E4 G4 . A4 G4 . E4 . D4 . C4 - - .' },
+    { type: 'triangle', vol: 0.12, notes: 'C3 . . . C3 . . . A2 . . . A2 . . . F2 . . . F2 . . . G2 . . . G2 . . .' } ], drums: 'k...s...k.k.s...' },
+  game: { bpm: 150, voices: [
+    { type: 'square', vol: 0.045, notes: 'E4 E4 . E5 . D5 . B4 . A4 . G4 . E4 - . E4 E4 . G4 . A4 . B4 . D5 . B4 . A4 - .' },
+    { type: 'triangle', vol: 0.13, notes: 'E2 . E2 E3 . E2 . E2 D2 . D2 D3 . D2 . D2 C2 . C2 C3 . C2 . C2 D2 . D2 D3 . B1 . B1' } ], drums: 'k.hsk.hsk.hsk.ss' },
+  boss: { bpm: 162, voices: [
+    { type: 'sawtooth', vol: 0.035, notes: 'A4 . A4 A#4 . A4 . G4 . A4 . E5 . D5 . C5 . A4 . A4 A#4 . A4 . G4 . F4 . E4 . D4 .' },
+    { type: 'square', vol: 0.05, notes: 'A1 A1 A2 A1 A1 A1 A2 A1 G1 G1 G2 G1 F1 F1 F2 F1' } ], drums: 'k.k.s.k.k.k.s.ss' },
+};
+kit = GameKit.create({
+  id: 'jungle',
+  root: document.getElementById('app'),
+  theme: { accent: '#ffd040', accent2: '#c83030', panel: 'rgba(16,20,14,0.97)', shade: 'rgba(0,0,0,.3)', font: '"JunglePixel", Consolas, monospace' },
+  actions: {
+    left: { label: 'Влево', keys: ['KeyA', 'ArrowLeft'], pad: ['b14', 'a0-'] },
+    right: { label: 'Вправо', keys: ['KeyD', 'ArrowRight'], pad: ['b15', 'a0+'] },
+    up: { label: 'Прицел вверх', keys: ['KeyW', 'ArrowUp'], pad: ['b12', 'a1-'] },
+    down: { label: 'Лечь / спрыгнуть', keys: ['KeyS', 'ArrowDown'], pad: ['b13', 'a1+'] },
+    jump: { label: 'Прыжок', keys: ['Space', 'KeyK'], pad: ['b0'] },
+    fire: { label: 'Огонь (и ЛКМ)', keys: ['KeyJ', 'KeyX'], pad: ['b2', 'b7', 'b5'] },
+    pause: { label: 'Пауза', keys: ['KeyP'], pad: [] },
+  },
+  music: MUSIC,
+  difficultyNote: 'Лёгкая: 5 жизней, враги стреляют реже и медленнее. Обычная: 3 жизни. Трудная: 2 жизни, враги крепче и злее, боссы прочнее.',
+  achievements: [
+    { id: 'boss1', name: 'Форт пал', desc: 'Пройти миссию «Лесной форт»' },
+    { id: 'boss2', name: 'Катер на дне', desc: 'Пройти миссию «Река на закате»' },
+    { id: 'boss3', name: 'Бур сломан', desc: 'Пройти миссию «Пещеры»' },
+    { id: 'boss4', name: 'Шагоход остановлен', desc: 'Пройти миссию «Секретная база»' },
+    { id: 'boss5', name: 'Коршун сбит', desc: 'Пройти миссию «Штурм вышки»' },
+    { id: 'campaign', name: 'Джунгли свободны', desc: 'Пройти всю кампанию' },
+    { id: 'campaignHard', name: 'Железный десант', desc: 'Пройти кампанию на трудной сложности' },
+    { id: 'flawless', name: 'Без потерь', desc: 'Пройти миссию, не потеряв ни одной жизни' },
+  ],
+  howto: `<p><b>Кампания</b> - пять миссий: лесной форт, река на закате, пещеры, секретная база и штурм вышки. В конце каждой - босс. Два флажка в миссии - контрольные точки: если жизни кончились, продолжите с последней.</p>
+    <p><b>Управление</b>: A/D или стрелки - бег, W - прицел вверх (на бегу - наискось), S - лечь, S + прыжок - спрыгнуть с платформы, Пробел - прыжок, J/X или левая кнопка мыши - огонь (держать - очередь). Геймпад тоже работает.</p>
+    <p>Бонусы выпадают из врагов и летающих капсул (их надо подстрелить): В - веер из трёх пуль, С - скорострел, Л - лазер насквозь, Щ - щит на один удар. Оружие теряется вместе с жизнью.</p>
+    <p>Снайпер сначала ведёт красный луч прицела. Мина пищит - отбегите. Шагоход при приземлении пускает волну по земле - перепрыгните.</p>`,
+  credits: `<p><b>Огненные джунгли</b> - фан-версия, не связана с правообладателем, часть «Игротеки».</p><p>Пиксельные спрайты рисуются кодом, музыка и звуки синтезируются WebAudio. Ни одного файла из интернета.</p>`,
+  drawLogo(g, w, h, t) {
+    g.imageSmoothingEnabled = false;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '40px JunglePixel, Consolas, monospace';
+    const fl = 0.5 + 0.5 * Math.sin(t * 6);
+    g.fillStyle = '#400000'; g.fillText('ОГНЕННЫЕ', w / 2 + 3, h * 0.33 + 3); g.fillText('ДЖУНГЛИ', w / 2 + 3, h * 0.73 + 3);
+    g.fillStyle = `rgb(255,${120 + fl * 80},40)`; g.fillText('ОГНЕННЫЕ', w / 2, h * 0.33);
+    g.fillStyle = '#ffd040'; g.fillText('ДЖУНГЛИ', w / 2, h * 0.73);
+  },
+  game: {
+    menuItems() {
+      const items = [];
+      if (progress.unlocked > 0 && !progress.done) items.push({ label: `Продолжить · миссия ${progress.unlocked + 1}`, primary: true, id: 'continue', onClick: () => { G.checkpoint = 0; startMission(progress.unlocked, false); } });
+      items.push({ label: progress.unlocked > 0 ? 'Кампания с начала' : 'Кампания', primary: !(progress.unlocked > 0 && !progress.done), id: 'campaign', onClick: () => { G.checkpoint = 0; startMission(0, false); } });
+      items.push({ label: 'Выбор миссии', id: 'missions', onClick: showMissionSelect });
+      return items;
+    },
+    musicFor() { return boss ? 'boss' : 'game'; },
+    onRestart() { startMission(G.mission, true); },
+    onQuit() { startDemo(); },
+    onRelease() { mouseFire = false; fireQueued = false; mouseQueued = false; },
+    onResetProgress() { loadAll(); },
+    recordsHtml() {
+      return `<table>${MISSIONS.map((m, i) => { const b = progress.best[i]; return `<tr><td>${i + 1}. ${m.name}</td><td>${b ? 'очки ' + b.score + ' · ' + fmtTime(b.time) : (i <= progress.unlocked ? 'не пройдена' : '🔒')}</td></tr>`; }).join('')}
+        <tr><td>Кампания</td><td>${progress.done ? '<b>пройдена</b>' : 'в пути'}</td></tr></table>`;
+    },
+  },
+});
+// Загрузка по схеме: испорченное хранилище (миссия 9, рекорд null) не роняет игру
+function loadAll() {
+  const Z = GameKit.S, N = 1e9, keys = MISSIONS.map((_, i) => String(i));
+  progress = kit.loadSafe('progress', Z.obj({
+    unlocked: Z.int(0, 0, MISSIONS.length - 1), done: Z.bool(false),
+    best: Z.map(Z.obj({ score: Z.int(0, 0, N), time: Z.int(1, 1, N) }), keys),
+    hard: Z.map(Z.bool(false), keys),
+  }));
 }
 
 let last = performance.now(), acc = 0;
 function loop(now) {
   acc += Math.min(now - last, 250);
   last = now;
-  while (acc >= STEP_MS) { update(); acc -= STEP_MS; }
+  while (acc >= STEP_MS) {
+    if ((kit.mode === 'play' && G.mode === 'mission') || (kit.mode === 'menu' && G.mode === 'demo')) update();
+    else if (G.phase === 'over' || G.phase === 'done') { G.t++; updateParticles(); }
+    kit.endStep();
+    acc -= STEP_MS;
+  }
   render();
+  kit.countFrame();
   requestAnimationFrame(loop);
 }
-
 addEventListener('resize', fitCanvas);
-reset();
+loadAll();
 fitCanvas();
+startDemo();
+kit.showMain();
 requestAnimationFrame(loop);
 
-// Крючок для проверок: не влияет на обычную игру
+// ================= Крючок для проверок =================
 window.__game = {
-  ready: true,
-  W, H, GROUND_Y, LEVEL_W, keys, justPressed, player, enemies, bullets, enemyBullets, powerups, pits, platforms,
-  get phase() { return phase; },
-  get score() { return score; }, set score(v) { score = v; },
-  get lives() { return lives; }, get best() { return best; },
-  get cameraX() { return cameraX; }, set cameraX(v) { cameraX = v; },
-  get boss() { return boss; },
-  step(n = 1) { for (let i = 0; i < n; i++) update(); render(); },
-  start: startGame, spawnEnemy, spawnBoss, hitPlayer, pitAt, togglePause,
-  press(code) { justPressed[code] = true; keys[code] = true; },
+  ready: true, W, H, GROUND, MISSIONS, BOSSES, JUMP_H, JUMP_DIST, MAX_PIT,
+  G, player, get kit() { return kit; },
+  get enemies() { return enemies; }, get boss() { return boss; }, get bullets() { return bullets; }, get ebullets() { return ebullets; },
+  get pickups() { return pickups; }, get hazards() { return hazards; }, get progress() { return progress; },
+  get shotsFired() { return shotsFired; }, get mouseFire() { return mouseFire; }, get autopilot() { return autopilot; },
+  step(n = 1, draw = true) { for (let i = 0; i < n; i++) { update(); kit.endStep(); } if (draw) render(); },
+  startMission, startDemo, spawnEnemy, spawnBoss, hurtPlayer, pitAt, buildLevel,
+  setAutopilot(v) { autopilot = v; },
+  reseed(n) { rnd = mulberry32(n); },
+  bannerCss() {
+    if (!bannerRect) return null;
+    const c = cv.getBoundingClientRect(), k = c.width / W;
+    return { left: c.left + bannerRect.x * k, top: c.top + bannerRect.y * k, right: c.left + (bannerRect.x + bannerRect.w) * k, bottom: c.top + (bannerRect.y + bannerRect.h) * k };
+  },
 };
 </script>
 </body>
