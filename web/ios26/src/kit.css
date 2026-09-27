@@ -97,3 +97,28 @@ body.dark .n-top span { color: rgba(235,235,245,0.6); }
 .sw-clone { position: absolute !important; left: 0; top: 0; width: 393px; height: 852px; transform: scale(0.56); transform-origin: 0 0; }
 .sw-empty { display: none; color: #fff; width: 100%; text-align: center; font-size: 16px; }
 #switcher.empty .sw-empty { display: block; }
+
+/* ===== Ревью: пункт управления со стеклом, полоска на светлом, игры ===== */
+.control-center { background: rgba(18,18,26,0.6); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
+.app-screen[data-light] .home-indicator { background: rgba(0,0,0,0.35); }
+body.dark .app-screen[data-light] .home-indicator { background: rgba(255,255,255,0.55); }
+.files-app .app-header:has(.back-btn) .app-title { margin-top: 30px; }
+.files-app .app-header:has(.back-btn) ~ .scr-body { top: 146px; }
+.app-screen.game-app { background: #000; }
+.game-frame { position: absolute; left: 0; right: 0; top: 0; bottom: 34px; width: 100%; height: calc(100% - 34px); border: 0; background: #000; }
+.game-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: #000; }
+.game-bar .home-indicator { background: rgba(255,255,255,0.6); }
+.icon-game { padding: 0; }
+.icon-game svg { width: 100%; height: 100%; display: block; }
+.icon-folder { background: rgba(255,255,255,0.28); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 7px; }
+.folder-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; width: 100%; height: 100%; }
+.folder-grid i { display: block; border-radius: 3px; overflow: hidden; }
+.folder-grid svg { width: 100%; height: 100%; display: block; }
+#games-folder { position: absolute; inset: 0; z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(0,0,0,0.25); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+#games-folder.open { display: flex; animation: gfIn 0.25s cubic-bezier(0.2,0.9,0.25,1); }
+@keyframes gfIn { from { opacity: 0; transform: scale(0.9); } }
+.gf-title { color: #fff; font-size: 26px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
+.gf-box { width: 320px; padding: 20px 12px; border-radius: 36px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 8px; max-height: 60%; overflow: auto; }
+.gf-box .app-label { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); font-size: 11px; text-align: center; }
+.sw-game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #111; }
+.sw-game .icon { width: 90px; height: 90px; border-radius: 22px; }

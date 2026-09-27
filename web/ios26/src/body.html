@@ -218,8 +218,13 @@ function openApp(id, arg) {
   current = id;
   if (sc.onShow) sc.onShow(arg);
 }
+let homeTap = null;
 $('screen').addEventListener('click', e => {
-  if (e.target.closest('.home-indicator') && !$('lock-page').classList.contains('active')) { showHome(); return; }
+  // полоска «Домой»: одно нажатие - домой, двойное - переключатель программ (первое нажатие ждёт второго)
+  if (e.target.closest('.home-indicator') && !$('lock-page').classList.contains('active')) {
+    if (homeTap) { clearTimeout(homeTap); homeTap = null; openSwitcher(); } else homeTap = setTimeout(() => { homeTap = null; showHome(); }, 260);
+    return;
+  }
   const a = e.target.closest('[data-app]');
   if (a && !a.closest('.app-screen')) { openApp(a.dataset.app); return; }
   const o = e.target.closest('[data-open]'); if (o) { openApp(o.dataset.open); return; }
@@ -230,7 +235,7 @@ $('screen').addEventListener('click', e => {
 });
 $('screen').addEventListener('keydown', e => { const a = e.target.closest('.app-icon[data-app]'); if (a && e.key === 'Enter') openApp(a.dataset.app); });
 $('power-btn').addEventListener('click', () => { if ($('lock-page').classList.contains('active')) showHome(); else showLock(); });
-$('lock-btn').addEventListener('click', showLock);
+$('lock-btn').addEventListener('click', () => showLock());   // по имени: работает и обёртка из kit.js
 
 // Разблокировка: нажатие или смахивание вверх по экрану блокировки
 let lockPress = null;
@@ -606,6 +611,7 @@ function initMusic(sc) {
     startAt = now() - offset; clearInterval(t); t = setInterval(progress, 250); render();
   }
   function pause() { if (!playing) return; offset = Math.min(LEN, now() - startAt); playing = false; stopNodes(); clearInterval(t); render(); progress(); }
+  sc.onKill = () => { pause(); offset = 0; };   // закрыли смахиванием в переключателе - музыка молчит
   sc.el.addEventListener('click', e => {
     const m = e.target.closest('[data-m]'); if (!m) return;
     if (m.dataset.m === 'play') { playing ? pause() : play(); return; }
@@ -667,6 +673,7 @@ function initClock(sc) {
   });
   sc.onShow = () => { render(); clearInterval(worldTimer); worldTimer = setInterval(() => { if (tab === 'world' && current === 'clock') render(); }, 15000); };
   sc.onHide = () => clearInterval(worldTimer);
+  sc.onKill = () => { if (sw.run) { sw.acc += Date.now() - sw.start; sw.run = false; clearInterval(swTimer); } };   // закрытые «Часы» не считают секундомер
   sc.state = () => ({ tab, sw: swNow() });
   render();
 }
@@ -784,7 +791,13 @@ function initSettings(sc) {
     if (e.target.closest('[data-back]')) { page = 'main'; render(); return; }
     const t = e.target.closest('[data-set]'); if (t) { if (t.dataset.set === 'glass-inv') setS('glass', !S.glass); else setS(t.dataset.set, !S[t.dataset.set]); return; }
     const w = e.target.closest('[data-wall]'); if (w) { setS('wallpaper', w.dataset.wall); return; }
-    if (e.target.closest('[data-reset]')) { store.clear(); location.reload(); }
+    if (e.target.closest('[data-reset]')) {
+      // сброс трогает и файлы в IndexedDB: ждём удаления базы, потом перезагрузка
+      store.clear();
+      if (typeof fdb !== 'undefined' && fdb) { fdb.close(); fdb = null; }
+      let r; try { r = indexedDB.deleteDatabase('ios26'); } catch (er) { location.reload(); return; }
+      r.onsuccess = r.onerror = r.onblocked = () => location.reload();
+    }
   });
   sc.el.addEventListener('input', e => { const r = e.target.closest('[data-range]'); if (r) { own = true; setS(r.dataset.range, +r.value); own = false; } });
   on('settings', () => { if (sc.inited && !own && current === 'settings' && !sc.el.querySelector('.settings-search input:focus')) render(); });

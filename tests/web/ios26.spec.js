@@ -342,3 +342,158 @@ test('собранная страница совпадает с исходник
   const built = fs.readFileSync(path.join(WEB, NAME, 'index.html'), 'utf8');
   for (const f of ['kit.js', 'kit.css', 'extra.css']) expect(built.includes(fs.readFileSync(path.join(WEB, NAME, 'src', f), 'utf8')), f + ' не собран в index.html').toBe(true);
 });
+
+// ===== Замечания ревьюера =====
+const vm = require('vm');
+const GAMES = (() => { const ctx = { window: {} }; vm.runInNewContext(fs.readFileSync(path.join(WEB, '_os-shared', 'games.js'), 'utf8'), ctx); return ctx.window.OS_GAMES; })();
+
+test('пункт управления со стеклом: размытие и затемнение, текст читается', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => openCC());
+  const cs = await page.locator('#control-center').evaluate((e) => { const s = getComputedStyle(e); return [s.backdropFilter, s.backgroundColor]; });
+  expect(cs[0]).toMatch(/blur\(30px\)/);
+  expect(cs[0]).toMatch(/saturate\(1\.6\)/);
+  expect(cs[1]).toMatch(/rgba\(18, 18, 26, 0\.6\)/);
+});
+
+test('папка «Игры» на рабочем столе, игра на весь экран из соседней папки, выход жестом «Домой»', async ({ page }) => {
+  const errors = await openOs(page, NAME);
+  await unlock(page);
+  await page.click('#home-grid .app-icon[data-app="games"]');
+  await expect(page.locator('#games-folder')).toHaveClass(/open/);
+  for (const g of GAMES) await expect(page.locator(`#games-folder [data-app="game-${g.id}"]`)).toContainText(g.title);
+  const g = GAMES.find((x) => x.id === 'dino');
+  await page.click(`#games-folder [data-app="game-${g.id}"]`);
+  const scr = screen(page, 'game-' + g.id);
+  await expect(scr).toBeVisible();
+  await expect(scr.locator('iframe')).toHaveAttribute('src', `../${g.dir}/index.html`);
+  const fb = await scr.locator('iframe').boundingBox(), pb = await page.locator('#screen').boundingBox();
+  expect(fb.width / pb.width, 'игра во всю ширину').toBeGreaterThan(0.98);
+  expect(fb.height / pb.height, 'игра почти во всю высоту').toBeGreaterThan(0.9);
+  // смахивание начинается на полоске и уходит над рамкой игры: отпускание должно дойти до телефона
+  const gb = await scr.locator('.game-bar').boundingBox();
+  await dragFrom(page, gb.x + gb.width / 2, gb.y + gb.height / 2, 0, -300);
+  await expect(scr).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('пауза игры по протоколу: ушли «Домой» - игровое время стоит, вернулись - паузу снимает игрок', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => { addGame({ id: 'stub', title: 'Заглушка', colors: ['#444', '#222'], glyph: 'star', src: '../_os-shared/pause-stub.html' }); openApp('game-stub'); });
+  await expect.poll(() => page.frames().some((f) => f.url().includes('pause-stub.html'))).toBe(true);
+  const f = page.frames().find((x) => x.url().includes('pause-stub.html'));
+  await expect.poll(() => f.evaluate(() => window.stub && window.stub.frames)).toBeGreaterThan(5);
+  await page.evaluate(() => showHome());
+  await page.waitForTimeout(150);
+  let t = await f.evaluate(() => stub.time); await page.waitForTimeout(600);
+  expect(await f.evaluate(() => stub.time), 'игровое время в свёрнутой игре').toBe(t);
+  await page.evaluate(() => openApp('game-stub'));
+  await page.waitForTimeout(150);
+  t = await f.evaluate(() => stub.time); await page.waitForTimeout(300);
+  expect(await f.evaluate(() => stub.time)).toBe(t);
+  await screen(page, 'game-stub').locator('iframe').click({ position: { x: 100, y: 100 } });
+  await expect.poll(() => f.evaluate(() => stub.time)).toBeGreaterThan(t);
+  // закрыли в переключателе - рамка убрана
+  await page.evaluate(() => { showHome(); killApp('game-stub'); });
+  await expect(screen(page, 'game-stub').locator('iframe')).toHaveCount(0);
+});
+
+test('двойное нажатие на полоску не закрывает программу раньше переключателя; поверх блокировки переключателя нет', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const n = await open(page, 'notes');
+  await n.locator('.home-indicator').dblclick();
+  await expect(page.locator('#switcher')).toHaveClass(/open/);
+  expect(await page.evaluate(() => current)).toBe('notes');
+  await page.click('#lock-btn');
+  await expect(page.locator('#lock-page')).toHaveClass(/active/);
+  await expect(page.locator('#switcher')).not.toHaveClass(/open/);
+  expect(await page.evaluate(() => { openSwitcher(); return document.getElementById('switcher').classList.contains('open'); })).toBe(false);
+});
+
+test('закрытые смахиванием «Музыка» и секундомер останавливаются', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const m = await open(page, 'music');
+  await m.locator('[data-m="play"]').click();
+  expect(await m.locator('#music-play-icon').getAttribute('d')).toContain('M6 4h4');
+  await page.keyboard.press('Escape');
+  const c = await open(page, 'clock');
+  await c.locator('[data-tab="stopwatch"]').click();
+  await c.locator('[data-sw="toggle"]').click();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { killApp('music'); killApp('clock'); });
+  expect(await m.locator('#music-play-icon').getAttribute('d')).toContain('M8 5v14');
+  const c2 = await open(page, 'clock');
+  await c2.locator('[data-tab="stopwatch"]').click();
+  const v1 = await c2.locator('#sw-display').textContent(); await page.waitForTimeout(400);
+  expect(await c2.locator('#sw-display').textContent()).toBe(v1);
+});
+
+test('«Сбросить всё» стирает и файлы в IndexedDB; Escape закрывает окно ввода имени', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => makeDir('Документы/Удалить меня'));
+  await page.waitForFunction(() => dbPending === 0);
+  const f = await open(page, 'files');
+  await f.locator('[data-f="Документы"]').click();
+  await f.locator('[data-fx="more"]').click();
+  await page.locator('.ios-sheet button', { hasText: 'Новая папка' }).click();
+  await expect(page.locator('.ios-alert')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ios-alert')).toHaveCount(0);
+  await expect(f.locator('.app-title')).toHaveText('Документы');
+  // фокус ушёл с поля (нажали на заголовок окна): Escape всё равно закрывает окно, а не уводит из папки
+  await f.locator('[data-fx="more"]').click();
+  await page.locator('.ios-sheet button', { hasText: 'Новая папка' }).click();
+  await page.locator('.ios-alert b').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ios-alert')).toHaveCount(0);
+  await expect(f.locator('.app-title')).toHaveText('Документы');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  const s = await open(page, 'settings');
+  await s.locator('[data-page="about"]').click();
+  await Promise.all([page.waitForNavigation(), s.locator('[data-reset]').click()]);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => typeof FS !== 'undefined' && FS.has('Документы'))).toBe(true);
+  expect(await page.evaluate(() => FS.has('Документы/Удалить меня'))).toBe(false);
+});
+
+test('возврат из «Недавно удалённых», когда удалены и папка, и её родитель', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => { makeDir('Документы/Учёба/Физика'); writeFile('Документы/Учёба/Физика/опыт.txt', 'маятник');
+    trashPath('Документы/Учёба/Физика/опыт.txt'); trashPath('Документы/Учёба/Физика'); trashPath('Документы/Учёба'); restoreTrash(TRASH[0].id); });
+  expect(await page.evaluate(() => ['Документы/Учёба', 'Документы/Учёба/Физика'].map(p => FS.get(p) && FS.get(p).type).concat(FS.has('Документы/Учёба/Физика/опыт.txt')))).toEqual(['dir', 'dir', true]);
+});
+
+test('вид: «‹ Обзор» не наезжает на заголовок, полоска «Домой» видна на светлом, погода одна везде', async ({ page }) => {
+  await openOs(page, NAME);
+  const lockTemp = await page.locator('#w-temp').textContent();
+  await unlock(page);
+  expect(await page.locator('#hw-temp').textContent()).toBe(lockTemp);
+  const f = await open(page, 'files');
+  await f.locator('[data-f="Документы"]').click();
+  const bb = await f.locator('.back-btn').boundingBox(), tb = await f.locator('.app-title').boundingBox();
+  expect(bb.y + bb.height <= tb.y || bb.x + bb.width <= tb.x, 'кнопка «Назад» наезжает на заголовок').toBe(true);
+  const hi = await f.locator('.home-indicator').evaluate((e) => getComputedStyle(e).backgroundColor);
+  expect(hi).toMatch(/rgba\(0, 0, 0/);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  const w = await open(page, 'weather');
+  expect(await w.locator('.weather-temp').textContent()).toBe(lockTemp.replace('+', ''));
+});
+
+test('запись не удалась (мало места): уведомление и откат; две вкладки видят корзины друг друга', async ({ page, context }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const p2 = await context.newPage();
+  await p2.goto(page.url());
+  await p2.waitForFunction(() => typeof fdb !== 'undefined' && FS.size > 0);
+  await page.evaluate(() => trashPath('Документы/Список покупок.txt'));
+  await expect.poll(() => p2.evaluate(() => TRASH.length)).toBe(1);
+  await page.evaluate(() => { IDBObjectStore.prototype.put = function () { throw new DOMException('мало', 'QuotaExceededError'); }; writeFile('Документы/большой.txt', 'x'); });
+  await expect(page.locator('.banner')).toContainText('Не сохранено: мало места');
+  await expect.poll(() => page.evaluate(() => FS.has('Документы/большой.txt'))).toBe(false);
+});
