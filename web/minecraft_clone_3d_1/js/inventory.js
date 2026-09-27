@@ -8,9 +8,17 @@
   const D = VX.data;
 
   const stackOf = (id) => D.maxStack(id);
-  const same = (a, b) => a && b && a.id === b.id && stackOf(a.id) > 1;
-  const clone = (s) => (s ? { id: s.id, count: s.count, dmg: s.dmg || 0 } : null);
-  function newStack(id, count, dmg) { return { id, count, dmg: dmg || 0 }; }
+  // Особые данные стопки: чары и имя с наковальни. Такие стопки не сливаются с обычными.
+  const extraOf = (s) => (s && (s.ench || s.name || s.rep) ? { ench: s.ench, name: s.name, rep: s.rep } : null);
+  const same = (a, b) => a && b && a.id === b.id && stackOf(a.id) > 1 && !extraOf(a) && !extraOf(b);
+  function newStack(id, count, dmg, x) {
+    const st = { id, count, dmg: dmg || 0 };
+    if (x && x.ench && x.ench.length) st.ench = x.ench.map((e) => e.slice());
+    if (x && x.name) st.name = x.name;
+    if (x && x.rep) st.rep = x.rep;        // сколько раз была на наковальне
+    return st;
+  }
+  const clone = (s) => (s ? newStack(s.id, s.count, s.dmg, extraOf(s)) : null);
 
   // Контейнер - именованный массив ячеек. У инвентаря игрока их несколько.
   function Inventory() {
@@ -33,9 +41,9 @@
 
   // Положить в ряд ячеек (по порядку order): сначала доложить к таким же, потом в пустые.
   // Возвращает, сколько не влезло.
-  function addTo(slots, order, id, count, dmg) {
+  function addTo(slots, order, id, count, dmg, x) {
     const max = stackOf(id);
-    if (max > 1) {
+    if (max > 1 && !x) {
       for (const i of order) {
         const s = slots[i];
         if (count <= 0) break;
@@ -44,7 +52,7 @@
     }
     for (const i of order) {
       if (count <= 0) break;
-      if (!slots[i]) { const k = Math.min(max, count); slots[i] = newStack(id, k, dmg); count -= k; }
+      if (!slots[i]) { const k = Math.min(max, count); slots[i] = newStack(id, k, dmg, x); count -= k; }
     }
     return count;
   }
@@ -53,22 +61,22 @@
   const ALL = HOTBAR.concat(MAIN);
 
   // Подобранный предмет: сначала к таким же везде, затем в пустые - панель, потом рюкзак
-  Inventory.prototype.add = function (id, count, dmg) {
+  Inventory.prototype.add = function (id, count, dmg, x) {
     const max = stackOf(id);
-    if (max > 1) {
+    if (max > 1 && !x) {
       for (const i of ALL) {
         const s = this.slots[i];
         if (count <= 0) break;
         if (s && s.id === id && s.count < max) { const k = Math.min(max - s.count, count); s.count += k; count -= k; }
       }
     }
-    return addTo(this.slots, ALL, id, count, dmg);
+    return addTo(this.slots, ALL, id, count, dmg, x);
   };
   // Взять n штук из выбранной ячейки (поставить блок, съесть)
   Inventory.prototype.takeHeld = function (n) {
     const s = this.slots[this.selected];
     if (!s) return null;
-    const out = newStack(s.id, Math.min(n, s.count), s.dmg);
+    const out = newStack(s.id, Math.min(n, s.count), s.dmg, extraOf(s));
     s.count -= out.count;
     if (s.count <= 0) this.slots[this.selected] = null;
     return out;
@@ -78,6 +86,7 @@
     const s = this.slots[this.selected];
     const t = s && D.toolOf(s.id);
     if (!t) return false;
+    if (VX.enchant && !VX.enchant.wears(s, false)) return false;         // прочность: иногда без износа
     s.dmg = (s.dmg || 0) + 1;
     if (s.dmg >= t.dur) { this.slots[this.selected] = null; return true; }
     return false;
@@ -101,7 +110,7 @@
       if (!s) return;
       const left = view.shiftMove(i, s);
       if (left <= 0) view.set(i, null);
-      else if (left !== s.count) view.set(i, newStack(s.id, left, s.dmg));
+      else if (left !== s.count) view.set(i, newStack(s.id, left, s.dmg, extraOf(s)));
       return;
     }
     const c = inv.cursor;
@@ -122,13 +131,13 @@
     if (!c) {
       if (!s) return;
       const half = Math.ceil(s.count / 2);
-      inv.cursor = newStack(s.id, half, s.dmg);
+      inv.cursor = newStack(s.id, half, s.dmg, extraOf(s));
       s.count -= half;
       view.set(i, s.count ? s : null);
       return;
     }
     if (view.canPut && !view.canPut(i, c)) return;
-    if (!s) { view.set(i, newStack(c.id, 1, c.dmg)); c.count--; if (!c.count) inv.cursor = null; return; }
+    if (!s) { view.set(i, newStack(c.id, 1, c.dmg, extraOf(c))); c.count--; if (!c.count) inv.cursor = null; return; }
     if (same(s, c) && s.count < stackOf(s.id)) { s.count++; c.count--; view.set(i, s); if (!c.count) inv.cursor = null; return; }
     if (!same(s, c)) { view.set(i, c); inv.cursor = s; }
   }
@@ -142,9 +151,9 @@
         const o = view.get(i);
         if (!o) break;
         const probe = inv.slots.map(clone);
-        if (addTo(probe, ALL, o.id, o.count, o.dmg) > 0) break;
+        if (addTo(probe, ALL, o.id, o.count, o.dmg, extraOf(o)) > 0) break;
         view.takeOutput(i);
-        inv.add(o.id, o.count, o.dmg);
+        inv.add(o.id, o.count, o.dmg, extraOf(o));
       }
       return;
     }
@@ -170,7 +179,7 @@
       const s = view.get(i);
       const room = s ? stackOf(s.id) - s.count : stackOf(c.id);
       const k = Math.min(per, room, c.count);
-      if (s) { s.count += k; view.set(i, s); } else view.set(i, newStack(c.id, k, c.dmg));
+      if (s) { s.count += k; view.set(i, s); } else view.set(i, newStack(c.id, k, c.dmg, extraOf(c)));
       c.count -= k;
     }
     if (!c.count) inv.cursor = null;
@@ -219,7 +228,7 @@
     if (a && i < 36 && !this.inv.armor[a.slot]) { this.set(40 + a.slot, clone(s)); return 0; }   // Shift по броне - надеть
     const order = i >= 40 ? MAIN.concat(HOTBAR) : i < 9 ? MAIN : HOTBAR;
     const probe = this.inv.slots;
-    const left = addTo(probe, order, s.id, s.count, s.dmg);
+    const left = addTo(probe, order, s.id, s.count, s.dmg, extraOf(s));
     return left;
   };
   // Закрыть окно: сетка и курсор возвращаются в инвентарь, что не влезло - выпадает
@@ -227,10 +236,10 @@
     const spill = [];
     for (let k = 0; k < this.grid.length; k++) {
       const s = this.grid[k];
-      if (s) { const left = this.inv.add(s.id, s.count, s.dmg); if (left) spill.push(newStack(s.id, left, s.dmg)); this.grid[k] = null; }
+      if (s) { const left = this.inv.add(s.id, s.count, s.dmg, extraOf(s)); if (left) spill.push(newStack(s.id, left, s.dmg, extraOf(s))); this.grid[k] = null; }
     }
     const c = this.inv.cursor;
-    if (c) { const left = this.inv.add(c.id, c.count, c.dmg); if (left) spill.push(newStack(c.id, left, c.dmg)); this.inv.cursor = null; }
+    if (c) { const left = this.inv.add(c.id, c.count, c.dmg, extraOf(c)); if (left) spill.push(newStack(c.id, left, c.dmg, extraOf(c))); this.inv.cursor = null; }
     return spill;
   };
 
@@ -249,15 +258,15 @@
   };
   const R27 = []; for (let k = 0; k < 27; k++) R27.push(k);
   ChestView.prototype.shiftMove = function (i, s) {
-    if (i >= 500) return addTo(this.inv.slots, HOTBAR.slice().reverse().concat(MAIN.slice().reverse()), s.id, s.count, s.dmg);
+    if (i >= 500) return addTo(this.inv.slots, HOTBAR.slice().reverse().concat(MAIN.slice().reverse()), s.id, s.count, s.dmg, extraOf(s));
     let left = s.count;
-    for (const ch of this.chests) { if (left <= 0) break; left = addTo(ch, R27, s.id, left, s.dmg); }
+    for (const ch of this.chests) { if (left <= 0) break; left = addTo(ch, R27, s.id, left, s.dmg, extraOf(s)); }
     return left;
   };
   ChestView.prototype.close = function () {
     const spill = [];
     const c = this.inv.cursor;
-    if (c) { const left = this.inv.add(c.id, c.count, c.dmg); if (left) spill.push(newStack(c.id, left, c.dmg)); this.inv.cursor = null; }
+    if (c) { const left = this.inv.add(c.id, c.count, c.dmg, extraOf(c)); if (left) spill.push(newStack(c.id, left, c.dmg, extraOf(c))); this.inv.cursor = null; }
     return spill;
   };
 
@@ -282,12 +291,12 @@
     return o;
   };
   FurnaceView.prototype.shiftMove = function (i, s) {
-    if (i >= 300) return addTo(this.inv.slots, MAIN.concat(HOTBAR), s.id, s.count, s.dmg);
+    if (i >= 300) return addTo(this.inv.slots, MAIN.concat(HOTBAR), s.id, s.count, s.dmg, extraOf(s));
     // из инвентаря: что плавится - в сырьё, что горит - в топливо
     const target = D.smeltOf(s.id) ? 0 : D.fuelOf(s.id) ? 1 : -1;
-    if (target < 0) return addTo(this.inv.slots, i < 9 ? MAIN : HOTBAR, s.id, s.count, s.dmg);
+    if (target < 0) return addTo(this.inv.slots, i < 9 ? MAIN : HOTBAR, s.id, s.count, s.dmg, extraOf(s));
     const cur = this.f.slots[target];
-    if (!cur) { this.f.slots[target] = newStack(s.id, s.count, s.dmg); return 0; }
+    if (!cur) { this.f.slots[target] = newStack(s.id, s.count, s.dmg, extraOf(s)); return 0; }
     if (cur.id !== s.id) return s.count;
     const k = Math.min(stackOf(s.id) - cur.count, s.count);
     cur.count += k;
@@ -296,7 +305,7 @@
   FurnaceView.prototype.close = function () {
     const spill = [];
     const c = this.inv.cursor;
-    if (c) { const left = this.inv.add(c.id, c.count, c.dmg); if (left) spill.push(newStack(c.id, left, c.dmg)); this.inv.cursor = null; }
+    if (c) { const left = this.inv.add(c.id, c.count, c.dmg, extraOf(c)); if (left) spill.push(newStack(c.id, left, c.dmg, extraOf(c))); this.inv.cursor = null; }
     return spill;
   };
 
@@ -332,5 +341,5 @@
     return burning;
   }
 
-  VX.inv = { Inventory, click, drag, addTo, PlayerView, FurnaceView, ChestView, newFurnace, tickFurnace, newStack, clone, HOTBAR, MAIN, ALL };
+  VX.inv = { extraOf, Inventory, click, drag, addTo, PlayerView, FurnaceView, ChestView, newFurnace, tickFurnace, newStack, clone, HOTBAR, MAIN, ALL };
 })();

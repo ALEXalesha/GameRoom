@@ -470,6 +470,10 @@
       if (!G.furnaces[k]) G.furnaces[k] = VX.inv.newFurnace();
       view = new VX.inv.FurnaceView(inv, G.furnaces[k]);
       view.pos = pos;
+    } else if (kind === 'enchant') {
+      view = new VX.enchant.EnchantView(inv, pos);
+    } else if (kind === 'anvil') {
+      view = new VX.enchant.AnvilView(inv, pos);
     } else if (kind === 'trade') {
       view = new VX.inv.PlayerView(inv, 2);
       view.mob = pos;
@@ -758,6 +762,8 @@
       if (t.id === B.crafting_table) { G.openContainer('table', t); return 'table'; }
       if ((t.id >= B.furnace && t.id <= B.furnace + 3) || (t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
       if (t.id >= B.chest && t.id <= B.chest + 3) { G.openContainer('chest', t); return 'chest'; }
+      if (t.id === C.ENCH_TABLE) { G.openContainer('enchant', t); return 'enchant'; }
+      if (tb.anvil !== undefined) { G.openContainer('anvil', t); return 'anvil'; }
       if (tb.door === 'wood') { setDoorOpen(t.x, t.y, t.z, !tb.open); return 'door'; }
       if (t.id === 130 || t.id === 131) { toggleLever(t.x, t.y, t.z); return 'lever'; }
       if (tb.bed) return G.useBed(t.x, t.y, t.z);
@@ -842,6 +848,7 @@
       if (nb.length > 1 || nb.some(([a, b2, c]) => chestNeighbours(a, b2, c).length > 0)) return null;
     }
     if (b.facing) id = b.id + [2, 1, 0, 3][yawDir()];
+    if (b.anvil !== undefined) id = C.ANVIL + yawDir() % 2;
     world.setBlock(x, y, z, id);
     if (G.mode === 'survival') inv.takeHeld(1);
     VX.audio.play('place', { surface: surfaceOf(id) });
@@ -933,7 +940,8 @@
     if (power < 0.1) return null;
     if (G.mode === 'survival') { if (!inv.remove(D.I.arrow, 1)) return null; inv.wearHeld(); }
     const p = player, d = p.forward();
-    const a = VX.entities.shootArrow(p.pos.x + d.x * 0.4, p.eye() - 0.1 + d.y * 0.4, p.pos.z + d.z * 0.4, d.x * power * 60, d.y * power * 60, d.z * power * 60, 'player', Math.ceil(power * 6) + (power >= 1 ? 3 : 0));
+    const bowSt = inv.held(), pw = VX.enchant ? VX.enchant.power(bowSt) : 1;          // сила: +25% x (ур+1)
+    const a = VX.entities.shootArrow(p.pos.x + d.x * 0.4, p.eye() - 0.1 + d.y * 0.4, p.pos.z + d.z * 0.4, d.x * power * 60, d.y * power * 60, d.z * power * 60, 'player', Math.ceil((Math.ceil(power * 6) + (power >= 1 ? 3 : 0)) * pw));
     VX.audio.play('bow');
     return a;
   };
@@ -989,11 +997,11 @@
     const m = G.mining;
     if (!m || m.x !== t.x || m.y !== t.y || m.z !== t.z || m.id !== t.id) {
       const held = inv.held();
-      G.mining = { x: t.x, y: t.y, z: t.z, id: t.id, p: 0, time: D.breakTime(t.id, held ? held.id : 0), hitT: 0 };
+      G.mining = { x: t.x, y: t.y, z: t.z, id: t.id, p: 0, time: D.breakTime(t.id, held ? held.id : 0, held), hitT: 0 };
     }
     const g = G.mining;
     const held = inv.held();
-    g.time = D.breakTime(t.id, held ? held.id : 0);
+    g.time = D.breakTime(t.id, held ? held.id : 0, held);
     if (!isFinite(g.time) || t.y <= 0) return;
     let speed = 1;
     if (player.headInWater) speed /= 5;

@@ -29,7 +29,7 @@
 
   // ---------- Предметы ----------
   function spawnItem(stack, x, y, z, vx, vy, vz, delay) {
-    const it = { stack: VX.inv.newStack(stack.id, stack.count, stack.dmg), x, y, z, vx, vy, vz, w: 0.25, h: 0.25, age: 0, delay: delay || 0, onGround: false, mesh: null };
+    const it = { stack: VX.inv.clone(stack), x, y, z, vx, vy, vz, w: 0.25, h: 0.25, age: 0, delay: delay || 0, onGround: false, mesh: null };
     items.push(it);
     return it;
   }
@@ -69,7 +69,7 @@
       const ib = [it.x - 0.125, it.y, it.z - 0.125, it.x + 0.125, it.y + 0.25, it.z + 0.125];
       if (P.touching(G.world, ib, P.isCactus, 0.03) || P.touching(G.world, ib, P.isLava, 0) || P.touching(G.world, ib, P.isFire, 0)) { VX.audio.play('fizz'); removeItem(i); continue; }
       if (canTake && dist < 1.1) {
-        const left = G.inv.add(it.stack.id, it.stack.count, it.stack.dmg);
+        const left = G.inv.add(it.stack.id, it.stack.count, it.stack.dmg, VX.inv.extraOf(it.stack));
         const took = it.stack.count - left;
         if (took > 0) { VX.audio.play('pop'); G.emit('pickup', { id: it.stack.id, n: took }); }
         if (left <= 0) { removeItem(i); continue; }
@@ -837,7 +837,7 @@
     const p = G.player;
     // творческий режим: любой моб с одного удара и без выпадения
     if (G.mode === 'creative') { hurtMob(hit.mob, 1e6, p.pos.x, p.pos.z, 'creative'); G.swing = 1; return true; }
-    const dmg = tool ? tool.dmg : 1;
+    const dmg = (tool ? tool.dmg : 1) + (VX.enchant ? VX.enchant.bonusDamage(held, hit.mob) : 0);
     hurtMob(hit.mob, dmg, p.pos.x, p.pos.z, 'player');
     if (tool) { G.inv.wearHeld(); if (tool.type !== 'sword') G.inv.wearHeld(); }
     G.swing = 1;

@@ -14,17 +14,24 @@
   const KINDS = Object.keys(PROF);
   // сделки жителя: «покупает» - вещи за изумруд, «продаёт» - вещь за изумруды
   function makeTrades(prof) {
-    return PROF[prof].offers.map(([how, item, n, em]) => (how === 'buy'
+    const list = PROF[prof].offers.map(([how, item, n, em]) => (how === 'buy'
       ? { cost: [[idOf(item), n]], out: [D.I.emerald, em], uses: 0, max: 12 }
       : { cost: [[D.I.emerald, em]], out: [idOf(item), n], uses: 0, max: 12 }));
+    // библиотекарь: зачарованная книга (чара и уровень - свои у каждого), цена 5 + 3 за уровень
+    if (prof === 'librarian' && VX.enchant) {
+      const keys = Object.keys(VX.enchant.ENCH), k = keys[(Math.random() * keys.length) | 0], lv = 1 + ((Math.random() * VX.enchant.ENCH[k].max) | 0);
+      list.push({ cost: [[D.I.emerald, 5 + lv * 3], [D.I.book, 1]], out: [D.I.enchanted_book, 1], ench: [[k, lv]], uses: 0, max: 12 });
+    }
+    return list;
   }
   const canAfford = (tr) => tr.cost.every(([id, n]) => G.inv.count(id) >= n);
   function trade(m, i) {
     const tr = m.trades && m.trades[i];
     if (!tr || tr.uses >= tr.max || !canAfford(tr)) { VX.audio.play('villager_no'); return false; }
     for (const [id, n] of tr.cost) G.inv.remove(id, n);
-    const left = G.inv.add(tr.out[0], tr.out[1]);
-    if (left) G.dropItem(VX.inv.newStack(tr.out[0], left), true);
+    const extra = tr.ench ? { ench: tr.ench } : null;
+    const left = G.inv.add(tr.out[0], tr.out[1], 0, extra);
+    if (left) G.dropItem(VX.inv.newStack(tr.out[0], left, 0, extra), true);
     tr.uses++;
     if (VX.xp) VX.xp.add(G.player, 3 + Math.floor(Math.random() * 4));
     VX.audio.play('villager_yes');

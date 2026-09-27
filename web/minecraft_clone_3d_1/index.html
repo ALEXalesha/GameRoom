@@ -121,6 +121,19 @@
   .chestgrid { margin-bottom: 4px; }
   #debug { position: absolute; left: 4px; top: 4px; font-size: 16px; line-height: 1.35; background: rgba(0,0,0,.35); padding: 3px 6px; display: none; text-shadow: 2px 2px 0 #222; }
   #fpsMini { position: absolute; right: 6px; top: 4px; font-size: 16px; display: none; }
+  .slot.ench::after { content: ''; position: absolute; inset: 2px; pointer-events: none; background: linear-gradient(115deg, transparent 20%, rgba(190, 110, 255, .55) 40%, transparent 60%); background-size: 300% 100%; mix-blend-mode: screen; animation: glint 3s linear infinite; }
+  @keyframes glint { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+  .ench-line { color: #a8a8ff; }
+  .enchbox { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 6px; }
+  .enchopts { display: flex; flex-direction: column; gap: 4px; }
+  .enchopt { width: 300px; height: 36px; position: relative; text-align: left; padding-left: 10px; }
+  .enchopt.off { background-image: var(--btn-off); color: #909090; }
+  .enchopt .ecost { position: absolute; right: 8px; color: #80ff20; }
+  .enchopt.off .ecost { color: #4a7a2a; }
+  .anvilbox { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .anvilbox .plus { font-size: 24px; color: #404040; }
+  .anvilname { width: 280px; height: 28px; }
+  .acost { color: #1a7a1a; min-height: 18px; font-size: 16px; }
   .trades { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
   .tr-row { display: flex; align-items: center; gap: 6px; }
   .tr-row .arrow { width: 28px; height: 20px; }
@@ -222,6 +235,7 @@
 <script src="js/items.js"></script>
 <script src="js/xp.js"></script>
 <script src="js/villages.js"></script>
+<script src="js/enchant.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/ui.js"></script>

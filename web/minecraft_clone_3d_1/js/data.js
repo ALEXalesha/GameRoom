@@ -119,6 +119,7 @@
   item(423, 'emerald', 'Изумруд');
   item(424, 'ender_pearl', 'Жемчуг Края', { stack: 16 });
   item(425, 'lapis', 'Лазурит');
+  item(427, 'enchanted_book', 'Зачарованная книга', { stack: 1, draw: 'book', group: 'tools' });
   item(426, 'egg_villager', 'Яйцо призыва: житель', { draw: 'egg:villager', egg: 'villager', creativeOnly: true });
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
   [['zombie_pigman', 'зомби-свиночеловек'], ['ghast', 'гаст'], ['blaze', 'ифрит']].forEach(([m, n], k) => item(411 + k, 'egg_' + m, 'Яйцо призыва: ' + n, { draw: 'egg:' + m, egg: m, creativeOnly: true }));
@@ -151,12 +152,13 @@
     const t = toolOf(toolId);
     return !!t && t.type === b.tool && t.level >= b.level;
   }
-  function breakTime(blockId, toolId) {
+  function breakTime(blockId, toolId, stack) {
     const b = C.BLOCKS[blockId];
     if (!b || b.hardness < 0) return Infinity;
     if (b.hardness === 0) return 0;
     const t = toolOf(toolId);
     let speed = t && t.type === b.tool ? t.speed : 1;
+    if (t && t.type === b.tool && stack && VX.enchant) speed += VX.enchant.efficiency(stack);       // эффективность: + ур² + 1
     if (t && t.type === 'shears') { if (b.render === 'leaves') speed = 15; else if (b.sound === 'cloth') speed = 5; }
     return b.hardness * (canHarvest(blockId, toolId) ? 1.5 : 5) / speed;
   }
@@ -243,6 +245,10 @@
   RECIPES.push({ out: [C.PISTON + 1, 1], shapeless: [C.PISTON, 'slimeball'] });
   RECIPES.push({ out: [C.REDSTONE_BLOCK, 1], shape: ['RRR', 'RRR', 'RRR'], keys: { R: C.WIRE } });
   RECIPES.push({ out: [C.WIRE, 9], shapeless: [C.REDSTONE_BLOCK] });
+  RECIPES.push({ out: [C.ENCH_TABLE, 1], shape: [' B ', 'DOD', 'OOO'], keys: { B: 'book', D: 'diamond', O: 'obsidian' } });
+  RECIPES.push({ out: [C.IRON_BLOCK, 1], shape: ['III', 'III', 'III'], keys: { I: 'iron_ingot' } });
+  RECIPES.push({ out: ['iron_ingot', 9], shapeless: [C.IRON_BLOCK] });
+  RECIPES.push({ out: [C.ANVIL, 1], shape: ['BBB', ' I ', 'III'], keys: { B: C.IRON_BLOCK, I: 'iron_ingot' } });
   RECIPES.push({ out: ['paper', 3], shape: ['CCC'], keys: { C: C.SUGAR_CANE } });
   RECIPES.push({ out: ['sugar', 1], shapeless: [C.SUGAR_CANE] });
   RECIPES.push({ out: ['book', 1], shapeless: ['paper', 'paper', 'paper', 'leather'] });
@@ -416,6 +422,9 @@
     { id: 'sleep', parent: 'wool', name: 'Сладких снов', desc: 'Проспать ночь в кровати', on: 'sleep', icon: I.bed },
     { id: 'bread', parent: 'root', name: 'Хлеб насущный', desc: 'Вырастить пшеницу и сделать хлеб', on: 'craft', items: ['bread'], icon: I.bread },
     { id: 'archer', parent: 'sword', name: 'Меткий стрелок', desc: 'Победить скелета стрелой из лука', on: 'kill', mob: 'skeleton', cause: 'arrow', icon: I.bow },
+    // вкладка «Чары и зелья»
+    { id: 'enchanter', tab: 'magic', name: 'Зачарователь', desc: 'Зачаровать предмет на столе зачарований', on: 'enchant', icon: C.ENCH_TABLE },
+    { id: 'anvil', tab: 'magic', parent: 'enchanter', name: 'Кузнечное дело', desc: 'Починить или улучшить вещь на наковальне', on: 'anvil', icon: C.ANVIL },
     // вкладка «Нижний мир»
     { id: 'nether', tab: 'nether', name: 'Мы должны углубиться', desc: 'Войти в Нижний мир через портал', on: 'dimension', dim: 'nether', icon: B.obsidian },
     { id: 'fortress', tab: 'nether', parent: 'nether', name: 'Страшная крепость', desc: 'Войти в крепость Нижнего мира', on: 'fortress', icon: C.NETHER_BRICKS },

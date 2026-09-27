@@ -410,6 +410,7 @@
     if (!s) return;
     const img = el('img'); img.src = G.icon(s.id); img.alt = ''; img.draggable = false;
     d.append(img);
+    d.classList.toggle('ench', !!(s.ench && s.ench.length));
     if (s.count > 1) d.append(el('span', 'cnt', String(s.count)));
     const t = D.toolOf(s.id);
     if (t && s.dmg) {
@@ -420,7 +421,8 @@
   function nameOf(s) {
     const i = D.info(s.id);
     const t = D.toolOf(s.id);
-    return esc(i.name) + (t ? `<br><small>Прочность: ${t.dur - (s.dmg || 0)} / ${t.dur}</small>` : '') + (i.food ? `<br><small>Еда: +${i.food.h}</small>` : '');
+    const ench = VX.enchant ? VX.enchant.lines(s).map((l) => `<br><span class="ench-line">${esc(l)}</span>`).join('') : '';
+    return (s.name ? `<i>${esc(s.name)}</i>` : esc(i.name)) + ench + (t ? `<br><small>Прочность: ${t.dur - (s.dmg || 0)} / ${t.dur}</small>` : '') + (i.food ? `<br><small>Еда: +${i.food.h}</small>` : '');
   }
   function renderInv() {
     const v = G.container;
@@ -463,7 +465,32 @@
         for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(magIcon()); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
         invPanel.append(tabs);
       }
-      if (v.kind === 'trade') {
+      if (v.kind === 'enchant') {
+        invPanel.append(el('div', 'ptitle', 'Зачаровать' + (v.shelves ? ' (полок: ' + v.shelves + ')' : '')));
+        const top = el('div', 'enchbox');
+        const left = el('div', 'fcol'); left.append(slotEl(700, v.get(700)), slotEl(701, v.get(701), 'lapis'));
+        const opts = el('div', 'enchopts');
+        (v.offers || [null, null, null]).forEach((o, i) => {
+          const lvl = G.player.level || 0, lap = v.lapis ? v.lapis.count : 0;
+          const ok = o && o.ench.length && (G.mode === 'creative' || (lvl >= o.level && lap >= o.lapis));
+          const b = button(o && o.ench.length ? VX.enchant.enchName(o.ench[0][0], o.ench[0][1]) + ' . . . ?' : '—', () => { if (VX.enchant.enchant(v, i)) renderInv(); });
+          b.classList.add('enchopt'); if (!ok) b.classList.add('off');
+          const cost = el('span', 'ecost', o ? String(o.level) : ''); b.append(cost);
+          opts.append(b);
+        });
+        top.append(left, opts);
+        invPanel.append(top, el('div', 'ptitle', 'Инвентарь'), mainGrid());
+      } else if (v.kind === 'anvil') {
+        invPanel.append(el('div', 'ptitle', 'Наковальня'));
+        const nm = el('input', 'mc-input anvilname'); nm.value = v.name || ''; nm.placeholder = 'Имя'; nm.maxLength = 35;
+        nm.addEventListener('input', () => { v.name = nm.value; const o = $('.anvilout', invPanel); if (o) fillSlot(o, v.get(712)); const c = $('.acost', invPanel); if (c) c.textContent = costText(); });
+        nm.addEventListener('keydown', (e) => e.stopPropagation());
+        const costText = () => { const r = v.result(); return r ? (r.tooExpensive && G.mode !== 'creative' ? 'Слишком дорого!' : 'Стоимость: ' + r.cost + ' ур.') : ''; };
+        const top = el('div', 'anvilbox');
+        const out = slotEl(712, v.get(712), 'big anvilout');
+        top.append(slotEl(710, v.get(710)), el('div', 'plus', '+'), slotEl(711, v.get(711)), el('div', 'arrow'), out);
+        invPanel.append(nm, top, el('div', 'acost', costText()), el('div', 'ptitle', 'Инвентарь'), mainGrid());
+      } else if (v.kind === 'trade') {
         const m = v.mob, P = VX.villages.PROF[m.color];
         invPanel.append(el('div', 'ptitle', 'Житель: ' + (P ? P.name.toLowerCase() : '')));
         const list = el('div', 'trades');
@@ -471,7 +498,9 @@
         m.trades.forEach((tr, i) => {
           const row = el('div', 'tr-row' + (tr.uses >= tr.max ? ' out' : ''));
           for (const [id, n] of tr.cost) row.append(ic(id, n));
-          row.append(el('div', 'arrow'), ic(tr.out[0], tr.out[1]));
+          const oc = ic(tr.out[0], tr.out[1]);
+          if (tr.ench) { oc.classList.add('ench'); oc.addEventListener('mouseenter', (e) => showTip(e, nameOf({ id: tr.out[0], count: 1, ench: tr.ench }))); }
+          row.append(el('div', 'arrow'), oc);
           const ok = tr.uses < tr.max && VX.villages.canAfford(tr);
           const b = button(tr.uses >= tr.max ? 'Нет' : 'Обменять', () => { VX.villages.trade(m, i); renderInv(); });
           b.classList.add('tbtn'); if (!ok) b.classList.add('off');

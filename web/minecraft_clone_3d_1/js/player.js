@@ -372,10 +372,12 @@
       const s = a[i];
       const ar = s && VX.data.armorOf(s.id);
       if (!ar) continue;
+      if (VX.enchant && !VX.enchant.wears(s, true)) continue;
       s.dmg = (s.dmg || 0) + wear;
       if (s.dmg >= ar.dur) { a[i] = null; if (VX.audio) VX.audio.play('break', { surface: 'stone' }); }
     }
-    return n * (1 - cut / 25);
+    const prot = VX.enchant ? VX.enchant.protection(a) : 0;          // чары защиты: 4% за уровень
+    return n * (1 - cut / 25) * (1 - prot);
   };
   Player.prototype.eat = function (food) {
     this.food = Math.min(20, this.food + food.h);

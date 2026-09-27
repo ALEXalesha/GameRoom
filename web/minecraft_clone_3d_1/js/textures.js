@@ -509,6 +509,16 @@
     sugar_cane(t) {
       plant(t, () => { for (const x of [3, 8, 12]) for (let y = 0; y < 16; y++) { t.px(x, y, y % 5 === 0 ? '#6a9a3a' : '#9ad060'); t.px(x + 1, y, y % 5 === 0 ? '#5a8a2a' : '#7ab848'); } for (const [x, y] of [[5, 4], [6, 3], [10, 9], [11, 8], [1, 12], [2, 11]]) t.px(x, y, '#8ac050'); });
     },
+    ench_top(t, r) {
+      t.noise(['#9a1a1a', '#8a1414', '#aa2020'], r);
+      for (let k = 0; k < 16; k++) { t.px(k, 0, '#1a1428'); t.px(k, 15, '#1a1428'); t.px(0, k, '#1a1428'); t.px(15, k, '#1a1428'); }
+      for (const [x, y] of [[1, 1], [14, 1], [1, 14], [14, 14]]) { t.px(x, y, '#40e8e0'); }
+      for (let y = 5; y < 11; y++) for (let x = 4; x < 12; x++) t.px(x, y, x === 7 || x === 8 ? '#4a2a0a' : '#f0e8d0');      // раскрытая книга
+    },
+    ench_side(t, r) { DRAW.obsidian(t, r); for (let y = 0; y < 5; y++) for (let x = 0; x < 16; x++) t.px(x, y, y === 4 ? '#6a1010' : ['#9a1a1a', '#8a1414'][(r() * 2) | 0]); for (let x = 1; x < 16; x += 4) t.px(x, 6, '#40e8e0'); },
+    anvil_top(t, r) { t.noise(['#4a4a4a', '#444444', '#525252'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#2a2a2a'); t.px(k, 15, '#2a2a2a'); } for (let y = 3; y < 13; y++) t.px(7, y, '#5a5a5a'); },
+    anvil_side(t, r) { t.noise(['#444444', '#3c3c3c', '#4c4c4c'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#5a5a5a'); t.px(0, k, '#2a2a2a'); } },
+    iron_block(t, r) { t.noise(['#d8d8d8', '#e0e0e0', '#cfcfcf'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#f4f4f4'); t.px(0, k, '#f4f4f4'); t.px(k, 15, '#9a9a9a'); t.px(15, k, '#9a9a9a'); } for (let x = 2; x < 14; x += 4) for (let y = 2; y < 14; y++) t.px(x, y, '#c4c4c4'); },
     lapis_ore(t, r) { ore(t, r, ['#2a50c8', '#1a3aa0', '#4a70e8'], '#0a2070'); },
     path_top(t, r) { t.noise(['#9a7a48', '#8a6a3a', '#a8885a', '#94743f'], r, [4, 3, 2, 3]); for (let k = 0; k < 10; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#b8986a'); },
     path_side(t, r) { DRAW.dirt(t, r); for (let x = 0; x < 16; x++) { t.px(x, 0, '#9a7a48'); t.px(x, 1, '#8a6a3a'); if (r() < 0.5) t.px(x, 2, '#94743f'); } },
