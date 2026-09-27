@@ -118,4 +118,28 @@ test.describe('fps_1: режимы', () => {
     expect(r.last.t).toBeLessThanOrEqual(r.first.t);
     for (const x of r.after) { expect(x.g).toBeLessThanOrEqual(Math.max(...r.warm.slice(3).map((w) => w.g))); expect(x.t).toBeLessThanOrEqual(Math.max(...r.warm.slice(3).map((w) => w.t))); }
   });
+
+  test('соревновательный матч с ботами доходит до конца: итог, звание, статистика, жетоны', async ({ page }) => {
+    test.setTimeout(180000);
+    const errors = await openTactical(page);
+    await startMatch(page, { mode: 'comp', map: 'port', seed: 5, side: 'CT', diff: 'medium', allies: 5, enemies: 5, short: true });
+    const r = await page.evaluate(() => {
+      const m = __tactical.match, p = m.player;
+      const t0 = TAC.inventory.data.tokens;
+      while (!m.over && m.time < 4000) { p.alive = false; m.step(); }
+      TAC.menu.showMatchOver(m.result, m, __tactical.app.lastRewards);
+      return { over: m.over, score: m.score, rounds: m.round, win: Math.max(...m.score), halfSwapped: m.history.length > 7 ? m.history[7].side !== undefined : null,
+        matches: TAC.stats.data.matches, ranked: TAC.profile.data.rankedMatches, tokens: TAC.inventory.data.tokens - t0 };
+    });
+    expect(r.over).toBe(true);
+    expect(r.win).toBe(8);
+    expect(r.rounds).toBeGreaterThanOrEqual(8);
+    expect(r.rounds).toBeLessThanOrEqual(15);
+    expect(r.matches).toBe(1);
+    expect(r.ranked).toBe(1);
+    expect(r.tokens).toBeGreaterThanOrEqual(40);
+    await expect(page.locator('#matchover')).toBeVisible();
+    await expect(page.locator('#moTable')).toContainText('Спецотряд');
+    expect(errors).toEqual([]);
+  });
 });

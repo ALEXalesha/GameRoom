@@ -38,7 +38,7 @@ test.describe('fps_1: страница и меню', () => {
     expect(errors).toEqual([]);
   });
 
-  for (const size of SIZES) {
+  for (const size of SIZES.concat([{ width: 1920, height: 1080 }])) {
     test(`меню и бой влезают в ${size.width}x${size.height}`, async ({ page }) => {
       test.setTimeout(90000);
       await page.setViewportSize(size);
