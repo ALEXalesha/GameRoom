@@ -32,8 +32,7 @@ test.describe('jungle-strike: кампания', () => {
     await openGame(page, 'jungle-strike', 'seed=2&fast');
     await page.evaluate(() => localStorage.clear());
     for (let m = 0; m < 5; m++) {
-      await page.evaluate((i) => __game.startMission(i, false), m);
-      const r = await page.evaluate(`(${RUN})(40000)`);
+      const r = await page.evaluate(`(() => { __game.startMission(${m}, false); return (${RUN})(40000); })()`);
       expect(r.phase, 'миссия ' + (m + 1)).toBe('done');
       expect(r.deaths, 'миссия ' + (m + 1) + ': потеряно жизней').toBeLessThanOrEqual(1);
       const id = m === 4 ? 'victory' : 'missionClear';
@@ -420,8 +419,8 @@ test.describe('jungle-strike: по второму ревью', () => {
     await openGame(page, 'jungle-strike', `seed=${seed}&fast`);
     await page.evaluate(() => { localStorage.clear(); __game.kit.set('difficulty', 'hard'); });
     for (let m = 0; m < 5; m++) {
-      await page.evaluate((i) => { __game.kit.closeAll(); __game.startMission(i, false); }, m);
-      const r = await page.evaluate(`(${RUN})(60000)`);
+      // старт и прогон - одним вызовом: между вызовами игра шла бы сама по часам, итог зависел бы от нагрузки
+      const r = await page.evaluate(`(() => { __game.kit.closeAll(); __game.startMission(${m}, false); return (${RUN})(60000); })()`);
       expect(r.phase, 'миссия ' + (m + 1)).toBe('done');
       expect(r.deaths, 'миссия ' + (m + 1)).toBeLessThanOrEqual(1);
     }
