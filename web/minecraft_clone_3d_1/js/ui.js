@@ -212,9 +212,9 @@
     const grid = el('div', 'grid2');
     const S = () => G.settings;
     const items = [
-      slider('Дальность прорисовки', 2, 12, 1, () => S().renderDistance, (v) => { S().renderDistance = v; }, (v) => v + ' кусков'),
+      slider('Прорисовка', 2, 12, 1, () => S().renderDistance, (v) => { S().renderDistance = v; }, (v) => v + ' кусков'),
       slider('Поле зрения', 30, 110, 1, () => S().fov, (v) => { S().fov = v; }, (v) => v === 70 ? 'обычное' : v === 110 ? 'Quake Pro' : String(v)),
-      slider('Чувствительность мыши', 10, 200, 5, () => S().sensitivity, (v) => { S().sensitivity = v; }, (v) => v + '%'),
+      slider('Чувствительность', 10, 200, 5, () => S().sensitivity, (v) => { S().sensitivity = v; }, (v) => v + '%'),
       toggle(() => 'Инверсия мыши: ' + (S().invertY ? 'Вкл' : 'Выкл'), () => { S().invertY = !S().invertY; }),
       slider('Громкость звуков', 0, 100, 5, () => S().volume, (v) => { S().volume = v; VX.audio.setVolume(v / 100); }, (v) => v ? v + '%' : 'Выкл'),
       toggle(() => 'Графика: ' + (S().graphics === 'fancy' ? 'Красивая' : 'Быстрая'), () => { S().graphics = S().graphics === 'fancy' ? 'fast' : 'fancy'; }),
@@ -276,6 +276,21 @@
   }
 
   // ---------- Достижения ----------
+  // Лупа для вкладки поиска: 16x16 точек, нарисована кодом
+  let magUrl = null;
+  function magIcon() {
+    if (!magUrl) {
+      const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+      const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x - 6.5, y - 6.5);
+        if (d >= 3.6 && d < 5.2) px(x, y, '#3a3a3a'); else if (d < 3.6) px(x, y, d < 1.6 && x < 6 ? '#e8f4ff' : '#9cc8e8');
+      }
+      for (let k = 0; k < 5; k++) { px(10 + k, 10 + k, '#5a3a1a'); px(11 + k, 10 + k, '#7a5230'); px(10 + k, 11 + k, '#4a2e12'); }
+      magUrl = c.toDataURL();
+    }
+    const img = el('img'); img.src = magUrl; img.alt = ''; return img;
+  }
   function buildAch() {
     const s = screen('ach', 'list-screen');
     const title = el('h2', '', 'Достижения');
@@ -400,7 +415,7 @@
       for (const t of D.TABS) {
         const b = el('div', 'tab' + (t.key === ctab ? ' on' : ''));
         b.dataset.tab = t.key;
-        if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(el('span', 'mag', '&#x1F50D;&#xFE0E;'));
+        if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(magIcon());
         b.addEventListener('mouseenter', (e) => showTip(e, esc(t.name)));
         b.addEventListener('mouseleave', hideTip);
         b.addEventListener('click', () => { ctab = t.key; cscroll = 0; VX.audio.play('click'); renderInv(); });
@@ -425,7 +440,7 @@
     } else {
       if (creative) {
         const tabs = el('div', 'tabs');
-        for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(el('span', 'mag', '&#x1F50D;&#xFE0E;')); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
+        for (const t of D.TABS) { const b = el('div', 'tab' + (t.key === ctab ? ' on' : '')); b.dataset.tab = t.key; if (t.icon) { const img = el('img'); img.src = G.icon(t.icon); img.alt = ''; b.append(img); } else b.append(magIcon()); b.addEventListener('click', () => { ctab = t.key; renderInv(); }); tabs.append(b); }
         invPanel.append(tabs);
       }
       if (v.kind === 'chest') {
@@ -599,7 +614,7 @@
   function buildHud() {
     hud = el('div', 'hud');
     hud.id = 'hud';
-    hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните по миру, чтобы управлять мышью</div>
+    hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните, чтобы играть</div>
       <div id="hurt"></div><div id="waterTint"></div><div id="lavaTint"></div><div id="fireTint"></div><div id="bars"><div id="armorbar"></div><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
       <div id="actionBar"></div><div id="sleepFade"></div>
       <div id="itemName"></div><div id="hotbar"></div><div id="toasts"></div>`;
@@ -750,7 +765,8 @@
 
   // Масштаб интерфейса как «размер интерфейса» в оригинале: в большом окне всё крупнее
   function rescale() {
-    const z = Math.max(1, Math.min(2, Math.floor(Math.min(innerWidth / 1280, innerHeight / 760) * 10) / 10));
+    // шаг 0.5: пиксельный шрифт 16px остаётся ровным (2, 3 или 4 экранных пикселя на точку)
+    const z = Math.max(1, Math.min(2, Math.floor(Math.min(innerWidth / 1280, innerHeight / 720) * 2) / 2));
     UI.scale = z;
     root.style.zoom = z;
     cursorEl.style.zoom = z;
