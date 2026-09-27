@@ -134,6 +134,32 @@ test.describe('fps_1: вкладка и окно', () => {
   }
 });
 
+test.describe('fps_1: оболочки', () => {
+  test('у страницы есть имя приложения для оболочек', async ({ page }) => {
+    await openTactical(page);
+    await expect(page.locator('meta[name="application-name"]')).toHaveAttribute('content', 'Операция: Периметр');
+  });
+
+  test('сообщение {mix:"pause"} от оболочки ставит бой на паузу: время раунда стоит, звук заглушён, ввод сброшен; "resume" паузу не снимает', async ({ page }) => {
+    await openTactical(page);
+    await startMatch(page, { mode: 'comp', map: 'quarry', ai: false, freeze: 0 });
+    await page.evaluate(() => { TAC.audio.init(); __tactical.app.manual = false; __tactical.app.paused = false; __tactical.app.act.forward = true; __tactical.app.mouseL = true; });
+    await page.waitForTimeout(300);
+    const t0 = await page.evaluate(() => __tactical.match.time);
+    expect(t0).toBeGreaterThan(0);
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await expect(page.locator('#pause')).toBeVisible();
+    const s = await page.evaluate(() => ({ paused: __tactical.app.paused, audio: TAC.audio.suspendedByPause, fwd: !!__tactical.app.act.forward, fire: __tactical.app.mouseL, t: __tactical.match.time }));
+    expect(s).toMatchObject({ paused: true, audio: true, fwd: false, fire: false });
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => __tactical.match.time)).toBe(s.t);
+    await page.evaluate(() => window.postMessage({ mix: 'resume' }, '*'));
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => ({ paused: __tactical.app.paused, t: __tactical.match.time }))).toEqual({ paused: true, t: s.t });
+    await expect(page.locator('#pause')).toBeVisible();
+  });
+});
+
 test.describe('fps_1: автоматика', () => {
   test('под автоматикой страница не захватывает мышь (requestPointerLock не зовётся)', async ({ page }) => {
     await openTactical(page);
