@@ -154,6 +154,7 @@
       w.add({ top: [st.bottom.x, end.y, st.bottom.z], size: [26, 2, 26], color: '#c9ccd1', tag: 'bottomdeck' });
       const up = w.add({ top: [st.bottom.x + L.x * 8, end.y + 0.2, st.bottom.z + L.z * 8], size: [4, 0.4, 4], color: '#8a5cf5', mat: 'neon', tag: 'up' });
       up.onTouch = (g, part, body) => { if (body === g.player && !g.state.riding) g.respawn(); };
+      st.upPart = up; st.seatPart = seat;
       K.decal(game, B.lang() === 'en' ? 'UP' : 'НАВЕРХ', up.cx, up.maxY, up.cz, 3.6, 1.8, '#8a5cf5', '#fff');
       // ворота финиша
       for (const sg of [1, -1]) w.add({ top: [end.x + L.x * (W / 2 + 0.8) * sg, end.y + 8, end.z + L.z * (W / 2 + 0.8) * sg], size: [1, 8, 1], color: '#d62d2d', mat: 'smooth' });
@@ -200,9 +201,17 @@
       st.tube = mk(0x3fd0c4);
       game.ch.root.rotation.order = 'YXZ';
       game.bots.forEach((b) => { b.ch.root.rotation.order = 'YXZ'; });
-      game.bots.forEach((b, i) => { b.tube = mk([0xff5c5c, 0xffd23f, 0x8a5cf5][i % 3]); b.ride = null; b.wait = 1 + i * 2.5; b.stat = null; });
+      st.mkTube = mk; st.seatT = -10;
+      game.bots.forEach((b) => P.onBotAdded(game, b));
     },
     start(game) { game.centerMsg(B.lang() === 'en' ? 'Step on the blue pad to sit on the tube' : 'Встань на синюю плиту - сядешь на ватрушку', 3000); },
+    onBotAdded(game, b) {
+      const st = game.state;
+      if (!b.tube && st.mkTube) b.tube = st.mkTube([0xff5c5c, 0xffd23f, 0x8a5cf5, 0xff9d3b, 0x3fae4a, 0xff8fd0][b.i % 6]);
+      if (b.ch.root.rotation.order !== 'YXZ') b.ch.root.rotation.order = 'YXZ';
+      b.ride = null; b.stat = null; b.best = null; b.rides = 0; b.phase = 'walk'; b.steer = 0; b.slip = 0;
+      b.wait = 0.5 + b.i * 1.2 + game.rng();
+    },
     mount(game) {
       const st = game.state;
       if (st.riding || game.dead) return;
@@ -238,28 +247,64 @@
         pl.facing = p.th; pl.vel.x = pl.vel.y = pl.vel.z = 0; pl.onGround = true; pl.airTime = 0;
         if (st.riding.done) P.dismount(game);
       }
-      // боты катаются по кругу
+      // боты на ватрушках: руль с запаздыванием по стилю, у новичка - промахи (едет в ёлку)
       for (const b of game.bots) {
-        if (!b.ride) {
-          b.wait -= dt;
-          if (b.wait <= 0) { b.ride = newRide((game.rng() - 0.5) * 6); b.tube.visible = true; }
-          continue;
-        }
-        stepRide(game, b.ride, autoSteer(game, b.ride) * (0.7 + game.rng() * 0.3), dt, b);
-        const p = at(st.pts, b.ride.s), L = lateral(p.th), bd = b.body;
+        if (!b.ride) continue;
+        const r = b.ride;
+        let want = autoSteer(game, r);
+        b.slip -= dt;
+        if (b.slip <= 0 && game.rng() < b.st.err * dt * 1.6) b.slip = 0.5 + game.rng() * 0.6;   // зазевался
+        if (b.slip > 0) want = -want * 0.6;
+        b.steer += (want - b.steer) * Math.min(1, dt / Math.max(0.05, b.st.react * 0.5));
+        const hit0 = r.hitT;
+        stepRide(game, r, B.clamp(b.steer, -1, 1), dt, b);
+        if (r.hitT > hit0 + 0.3) B.bots.say(game, b, 'tree');
+        const p = at(st.pts, r.s), L = lateral(p.th), bd = b.body;
         bd.prev.x = bd.pos.x; bd.prev.y = bd.pos.y; bd.prev.z = bd.pos.z; bd.prevFacing = bd.facing;
-        bd.pos.x = p.x + L.x * b.ride.u; bd.pos.y = p.y + 0.9; bd.pos.z = p.z + L.z * b.ride.u; bd.facing = p.th;
-        if (b.ride.done) {
-          b.stat = b.ride.stars; b.ride = null; b.tube.visible = false; b.wait = 2 + game.rng() * 4;
-          const t = st.pts[0]; b.body.teleport(t.x + (game.rng() - 0.5) * 8, t.y, t.z - 12);
+        bd.pos.x = p.x + L.x * r.u; bd.pos.y = p.y + 0.9; bd.pos.z = p.z + L.z * r.u; bd.facing = p.th;
+        if (r.done) {
+          b.stat = r.stars; b.best = Math.max(b.best || 0, r.stars); b.rides++;
+          b.ride = null; b.tube.visible = false; b.phase = 'up';
+          const bt = st.bottom;
+          bd.teleport(bt.x + (game.rng() - 0.5) * 6, bt.y + 0.01, bt.z + (game.rng() - 0.5) * 6, p.th);
+          B.bots.resetNav(b, 0);
+          B.bots.say(game, b, 'finish', { n: r.stars }, true);
         }
       }
     },
+    // ---------- Боты: дойти до синей плиты, сесть (по очереди), скатиться, внизу - на «Наверх» ----------
+    botThink(game, b, dt) {
+      const BT = B.bots, st = game.state, pl = b.body;
+      if (b.phase === 'up') {
+        const u = st.upPart;
+        b.mind.goal = 'up';
+        BT.progress(b, -Math.hypot(u.cx - pl.pos.x, u.cz - pl.pos.z));
+        const inp = BT.walkTo(game, b, u.cx, u.cz, { near: 1.2 });
+        if (inp) return inp;
+        const sp = P.botSpawn(game, b.i);
+        pl.teleport(sp.x, sp.y + 0.01, sp.z, 0); BT.resetNav(b, 0);
+        b.phase = 'walk'; b.wait = 0.5 + game.rng() * 2;
+        return BT.hold();
+      }
+      if (b.wait > 0) { b.wait -= dt; return BT.roam(game, b, st.pts[0].x, st.pts[0].z - 12, 4, 'queue'); }
+      const seat = st.seatPart, lane = ((b.i % 3) - 1) * 2.2;
+      b.mind.goal = 'seat';
+      BT.progress(b, -Math.hypot(seat.cx + lane - pl.pos.x, seat.cz - pl.pos.z));
+      const inp = BT.walkTo(game, b, seat.cx + lane, seat.cz, { near: 1 });
+      if (inp) return inp;
+      // на плите: подождать, если только что сел другой
+      if (game.time - st.seatT < 1.6 || st.riding && st.riding.s < 12) { b.mind.goal = 'queue'; return BT.hold(); }
+      st.seatT = game.time;
+      b.ride = newRide(B.clamp((pl.pos.x - seat.cx) * 0.8, -4, 4)); b.tube.visible = true; b.steer = 0;
+      BT.say(game, b, 'start');
+      return BT.hold();
+    },
+    botChatVars: (game, b) => ({ n: b.best }),
     controlsPlayer: (g) => !!g.state.riding,
     controlsBot: (g, b) => !!b.ride,
-    // бот вне ватрушки стоит на площадке наверху
-    botThink() { return { mx: 0, mz: 0, jump: false }; },
-    botSpawn(game) { const t = game.state.pts[0]; return { x: t.x + (game.rng() - 0.5) * 8, y: t.y, z: t.z - 12 }; },
+    botPath: () => null,
+    botSpawn(game, i) { const t = game.state.pts[0]; return { x: t.x - 6 + (i % 4) * 4, y: t.y, z: t.z - 11 - Math.floor(i / 4) * 2.5 }; },   // на площадке, мимо ёлок
+    botCheckpoint(game, b) { b.phase = 'walk'; const sp = P.botSpawn(game, b.i); sp.idx = 0; return sp; },
     render(game, alpha, dt) {
       const st = game.state;
       const place = (tube, body, ch, ride) => {

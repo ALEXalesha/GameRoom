@@ -66,20 +66,10 @@
       this.player.facing = this.player.prevFacing = this.spawn.facing;
       this.makePlayerChar();
       // боты
-      const n = P.bots == null ? 3 : P.bots;
-      const names = B.data.BOT_NAMES.slice();
-      for (let i = 0; i < n; i++) {
-        const name = names.splice(this.rng.int(names.length), 1)[0];
-        const sp = P.botSpawn ? P.botSpawn(this, i) : { x: this.spawn.x + (i - 1) * 5, y: this.spawn.y, z: this.spawn.z - 6 };
-        const body = new E.Body(w, sp.x, sp.y, sp.z);
-        body.walk = P.botSpeed || 13;
-        const cfg = randomAvatar(this.rng);
-        cfg.colors.legR = cfg.colors.legL;
-        const ch = B.avatar.build(cfg);
-        const np = nameplate(name); ch.root.add(np);
-        w.scene.add(ch.root);
-        this.bots.push({ name, body, ch, np, cfg, dead: false, respawnT: 0, ai: { t: 0, tx: sp.x, tz: sp.z, jump: 0 }, stat: 0, i });
-      }
+      const n = this.botCount();
+      this.botTotal = n;
+      this.botNames = B.data.BOT_NAMES.slice();
+      for (let i = 0; i < n; i++) this.addBot(i);
       yield 0.8;
       // камера
       this.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 1500);
@@ -90,6 +80,49 @@
       this.updateCamera(0, 0);
       try { E.renderer.compile(w.scene, this.camera); } catch (e) { /* не страшно */ }
       yield 1;
+    }
+
+    // Сколько ботов: ?bots=N (замеры) - настройка места - по умолчанию у места
+    botCount() {
+      if (B.params.bots != null) return B.params.bots;
+      const P = this.place;
+      return P.botCount ? P.botCount(this) : (P.bots == null ? 3 : P.bots);
+    }
+    addBot(i) {
+      const P = this.place, w = this.world;
+      if (!this.botNames.length) this.botNames = B.data.BOT_NAMES.slice();
+      const name = this.botNames.splice(this.rng.int(this.botNames.length), 1)[0];
+      const sp0 = P.botSpawn ? P.botSpawn(this, i) : { x: this.spawn.x + (i - 1) * 5, y: this.spawn.y, z: this.spawn.z - 6 };
+      const sp = B.bots.freeSpot(w, sp0.x, sp0.y, sp0.z);
+      const body = new E.Body(w, sp.x, sp.y, sp.z);
+      const cfg = randomAvatar(this.rng);
+      cfg.colors.legR = cfg.colors.legL;
+      const ch = B.avatar.build(cfg);
+      const np = nameplate(name); ch.root.add(np);
+      w.scene.add(ch.root);
+      const b = { name, body, ch, np, cfg, dead: false, respawnT: 0, ai: { t: 0, tx: sp.x, tz: sp.z, jump: 0 }, stat: 0, i };
+      this.bots.push(b);
+      B.bots.init(this, b, i);
+      return b;
+    }
+    removeBot(b) {
+      const i = this.bots.indexOf(b);
+      if (i < 0) return;
+      this.bots.splice(i, 1);
+      this.world.scene.remove(b.ch.root);
+      b.ch.dispose();
+      if (b.tube) this.world.scene.remove(b.tube);
+      this.botNames.push(b.name);
+      if (this.place.onBotRemoved) this.place.onBotRemoved(this, b);
+    }
+    // Число ботов меняется сразу (настройка места)
+    setBotCount(n) {
+      n = B.clamp(Math.round(n), 0, 6);
+      while (this.bots.length > n) this.removeBot(this.bots[this.bots.length - 1]);
+      let i = this.bots.length ? Math.max(...this.bots.map((b) => b.i)) + 1 : 0;
+      while (this.bots.length < n) { const b = this.addBot(i++); if (this.place.onBotAdded) this.place.onBotAdded(this, b); }
+      this.botTotal = n;
+      this.drawBoard();
     }
 
     makePlayerChar() {
@@ -179,29 +212,31 @@
         this.respawnT -= dt;
         if (this.respawnT <= 0) this.respawn();
       }
-      // боты
+      // боты: цель места - путь - шаг тела; после шага - общий присмотр (приземления, застревание, чат)
       for (const b of this.bots) {
         if (b.dead) {
           b.respawnT -= dt;
           if (b.respawnT <= 0) {
-            const sp = P.botSpawn ? P.botSpawn(this, b.i) : this.spawn;
-            b.body.teleport(sp.x, sp.y, sp.z); b.dead = false; b.ch.setVisible(true); b.np.visible = true;
+            const sp = P.botRespawn ? P.botRespawn(this, b) : P.botSpawn ? P.botSpawn(this, b.i) : this.spawn;
+            const f = B.bots.freeSpot(this.world, sp.x, sp.y, sp.z);
+            b.body.teleport(f.x, sp.y + 0.01, f.z); b.dead = false; b.ch.setVisible(true); b.np.visible = true;
+            B.bots.resetNav(b, sp.idx != null ? sp.idx : 0);
+            if (P.onBotRespawn) P.onBotRespawn(this, b);
           }
           continue;
         }
-        if (P.controlsBot && P.controlsBot(this, b)) continue;
-        const input = P.botThink ? P.botThink(this, b, dt) : this.wander(b, dt);
+        if (P.controlsBot && P.controlsBot(this, b)) { b.mind.stillT = 0; b.mind.idleT = 0; b.mind.progT = 0; b.mind.anchor.x = b.body.pos.x; b.mind.anchor.z = b.body.pos.z; continue; }
+        const input = P.botThink ? P.botThink(this, b, dt) : B.bots.roam(this, b, this.spawn.x, this.spawn.z, 10);
         const ev = b.body.step(input, dt);
         for (const c of b.body.touching) if (c.onTouch && c.botTouch) c.onTouch(this, c, b.body, b);
-        if (ev.includes('kill')) this.killBot(b);
+        if (ev.includes('kill')) { this.killBot(b); continue; }
+        B.bots.after(this, b, dt, P.botPath ? P.botPath(this, b) : this.path);
       }
-      if (this.pieces.length) E.stepPieces(w, this.pieces, dt);
-      // чат ботов
-      this.botChatT -= dt;
-      if (this.botChatT <= 0 && this.bots.length) {
-        this.botChatT = 9 + this.rng() * 14;
-        const b = this.rng.pick(this.bots);
-        this.say(b.name, this.rng.pick(B.data.BOT_PHRASES), b.cfg.colors.torso);
+      if (this.pieces.length) {
+        E.stepPieces(w, this.pieces, dt);
+        let gone = false;
+        for (const pc of this.pieces) if (pc.ttl != null && (pc.ttl -= dt) <= 0) { w.scene.remove(pc.obj); gone = true; }
+        if (gone) this.pieces = this.pieces.filter((pc) => pc.ttl == null || pc.ttl > 0);
       }
     }
     onPlayerEvent(e) {
@@ -238,8 +273,12 @@
     }
     killBot(b) {
       if (b.dead) return;
-      b.dead = true; b.respawnT = 3;
-      this.pieces.push(...E.shatter(this.world, b.ch, this.rng));
+      b.dead = true; b.respawnT = 3; b.deaths = (b.deaths || 0) + 1;
+      if (b.mind) B.bots.onFail(b);
+      if (b.mind) B.bots.say(this, b, 'fell', this.place.botChatVars ? this.place.botChatVars(this, b) : null);
+      const ps = E.shatter(this.world, b.ch, this.rng);
+      for (const pc of ps) pc.ttl = 3;                 // обломки бота исчезают сами
+      this.pieces.push(...ps);
       b.ch.setVisible(false); b.np.visible = false;
       if (this.place.onBotDeath) this.place.onBotDeath(this, b);
     }
@@ -401,7 +440,18 @@
       this.menuTabName = tab;
       document.querySelectorAll('#g-menu-panel .mtab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
       document.querySelectorAll('#g-menu-panel .mview').forEach((v) => { v.hidden = v.dataset.view !== tab; });
-      if (tab === 'settings') B.ui.settingsList($('g-settings-list'), B.ui.GAME_SCHEMA, B.gameSettings, () => this.applySettings());
+      if (tab === 'settings') {
+        // настройки этого места (если есть) - над общими
+        const ps = $('g-place-set'), P = this.place;
+        ps.innerHTML = '';
+        if (P.settingsSchema) {
+          ps.append(B.ui.el('div', { class: 'place-set-h' }, B.esc((B.lang() === 'en' ? 'This place: ' : 'Это место: ') + B.tn(this.meta))));
+          const box = B.ui.el('div');
+          ps.append(box);
+          B.ui.settingsList(box, P.settingsSchema, P.settingsGroup, (k) => { if (P.onSettings) P.onSettings(this, k); });
+        }
+        B.ui.settingsList($('g-settings-list'), B.ui.GAME_SCHEMA, B.gameSettings, () => this.applySettings());
+      }
     }
 
     dispose() {
@@ -634,13 +684,20 @@
       E.renderer.setSize(innerWidth, innerHeight);
       if (G.cur) { G.cur.camera.aspect = innerWidth / innerHeight; G.cur.camera.updateProjectionMatrix(); }
     });
-    // Вкладку спрятали - пауза: меню открыто, звук молчит, мышь отпущена. Вернулись - пауза остаётся.
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) return;
+    // Вкладку спрятали - пауза: меню открыто, звук молчит, ввод сброшен, мышь отпущена. Вернулись - пауза остаётся.
+    const pauseAll = () => {
       const g = G.cur;
-      if (g && !g.menuOpen) g.openMenu();
+      if (g) { for (const k in g.keys) g.keys[k] = false; g.rotating = false; g.lmbDown = null; if (!g.menuOpen) g.openMenu(); }
       if (document.pointerLockElement) document.exitPointerLock();
       B.sound.suspend();
+    };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAll(); });
+    // Оболочка ОС (игра в iframe): {mix:'pause'} - как скрытая вкладка; {mix:'resume'} - пауза остаётся, её снимает игрок
+    addEventListener('message', (e) => {
+      const d = e.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.mix === 'pause') pauseAll();
+      else if (d.mix === 'resume' && !G.cur) B.sound.resume();
     });
 
     $('g-menu').addEventListener('click', () => { const g = G.cur; if (!g) return; if (g.menuOpen) g.closeMenu(); else g.openMenu(); });

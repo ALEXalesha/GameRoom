@@ -27,7 +27,7 @@
     perfStats: false,         // fps/мс на экране
   };
   const LIMITS = {
-    sens: [0.1, 4], sensFirst: [0.1, 4], quality: [1, 10], volMaster: [0, 1], volMusic: [0, 1], volSfx: [0, 1],
+    sens: [0.1, 4], sensFirst: [0.1, 4], quality: [1, 10], volMaster: [0, 1], volMusic: [0, 1], volSfx: [0, 1], bots: [0, 6],
   };
   const ENUMS = {
     theme: ['dark', 'light'], lang: ['ru', 'en'], profileVisible: ['all', 'friends', 'me'], chat: ['all', 'off'],
@@ -72,6 +72,8 @@
   }
 
   B.settings = makeGroup('settings', PLATFORM_DEFAULTS, 'settings');
+  // Настройки одного места (меню места, раздел «Это место»): ключ mix.blox.place.<id>
+  B.placeSettings = (id, defs) => makeGroup('place.' + id, defs, 'placesettings');
   B.gameSettings = makeGroup('gamesettings', GAME_DEFAULTS, 'gamesettings');
 
   // Уровень качества 1..10, с которым сейчас рисуем: вручную - как выбрано, автоматически - по

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="application-name" content="Блоксити">
 <title>Блоксити - платформа мест (фан-концепт)</title>
 <link rel="stylesheet" href="blox.css">
 </head>
@@ -86,6 +87,7 @@
         <button type="button" class="m-big leave" id="m-leave"><b data-i18n="leave">Выйти из места</b><kbd>L</kbd></button>
       </div>
       <div class="mview" data-view="settings" hidden>
+        <div id="g-place-set" class="set-list"></div>
         <div id="g-settings-list" class="set-list"></div>
         <div class="set-row"><div class="set-label" data-i18n="fullscreen_l">Полный экран</div><div class="set-ctl"><button type="button" class="toggle" id="m-fullscreen" aria-label="Полный экран"><i></i></button></div></div>
         <div class="m-foot">
@@ -126,6 +128,7 @@
 <script src="js/avatar.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ingame.js"></script>
+<script src="js/bots.js"></script>
 <script src="js/places/kit.js"></script>
 <script src="js/places/obby.js"></script>
 <script src="js/places/race.js"></script>

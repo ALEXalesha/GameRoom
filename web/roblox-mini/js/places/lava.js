@@ -78,8 +78,10 @@
     },
     setup(game) {
       Object.assign(game.state, { phase: 'wait', t: 0, wait: 5, roundBest: 0, round: 1, overT: 0 });
-      game.bots.forEach((b) => { b.stat = 0; b.nextClimb = 2 + game.rng() * 3; });
+      game.bots.forEach((b) => P.botFresh(game, b));
     },
+    botFresh(game, b) { b.stat = 0; b.out = false; b.summit = false; b.emote = null; b.hurrySaid = false; },
+    onBotAdded(game, b) { P.botFresh(game, b); },
     start(game) { game.centerMsg(B.lang() === 'en' ? 'The lava will rise. Climb!' : 'Скоро поднимется лава. Карабкайся!', 2500); },
     speed: (t) => 1.0 + 0.015 * t,
     step(game, dt) {
@@ -92,52 +94,78 @@
         if (st.wait <= 0) { st.phase = 'rise'; st.t = 0; st.roundBest = 0; game.centerMsg(B.lang() === 'en' ? 'The lava is rising!' : 'Лава поднимается!', 1500); }
       } else if (st.phase === 'rise') {
         st.t += dt;
-        st.lavaY += P.speed(st.t) * dt;
+        st.lavaY = Math.min(st.topY - 0.6, st.lavaY + P.speed(st.t) * dt);   // вершина - спасение
         if (!game.dead && pl.onGround && pl.ground && pl.ground.tag !== 'lobby') st.roundBest = Math.max(st.roundBest, pl.pos.y);
-        if (st.lavaY > st.topY + 12) P.endRound(game, false);
+        const botsLeft = game.bots.some((b) => !b.out && !b.summit);
+        const playerOff = st.playerDone || (game.player.pos.x > LOBBY.x - 12 && game.player.pos.y < 2);   // герой в лобби - не лезет
+        if (st.lavaY >= st.topY - 0.7) st.capT = (st.capT || 0) + dt;
+        if (st.capT > 8 || (playerOff && !botsLeft)) P.endRound(game);
       } else if (st.phase === 'over') {
         st.lavaY = Math.max(-3, st.lavaY - 40 * dt);
         st.overT -= dt;
         if (st.overT <= 0) P.newRound(game);
       }
-      // боты карабкаются: время от времени «забираются» на плиту чуть выше лавы
-      if (st.phase === 'rise') {
-        for (const b of game.bots) {
-          if (b.dead || b.out) continue;
-          b.nextClimb -= dt;
-          if (b.nextClimb <= 0) {
-            b.nextClimb = 1.8 + game.rng() * 2.6;
-            if (game.rng() < 0.12) continue;             // зазевался
-            const cand = st.plats.filter((p) => p.maxY > st.lavaY + 3 && p.maxY < st.lavaY + 16);
-            if (cand.length) { const p = game.rng.pick(cand); b.body.teleport(p.cx + (game.rng() - 0.5) * 1.5, p.maxY, p.cz + (game.rng() - 0.5) * 1.5); b.stat = Math.max(b.stat, p.maxY); }
-          }
-        }
+    },
+    // ---------- Боты: ждут у башни, с началом раунда лезут по плитам, торопятся, когда лава близко ----------
+    botThink(game, b, dt) {
+      const BT = B.bots, st = game.state, pl = b.body, m = b.mind;
+      if (b.out) return BT.roam(game, b, LOBBY.x, LOBBY.z, 6, 'out');       // сгорел - смотрит из лобби
+      if (st.phase === 'wait') {
+        const f = game.path[1];
+        return BT.roam(game, b, f.cx * 0.6, f.cz * 0.6, 7, 'round');
+      }
+      if (st.phase === 'over') { b.emote = b.summit ? 'dance' : null; m.goal = 'round'; return BT.hold(); }
+      if (b.summit) { b.emote = 'dance'; m.goal = 'dance'; return BT.hold(); }
+      // лава в нескольких шагах - без раздумий
+      m.hurry = st.lavaY > pl.pos.y - 7;
+      if (m.hurry && !b.hurrySaid) { b.hurrySaid = BT.say(game, b, 'hurry'); }
+      if (pl.onGround && pl.ground && pl.ground.tag !== 'lobby') b.stat = Math.max(b.stat, pl.pos.y);
+      const inp = BT.follow(game, b, game.path);
+      BT.progressPath(b, game.path);
+      return inp;
+    },
+    onBotReach(game, b, j, part) {
+      if (part === game.state.summitPart && game.state.phase === 'rise' && !b.summit) {
+        b.summit = true; b.stat = Math.max(b.stat, part.maxY);
+        B.bots.say(game, b, 'finish', null, true);
+        const bd = B.data.badge('lava_top');
+        B.bots.system(game, B.lang() === 'en' ? `${b.name} earned the badge "${bd.en}"` : `${b.name} получает значок «${bd.name}»`);
       }
     },
-    botArea(game, b) {
-      const p = b.body.pos;
-      if (b.out) return { x: LOBBY.x, z: LOBBY.z, r: 6 };
-      if (game.state.phase === 'rise' && p.y > 1) return { x: p.x, z: p.z, r: 0.8 };
-      return { x: 0, z: 0, r: 14 };
+    botChatVars: (game, b) => ({ n: b.out || b.body.pos.y < 2 ? null : Math.round(b.body.pos.y) }),
+    // «Контрольная точка» бота в раунде - плита, на которой он стоял последней
+    botCheckpoint(game, b) { const p = game.path[b.mind.idx] || game.path[0]; return { x: p.cx, y: p.maxY, z: p.cz, idx: b.mind.idx }; },
+    botSpawn(game, i) { return { x: -6 + (i % 4) * 4, y: 0, z: -6 - Math.floor(i / 4) * 3 }; },
+    // сгоревший в раунде бот смотрит из лобби; вне раунда - у башни
+    botRespawn(game, b) {
+      if (b.out) return { x: LOBBY.x - 4 + (b.i % 4) * 2.5, y: LOBBY.y, z: 3 - Math.floor(b.i / 4) * 3, idx: 0 };
+      const sp = P.botSpawn(game, b.i); sp.idx = 0; return sp;
     },
-    botSpawn(game, i) { const b = game.bots[i]; return b && b.out ? { x: LOBBY.x - 4 + i * 2, y: 0, z: 3 } : { x: -6 + i * 4, y: 0, z: -6 }; },
     onBotDeath(game, b) { if (game.state.phase === 'rise') b.out = true; },
     respawnPoint(game) {
       const st = game.state;
       if (st.phase === 'rise') return { x: LOBBY.x, y: LOBBY.y, z: LOBBY.z, facing: -Math.PI / 2 };
       return game.spawn;
     },
-    onDeath(game) { if (game.state.phase === 'rise') P.endRound(game, false); },
+    onDeath(game) { if (game.state.phase === 'rise') P.playerResult(game, false); },
     summit(game) {
       const st = game.state;
-      if (st.phase !== 'rise' || game.dead) return;
+      if (st.phase !== 'rise' || game.dead || st.playerDone) return;
       st.roundBest = Math.max(st.roundBest, game.player.pos.y);
-      P.endRound(game, true);
+      P.playerResult(game, true);
     },
-    endRound(game, won) {
+    // Раунд окончен для всех: лава выше вершины или никого не осталось на башне
+    endRound(game) {
       const st = game.state;
       if (st.phase !== 'rise') return;
-      st.phase = 'over'; st.overT = won ? 7 : 6;
+      if (!st.playerDone) P.playerResult(game, false);
+      st.phase = 'over'; st.overT = 6;
+    },
+    // Итог раунда для игрока (сгорел или на вершине); боты доигрывают раунд
+    playerResult(game, won) {
+      const st = game.state;
+      if (st.playerDone) return;
+      st.playerDone = true;
       const h = Math.round(st.roundBest * 10) / 10;
       let res;
       if (h >= 10 || won) res = K.finishRun(game, h, { complete: won, win: won });
@@ -149,20 +177,20 @@
       }
       game.showResult({
         title: won ? (B.lang() === 'en' ? 'You escaped the lava!' : 'Ты спасся от лавы!') : (B.lang() === 'en' ? 'The lava got you' : 'Лава догнала'),
-        sub: won ? (B.lang() === 'en' ? 'Summit reached - place completed' : 'Вершина покорена - место пройдено') : h < 10 ? (B.lang() === 'en' ? 'Climb above 10 to earn cubes. Next round soon' : 'Поднимись выше 10 - будут кубы. Новый раунд скоро') : (B.lang() === 'en' ? 'Next round in a few seconds' : 'Новый раунд через несколько секунд'),
+        sub: won ? (B.lang() === 'en' ? 'Summit reached - place completed' : 'Вершина покорена - место пройдено') : game.bots.some((b) => !b.out && !b.summit) ? (B.lang() === 'en' ? 'The bots are still climbing - watch from the lobby' : 'Боты ещё лезут - смотри из лобби') : h < 10 ? (B.lang() === 'en' ? 'Climb above 10 to earn cubes. Next round soon' : 'Поднимись выше 10 - будут кубы. Новый раунд скоро') : (B.lang() === 'en' ? 'Next round in a few seconds' : 'Новый раунд через несколько секунд'),
         medal: res.medal, reward: res.reward, record: res.record,
         rows: [[B.lang() === 'en' ? 'Height' : 'Высота', h.toFixed(1)], [B.t('your_best'), (B.acct.placeStats('lava').best || 0).toFixed(1)]],
       });
     },
     newRound(game) {
       const st = game.state;
-      Object.assign(st, { phase: 'wait', wait: 5, t: 0, roundBest: 0, lastN: 0 });
+      Object.assign(st, { phase: 'wait', wait: 5, t: 0, roundBest: 0, lastN: 0, playerDone: false, capT: 0 });
       st.round++;
       game.hideResult();
-      game.bots.forEach((b, i) => { b.out = false; b.stat = 0; if (b.dead) b.respawnT = 0; else b.body.teleport(-6 + i * 4, 0, -6); });
+      game.bots.forEach((b, i) => { P.botFresh(game, b); if (b.dead) b.respawnT = 0; else { const sp = P.botSpawn(game, b.i), f = B.bots.freeSpot(game.world, sp.x, sp.y, sp.z); b.body.teleport(f.x, 0.01, f.z); B.bots.resetNav(b, 0); } });
       if (!game.dead) game.player.teleport(game.spawn.x, game.spawn.y, game.spawn.z, game.spawn.facing);
     },
-    restart(game) { if (game.state.phase === 'over') P.newRound(game); },
+    restart(game) { if (game.state.phase === 'over') P.newRound(game); else game.hideResult(); },
     hud(game) {
       const st = game.state;
       const best = B.acct.placeStats('lava').best;

@@ -68,11 +68,11 @@
       game.spawn = { x: -12, y: 0, z: 0, facing: Math.PI / 2 };
     },
     setup(game) {
-      Object.assign(game.state, { cp: 0, t: 0, running: false, done: false });
-      const base = [29.8, 37.4, 46.1, 52.9];
-      game.bots.forEach((b, i) => { b.stat = Math.round((base[i] + game.rng() * 4) * 100) / 100; });
+      Object.assign(game.state, { cp: 0, t: 0, running: false, done: false, heat: null, heatN: 0, idleT: 0 });
+      game.bots.forEach((b) => P.botFresh(game, b));
     },
-    start(game) { game.centerMsg(B.lang() === 'en' ? 'Cross the start line - the timer starts!' : 'Пересеки линию старта - таймер пойдёт!', 2500); },
+    botFresh(game, b) { b.stat = b.stat != null && b.stat !== 0 ? b.stat : null; b.race = { phase: 'walk', t: 0, cp: 0, react: 0, doneT: 0, lane: (b.i % 4) * 3.2 - 4.8 }; },
+    onBotAdded(game, b) { b.stat = null; P.botFresh(game, b); },    start(game) { game.centerMsg(B.lang() === 'en' ? 'Cross the start line - the timer starts!' : 'Пересеки линию старта - таймер пойдёт!', 2500); },
     reach(game, n, part) {
       const st = game.state;
       if (n <= st.cp || !st.running) return;
@@ -83,14 +83,95 @@
     },
     step(game, dt) {
       const st = game.state, x = game.player.pos.x;
-      if (!st.running && !st.done && x > START_X && x < START_X + 6 && !game.dead) { st.running = true; st.t = 0; st.cp = 0; B.sound.play('speed'); game.centerMsg(B.lang() === 'en' ? 'Go!' : 'Вперёд!', 900); }
+      if (!st.running && !st.done && x > START_X && x < START_X + 6 && !game.dead) {
+        st.running = true; st.t = 0; st.cp = 0; B.sound.play('speed'); game.centerMsg(B.lang() === 'en' ? 'Go!' : 'Вперёд!', 900);
+        P.startHeat(game, true);
+      }
       if (st.running) {
         st.t += dt;
         if (x >= FINISH_X && !game.dead) P.finish(game);
       }
+      // боты ждут на старте; если игрок не бежит - через полминуты бегут сами
+      const ready = game.bots.filter((b) => b.race && b.race.phase === 'line').length;
+      const walking = game.bots.filter((b) => b.race && b.race.phase === 'walk').length;
+      if (ready) st.idleT += dt * (walking ? 0.5 : 1); else st.idleT = 0;
+      if (st.idleT > 10) { st.idleT = 0; P.startHeat(game, false); }
     },
-    botArea: () => ({ x: -10, z: 0, r: 7 }),
-    botSpawn: (g, i) => ({ x: -16 + i * 3, y: 0, z: -5 + i * 4 }),
+    // Заезд: все, кто стоит на старте, стартуют вместе (с запозданием по стилю); с игроком - «соревнование»
+    startHeat(game, withPlayer) {
+      const st = game.state;
+      st.heatN++;
+      st.heat = { n: st.heatN, player: withPlayer, results: [], t0: game.time, entrants: 0 };
+      for (const b of game.bots) {
+        if (!b.race || b.race.phase !== 'line') continue;
+        b.race.phase = 'go'; b.race.react = b.st.react * (0.6 + game.rng() * 0.8); b.race.heat = st.heatN;
+        st.heat.entrants++;
+      }
+      const b = game.bots.find((x) => x.race && x.race.heat === st.heatN);
+      if (b) B.bots.say(game, b, 'start');
+    },
+    // ---------- Боты: к линии старта, заезд по плитам пути, КТ, падение в воду - на свою КТ, финиш ----------
+    botThink(game, b, dt) {
+      const BT = B.bots, r = b.race, pl = b.body;
+      if (r.phase === 'walk') {                                 // встать на свою дорожку перед линией
+        const inp = BT.walkTo(game, b, START_X - 2.5, r.lane, { near: 0.7 });
+        b.mind.goal = 'walk';
+        BT.progress(b, -Math.hypot(START_X - 2.5 - pl.pos.x, r.lane - pl.pos.z));
+        if (inp) return inp;
+        r.phase = 'line';
+      }
+      if (r.phase === 'line') { b.mind.goal = 'line'; return { mx: 0, mz: 0, jump: false, face: Math.PI / 2 }; }
+      if (r.phase === 'go') {                                   // реакция на старт
+        r.react -= dt; b.mind.goal = 'line';
+        if (r.react > 0) return { mx: 0, mz: 0, jump: false, face: Math.PI / 2 };
+        r.phase = 'run'; r.t = 0; r.cp = 0; r.timing = false;
+        BT.resetNav(b, 0);
+      }
+      if (r.phase === 'run') {
+        if (!r.timing && pl.pos.x > START_X) { r.timing = true; r.t = 0; }
+        if (r.timing) r.t += dt;
+        if (pl.pos.x >= FINISH_X) { P.botFinish(game, b); return BT.hold(); }
+        if (b.mind.idx >= game.path.length - 1) {                // на финишной плите - добежать за линию
+          b.mind.goal = 'walk'; BT.progress(b, pl.pos.x);
+          return BT.walkTo(game, b, FINISH_X + 6, r.lane) || BT.hold();
+        }
+        const inp = BT.follow(game, b, game.path);
+        BT.progressPath(b, game.path);
+        return inp;
+      }
+      // финишировал: порадоваться и вернуться на старт (как «Ещё раз»)
+      r.doneT -= dt;
+      if (r.doneT <= 0) {
+        const sp = P.botSpawn(game, b.i);
+        b.body.teleport(sp.x, sp.y + 0.01, sp.z); r.phase = 'walk'; b.emote = null; BT.resetNav(b, 0);
+        return BT.hold();
+      }
+      if (r.doneT > 3) { b.emote = 'dance'; b.mind.goal = 'dance'; return BT.hold(); }
+      b.emote = null;
+      return BT.roam(game, b, 318, 0, 5, 'celebrate');
+    },
+    botFinish(game, b) {
+      const r = b.race, st = game.state;
+      const t = Math.round(r.t * 100) / 100;
+      r.phase = 'done'; r.doneT = 6 + game.rng() * 3; r.last = t;
+      if (b.stat == null || t < b.stat) b.stat = t;
+      if (st.heat && r.heat === st.heat.n) st.heat.results.push({ name: b.name, t, at: game.time });
+      B.bots.say(game, b, 'finish', { t: t.toFixed(1) }, true);
+    },
+    onBotReach(game, b, j, part) {
+      const m = /^cp(\d)$/.exec(part.tag);
+      if (m && b.race.phase === 'run' && +m[1] > b.race.cp) { b.race.cp = +m[1]; b.race.cpIdx = j; if (game.rng() < 0.4) B.bots.say(game, b, 'cp', { n: +m[1] }); }
+    },
+    botChatVars: (game, b) => ({ t: b.stat != null ? b.stat.toFixed(1) : null, n: b.race ? b.race.cp : 0 }),
+    // Контрольная точка бота в заезде (или место у старта)
+    botRespawn(game, b) {
+      const r = b.race;
+      if (r && r.phase === 'run' && r.cp > 0) { const c = CPS[r.cp - 1]; return { x: c.x, y: c.y, z: (game.rng() - 0.5) * 4, idx: r.cpIdx }; }
+      if (r && r.phase === 'run') return { x: START_X - 3, y: 0, z: r.lane, idx: 0 };
+      const sp = P.botSpawn(game, b.i); sp.idx = 0; return sp;
+    },
+    botCheckpoint(game, b) { return P.botRespawn(game, b); },
+    botSpawn: (g, i) => ({ x: -16 + (i % 3) * 3, y: 0, z: -5 + i * 2.5 }),
     respawnPoint(game) {
       const st = game.state;
       if (!st.running || st.cp === 0) return game.spawn;
@@ -105,11 +186,19 @@
       const r = K.finishRun(game, t);
       if (r.medal === 'gold') B.acct.award('race_gold');
       const m = game.meta.medals;
+      const heat = st.heat && st.heat.player ? st.heat : null;
+      const rows = [[B.lang() === 'en' ? 'Time' : 'Время', B.fmtTime(t)], [B.t('your_best'), B.fmtTime(B.acct.placeStats('race').best)]];
+      if (heat) {
+        const ahead = heat.results.filter((x) => x.t < t).length;
+        rows.push([B.lang() === 'en' ? 'Place in heat' : 'Место в заезде', `${ahead + 1} / ${heat.entrants + 1}`]);
+        if (heat.results.length) { const w = heat.results.slice().sort((a, b2) => a.t - b2.t)[0]; if (w.t < t) rows.push([B.lang() === 'en' ? 'Fastest bot' : 'Быстрейший бот', `${w.name} · ${B.fmtTime(w.t)}`]); }
+        heat.player = false;
+      }
       game.showResult({
         title: r.medal ? (B.lang() === 'en' ? 'Finish!' : 'Финиш!') : (B.lang() === 'en' ? 'Finished, no medal' : 'Финиш без медали'),
         sub: `${B.ui.medalName('gold')} ≤ ${m.gold} с · ${B.ui.medalName('silver')} ≤ ${m.silver} с · ${B.ui.medalName('bronze')} ≤ ${m.bronze} с`,
         medal: r.medal, reward: r.reward, record: r.record,
-        rows: [[B.lang() === 'en' ? 'Time' : 'Время', B.fmtTime(t)], [B.t('your_best'), B.fmtTime(B.acct.placeStats('race').best)]],
+        rows,
       });
     },
     restart(game) {

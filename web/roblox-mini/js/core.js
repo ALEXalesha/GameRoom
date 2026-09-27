@@ -5,12 +5,14 @@
 window.Blox = window.Blox || {};
 (function (B) {
   const qs = new URLSearchParams(location.search);
+  function B_clampBots(n) { return Math.max(0, Math.min(6, Math.round(n))); }
   B.params = {
     seeded: qs.has('seed'),
     seed: qs.has('seed') ? (Number(qs.get('seed')) >>> 0) : ((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0),
     manual: qs.get('manual') === '1',     // шаги мира делают только проверки
     fast: qs.get('fast') === '1',         // короткий экран загрузки
     place: qs.get('place') || '',         // сразу войти в место
+    bots: qs.get('bots') !== null && qs.get('bots') !== '' && isFinite(+qs.get('bots')) ? B_clampBots(+qs.get('bots')) : null,   // число ботов во всех местах (замеры)
   };
   B.STEP = 1 / 60;                          // шаг физики, секунды
 
@@ -193,7 +195,7 @@ window.Blox = window.Blox || {};
 
     // Сбросить прогресс: всё, кроме настроек
     resetProgress() {
-      for (const k of B.store.keys()) if (k !== 'settings' && k !== 'gamesettings') B.store.remove(k);
+      for (const k of B.store.keys()) if (k !== 'settings' && k !== 'gamesettings' && !k.startsWith('place.')) B.store.remove(k);
       B.emit('reset');
     },
   };

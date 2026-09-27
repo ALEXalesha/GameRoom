@@ -85,13 +85,14 @@ test.describe('roblox-mini (Блоксити): места', () => {
       g.player.teleport(p.cx, p.maxY + 0.01, p.cz);
       const y0 = st.lavaY;
       __blox.until((gg) => gg.dead, 60 * 120);
-      return { phase, rose: st.lavaY > y0, died: g.dead, lavaAtDeath: st.lavaY, h: p.maxY, best: st.roundBest, after: st.phase };
+      return { phase, rose: st.lavaY > y0, died: g.dead, lavaAtDeath: st.lavaY, h: p.maxY, best: st.roundBest, done: st.playerDone, shown: !document.querySelector('#g-result').hidden };
     });
     expect(r.phase).toBe('rise');
     expect(r.rose).toBe(true);
     expect(r.died).toBe(true);
     expect(r.lavaAtDeath).toBeGreaterThanOrEqual(r.h - 0.2);   // убила именно лава, дошедшая до плиты
-    expect(r.after).toBe('over');
+    expect(r.done).toBe(true);                                 // для героя раунд окончен (боты доигрывают)
+    expect(r.shown).toBe(true);
     const s = await stats(page, 'lava');
     expect(s.best).toBeCloseTo(Math.round(r.h * 10) / 10, 5);
     await page.reload();

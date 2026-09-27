@@ -95,6 +95,9 @@
         } else if (k === 6) {                                   // крутилки
           const a = plat(sd, k, 10, 0, 2, 10, 8, C); seg.push(a);
           const b = plat(sd, k, 23, 0, 5, 10, 8, C); seg.push(b);
+          // боты бегут по внешнему краю: у оси крутилки рука идёт медленно, её не перепрыгнуть
+          const lane = sd.vec(0, 3.1);
+          a.data.lane = b.data.lane = lane; a.data.danger = b.data.danger = true;
           seg.push(plat(sd, k, 34, 0, 8, 6, 5, C));
           for (const [s, h, sp] of [[10, 2, 1.7], [23, 5, -2.1]]) {
             const [x, z] = sd.at(s, 0);
@@ -122,9 +125,12 @@
       game.spawn = { x: -30, y: 1, z: 30, facing: Math.PI / 2 };
     },
     setup(game) {
-      Object.assign(game.state, { cp: 0, t: 0, running: false, done: false, botNext: [] });
-      game.bots.forEach((b, i) => { b.stat = 1; game.state.botNext[i] = 10 + game.rng() * 20; });
+      Object.assign(game.state, { cp: 0, t: 0, running: false, done: false });
+      game.bots.forEach((b) => P.botFresh(game, b));
     },
+    // Бот начинает башню с лобби
+    botFresh(game, b) { b.cp = 0; b.cpIdx = 0; b.stat = 1; b.best = Math.max(b.best || 1, 1); b.finished = false; b.finishT = 0; b.emote = null; },
+    onBotAdded(game, b) { P.botFresh(game, b); },
     start(game) { game.centerMsg(B.lang() === 'en' ? 'Reach the top of the tower!' : 'Доберись до вершины башни!', 2500); },
     reach(game, n, part) {
       const st = game.state;
@@ -138,23 +144,56 @@
       const st = game.state, p = game.player.pos;
       if (!st.running && !st.done && Math.hypot(p.x + 30, p.z - 30) > 10) st.running = true;
       if (st.running) st.t += dt;
-      // боты поднимаются по этапам
-      game.bots.forEach((b, i) => {
-        st.botNext[i] -= dt;
-        if (st.botNext[i] <= 0 && b.stat < 8) {
-          st.botNext[i] = 18 + game.rng() * 30;
-          b.stat++;
-          const c = CORNERS[(b.stat - 1) % 4];
-          b.body.teleport(c[0] + (game.rng() - 0.5) * 3, H(b.stat - 1), c[1] + (game.rng() - 0.5) * 3);
+    },
+    // ---------- Боты: этап за этапом по плитам пути, контрольные точки, падения, финиш и значок ----------
+    botThink(game, b, dt) {
+      const BT = B.bots;
+      if (b.finished) {
+        b.finishT -= dt;
+        if (b.finishT <= 0) {                                 // снова с лобби, как живые игроки
+          const sp = P.botSpawn(game, b.i);
+          b.body.teleport(sp.x, sp.y + 0.01, sp.z); P.botFresh(game, b); BT.resetNav(b, 0);
+          return BT.hold();
         }
-      });
+        if (b.finishT > b.finishLen - 5) { b.emote = 'dance'; b.mind.goal = 'dance'; return BT.hold(); }
+        b.emote = null;
+        return BT.roam(game, b, 0, 0, 7, 'celebrate');
+      }
+      // упал ниже своей контрольной точки (на нижний этап башни) - как живой игрок, жмёт «сброс»
+      if (b.cp > 0 && b.mind.idx < b.cpIdx && b.body.onGround) {
+        b.fallT = (b.fallT || 0) + dt;
+        if (b.fallT > 1.2) { b.fallT = 0; BT.say(game, b, 'fell'); BT.reset(game, b, 'fell'); return BT.hold(); }
+      } else b.fallT = 0;
+      const inp = BT.follow(game, b, game.path);
+      BT.progressPath(b, game.path);
+      if (b.mind.goal === 'wait' && b.mind.seg && b.mind.seg.waitT > 2 && !b.mind.seg.said) { b.mind.seg.said = true; BT.say(game, b, 'wait'); }
+      return inp;
     },
+    onBotReach(game, b, j, part) {
+      const m = /^cp(\d)$/.exec(part.tag);
+      if (m) {
+        const n = +m[1];
+        if (n > b.cp) {
+          b.cp = n; b.cpIdx = j; b.stat = n + 1; b.best = Math.max(b.best || 1, b.stat);
+          B.bots.say(game, b, 'cp', { n: n + 1 });
+        }
+      } else if (part.tag === 'finish' && !b.finished) {
+        b.finished = true; b.stat = 9; b.best = 9; b.wins = (b.wins || 0) + 1;
+        b.finishLen = b.finishT = 22 + game.rng() * 14;
+        B.bots.say(game, b, 'finish', null, true);
+        const bd = B.data.badge('obby_first');
+        B.bots.system(game, B.lang() === 'en' ? `${b.name} earned the badge "${bd.en}"` : `${b.name} получает значок «${bd.name}»`);
+      }
+    },
+    botChatVars: (game, b) => ({ n: b.stat >= 9 ? 8 : b.stat }),
+    // Контрольная точка бота: плита его последнего этапа (или лобби)
+    botRespawn(game, b) {
+      if (!b.cp) { const sp = P.botSpawn(game, b.i); sp.idx = 0; return sp; }
+      const pad = game.state.pads[b.cp];
+      return { x: pad.cx + (game.rng() - 0.5) * 3, y: pad.maxY, z: pad.cz + (game.rng() - 0.5) * 3, idx: B.bots.pathIndex(game.path, pad) };
+    },
+    botCheckpoint(game, b) { return P.botRespawn(game, b); },
     botSpawn: (game, i) => ({ x: -34 + i * 2.5, y: 1, z: 26 + (i % 2) * 5 }),
-    botArea(game, b) {
-      if (b.stat <= 1) return { x: -30, z: 30, r: 8 };
-      const c = CORNERS[(b.stat - 1) % 4];
-      return { x: c[0], z: c[1], r: 2.2 };
-    },
     respawnPoint(game) {
       const k = game.state.cp;
       if (k === 0) return game.spawn;

@@ -111,6 +111,28 @@ test.describe('roblox-mini (Блоксити): лаунчер', () => {
     expect(await page.evaluate(() => __blox.game.time)).toBeGreaterThan(t);
   });
 
+  test('оболочка ОС: postMessage({mix:"pause"}) - пауза как при скрытой вкладке; "resume" паузу не снимает; meta с именем', async ({ page }) => {
+    await openBlox(page, 'seed=7&fast=1');
+    expect(await page.locator('meta[name="application-name"]').getAttribute('content')).toBe('Блоксити');
+    await page.evaluate(() => __blox.enter('obby'));
+    await expect(page.locator('#game')).toBeVisible();
+    await page.evaluate(() => { __blox.B.sound.resume(); __blox.game.keys.KeyW = true; });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.postMessage({ mix: 'pause' }, '*'));
+    await expect(page.locator('#g-menu-panel')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => __blox.B.sound.state())).toBe('suspended');
+    const t = await page.evaluate(() => __blox.game.time);
+    expect(await page.evaluate(() => __blox.game.keys.KeyW)).toBe(false);          // ввод сброшен
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => __blox.game.time)).toBe(t);                  // игровое время стоит
+    await page.evaluate(() => window.postMessage({ mix: 'resume' }, '*'));
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => ({ time: __blox.game.time, paused: __blox.game.paused }))).toEqual({ time: t, paused: true });
+    await page.locator('#m-resume').click();
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => __blox.game.time)).toBeGreaterThan(t);
+  });
+
   for (const size of SIZES) {
     test(`влезает в ${size.width}x${size.height}: лаунчер, страница места, место`, async ({ page }) => {
       await page.setViewportSize(size);

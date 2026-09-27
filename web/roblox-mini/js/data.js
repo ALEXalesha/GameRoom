@@ -125,6 +125,81 @@
     'классная карта', 'кто быстрее?', 'ой', 'погнали', 'у меня лагает камера)', 'смотрите какая шапка', 'ещё разок',
     'тут надо разбежаться', 'ура!', 'я на батуте', 'не толкайтесь', 'легко', 'сложно...',
   ];
+  // Реплики ботов по ситуации: место -> случай -> строки. {n}, {what}, {t} подставляются.
+  const L2 = (ru, en) => ({ ru, en });
+  const BOT_CHAT = {
+    common: {
+      idle: L2(['привет всем!', 'кто со мной?', 'классная карта', 'гг', 'ещё разок'], ['hi all!', 'who is with me?', 'nice map', 'gg', 'one more time']),
+      fell: L2(['ой', 'почти!', 'ну вот...', 'эх'], ['oops', 'so close!', 'ugh...', 'nooo']),
+      stuck: L2(['застрял, начну с точки', 'что-то я застрял', 'ресет'], ['stuck, going back to checkpoint', 'lol i got stuck', 'reset']),
+      finish: L2(['ура!', 'есть!', 'гг'], ['yay!', 'got it!', 'gg']),
+    },
+    obby: {
+      idle: L2(['кто на {n} этапе?', 'я на {n} этапе', 'этот этап сложный', 'не толкайтесь', 'тут надо разбежаться'], ['who is on stage {n}?', 'i am on stage {n}', 'this stage is hard', 'dont push', 'need a running start here']),
+      cp: L2(['этап {n}!', 'дошёл до {n}', 'уже {n} этап', 'фух, контрольная точка'], ['stage {n}!', 'made it to {n}', 'stage {n} already', 'phew, checkpoint']),
+      fell: L2(['почти!', 'ааа лава', 'ой, упал', 'опять с точки...', 'не допрыгнул'], ['so close!', 'aaa lava', 'oops, fell', 'back to checkpoint...', 'too short']),
+      wait: L2(['жду плиту', 'сейчас подъедет'], ['waiting for the tile', 'here it comes']),
+      finish: L2(['я на вершине!!', 'прошёл башню!', 'ура, кубок!'], ['i made it to the top!!', 'tower done!', 'yay, trophy!']),
+    },
+    race: {
+      idle: L2(['кто быстрее?', 'погнали ещё', 'мой рекорд {t}', 'узкие балки - жесть'], ['who is faster?', 'lets go again', 'my record is {t}', 'those beams are brutal']),
+      start: L2(['погнали!', 'на старт!', 'вперёд!'], ['go go go!', 'ready!', 'lets go!']),
+      fell: L2(['в воду...', 'ой, упал', 'почти!'], ['splash...', 'oops, fell', 'so close!']),
+      finish: L2(['финиш! {t}', '{t}, неплохо', 'обогнал?'], ['finish! {t}', '{t}, not bad', 'did i win?']),
+      cp: L2(['контрольная {n}', 'КТ {n}'], ['checkpoint {n}', 'cp {n}']),
+    },
+    lava: {
+      idle: L2(['лава скоро', 'наверх!', 'кто выше всех?', 'я на {n}'], ['lava soon', 'go up!', 'who is highest?', 'i am at {n}']),
+      hurry: L2(['лава близко!', 'ааа лава', 'быстрее!!'], ['lava is close!', 'aaa lava', 'faster!!']),
+      fell: L2(['сгорел...', 'лава догнала', 'эх, в лобби'], ['burned...', 'the lava got me', 'back to the lobby']),
+      finish: L2(['я на вершине!', 'спасся!'], ['i made it to the summit!', 'escaped!']),
+    },
+    coins: {
+      idle: L2(['у меня {n}', 'где ещё монеты?', 'кто больше собрал?'], ['i have {n}', 'where are more coins?', 'who has more?']),
+      coin: L2(['моя!', '+1', 'ещё одна'], ['mine!', '+1', 'another one']),
+      high: L2(['лезу за монетой на горку', 'наверху монета!'], ['climbing for that coin', 'coin up there!']),
+    },
+    tube: {
+      idle: L2(['кто катится?', 'моя очередь', 'рекорд {n} звёзд'], ['who is sliding?', 'my turn', 'record {n} stars']),
+      start: L2(['поехали вниз!', 'уиии', 'погнали!'], ['here we go!', 'wheee', 'lets go!']),
+      tree: L2(['ёлка!!', 'ай, ёлка', 'в ёлку...'], ['tree!!', 'ouch, tree', 'hit a tree...']),
+      finish: L2(['{n} звёзд!', 'доехал, {n}★', 'ещё разок!'], ['{n} stars!', 'made it, {n}★', 'again!']),
+    },
+    sandbox: {
+      idle: L2(['строю {what}', 'кто строит рядом?', 'красиво получается', 'смотрите мою постройку'], ['building a {what}', 'who is building nearby?', 'looks nice', 'check out my build']),
+      build: L2(['строю {what}', 'начинаю {what}', 'буду строить {what}'], ['building a {what}', 'starting a {what}', 'a {what} coming up']),
+      done: L2(['достроил {what}!', 'закончил {what}', 'смотрите, я построил {what}'], ['{what} done!', 'finished my {what}', 'look at my {what}']),
+      oops: L2(['ой, не туда', 'переставлю', 'криво, переделаю'], ['oops, wrong spot', 'moving it', 'crooked, redo']),
+      move: L2(['подвинься :)', 'ты стоишь на моей стройке'], ['move a bit :)', 'you are on my build']),
+    },
+  };
+  // Заготовки построек ботов в «Песочнице»: слои снизу вверх, ряды через «/» (ряд - вдоль X, ряды - вдоль Z).
+  // M - основной цвет бота, A - второй цвет; буквы - цвета палитры песочницы; «.» - пусто.
+  const BLUEPRINTS = [
+    { id: 'house', ru: 'домик', en: 'house', layers: ['MMMMM/M...M/M...M/M...M/MM.MM', 'MMMMM/M...M/M...M/M...M/MM.MM', 'MMMMM/M...M/W...W/M...M/MMMMM', 'AAAAA/AAAAA/AAAAA/AAAAA/AAAAA', '...../.AAA./.AAA./.AAA./.....'] },
+    { id: 'tower', ru: 'башню', en: 'tower', layers: ['MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'A.A/.../A.A'] },
+    { id: 'wall', ru: 'стену', en: 'wall', layers: ['MMMMMMM', 'MMMMMMM', 'MMMMMMM', 'A.A.A.A'] },
+    { id: 'bridge', ru: 'мост', en: 'bridge', layers: ['M.M/.../.../.../.../.../.../.../M.M', 'M.M/.../.../.../.../.../.../.../M.M', 'SSS/SSS/SSS/SSS/SSS/SSS/SSS/SSS/SSS', 'A.A/.../A.A/.../A.A/.../A.A/.../A.A'] },
+    { id: 'tree', ru: 'дерево', en: 'tree', layers: ['.../.B./...', '.../.B./...', '.../.B./...', 'GGG/GBG/GGG', 'GGG/GGG/GGG', '.../.G./...'] },
+    { id: 'fence', ru: 'забор', en: 'fence', layers: ['M.M.M.M.M', 'MMMMMMMMM'] },
+    { id: 'heart', ru: 'сердечко на полу', en: 'floor heart', layers: ['.RR.RR./RRRRRRR/RRRRRRR/.RRRRR./..RRR../...R...'] },
+    { id: 'smile', ru: 'смайлик на полу', en: 'floor smiley', layers: ['.YYYYY./YYKYKYY/YYYYYYY/YKYYYKY/YYKKKYY/.YYYYY.'] },
+  ];
+  const BP_COLORS = { W: 0, S: 1, K: 2, R: 3, O: 4, Y: 5, G: 6, C: 7, U: 8, P: 9, N: 10, B: 11 };
+  // Развернуть заготовку в клетки { di, dj, dk, c } по порядку постройки; main/accent - цвета бота
+  function blueprintCells(bp, main, accent) {
+    const out = [];
+    bp.layers.forEach((layer, j) => layer.split('/').forEach((row, k) => row.split('').forEach((ch, i) => {
+      if (ch === '.' || ch === ' ') return;
+      const c = ch === 'M' ? main : ch === 'A' ? accent : BP_COLORS[ch];
+      out.push({ di: i, dj: j, dk: k, c });
+    })));
+    return out;
+  }
+  function blueprintSize(bp) {
+    const rows = bp.layers[0].split('/');
+    return { w: Math.max(...bp.layers.map((l) => Math.max(...l.split('/').map((r) => r.length)))), d: Math.max(...bp.layers.map((l) => l.split('/').length)), h: bp.layers.length, rows: rows.length };
+  }
   const TIPS = [
     'Зажми правую кнопку мыши и веди - камера повернётся вокруг героя.',
     'Колесо мыши приближает камеру. Если приблизить до упора - вид от первого лица.',
@@ -147,7 +222,7 @@
   ];
 
   B.data = {
-    COLORS, SKIN, FACES, SHIRTS, PANTS, ACCESSORIES, ITEMS, PLACES, BADGES, BOT_NAMES, BOT_PHRASES, TIPS, TIPS_EN,
+    COLORS, SKIN, FACES, SHIRTS, PANTS, ACCESSORIES, ITEMS, PLACES, BADGES, BOT_NAMES, BOT_PHRASES, BOT_CHAT, BLUEPRINTS, blueprintCells, blueprintSize, TIPS, TIPS_EN,
     item: (id) => ITEMS[id] || null,
     place: (id) => PLACES.find((p) => p.id === id) || null,
     badge: (id) => BADGES.find((b) => b.id === id) || null,

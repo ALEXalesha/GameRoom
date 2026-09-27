@@ -7,7 +7,7 @@
 
   const P = B.places.coins = {
     bots: 3,
-    botSpeed: 12.5,
+    botSpeed: 11.5,
     statLabel: () => (B.lang() === 'en' ? 'Coins' : 'Монеты'),
     stat: (g, b) => (b ? b.stat : g.state.mine),
     sky: { top: '#3d8be6', horizon: '#dff1ff', sun: [0.5, 0.6, -0.3] },
@@ -57,6 +57,9 @@
       spots.push({ x: tower[4].cx, y: tower[4].maxY + 2.5, z: tower[4].cz, ground: false });
       st.spots = spots.slice(0, TOTAL);
       game.path = [w.parts[0]].concat(tower);
+      // маршруты для ботов: на горку по ступеням, на башенку по плитам
+      st.hillRoutes = st.hills.map((h) => [w.parts[0]].concat(h));
+      st.towerRoute = game.path;
       game.spawn = { x: 0, y: 0, z: -50, facing: 0 };
     },
     setup(game) {
@@ -76,7 +79,7 @@
     take(game, c, who) {
       const st = game.state;
       c.taken = true; c.mesh.visible = false;
-      if (who) who.stat++; else { st.mine++; B.sound.play('coin'); }
+      if (who) { who.stat++; if (game.rng() < 0.3) B.bots.say(game, who, 'coin'); } else { st.mine++; B.sound.play('coin'); }
       if (P.left(st) === 0) P.endRound(game);
     },
     step(game, dt) {
@@ -98,26 +101,57 @@
       const t = game.time;
       for (const c of game.state.coins) if (!c.taken) { c.mesh.rotation.z = t * 3 + c.i; c.mesh.position.y = c.y + Math.sin(t * 2.5 + c.i) * 0.25; }
     },
-    // Боты бегут к ближайшей монете на земле
-    botThink(game, b, dt) {
-      const st = game.state, p = b.body.pos;
-      if (st.phase !== 'play') return game.wander(b, dt);
-      if (!b.goal || b.goal.taken) {
-        let best = null, bd = Infinity;
-        for (const c of st.coins) {
-          if (c.taken || !c.ground) continue;
-          const d = Math.hypot(c.x - p.x, c.z - p.z) + game.rng() * 6;
-          if (d < bd) { bd = d; best = c; }
+    // ---------- Боты: выбирают монету (на земле - бегом, на горке и башенке - по ступеням), кто первый ----------
+    // маршрут до монеты: null - по земле, иначе { route, stop } (цепочка плит и индекс плиты с монетой)
+    routeTo(game, c) {
+      const st = game.state;
+      if (c.ground) return null;
+      for (const r of st.hillRoutes.concat([st.towerRoute])) {
+        for (let k = 1; k < r.length; k++) {
+          const p = r[k];
+          if (Math.abs(c.y - 2.5 - p.maxY) < 0.3 && c.x > p.minX - 0.5 && c.x < p.maxX + 0.5 && c.z > p.minZ - 0.5 && c.z < p.maxZ + 0.5) return { route: r, stop: k };
         }
-        b.goal = best;
       }
-      if (!b.goal) return game.wander(b, dt);
-      const dx = b.goal.x - p.x, dz = b.goal.z - p.z, d = Math.hypot(dx, dz) || 1;
-      const stuck = b.body.onGround && Math.hypot(b.body.vel.x, b.body.vel.z) < 3 && d > 3;
-      return { mx: dx / d, mz: dz / d, jump: stuck };
+      return null;
     },
-    botArea: () => ({ x: 0, z: -44, r: 8 }),
-    botSpawn: (g, i) => ({ x: -6 + i * 6, y: 0, z: -46 }),
+    pickCoin(game, b) {
+      const st = game.state, p = b.body.pos;
+      const climb = { pro: 12, rusher: 10, careful: 26, novice: 60 }[b.style] || 20;
+      let best = null, bd = Infinity;
+      for (const c of st.coins) {
+        if (c.taken || (b.skip && b.skip[c.i] > game.time)) continue;
+        const r = P.routeTo(game, c);
+        if (!c.ground && !r) continue;
+        const d = Math.hypot(c.x - p.x, c.z - p.z) + (c.ground ? 0 : climb + (r.route === st.towerRoute ? 12 : 0)) + game.rng() * 8;
+        if (d < bd) { bd = d; best = c; }
+      }
+      b.goal = best; b.gRoute = best ? P.routeTo(game, best) : null;
+      if (b.gRoute) { B.bots.resetNav(b, 0); if (game.rng() < 0.5) B.bots.say(game, b, 'high'); }
+    },
+    botPath: (game, b) => (b.gRoute ? b.gRoute.route : null),
+    botThink(game, b, dt) {
+      const BT = B.bots, st = game.state, pl = b.body;
+      if (st.phase !== 'play') { b.goal = null; return BT.roam(game, b, pl.pos.x, pl.pos.z, 5, 'round'); }
+      if (!b.goal || b.goal.taken) {
+        // монету забрали - оглядеться, куда дальше (как живой игрок)
+        if (b.thinkT == null) b.thinkT = B.lerp(b.st.pause[0], b.st.pause[1], game.rng()) + 0.3;
+        b.thinkT -= dt;
+        if (b.thinkT > 0) { b.mind.goal = 'look'; return BT.hold(); }
+        b.thinkT = null;
+        P.pickCoin(game, b);
+      }
+      const c = b.goal;
+      if (!c) return BT.roam(game, b, 0, -30, 20);
+      BT.progress(b, -Math.hypot(c.x - pl.pos.x, c.y - 2.5 - pl.pos.y, c.z - pl.pos.z));
+      const R = b.gRoute;
+      if (R && b.mind.idx < R.stop) { const inp = BT.follow(game, b, R.route, R.stop); b.mind.goal = 'coin'; return inp; }
+      b.mind.goal = 'coin';
+      return BT.walkTo(game, b, c.x, c.z, { near: 0.3 }) || BT.hold();
+    },
+    onBotReset(game, b) { if (b.goal) { b.skip = b.skip || {}; b.skip[b.goal.i] = game.time + 20; } b.goal = null; b.gRoute = null; },
+    botCheckpoint(game, b) { const sp = P.botSpawn(game, b.i); sp.idx = 0; return sp; },
+    botChatVars: (game, b) => ({ n: b.stat }),
+    botSpawn: (g, i) => ({ x: -6 + (i % 4) * 6, y: 0, z: -46 - Math.floor(i / 4) * 4 }),
     endRound(game) {
       const st = game.state;
       if (st.phase === 'over') return;
@@ -140,7 +174,7 @@
       st.phase = 'play';
       game.hideResult();
       P.spawnCoins(game);
-      game.bots.forEach((b, i) => b.body.teleport(-6 + i * 6, 0, -46));
+      game.bots.forEach((b, i) => { b.body.teleport(-6 + (i % 4) * 6, 0.01, -46 - Math.floor(i / 4) * 4); b.goal = null; b.gRoute = null; B.bots.resetNav(b, 0); });
       if (!game.dead) game.player.teleport(game.spawn.x, game.spawn.y, game.spawn.z, game.spawn.facing);
       game.centerMsg(B.lang() === 'en' ? 'New round!' : 'Новый раунд!', 1500);
     },
