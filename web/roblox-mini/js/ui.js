@@ -86,6 +86,9 @@
     if (!box) return;
     const t = U.el('div', { class: 'toast ' + (kind || '') }, html);
     box.appendChild(t);
+    // не больше четырёх сразу: старые уходят, стопка не закрывает экран
+    const live = Array.from(box.children).filter((x) => !x.classList.contains('out'));
+    for (const old of live.slice(0, Math.max(0, live.length - 4))) { old.classList.add('out'); setTimeout(() => old.remove(), 400); }
     setTimeout(() => t.classList.add('out'), 3200);
     setTimeout(() => t.remove(), 3700);
   };

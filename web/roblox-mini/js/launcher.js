@@ -244,8 +244,16 @@
       ${recent.length ? `<h2 class="row-h">${B.t('continue_row')}</h2><div class="row">${recent.map(card).join('')}</div>` : ''}
       <h2 class="row-h">${B.t('recommended')}</h2><div class="row">${B.data.PLACES.map(card).join('')}</div>`;
     bindCards($('sec-home'));
+    rowFades();
     $('sec-home').querySelectorAll('[data-fi]').forEach((b) => b.addEventListener('click', () => { const f = friends()[b.dataset.fi]; if (f.place) L.openPlace(f.place.id); }));
   }
+  // Ряд карточек шире окна - правый край гаснет, пока есть что прокрутить
+  function rowFades() {
+    document.querySelectorAll('#launcher .row').forEach((r) => { if (r.clientWidth) r.classList.toggle('more', r.scrollLeft + r.clientWidth < r.scrollWidth - 4); });
+  }
+  addEventListener('resize', rowFades);
+  B.on('screen', () => setTimeout(rowFades, 0));
+  document.addEventListener('scroll', (e) => { if (e.target.classList && e.target.classList.contains('row')) rowFades(); }, true);
   function drawPlaces() {
     const q = ($('search').value || '').trim().toLowerCase();
     const list = B.data.PLACES.filter((p) => !q || (p.name + ' ' + p.en + ' ' + p.genre + ' ' + p.genreEn).toLowerCase().includes(q));
