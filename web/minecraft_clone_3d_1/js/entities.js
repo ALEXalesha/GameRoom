@@ -33,6 +33,7 @@
     items.push(it);
     return it;
   }
+  // материал спрайта общий на id - его не освобождаем, геометрия общая (G.itemMesh)
   function itemMesh(it) {
     const m = G.itemMesh(it.stack.id, 0.25);
     const g = new THREE.Group(); g.add(m);
@@ -196,7 +197,7 @@
     for (const x of [-0.375, 0.375]) { const a = limb(0.25, 0.75, 0.25, skin === T.bone ? T.bone : skin, x, 1.45, 0); body.add(a); arms.push(a); }
     return { body, head, legs, arms, torso };
   }
-  function buildModel(type, color) {
+  function buildModel(type, color, parent) {
     const T = textures();
     const root = new THREE.Group();
     let body = new THREE.Group();
@@ -247,7 +248,7 @@
     }
     const fire = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.9, 1.0), new THREE.MeshBasicMaterial({ map: T.fire, transparent: true, depthWrite: false, side: THREE.DoubleSide, alphaTest: 0.1 }));
     fire.position.y = 0.95; fire.visible = false; root.add(fire);
-    scene().add(root);
+    (parent || scene()).add(root);
     root.traverse((o) => { if (o.material) o.userData.mats = Array.isArray(o.material) ? o.material : [o.material]; });
     return Object.assign({ root, body, legs, arms, head, fire }, extra);
   }
@@ -262,7 +263,14 @@
     mobs.push(m);
     return m;
   }
-  function removeMob(i) { const m = mobs[i]; if (m.model) group.remove(m.model.root); mobs.splice(i, 1); }
+  // Модель моба уходит вместе с его геометрией и материалами (текстуры общие - остаются)
+  function disposeModel(root) {
+    root.traverse((o) => {
+      if (o.geometry && !o.userData.sharedGeo) o.geometry.dispose();
+      if (o.material && !o.userData.sharedMat) for (const mt of (Array.isArray(o.material) ? o.material : [o.material])) mt.dispose();
+    });
+  }
+  function removeMob(i) { const m = mobs[i]; if (m.model) { group.remove(m.model.root); disposeModel(m.model.root); } mobs.splice(i, 1); }
   // Урон мобу: после удара полсекунды неуязвимости (как в оригинале), отброс, вспышка, звук
   function hurtMob(m, n, fromX, fromZ, cause) {
     if (m.deadT > 0 || m.hp <= 0) return false;
@@ -283,8 +291,11 @@
           if (n2 > 0) spawnItem({ id, count: n2 }, m.x, m.y + 0.5, m.z, (rnd() - 0.5) * 2, 3, (rnd() - 0.5) * 2, 0.5);
         }
       }
-      G.emit('kill', { mob: m.type, cause });
-      if (G.meta && G.meta.stats) G.meta.stats.kills++;
+      // в счёт игрока (достижения, статистика) - только его удары и стрелы
+      if (cause === 'player' || cause === 'arrow' || cause === 'creative') {
+        G.emit('kill', { mob: m.type, cause });
+        if (G.meta && G.meta.stats) G.meta.stats.kills++;
+      }
     }
     return true;
   }
@@ -482,7 +493,7 @@
     if (it.egg) return false;
     return false;
   }
-  function rebuild(m) { if (m.model) { group.remove(m.model.root); m.model = null; } }
+  function rebuild(m) { if (m.model) { group.remove(m.model.root); disposeModel(m.model.root); m.model = null; } }
 
   function update(dt) {
     G.frameNo = (G.frameNo || 0) + 1;
@@ -547,16 +558,41 @@
     [['legL', 0.29, 0.5, 0.29, 0, -0.25], ['legR', 0.29, 0.5, 0.29, 0, -0.25]],
     [['legL', 0.3, 0.26, 0.3, 0, -0.62], ['legR', 0.3, 0.26, 0.3, 0, -0.62]],
   ];
+  // Одеть модель игрока: броня коробками поверх частей тела (цвет материала), предмет в правой руке
+  function newPlayerModel(parent) {
+    const md = buildModel('player', null, parent);
+    md.parts = { head: md.head, torso: md.torso, armL: md.arms[0], armR: md.arms[1], legL: md.legs[0], legR: md.legs[1] };
+    md.armor = [[], [], [], []]; md.armorKey = ['', '', '', '']; md.handItem = null; md.handId = -1; md.phase = 0;
+    return md;
+  }
+  function dressModel(md, armor, hid) {
+    const T = textures();
+    for (let s = 0; s < 4; s++) {
+      const it = armor[s], ar = it && D.armorOf(it.id);
+      const k = ar ? ar.mat : '';
+      if (k === md.armorKey[s]) continue;
+      md.armorKey[s] = k;
+      for (const m of md.armor[s]) { m.parent.remove(m); disposeModel(m); }
+      md.armor[s] = [];
+      if (!ar) continue;
+      for (const [part, w, h, d, ox, oy] of ARMOR_BOX[s]) {
+        const mesh = box(w, h, d, T['armor_' + ar.mat]);
+        if (part === 'head') mesh.material[4] = new THREE.MeshBasicMaterial({ visible: false });     // шлем открыт спереди - лицо видно
+        mesh.position.set(ox, oy, 0);
+        md.parts[part].add(mesh);
+        md.armor[s].push(mesh);
+      }
+    }
+    if (hid !== md.handId) {
+      md.handId = hid;
+      if (md.handItem) { md.handItem.parent.remove(md.handItem); disposeModel(md.handItem); md.handItem = null; }
+      if (hid) { const m = G.itemMesh(hid, 0.35); m.position.set(0, -0.72, 0.18); m.rotation.set(0, Math.PI / 2, 0); md.arms[1].add(m); md.handItem = m; }
+    }
+  }
   function playerModel(visible, dt) {
     const p = G.player;
     if (!visible) { if (pm) pm.root.visible = false; return; }
-    if (!pm) {
-      pm = buildModel('player');
-      pm.parts = { head: pm.head, torso: pm.torso, armL: pm.arms[0], armR: pm.arms[1], legL: pm.legs[0], legR: pm.legs[1] };
-      pm.armor = [[], [], [], []];
-      pm.armorKey = ['', '', '', ''];
-      pm.handItem = null; pm.handId = -1; pm.phase = 0;
-    }
+    if (!pm) pm = newPlayerModel();
     pm.root.visible = true;
     pm.root.position.set(p.pos.x, p.pos.y, p.pos.z);
     pm.root.rotation.y = p.yaw + Math.PI;
@@ -568,32 +604,33 @@
     pm.arms[0].rotation.x = -sw * 0.8;
     pm.arms[1].rotation.x = sw * 0.8 - Math.sin((G.swing || 0) * Math.PI) * 1.2 - (G.bowT > 0 ? 1.4 : 0);
     pm.body.position.y = p.sneaking ? -0.15 : 0;
-    // броня: коробки поверх частей тела, цвет материала
-    const T = textures();
-    for (let s = 0; s < 4; s++) {
-      const it = G.inv.armor[s], ar = it && D.armorOf(it.id);
-      const k = ar ? ar.mat : '';
-      if (k === pm.armorKey[s]) continue;
-      pm.armorKey[s] = k;
-      for (const m of pm.armor[s]) m.parent.remove(m);
-      pm.armor[s] = [];
-      if (!ar) continue;
-      for (const [part, w, h, d, ox, oy] of ARMOR_BOX[s]) {
-        const host = pm.parts[part];
-        const mesh = box(w, h, d, T['armor_' + ar.mat]);
-        if (part === 'head') mesh.material[4] = new THREE.MeshBasicMaterial({ visible: false });     // шлем открыт спереди - лицо видно
-        mesh.position.set(ox, oy, 0);
-        host.add(mesh);
-        pm.armor[s].push(mesh);
-      }
+    const held = G.inv.held();
+    dressModel(pm, G.inv.armor, held ? held.id : 0);
+  }
+  // Фигурка игрока в окне инвентаря (своя маленькая сцена), поворачивается за мышью, как в оригинале
+  let pv = null;
+  function previewCanvas() {
+    if (!pv) {
+      const c = document.createElement('canvas'); c.width = 104; c.height = 150; c.className = 'preview';
+      let r = null;
+      try { r = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: false }); r.setPixelRatio(1); } catch (e) { r = null; }
+      const sc = new THREE.Scene();
+      sc.add(new THREE.AmbientLight(0xffffff, 0.8));
+      const dl = new THREE.DirectionalLight(0xffffff, 0.45); dl.position.set(1, 2, 3); sc.add(dl);
+      const cam = new THREE.PerspectiveCamera(30, 104 / 150, 0.1, 20);
+      cam.position.set(0, 1.0, 4.2); cam.lookAt(0, 0.95, 0);
+      pv = { c, r, sc, cam, md: newPlayerModel(sc), mx: 0, my: 0 };
+      c.addEventListener('mousemove', (e) => { const b = c.getBoundingClientRect(); pv.mx = (e.clientX - b.left) / b.width - 0.5; pv.my = (e.clientY - b.top) / b.height - 0.3; });
     }
-    // предмет в правой руке
-    const held = G.inv.held(), hid = held ? held.id : 0;
-    if (hid !== pm.handId) {
-      pm.handId = hid;
-      if (pm.handItem) { pm.handItem.parent.remove(pm.handItem); pm.handItem = null; }
-      if (hid) { const m = G.itemMesh(hid, 0.35); m.position.set(0, -0.72, 0.18); m.rotation.set(0, Math.PI / 2, 0); pm.arms[1].add(m); pm.handItem = m; }
-    }
+    return pv.c;
+  }
+  function renderPreview() {
+    if (!pv || !pv.r) return;
+    const held = G.inv.held();
+    dressModel(pv.md, G.inv.armor, held ? held.id : 0);
+    pv.md.root.rotation.y = pv.mx * 1.2;
+    pv.md.head.rotation.set(pv.my * 0.8, pv.mx * 0.6, 0);
+    pv.r.render(pv.sc, pv.cam);
   }
 
   function render() {
@@ -662,5 +699,5 @@
     };
   }
 
-  VX.entities = { spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

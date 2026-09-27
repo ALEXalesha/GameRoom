@@ -58,6 +58,7 @@
   G.icon = function (id) {
     let url = iconCache.get(id);
     if (url) return url;
+    if (!(id < 256 ? C.BLOCKS[id] : D.info(id))) id = B.stone;
     let c;
     if (id < 256) {
       const b = C.BLOCKS[id];
@@ -129,10 +130,18 @@
   G.spriteMaterial = spriteMaterial;
   G.cubeMat = cubeMat;
   // Меш предмета: кубик для блоков, плоская картинка для остального
+  // Геометрия предмета одна на id и размер: выпавшие предметы и рука её только переиспользуют
+  // (раньше каждый выпавший предмет создавал свою, и память видеокарты росла)
+  const itemGeo = new Map();
   G.itemMesh = function (id, size) {
     const b = id < 256 ? C.BLOCKS[id] : null;
-    if (b && (b.render === 'cube' || b.render === 'leaves' || b.render === 'glass' || b.render === 'ice')) return new THREE.Mesh(cubeGeometry(id, size), cubeMat);
-    return new THREE.Mesh(new THREE.PlaneGeometry(size * 1.6, size * 1.6), spriteMaterial(id));
+    const cube = b && (b.render === 'cube' || b.render === 'leaves' || b.render === 'glass' || b.render === 'ice' || b.render === 'box');
+    const k = id + '|' + size;
+    let g = itemGeo.get(k);
+    if (!g) { g = cube ? cubeGeometry(id, size) : new THREE.PlaneGeometry(size * 1.6, size * 1.6); itemGeo.set(k, g); }
+    const m = new THREE.Mesh(g, cube ? cubeMat : spriteMaterial(id));
+    m.userData.sharedGeo = true; m.userData.sharedMat = true;
+    return m;
   };
   let handId = -1;
   function setHand(id) {
@@ -191,6 +200,7 @@
   };
   const CREATIVE_START = [B.grass, B.dirt, B.stone, B.cobblestone, B.oak_planks, B.oak_log, B.glass, B.bricks, B.torch];
   async function startWorld(meta, persist) {
+    sanitizeMeta(meta);
     G.meta = meta;
     G.mode = meta.mode;
     G.ticks = meta.ticks || 0;
@@ -199,6 +209,12 @@
     applySettings();
     sky.cloudMap = sky.makeCloudMap(meta.seedNum);
     sky.setClouds(G.settings.clouds);
+    // быстрый снимок новее записи в базе - берём его (окно закрыли, пока база писала)
+    try {
+      const q = JSON.parse(localStorage.getItem('cw2_quick_' + meta.id) || 'null');
+      if (q && persist && q.t > (meta.lastPlayed || 0) + 500) { meta.player = q.player; meta.inv = q.inv; meta.ticks = q.ticks; }
+    } catch (e) { /* битый снимок - игнорируем */ }
+    if (meta.inv) sanitizeInv(meta.inv);
     if (meta.player) player.load(meta.player);
     else { player.reset(); player.pos.set(meta.spawn.x, meta.spawn.y, meta.spawn.z); player.yaw = 0; player.pitch = 0; }
     if (meta.inv) inv.load(meta.inv);
@@ -216,6 +232,18 @@
     if (persist && VX.ui) VX.ui.show('loading');
   }
   G.startWorld = startWorld;
+  // Неизвестные id (мир из другой версии, битая запись) не должны ронять интерфейс: такие вещи убираются
+  const known = (s) => s && typeof s.id === 'number' && !!D.info(s.id) && s.count > 0;
+  function sanitizeInv(o) {
+    if (o.slots) o.slots = o.slots.map((s) => (known(s) ? s : null));
+    if (o.armor) o.armor = o.armor.map((s) => (known(s) && D.armorOf(s.id) ? s : null));
+  }
+  function sanitizeMeta(meta) {
+    for (const k in meta.chests || {}) meta.chests[k] = (meta.chests[k] || []).map((s) => (known(s) ? s : null));
+    for (const k in meta.furnaces || {}) { const f = meta.furnaces[k]; f.slots = (f.slots || [null, null, null]).map((s) => (known(s) ? s : null)); }
+    if (meta.entities) meta.entities.items = (meta.entities.items || []).filter((it) => known(it.s));
+  }
+  G.sanitizeMeta = sanitizeMeta;
   G.saveWorld = async function () {
     if (!G.meta || G.panorama) return;
     world.saveDirty();
@@ -225,10 +253,29 @@
     G.meta.lastPlayed = Date.now();
     if (VX.entities) VX.entities.save(G.meta);
     if (VX.fluids) VX.fluids.save(G.meta);
-    await VX.store.putWorld(G.meta);
+    G.saveQuick();
+    try { await VX.store.putWorld(G.meta); G.saveFailed = false; } catch (e) { saveFailed(e); }
+  };
+  // Запись не удалась (нет места, хранилище закрыто): игра продолжается, игрок видит сообщение
+  function saveFailed() {
+    if (!G.saveFailed && VX.ui && VX.ui.toast) VX.ui.toast({ name: 'Мало места в хранилище браузера', icon: B.chest, error: true });
+    G.saveFailed = true;
+    G.say('Не удалось сохранить: мало места');
+  }
+  VX.onStorageFull = saveFailed;
+  VX.onStorageError = saveFailed;
+  // Быстрый снимок положения и инвентаря в localStorage (синхронно): переживает закрытие окна,
+  // когда запись в IndexedDB не успевает (Electron закрывается без вопроса)
+  G.saveQuick = function () {
+    if (!G.meta || G.panorama) return;
+    try { localStorage.setItem('cw2_quick_' + G.meta.id, JSON.stringify({ t: Date.now(), player: player.toJSON(), inv: inv.toJSON(), ticks: Math.round(G.ticks) })); } catch (e) { /* нет места - не страшно */ }
   };
   G.exitToTitle = async function () {
-    if (G.meta && !G.panorama) { closeContainer(); await G.saveWorld(); await VX.store.flush(); }
+    if (G.meta && !G.panorama) {
+      closeContainer();
+      await G.saveWorld();
+      try { await VX.store.flush(); } catch (e) { saveFailed(e); }
+    }
     unlock();
     await openPanorama();
     if (VX.ui) VX.ui.show('title');
@@ -266,8 +313,15 @@
   // ---------- Состояния ----------
   G.play = function () {
     if (!G.meta || G.panorama) return;
+    // сохранились мёртвым (перезагрузка на экране смерти) - снова экран смерти, а не герой с нулём здоровья
+    if (player.health <= 0 || player.dead) {
+      player.dead = true; G.state = 'dead'; releaseKeys(); unlock();
+      if (VX.ui) VX.ui.show('death');
+      return;
+    }
     G.state = 'play';
     releaseKeys();
+    if (G.victoryPending && G.showVictory && G.showVictory()) return;
     if (VX.ui) VX.ui.show('hud');
     lock();
     G.needClick = document.pointerLockElement !== canvas;
@@ -897,11 +951,12 @@
   }
   G.onDeath = function () {
     G.meta.stats && G.meta.stats.deaths++;
+    // окно (верстак, печь) закрываем первым: вещи из сетки и с курсора тоже выпадают
+    if (G.container) closeContainer();
     // как в оригинале: вещи выпадают на месте гибели
     for (let i = 0; i < 36; i++) { const s = inv.slots[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.slots[i] = null; } }
     for (let i = 0; i < 4; i++) { const s = inv.armor[i]; if (s) { G.dropItem(s, false, player.pos.x, player.pos.y + 1, player.pos.z); inv.armor[i] = null; } }
     G.sleeping = null;
-    if (G.container) closeContainer();
     G.state = 'dead';
     releaseKeys();
     unlock();
