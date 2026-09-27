@@ -20,7 +20,7 @@
   BT.STUCK_T = 14;          // столько секунд без продвижения к цели - сброс на контрольную точку
   // цели «иду к чему-то» (должно быть продвижение) и цели, при которых стоять можно
   BT.TOWARD = ['path', 'walk', 'coin', 'seat', 'up', 'site', 'line-walk'];
-  BT.LEGIT_STILL = ['wait', 'look', 'build', 'dance', 'round', 'ride', 'line', 'queue', 'out'];
+  BT.LEGIT_STILL = ['wait', 'look', 'build', 'dance', 'round', 'ride', 'line', 'queue', 'out', 'watch', 'paint'];
 
   BT.init = function (game, b, i) {
     if (!game.botStyles) {
@@ -32,7 +32,8 @@
     b.style = game.botStyles[i % game.botStyles.length];
     b.st = BT.STYLES[b.style];
     const P = game.place;
-    b.body.walk = (P.botSpeed || PH.WALK) * b.st.speed;
+    b.baseWalk = P.botSpeed || PH.WALK;
+    b.body.walk = b.baseWalk * b.st.speed;
     b.mind = {
       idx: 0, seg: null, goal: '', stillT: 0, idleT: 0, progT: 0, progBest: -Infinity, anchor: { x: b.body.pos.x, z: b.body.pos.z },
       chatT: 6 + game.rng() * 14, chatCd: 0, blocked: 0, air: 0, maxIdle: 0, maxStuck: 0,
@@ -168,14 +169,16 @@
   }
 
   // Пройдёт ли рука крутилки у точки за время полёта (0.3..0.8 с)
-  function armNear(game, x, z, top) {
+  // tFly - настоящее время полёта до посадки; care - запас (после двух падений на этом прыжке - больше)
+  function armNear(game, x, z, top, tFly, care) {
     for (const c of game.world.query(x - 6, z - 6, x + 6, z + 6)) {
       if (!c.spin || !c.kill) continue;
       const a0 = c.angle;
       let hit = false;
-      for (let tau = 0.3; tau <= 0.85 && !hit; tau += 0.08) {
+      const pad = care ? 1.3 : 0.5;
+      for (let tau = Math.max(0.05, tFly - 0.3 - care * 0.2); tau <= tFly + 0.45 + care * 0.35 && !hit; tau += 0.05) {
         c.angle = a0 + c.spin * tau;
-        hit = E.spinTouch(c, x - PH.HX - 0.5, top, z - PH.HX - 0.5, x + PH.HX + 0.5, top + PH.HEIGHT, z + PH.HX + 0.5);
+        hit = E.spinTouch(c, x - PH.HX - pad, top, z - PH.HX - pad, x + PH.HX + pad, top + PH.HEIGHT, z + PH.HX + pad);
       }
       c.angle = a0;
       if (hit) return true;
@@ -187,7 +190,11 @@
   function newSeg(game, b, from, to) {
     const r = game.rng, st = b.st, m = b.mind;
     let err = null;
-    if (r() < st.err * (m.hurry ? 1.4 : 1)) { const q = r(); err = q < 0.35 ? 'early' : q < 0.55 ? 'late' : q < 0.8 ? 'drift' : 'weak'; }
+    // ошибка реже, если уже падал на этом месте (учится); на узкой балке - осторожнее
+    const learn = Math.pow(0.7, b.practice[from] || 0);
+    // набил руку - и разбегается смелее (новичок после нескольких падений бежит почти как все)
+    if (b.baseWalk) b.body.walk = b.baseWalk * Math.min(1, st.speed + 0.04 * (b.practice[from] || 0));
+    if (r() < st.err * learn * (m.hurry ? 1.4 : 1)) { const q = r(); err = q < 0.35 ? 'early' : q < 0.55 ? 'late' : q < 0.8 ? 'drift' : 'weak'; }
     const pause = m.hurry ? 0 : B.lerp(st.pause[0], st.pause[1], r());
     const off = { x: (r() - 0.5) * 1.2, z: (r() - 0.5) * 1.2 };
     m.seg = { from, to, err, pause, off, drift: err === 'drift' ? { x: (r() < 0.5 ? -1 : 1) * (1.4 + r() * 1.4), z: (r() < 0.5 ? -1 : 1) * (1.4 + r() * 1.4) } : null, waitT: 0, blocked: 0 };
@@ -249,7 +256,14 @@
       let wait = false;
       if (Bp.fade && Bp.fade.state !== 'solid') wait = true;
       // на плиту с крутилкой прыгать, когда рука будет далеко от места посадки
-      if (Bp.data.danger && armNear(game, Bp.cx + seg.land.x, Bp.cz + seg.land.z, Bp.maxY)) wait = true;
+      if (Bp.data.danger) {
+        const lx = Bp.cx + seg.land.x, lz = Bp.cz + seg.land.z;
+        const dy = Bp.maxY - A.maxY, disc = PH.JUMP * PH.JUMP - 2 * PH.GRAV * dy;
+        const tUp = disc > 0 ? (PH.JUMP + Math.sqrt(disc)) / PH.GRAV : 0.5;
+        const run = Math.max(0, Math.hypot(lx - pl.pos.x, lz - pl.pos.z) - pl.walk * tUp) / pl.walk;   // добежать до края
+        const fails = b.practice[m.idx] || 0;
+        if (armNear(game, lx, lz, Bp.maxY, run + tUp, fails >= 2 ? 1 : 0)) wait = true;
+      }
       if (Bp.move || A.move) {
         const tAir = 0.42;
         const nb = Bp.move ? Bp.move(game.world.time + tAir, Bp) : { x: Bp.cx, z: Bp.cz };
@@ -262,8 +276,10 @@
         // стоять у края, лицом к плите
         const edge = { x: B.clamp(aim.x, A.minX + 1.2, A.maxX - 1.2), z: B.clamp(aim.z, A.minZ + 1.2, A.maxZ - 1.2) };
         const ex = edge.x - pl.pos.x, ez = edge.z - pl.pos.z, ed = Math.hypot(ex, ez);
-        if (ed > 0.6) return { mx: ex / ed * 0.6, mz: ez / ed * 0.6, jump: false };
-        return { mx: 0, mz: 0, jump: false, face: Math.atan2(Bp.cx - pl.pos.x, Bp.cz - pl.pos.z) };
+        // ждёт на плите с крутилкой - перепрыгивает руку на месте
+        const hop = !!hazardAhead(game, b, ex / (ed || 1), ez / (ed || 1));
+        if (ed > 0.6) return { mx: ex / ed * 0.6, mz: ez / ed * 0.6, jump: hop };
+        return { mx: 0, mz: 0, jump: hop, face: Math.atan2(Bp.cx - pl.pos.x, Bp.cz - pl.pos.z) };
       }
     }
     m.goal = 'path';
@@ -293,7 +309,10 @@
       if (d < 0.5 && Bp.maxY <= pl.pos.y) { dx = Bp.cx - pl.pos.x; dz = Bp.cz - pl.pos.z; const dd = Math.hypot(dx, dz) || 1; dx /= dd; dz /= dd; }
     }
     if (jump) m.jumpFrom = seg.from;
-    const move = d > 0.3 ? 1 : 0;
+    // узкая балка: неопытные идут медленнее (и тем медленнее, чем чаще отсюда падали)
+    const narrow = Math.min(A.sx, A.sz) < 2.5 && pl.ground === A;
+    const slow = narrow && b.style !== 'pro' && b.style !== 'rusher' ? Math.max(0.55, 0.8 - 0.05 * (b.practice[m.idx] || 0)) : 1;
+    const move = (d > 0.3 ? 1 : 0) * slow;
     return { mx: dx * move, mz: dz * move, jump };
   };
 
@@ -317,6 +336,13 @@
       if (m.blocked > 50) { const s = (b.i % 2 ? 1 : -1); const t = dx; dx = -dz * s; dz = t * s; }
       if (m.blocked > 110) m.blocked = 0;
     }
+    // не шагать с обрыва (крыша башни, край площадки): впереди нет опоры в пределах 4 - стоп
+    if (opt.safe && pl.onGround) {
+      const ax = pl.pos.x + dx * 1.3, az = pl.pos.z + dz * 1.3;
+      const hit = game.world.rayCast({ x: ax, y: pl.pos.y + 0.5, z: az }, { x: 0, y: -1, z: 0 }, 4.5);
+      if (!hit || hit.part.kill) { m.ledge = true; return { mx: 0, mz: 0, jump: false }; }
+    }
+    m.ledge = false;
     return { mx: dx * slow, mz: dz * slow, jump };
   };
   BT.hold = () => ({ mx: 0, mz: 0, jump: false });
@@ -331,8 +357,51 @@
     m.roam.t -= STEP;
     m.goal = goal || 'roam';
     if (m.roam.idle > 0) { m.roam.idle -= STEP; return BT.hold(); }
-    const inp = BT.walkTo(game, b, m.roam.x, m.roam.z, { speed: 0.7 });
+    const inp = BT.walkTo(game, b, m.roam.x, m.roam.z, { speed: 0.7, safe: true });
+    if (m.ledge) m.roam.t = 0;
     return inp || BT.hold();
+  };
+
+  // Досуг вместо бесцельного брожения: разглядывать (других игроков, постройки), болеть за них,
+  // танцевать, пройтись. Каждое дело - несколько секунд, потом другое.
+  // opt: { x, z, r - где можно ходить; sights() - [{ x, y, z, name }] на что смотреть }
+  BT.pastime = function (game, b, opt) {
+    const m = b.mind, r = game.rng, pl = b.body;
+    let p = m.pas;
+    if (!p || p.t <= 0) {
+      const sights = opt.sights ? opt.sights() : [];
+      const kinds = sights.length ? ['watch', 'watch', 'dance', 'stroll'] : ['dance', 'stroll', 'stroll'];
+      let kind = r.pick(kinds);
+      if (p && kind === p.kind && kind !== 'watch') kind = kind === 'dance' ? 'stroll' : 'dance';
+      p = m.pas = { kind, t: 4 + r() * 4 };
+      if (kind === 'watch') {
+        const s = r.pick(sights), a = Math.atan2(pl.pos.z - s.z, pl.pos.x - s.x) + (r() - 0.5);
+        const d = 5 + r() * 5;
+        p.sight = s;
+        p.x = B.clamp(s.x + Math.cos(a) * d, opt.x - opt.r, opt.x + opt.r); p.z = B.clamp(s.z + Math.sin(a) * d, opt.z - opt.r, opt.z + opt.r);
+        p.t += 3;
+      } else if (kind === 'stroll') { const a = r() * Math.PI * 2, d = r() * opt.r; p.x = opt.x + Math.cos(a) * d; p.z = opt.z + Math.sin(a) * d; }
+    }
+    p.t -= STEP;
+    b.emote = null;
+    if (p.kind === 'dance') { b.emote = 'dance'; m.goal = 'dance'; return BT.hold(); }
+    const inp = BT.walkTo(game, b, p.x, p.z, { near: 1, speed: 0.75, safe: true });
+    if (m.ledge) p.t = 0;                                  // у края - заняться другим
+    if (inp && p.kind === 'stroll') { m.goal = 'stroll'; return inp; }
+    if (inp) { m.goal = 'stroll'; if (m.blocked > 40) p.t = 0; return inp; }
+    if (p.kind === 'stroll') { p.t = 0; m.goal = 'stroll'; return BT.hold(); }
+    // смотрит и иногда болеет: машет и пишет
+    const s = p.sight;
+    m.goal = 'watch';
+    if (!p.cheered && r() < 0.004) { p.cheered = true; b.emote = 'wave'; p.waveT = 1.2; BT.say(game, b, s.name ? 'cheer' : 'watch', { name: s.name }); }
+    if (p.waveT > 0) { p.waveT -= STEP; b.emote = 'wave'; }
+    return { mx: 0, mz: 0, jump: false, face: Math.atan2(s.x - pl.pos.x, s.z - pl.pos.z) };
+  };
+  // Кто сейчас играет: другие боты (живые, не этот) и игрок - на них можно смотреть
+  BT.others = function (game, b, filter) {
+    const out = game.bots.filter((x) => x !== b && !x.dead && (!filter || filter(x))).map((x) => ({ x: x.body.pos.x, y: x.body.pos.y, z: x.body.pos.z, name: x.name }));
+    if (game.player && !game.dead) out.push({ x: game.player.pos.x, y: game.player.pos.y, z: game.player.pos.z, name: B.acct.displayName() });
+    return out;
   };
 
   // Продвижение к цели: чем больше value, тем ближе. Нет продвижения STUCK_T - сброс.
@@ -423,20 +492,24 @@
   // ---------- Чат ----------
   BT.say = function (game, b, kind, vars, force) {
     const m = b.mind;
-    if (!force && (m.chatCd > 0 || (game.chatCd || 0) > game.time)) return false;
-    if (!force && game.rng() > b.st.chat) { m.chatCd = 2; return false; }
+    // общий чат не засыпать: между репликами ботов 5-8 с (важное - finish, значок - можно раньше, но не чаще 2 с)
+    if ((game.chatCd || 0) > game.time + (force ? -3 : 0) || (!force && m.chatCd > 0)) return false;
+    if (!force && game.rng() > b.st.chat) { m.chatCd = 3; return false; }
     const table = B.data.BOT_CHAT, en = B.lang() === 'en';
     const place = table[game.id] || {}, common = table.common;
     const list = (place[kind] || common[kind]);
     if (!list) return false;
     // только строки, для которых есть все подстановки
-    const lines = (en ? list.en : list.ru).filter((t) => (t.match(/\{(\w+)\}/g) || []).every((k) => vars && vars[k.slice(1, -1)] != null));
+    const fill = (t) => (vars ? t.replace(/\{(\w+)\}/g, (s, k) => vars[k]) : t);
+    const recent = game.botLines || (game.botLines = []);
+    // только строки со всеми подстановками и без повтора недавних
+    const lines = (en ? list.en : list.ru).filter((t) => (t.match(/\{(\w+)\}/g) || []).every((k) => vars && vars[k.slice(1, -1)] != null)).map(fill).filter((t) => !recent.includes(t));
     if (!lines.length) return false;
-    let text = game.rng.pick(lines);
-    if (vars) text = text.replace(/\{(\w+)\}/g, (s, k) => vars[k]);
+    const text = game.rng.pick(lines);
+    recent.push(text); if (recent.length > 10) recent.shift();
     game.say(b.name, text, b.cfg.colors.torso);
-    m.chatCd = 6 + game.rng() * 6;
-    game.chatCd = game.time + 1.6;
+    m.chatCd = 12 + game.rng() * 10;
+    game.chatCd = game.time + 5 + game.rng() * 3;
     b.lastSaid = { kind, text, t: game.time };
     return true;
   };

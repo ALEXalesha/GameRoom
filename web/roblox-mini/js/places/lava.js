@@ -109,7 +109,8 @@
     // ---------- Боты: ждут у башни, с началом раунда лезут по плитам, торопятся, когда лава близко ----------
     botThink(game, b, dt) {
       const BT = B.bots, st = game.state, pl = b.body, m = b.mind;
-      if (b.out) return BT.roam(game, b, LOBBY.x, LOBBY.z, 6, 'out');       // сгорел - смотрит из лобби
+      // сгорел - смотрит из лобби на тех, кто ещё лезет, и болеет за них
+      if (b.out) return BT.pastime(game, b, { x: LOBBY.x - 3, z: LOBBY.z, r: 5, sights: () => BT.others(game, b, (x) => !x.out && x.body.pos.y > 2) });
       if (st.phase === 'wait') {
         const f = game.path[1];
         return BT.roam(game, b, f.cx * 0.6, f.cz * 0.6, 7, 'round');

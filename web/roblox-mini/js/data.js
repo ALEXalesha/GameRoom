@@ -129,6 +129,8 @@
   const L2 = (ru, en) => ({ ru, en });
   const BOT_CHAT = {
     common: {
+      cheer: L2(['давай, {name}!', 'почти, {name}!', '{name}, ты сможешь', 'ого, {name}'], ['go {name}!', 'almost, {name}!', 'you got this {name}', 'wow {name}']),
+      watch: L2(['красиво!', 'вот это да', 'классно сделано'], ['nice!', 'wow', 'well made']),
       idle: L2(['привет всем!', 'кто со мной?', 'классная карта', 'гг', 'ещё разок'], ['hi all!', 'who is with me?', 'nice map', 'gg', 'one more time']),
       fell: L2(['ой', 'почти!', 'ну вот...', 'эх'], ['oops', 'so close!', 'ugh...', 'nooo']),
       stuck: L2(['застрял, начну с точки', 'что-то я застрял', 'ресет'], ['stuck, going back to checkpoint', 'lol i got stuck', 'reset']),
@@ -179,11 +181,13 @@
     { id: 'house', ru: 'домик', en: 'house', layers: ['MMMMM/M...M/M...M/M...M/MM.MM', 'MMMMM/M...M/M...M/M...M/MM.MM', 'MMMMM/M...M/W...W/M...M/MMMMM', 'AAAAA/AAAAA/AAAAA/AAAAA/AAAAA', '...../.AAA./.AAA./.AAA./.....'] },
     { id: 'tower', ru: 'башню', en: 'tower', layers: ['MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'MMM/M.M/MMM', 'A.A/.../A.A'] },
     { id: 'wall', ru: 'стену', en: 'wall', layers: ['MMMMMMM', 'MMMMMMM', 'MMMMMMM', 'A.A.A.A'] },
-    { id: 'bridge', ru: 'мост', en: 'bridge', layers: ['M.M/.../.../.../.../.../.../.../M.M', 'M.M/.../.../.../.../.../.../.../M.M', 'SSS/SSS/SSS/SSS/SSS/SSS/SSS/SSS/SSS', 'A.A/.../A.A/.../A.A/.../A.A/.../A.A'] },
+    // мост - через свою речку (синие блоки под ним), иначе через ровное место он не читается
+    { id: 'bridge', ru: 'мост через речку', en: 'bridge over a creek', layers: ['.M.M./...../UUUUU/UUUUU/UUUUU/UUUUU/UUUUU/...../.M.M.', '.M.M./...../...../...../...../...../...../...../.M.M.', '.SSS./.SSS./.SSS./.SSS./.SSS./.SSS./.SSS./.SSS./.SSS.', '.A.A./...../.A.A./...../.A.A./...../.A.A./...../.A.A.'] },
     { id: 'tree', ru: 'дерево', en: 'tree', layers: ['.../.B./...', '.../.B./...', '.../.B./...', 'GGG/GBG/GGG', 'GGG/GGG/GGG', '.../.G./...'] },
     { id: 'fence', ru: 'забор', en: 'fence', layers: ['M.M.M.M.M', 'MMMMMMMMM'] },
-    { id: 'heart', ru: 'сердечко на полу', en: 'floor heart', layers: ['.RR.RR./RRRRRRR/RRRRRRR/.RRRRR./..RRR../...R...'] },
-    { id: 'smile', ru: 'смайлик на полу', en: 'floor smiley', layers: ['.YYYYY./YYKYKYY/YYYYYYY/YKYYYKY/YYKKKYY/.YYYYY.'] },
+    // пиксель-арт - картина на щите (стоит), с земли плоский рисунок не разглядеть
+    { id: 'heart', ru: 'картину с сердцем', en: 'heart picture', layers: ['SSSSSSS', 'WWWRWWW', 'WWRRRWW', 'WRRRRRW', 'RRRRRRR', 'RRRRRRR', 'WRRWRRW'] },
+    { id: 'smile', ru: 'картину со смайликом', en: 'smiley picture', layers: ['SSSSSSS', 'WYYYYYW', 'YYKKKYY', 'YKYYYKY', 'YYYYYYY', 'YYKYKYY', 'WYYYYYW'] },
   ];
   const BP_COLORS = { W: 0, S: 1, K: 2, R: 3, O: 4, Y: 5, G: 6, C: 7, U: 8, P: 9, N: 10, B: 11 };
   // Развернуть заготовку в клетки { di, dj, dk, c } по порядку постройки; main/accent - цвета бота

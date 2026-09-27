@@ -163,11 +163,15 @@
       P.drawHotbar(game);
       return n;
     },
-    paintAt(game, i, j, k, c) {
+    // owner - красит бот: только свои блоки, без звука и сохранения
+    paintAt(game, i, j, k, c, owner) {
       const b = game.state.cells.get(cellKey(i, j, k));
       if (!b || b.c === c) return false;
-      b.c = c; B.sound.play('paint');
-      P.refresh(game); P.save(game);
+      if (owner !== undefined && b.owner !== owner) return false;
+      b.c = c;
+      if (owner === undefined) B.sound.play('paint');
+      P.refresh(game);
+      if (!b.owner) P.save(game);
       return true;
     },
     refresh(game) {
@@ -337,12 +341,8 @@
       if (sb.build && (sb.build.decay || !st.builds.has(sb.build.id))) { sb.build = null; sb.phase = 'think'; }
       if (!building && sb.build) { sb.build.decay = true; sb.build = null; sb.phase = 'think'; }
       if (sb.phase === 'think' || sb.phase === 'admire') {
-        if (sb.t > 0 || !building) {
-          // посмотреть на свою постройку или погулять
-          const bd = sb.lastBuild && st.builds.has(sb.lastBuild.id) ? sb.lastBuild : null;
-          return bd ? BT.roam(game, b, bd.i0 + bd.i1 + 1, bd.k0 + bd.k1 + 1, 9, 'roam') : BT.roam(game, b, 10, 10, 18, 'roam');
-        }
-        if (!P.startBuild(game, b)) { sb.t = 1.5 + game.rng() * 2; return BT.roam(game, b, pl.pos.x, pl.pos.z, 6, 'roam'); }
+        if (sb.t > 0 || !building) return P.botLeisure(game, b, dt);
+        if (!P.startBuild(game, b)) { sb.t = 4 + game.rng() * 4; return P.botLeisure(game, b, dt); }   // лимит - пока заняться другим
       }
       const bd = sb.build;
       if (!bd) { sb.phase = 'think'; return BT.hold(); }
@@ -362,7 +362,7 @@
       if (bd.next >= bd.cells.length) {
         if (sb.retry.length) { bd.cells.push(...sb.retry); sb.retry = []; }
         else if (!sb.wrong) {
-          bd.done = true; bd.doneAt = game.time; sb.lastBuild = bd; sb.build = null; sb.phase = 'admire'; sb.t = 5 + game.rng() * 8; sb.n++;
+          bd.done = true; bd.doneAt = game.time; sb.lastBuild = bd; sb.build = null; sb.phase = 'admire'; sb.t = 5 + game.rng() * 8; sb.n++; sb.painted = false;
           BT.say(game, b, 'done', { what: P.bpName(bd.bp) }, true);
           return BT.hold();
         } else return BT.hold();
@@ -414,6 +414,33 @@
       BT.progress(b, bd.next * 10);
       sb.t = B.lerp(b.st.pause[0], b.st.pause[1], r()) * 0.6 + 0.3;
       return { mx: 0, mz: 0, jump: false, face };
+    },
+    // Пока не строит: перекрасить свою постройку, посмотреть чужие, поболеть за игрока, потанцевать
+    botLeisure(game, b, dt) {
+      const BT = B.bots, st = game.state, sb = b.sb, pl = b.body, m = b.mind, r = game.rng;
+      const own = sb.lastBuild && st.builds.has(sb.lastBuild.id) && !sb.lastBuild.decay ? sb.lastBuild : null;
+      if (!sb.paint && own && !sb.painted && r() < 0.01) {
+        const mine = Array.from(st.cells.values()).filter((c) => c.owner === b.name && c.build === own.id);
+        const pick = [];
+        for (let n = 0; n < 5 && mine.length; n++) pick.push(mine.splice(r.int(mine.length), 1)[0]);
+        const col = r.pick([0, 3, 4, 5, 6, 7, 8, 9, 10].filter((c) => c !== sb.main));
+        if (pick.length) { sb.paint = { cells: pick, col, t: 0.5 }; sb.painted = true; }
+      }
+      if (sb.paint) {
+        const pt = sb.paint, c = pt.cells[0];
+        if (!c || !st.cells.has(cellKey(c.i, c.j, c.k))) { pt.cells.shift(); if (!pt.cells.length) sb.paint = null; return BT.hold(); }
+        const stand = P.standFor(game, own || { i0: c.i, i1: c.i, k0: c.k, k1: c.k }, c);
+        m.goal = 'paint';
+        const inp = Math.hypot(2 * c.i + 1 - pl.pos.x, 2 * c.k + 1 - pl.pos.z) > 8 ? BT.walkTo(game, b, stand.x, stand.z, { near: 0.8 }) : null;
+        if (inp) return inp;
+        pt.t -= dt;
+        if (pt.t <= 0) { P.paintAt(game, c.i, c.j, c.k, pt.col, b.name); pt.cells.shift(); pt.t = 0.6 + r() * 0.6; if (!pt.cells.length) sb.paint = null; }
+        return { mx: 0, mz: 0, jump: false, face: Math.atan2(2 * c.i + 1 - pl.pos.x, 2 * c.k + 1 - pl.pos.z) };
+      }
+      // на что посмотреть: готовые постройки (свои и чужие) и игроки
+      const sights = () => Array.from(st.builds.values()).filter((x) => x.done && !x.decay).map((x) => ({ x: x.i0 + x.i1 + 1, y: 2, z: x.k0 + x.k1 + 1 })).concat(BT.others(game, b));
+      const home = own ? { x: own.i0 + own.i1 + 1, z: own.k0 + own.k1 + 1 } : { x: pl.pos.x, z: pl.pos.z };
+      return BT.pastime(game, b, { x: B.clamp(home.x, -80, 80), z: B.clamp(home.z, -80, 80), r: 22, sights });
     },
     botPath: () => null,
     botChatVars(game, b) {

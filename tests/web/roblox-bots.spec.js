@@ -316,7 +316,11 @@ test.describe('roblox-mini (Блоксити): боты', () => {
         const g = __blox.game, w = g.world;
         g.player.teleport(g.spawn.x, g.spawn.y + 0.01, g.spawn.z);
         const plates = g.bots.map((b) => ({ name: b.name, text: b.np.userData.text, visible: b.np.visible }));
-        const still = new Map(), worst = {}, inWall = [];
+        const still = new Map(), worst = {}, inWall = [], lazyT = new Map(), lazy = {};
+        const LAZY = ['roam', 'look', 'wait', 'stroll'];
+        let said = 0; const say = g.say.bind(g), texts = [], repeats = [];
+        const names0 = new Set(g.bots.map((b) => b.name));
+        g.say = (n, t, c, sys) => { if (names0.has(n)) { said++; if (texts.slice(-8).includes(t)) repeats.push(t); texts.push(t); } return say(n, t, c, sys); };
         const aimless = (goal) => !goal || goal === 'idle' || goal === 'arrived';
         for (let i = 0; i < 60 * 180; i++) {
           __blox.run(1);
@@ -334,6 +338,9 @@ test.describe('roblox-mini (Блоксити): боты', () => {
             if (Math.hypot(p.x - s.x, p.z - s.z) > 1 || !aimless(b.mind.goal) || b.dead) { s.x = p.x; s.z = p.z; s.t = 0; } else s.t += 1 / 60;
             still.set(b, s);
             worst[b.name] = Math.max(worst[b.name] || 0, s.t);
+            // бродит, озирается или ждёт подряд (без настоящего дела)
+            const lt = LAZY.includes(b.mind.goal) && !b.dead ? (lazyT.get(b) || 0) + 1 / 60 : 0;
+            lazyT.set(b, lt); lazy[b.name] = Math.max(lazy[b.name] || 0, lt);
           }
         }
         const T = __blox.B.data.BOT_CHAT, lang = 'ru';
@@ -341,16 +348,40 @@ test.describe('roblox-mini (Блоксити): боты', () => {
         const names = new Set(g.bots.map((b) => b.name));
         const botLines = g.chatLog.filter((m) => names.has(m.name)).map((m) => m.text);
         const pattern = (t) => [...allowed].some((a) => new RegExp('^' + a.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{\w+\}/g, '.+') + '$').test(t));
-        return { plates, worst, inWall, lines: botLines.length, foreign: botLines.filter((t) => !pattern(t)) };
+        return { plates, worst, lazy, said, repeats, inWall, lines: botLines.length, foreign: botLines.filter((t) => !pattern(t)) };
       });
       expect(r.plates.length).toBeGreaterThan(0);
       for (const p of r.plates) { expect(p.text).toBe(p.name); expect(p.visible).toBe(true); }
       for (const [name, t] of Object.entries(r.worst)) expect(t, name).toBeLessThan(10);
+      for (const [name, t] of Object.entries(r.lazy)) expect(t, name + ': бродит/ждёт без дела').toBeLessThan(15);
+      expect(r.said, 'чат не засыпан: не больше 12 реплик ботов в минуту').toBeLessThanOrEqual(36);
+      expect(r.repeats, 'одинаковые реплики подряд').toEqual([]);
       expect(r.inWall).toEqual([]);
       expect(r.lines).toBeGreaterThanOrEqual(3);
       expect(r.foreign).toEqual([]);
     });
   }
+
+  test('повторные смерти: ни один бот не разбивается на одном прыжке больше 12 раз за 7 минут; новичок в забеге учится и доходит', async ({ page }) => {
+    await openBlox(page, 'seed=7&manual=1&fast=1&bots=6');
+    const r = await page.evaluate(() => {
+      const out = {};
+      for (const id of ['obby', 'race']) {
+        __blox.enter(id);
+        const g = __blox.game, at = {};
+        const kill = g.killBot.bind(g);
+        g.killBot = (b) => { const k = b.name + '@' + b.mind.jumpFrom; at[k] = (at[k] || 0) + 1; kill(b); };
+        __blox.run(60 * 420);
+        out[id] = { worst: Math.max(0, ...Object.values(at)), novice: g.bots.filter((b) => b.style === 'novice').map((b) => b.stat) };
+        __blox.leave();
+      }
+      return out;
+    });
+    expect(r.obby.worst).toBeLessThanOrEqual(12);
+    expect(r.race.worst).toBeLessThanOrEqual(12);
+    expect(r.race.novice.length).toBeGreaterThan(0);
+    for (const t of r.race.novice) expect(t).not.toBeNull();
+  });
 
   test('застрявший бот (в запертой клетке) сбрасывается на свою контрольную точку', async ({ page }) => {
     await openBlox(page);
