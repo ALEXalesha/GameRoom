@@ -104,7 +104,7 @@
   #waterTint { position: absolute; inset: 0; background: rgba(20, 50, 160, .28); display: none; }
   #debug { position: absolute; left: 4px; top: 4px; font-size: 13px; line-height: 1.35; background: rgba(0,0,0,.35); padding: 3px 6px; display: none; text-shadow: 1px 1px 0 #222; }
   #fpsMini { position: absolute; right: 6px; top: 4px; font-size: 13px; display: none; }
-  #clickHint { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 16px; background: rgba(0,0,0,.5); padding: 6px 12px; display: none; text-shadow: var(--shadow); }
+  #clickHint { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); font-size: 12px; color: #e8e8e8; display: none; text-shadow: 1px 1px 0 #222; white-space: nowrap; }
   #toasts { position: absolute; right: 6px; top: 6px; display: flex; flex-direction: column; gap: 6px; }
   .toast { display: flex; gap: 10px; align-items: center; width: 300px; padding: 8px 10px; background: #212121; border: 2px solid #555; box-shadow: inset 0 0 0 2px #000; animation: tin .4s; transition: transform .6s, opacity .6s; }
   .toast.out { transform: translateX(120%); opacity: 0; }

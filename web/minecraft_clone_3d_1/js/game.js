@@ -265,6 +265,7 @@
     if (VX.ui) VX.ui.show('hud');
     lock();
     G.needClick = document.pointerLockElement !== canvas;
+    G.hintT = 2.5;       // если мышь не захвачена - маленькая подсказка у прицела на пару секунд
   };
   G.pause = function (screen) {
     if (G.state !== 'play' && G.state !== 'inv') return;
@@ -350,16 +351,34 @@
   }
   G.blockedByBodies = blockedByBodies;
 
-  // Сломать блок в клетке (уже решено, что можно): выпадение, соседи без опоры, вода
+  // Вторая половина двери или кровати (или null)
+  function partnerOf(x, y, z, id) {
+    const b = C.BLOCKS[id];
+    if (b.door) { const dy = b.upper ? -1 : 1; const o = world.getBlock(x, y + dy, z); return o > 0 && C.BLOCKS[o].door ? { x, y: y + dy, z, id: o } : null; }
+    if (b.bed) {
+      const v = DIRV[b.bedDir], s = b.bedHead ? -1 : 1;
+      const X = x + v[0] * s, Z = z + v[1] * s, o = world.getBlock(X, y, Z);
+      return o > 0 && C.BLOCKS[o].bed ? { x: X, y, z: Z, id: o } : null;
+    }
+    return null;
+  }
+  const DIRV = [[0, -1], [-1, 0], [0, 1], [1, 0]];   // стороны: 0 -Z, 1 -X, 2 +Z, 3 +X
+  G.DIRV = DIRV;
+  const yawDir = () => ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4;
+
+  // Сломать блок в клетке (уже решено, что можно): выпадение, соседи без опоры, вода и лава
   function breakAt(x, y, z, byPlayer) {
     const id = world.getBlock(x, y, z);
     if (id <= 0) return false;
+    const pair = partnerOf(x, y, z, id);
     world.setBlock(x, y, z, 0);
+    if (pair) world.setBlock(pair.x, pair.y, pair.z, 0);       // дверь и кровать ломаются целиком
     VX.audio.play('break', { surface: surfaceOf(id) });
     if (VX.entities) VX.entities.burst(x, y, z, id);
     if (byPlayer && G.mode === 'survival') {
       const held = inv.held();
-      const drops = D.dropsOf(id, held ? held.id : 0, Math.random);
+      let drops = D.dropsOf(id, held ? held.id : 0, Math.random);
+      if (!drops.length && pair) drops = D.dropsOf(pair.id, held ? held.id : 0, Math.random);   // верх двери, изголовье
       for (const [did, n] of drops) G.dropItem(VX.inv.newStack(did, n), false, x + 0.5, y + 0.3, z + 0.5);
       if (D.toolOf(held && held.id)) { if (inv.wearHeld()) VX.audio.play('break', { surface: 'wood' }); }
       player.exhaust(0.005);
@@ -369,29 +388,49 @@
       for (const s of G.furnaces[fk].slots) if (s && G.mode === 'survival') G.dropItem(s, false, x + 0.5, y + 0.5, z + 0.5);
       delete G.furnaces[fk];
     }
+    if (G.chests[fk]) {
+      for (const s of G.chests[fk]) if (s) G.dropItem(s, false, x + 0.5, y + 0.5, z + 0.5);
+      delete G.chests[fk];
+    }
+    delete G.crops[fk];
+    if (G.meta.bed && G.meta.bed.x === x && G.meta.bed.z === z && G.meta.bed.y === y) G.meta.bed = pair ? { x: pair.x, y: pair.y, z: pair.z, gone: true } : null;
     G.meta.stats && G.meta.stats.broken++;
     afterChange(x, y, z);
+    if (pair) afterChange(pair.x, pair.y, pair.z);
     return true;
   }
   G.breakAt = breakAt;
-  // Что держится на этом месте: растения и факел сверху, факелы на стенах, песок и гравий падают
+  // Что держится на этом месте: растения, посевы, факел и рычаг сверху, факелы на стенах, кактус;
+  // песок и гравий падают; вода и лава вокруг просыпаются
   function afterChange(x, y, z) {
+    const here = world.getBlock(x, y, z);
     const up = world.getBlock(x, y + 1, z);
-    if (up > 0 && (C.RENDER[up] === 6 || up === B.torch) && !C.SOLID[world.getBlock(x, y, z)]) popBlock(x, y + 1, z);
+    const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131);
+    if (needsFloor(up) && !C.SOLID[here]) popBlock(x, y + 1, z);
+    if (up >= 64 && up <= 71 && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
+    if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
     const walls = [[0, 0, -1, 2], [1, 0, 0, 3], [0, 0, 1, 0], [-1, 0, 0, 1]];
     for (const [dx, , dz, r] of walls) {
       const id = world.getBlock(x + dx, y, z + dz);
-      if (id === C.WALL_TORCH + r && !C.SOLID[world.getBlock(x, y, z)]) popBlock(x + dx, y, z + dz);
+      if (id === C.WALL_TORCH + r && !C.SOLID[here]) popBlock(x + dx, y, z + dz);
+      // кактус не терпит соседей сбоку (правило оригинала)
+      if (id === B.cactus && here > 0 && C.SOLID[here]) popBlock(x + dx, y, z + dz);
     }
     if (up === B.sand || up === B.gravel) fallBlocks(x, y + 1, z);
-    if (world.getBlock(x, y, z) === 0) G.fluidCheck(x, y, z);
+    if (VX.fluids) VX.fluids.touch(x, y, z);
   }
+  G.afterChange = afterChange;
   function popBlock(x, y, z) {
     const id = world.getBlock(x, y, z);
     world.setBlock(x, y, z, 0);
-    if (G.mode === 'survival') for (const [did, n] of D.dropsOf(id, 0, Math.random)) G.dropItem(VX.inv.newStack(did, n), false, x + 0.5, y + 0.3, z + 0.5);
+    G.popDrops(id, x, y, z);
+    delete G.crops[x + ',' + y + ',' + z];
     afterChange(x, y, z);
   }
+  // Блок снесён не игроком (вода смыла, опору убрали): в выживании выпадает как от руки
+  G.popDrops = function (id, x, y, z) {
+    if (G.mode === 'survival') for (const [did, n] of D.dropsOf(id, 0, Math.random)) G.dropItem(VX.inv.newStack(did, n), false, x + 0.5, y + 0.3, z + 0.5);
+  };
   function fallBlocks(x, y, z) {
     // столбик песка/гравия падает до опоры
     let yy = y;
@@ -399,29 +438,9 @@
       const id = world.getBlock(x, yy, z);
       if (id !== B.sand && id !== B.gravel) break;
       let to = yy;
-      while (to > 0) { const below = world.getBlock(x, to - 1, z); if (below === 0 || below === B.water || C.RENDER[below] === 6) to--; else break; }
+      while (to > 0) { const below = world.getBlock(x, to - 1, z); if (below === 0 || C.FLUID[below] || C.RENDER[below] === 6) to--; else break; }
       if (to !== yy) { world.setBlock(x, yy, z, 0); world.setBlock(x, to, z, id); }
       yy++;
-    }
-  }
-
-  // Простая вода: открытая клетка рядом с водой заполняется, вода стекает вниз и
-  // растекается по дну не дальше 4 клеток от места, где упала
-  G.fluidQueue = [];
-  G.fluidCheck = function (x, y, z) {
-    const n = [[0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
-    if (n.some(([dx, dy, dz]) => world.getBlock(x + dx, y + dy, z + dz) === B.water)) G.fluidQueue.push([x, y, z, 0]);
-  };
-  function fluidStep() {
-    const q = G.fluidQueue.splice(0, 64);
-    for (const [x, y, z, d] of q) {
-      const cur = world.getBlock(x, y, z);
-      if (cur !== 0 && !(cur > 0 && C.BLOCKS[cur].replaceable)) continue;
-      world.setBlock(x, y, z, B.water);
-      const below = world.getBlock(x, y - 1, z);
-      if (below === 0 || (below > 0 && C.BLOCKS[below].replaceable)) { G.fluidQueue.push([x, y - 1, z, 0]); continue; }
-      if (d >= 4 || below < 0) continue;
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (world.getBlock(x + dx, y, z + dz) === 0) G.fluidQueue.push([x + dx, y, z + dz, d + 1]);
     }
   }
 
@@ -437,34 +456,193 @@
     G.swing = 1;
     return { x: t.x, y: t.y, z: t.z };
   };
-  // ПКМ: взаимодействие с верстаком/печью или установка блока из руки
+
+  // ---------- Двери и рычаг ----------
+  function setDoorOpen(x, y, z, open, sound) {
+    let id = world.getBlock(x, y, z);
+    if (!(id > 0 && C.BLOCKS[id].door)) return false;
+    if (C.BLOCKS[id].upper) { y--; id = world.getBlock(x, y, z); if (!(id > 0 && C.BLOCKS[id].door)) return false; }
+    const b = C.BLOCKS[id];
+    if (b.open === open) return false;
+    const base = b.door === 'wood' ? C.DOOR_WOOD : C.DOOR_IRON;
+    const lo = base + b.edge * 4 + (open ? 2 : 0);
+    world.setBlock(x, y, z, lo);
+    if (world.getBlock(x, y + 1, z) > 0 && C.BLOCKS[world.getBlock(x, y + 1, z)].door) world.setBlock(x, y + 1, z, lo + 1);
+    if (sound !== false) VX.audio.play(open ? 'door_open' : 'door_close', { surface: b.door === 'wood' ? 'wood' : 'stone' });
+    return true;
+  }
+  G.setDoorOpen = setDoorOpen;
+  G.doorOpen = (x, y, z) => { const id = world.getBlock(x, y, z); return id > 0 && C.BLOCKS[id].door ? C.BLOCKS[id].open : null; };
+  function toggleLever(x, y, z) {
+    const id = world.getBlock(x, y, z);
+    const on = id === 130;
+    world.setBlock(x, y, z, on ? 131 : 130);
+    VX.audio.play('click');
+    // рычаг открывает и закрывает двери рядом (железную - только так)
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -1; dy <= 1; dy++) {
+      const d = world.getBlock(x + dx, y + dy, z + dz);
+      if (d > 0 && C.BLOCKS[d].door && !C.BLOCKS[d].upper) setDoorOpen(x + dx, y + dy, z + dz, on);
+    }
+    return on;
+  }
+  G.toggleLever = toggleLever;
+
+  // ---------- Сундуки ----------
+  G.chests = {};
+  const chestAt = (x, y, z) => { const id = world.getBlock(x, y, z); return id >= B.chest && id <= B.chest + 3; };
+  function chestNeighbours(x, y, z) { return [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => chestAt(x + dx, y, z + dz)).map(([dx, dz]) => [x + dx, y, z + dz]); }
+  function chestSlots(x, y, z) {
+    const k = x + ',' + y + ',' + z;
+    if (!G.chests[k]) G.chests[k] = new Array(27).fill(null);
+    return G.chests[k];
+  }
+  G.chestSlots = chestSlots;
+  // Двойной сундук: два рядом стоящих - одно окно на 54 ячейки (сначала тот, что западнее или севернее)
+  G.chestGroup = function (x, y, z) {
+    const nb = chestNeighbours(x, y, z)[0];
+    const list = nb ? [[x, y, z], nb].sort((a, b) => a[0] - b[0] || a[2] - b[2]) : [[x, y, z]];
+    return list.map(([a, b, c]) => chestSlots(a, b, c));
+  };
+
+  // ---------- Сон и кровать ----------
+  const isNight = () => { const t = ((G.ticks % 24000) + 24000) % 24000; return t >= 12541 && t <= 23458; };
+  G.isNight = isNight;
+  G.say = function (text) { G.actionText = text; G.actionT = 3; };
+  G.useBed = function (x, y, z) {
+    const id = world.getBlock(x, y, z);
+    const b = C.BLOCKS[id];
+    // точка возрождения - у кровати
+    const head = b.bedHead ? { x, y, z } : (partnerOf(x, y, z, id) || { x, y, z });
+    G.meta.bed = { x: head.x, y: head.y, z: head.z };
+    if (!isNight()) { G.say('Спать можно только ночью. Точка возрождения - у кровати'); return 'day'; }
+    if (VX.entities && VX.entities.mobs.some((m) => m.def.hostile && m.deadT === 0 && Math.abs(m.x - x) < 8 && Math.abs(m.z - z) < 8 && Math.abs(m.y - y) < 5)) { G.say('Нельзя спать: рядом монстры'); return 'monsters'; }
+    G.sleeping = { t: 0, x: head.x, y: head.y, z: head.z };
+    player.vel.set(0, 0, 0);
+    player.pos.set(head.x + 0.5, head.y + 0.57, head.z + 0.5);
+    return 'sleep';
+  };
+  function sleepTick(dt) {
+    const s = G.sleeping;
+    s.t += dt;
+    if (s.t >= 2.2) {
+      G.ticks = (Math.floor(G.ticks / 24000) + 1) * 24000;     // утро следующего дня
+      G.sleeping = null;
+      G.emit('sleep', {});
+      G.say('Доброе утро!');
+      G.saveWorld();
+    }
+  }
+
+  // ---------- Грядки и посевы ----------
+  G.crops = {};
+  function cropsTick(dt) {
+    G.cropT = (G.cropT || 0) + dt;
+    if (G.cropT < 1) return;
+    G.cropT -= 1;
+    for (const k in G.crops) {
+      const [x, y, z] = k.split(',').map(Number);
+      const id = world.getBlock(x, y, z);
+      if (id < 0) continue;
+      if (id < 64 || id > 71) { delete G.crops[k]; continue; }
+      if (id < 71 && Math.random() < 1 / 15) world.setBlock(x, y, z, id + 1);
+    }
+  }
+  G.growCrop = function (x, y, z, n) {
+    const id = world.getBlock(x, y, z);
+    if (id < 64 || id > 71) return false;
+    world.setBlock(x, y, z, Math.min(71, id + n));
+    return true;
+  };
+
+  // ПКМ: мобы (ножницы, краситель), еда, вёдра, лук, двери, рычаг, сундук, кровать, верстак, печь,
+  // мотыга и семена, костная мука, яйца призыва, установка блока из руки
   G.useTarget = function () {
-    const t = G.target();
     const held = inv.held();
-    if (held && D.info(held.id).food && G.mode === 'survival' && G.player.food < 20) { G.eating = 0; return 'eat'; }
+    const hi = held ? D.info(held.id) : null;
+    if (VX.entities && held && VX.entities.interact(held)) return 'mob';
+    if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
+    if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
+    if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
+    const t = G.target();
     if (!t) return null;
-    if (!player.sneaking && t.id === B.crafting_table) { G.openContainer('table', t); return 'table'; }
-    if (!player.sneaking && (t.id >= B.furnace && t.id <= B.furnace + 3 || t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
-    if (!held || held.id >= 256) return null;
+    const tb = C.BLOCKS[t.id];
+    if (!player.sneaking || !held) {
+      if (t.id === B.crafting_table) { G.openContainer('table', t); return 'table'; }
+      if ((t.id >= B.furnace && t.id <= B.furnace + 3) || (t.id >= B.furnace_lit && t.id <= B.furnace_lit + 3)) { G.openContainer('furnace', t); return 'furnace'; }
+      if (t.id >= B.chest && t.id <= B.chest + 3) { G.openContainer('chest', t); return 'chest'; }
+      if (tb.door === 'wood') { setDoorOpen(t.x, t.y, t.z, !tb.open); return 'door'; }
+      if (t.id === 130 || t.id === 131) { toggleLever(t.x, t.y, t.z); return 'lever'; }
+      if (tb.bed) return G.useBed(t.x, t.y, t.z);
+    }
+    if (!held) return null;
+    // мотыга: трава и земля становятся грядкой
+    const tool = D.toolOf(held.id);
+    if (tool && tool.type === 'hoe') {
+      if ((t.id === B.grass || t.id === B.dirt) && world.getBlock(t.x, t.y + 1, t.z) === 0 && t.n[1] >= 0) {
+        world.setBlock(t.x, t.y, t.z, B.farmland);
+        VX.audio.play('step', { surface: 'gravel' });
+        if (G.mode === 'survival') inv.wearHeld();
+        G.swing = 1;
+        return 'till';
+      }
+      return null;
+    }
+    // семена - только на грядку
+    if (hi.plant) {
+      if (t.id === B.farmland && t.n[1] === 1 && world.getBlock(t.x, t.y + 1, t.z) === 0) {
+        world.setBlock(t.x, t.y + 1, t.z, hi.plant);
+        G.crops[t.x + ',' + (t.y + 1) + ',' + t.z] = 1;
+        if (G.mode === 'survival') inv.takeHeld(1);
+        VX.audio.play('place', { surface: 'grass' });
+        return 'plant';
+      }
+      return null;
+    }
+    if (hi.fertilizer) {
+      if (t.id >= 64 && t.id <= 71) {
+        G.growCrop(t.x, t.y, t.z, 2 + ((Math.random() * 4) | 0));
+        if (G.mode === 'survival') inv.takeHeld(1);
+        if (VX.entities) VX.entities.burst(t.x, t.y, t.z, B.grass);
+        return 'grow';
+      }
+      return null;
+    }
+    if (hi.egg) {
+      const p = t.place;
+      if (VX.entities) VX.entities.spawnMob(hi.egg, p.x + 0.5, p.y, p.z + 0.5);
+      if (G.mode === 'survival') inv.takeHeld(1);
+      return 'egg';
+    }
+    if (hi.places) return placeSpecial(t, held, hi);
+    if (held.id >= 256) return null;
     let { x, y, z } = t.place;
-    if (C.BLOCKS[t.id].replaceable) { x = t.x; y = t.y; z = t.z; }
+    if (tb.replaceable) { x = t.x; y = t.y; z = t.z; }
     if (y < 0 || y >= C.CH) return null;
     const cur = world.getBlock(x, y, z);
-    if (cur < 0 || (cur !== 0 && cur !== B.water && !C.BLOCKS[cur].replaceable)) return null;
+    if (cur < 0 || (cur !== 0 && !C.FLUID[cur] && !C.BLOCKS[cur].replaceable)) return null;
     let id = held.id;
     const b = C.BLOCKS[id];
     if (b.solid && blockedByBodies(x, y, z)) return null;
     if (id === B.torch) {
       const n = t.n;
-      if (n[1] === 1 || C.BLOCKS[t.id].replaceable) { if (!C.SOLID[world.getBlock(x, y - 1, z)]) return null; }
+      if (n[1] === 1 || tb.replaceable) { if (!C.SOLID[world.getBlock(x, y - 1, z)]) return null; }
       else if (n[1] === -1) return null;
       else id = C.WALL_TORCH + (n[2] === 1 ? 0 : n[0] === -1 ? 1 : n[2] === -1 ? 2 : 3);
     }
+    if ((id === 130) && !C.SOLID[world.getBlock(x, y - 1, z)]) return null;
     if (b.render === 'cross' && ![B.grass, B.dirt, B.snow_grass, B.sand].includes(world.getBlock(x, y - 1, z))) return null;
-    if (b.facing) {
-      const q = ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4;
-      id = b.id + [2, 1, 0, 3][q];
+    // кактус: только на песке или кактусе и без соседей сбоку
+    if (id === B.cactus) {
+      const below = world.getBlock(x, y - 1, z);
+      if (below !== B.sand && below !== B.cactus) return null;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = world.getBlock(x + dx, y, z + dz); if (n !== 0 && !C.FLUID[n]) return null; }
     }
+    // сундук: не больше двух рядом
+    if (id === B.chest) {
+      const nb = chestNeighbours(x, y, z);
+      if (nb.length > 1 || nb.some(([a, b2, c]) => chestNeighbours(a, b2, c).length > 0)) return null;
+    }
+    if (b.facing) id = b.id + [2, 1, 0, 3][yawDir()];
     world.setBlock(x, y, z, id);
     if (G.mode === 'survival') inv.takeHeld(1);
     VX.audio.play('place', { surface: surfaceOf(id) });
@@ -472,9 +650,62 @@
     G.meta.stats && G.meta.stats.placed++;
     G.emit('place', { id: held.id });
     if (id === B.sand || id === B.gravel) fallBlocks(x, y, z);
+    afterChange(x, y, z);
     return { x, y, z };
   };
   G.placeTarget = G.useTarget;
+  // Дверь (две клетки) и кровать (две клетки вдоль взгляда)
+  function placeSpecial(t, held, hi) {
+    const { x, y, z } = t.place;
+    const free = (X, Y, Z) => { const c = world.getBlock(X, Y, Z); return c === 0 || (c > 0 && (C.BLOCKS[c].replaceable || C.FLUID[c])); };
+    const floor = (X, Y, Z) => { const c = world.getBlock(X, Y - 1, Z); return c > 0 && C.SOLID[c] && !C.SHAPE[c]; };
+    const q = yawDir();
+    if (hi.places === 'door') {
+      if (!free(x, y, z) || !free(x, y + 1, z) || !floor(x, y, z)) return null;
+      if (blockedByBodies(x, y, z) || blockedByBodies(x, y + 1, z)) return null;
+      const lo = hi.door + [2, 1, 0, 3][q] * 4;
+      world.setBlock(x, y, z, lo); world.setBlock(x, y + 1, z, lo + 1);
+    } else {
+      const v = DIRV[q], X2 = x + v[0], Z2 = z + v[1];
+      if (!free(x, y, z) || !free(X2, y, Z2) || !floor(x, y, z) || !floor(X2, y, Z2)) return null;
+      if (blockedByBodies(x, y, z) || blockedByBodies(X2, y, Z2)) return null;
+      world.setBlock(x, y, z, 122 + q); world.setBlock(X2, y, Z2, 126 + q);
+    }
+    if (G.mode === 'survival') inv.takeHeld(1);
+    VX.audio.play('place', { surface: 'wood' });
+    G.swing = 1;
+    G.emit('place', { id: held.id });
+    return { x, y, z };
+  }
+  // Ведро: набрать источник воды или лавы, вылить в клетку перед собой
+  function useBucket(held, hi) {
+    const p = player, o = new THREE.Vector3(p.pos.x, p.eye(), p.pos.z);
+    if (hi.key === 'bucket') {
+      const f = world.raycastFluid(o, p.forward(), 5);
+      if (!f) return null;
+      const id = f.id;
+      if (id !== B.water && id !== B.lava) return null;
+      world.setBlock(f.x, f.y, f.z, 0);
+      VX.fluids.touch(f.x, f.y, f.z);
+      const full = id === B.water ? D.I.water_bucket : D.I.lava_bucket;
+      if (G.mode === 'survival') { inv.takeHeld(1); const left = inv.add(full, 1); if (left) G.dropItem(VX.inv.newStack(full, 1), true); }
+      VX.audio.play(id === B.water ? 'splash' : 'fizz');
+      G.emit('bucket', { id: full });
+      return id === B.water ? 'water' : 'lava';
+    }
+    const t = G.target();
+    let pos = t ? t.place : null;
+    if (t && C.BLOCKS[t.id].replaceable) pos = { x: t.x, y: t.y, z: t.z };
+    if (!pos) return null;
+    const cur = world.getBlock(pos.x, pos.y, pos.z);
+    if (cur < 0 || (cur !== 0 && !C.FLUID[cur] && !C.BLOCKS[cur].replaceable)) return null;
+    world.setBlock(pos.x, pos.y, pos.z, hi.fluid);
+    VX.fluids.touch(pos.x, pos.y, pos.z);
+    if (G.mode === 'survival') { const s = inv.held(); s.id = D.I.bucket; s.dmg = 0; }
+    VX.audio.play(hi.fluid === B.water ? 'splash' : 'fizz');
+    return 'pour';
+  }
+
   // СКМ: взять блок под прицелом (в творческом - всегда, в выживании - если есть в инвентаре)
   G.pickTarget = function () {
     const t = G.target();
@@ -518,6 +749,13 @@
 
   // ---------- Добыча в выживании: постепенно, с трещинами ----------
   function updateMining(dt) {
+    // Удар по мобу раньше блока: луч сначала ищет существ в пределах руки. Раньше здесь сначала
+    // искался блок - в поле (за мобом небо) удар не доходил никуда, а в творческом режиме
+    // ломался блок за животным, и убить его было нельзя.
+    if (G.mouse.l && G.mouse.lPressed && G.state === 'play' && VX.entities) {
+      G.mouse.lPressed = false;
+      if (VX.entities.attack()) { G.mining = null; G.breakCool = 0.3; return; }
+    }
     const t = G.mouse.l && G.state === 'play' ? G.target() : null;
     if (!t) { G.mining = null; return; }
     if (G.mode === 'creative') {
@@ -525,7 +763,6 @@
       if (G.breakCool <= 0) { G.breakTarget(); G.breakCool = 0.3; }
       return;
     }
-    if (VX.entities && G.mouse.lPressed) { G.mouse.lPressed = false; if (VX.entities.attack()) { G.mining = null; return; } }
     const m = G.mining;
     if (!m || m.x !== t.x || m.y !== t.y || m.z !== t.z || m.id !== t.id) {
       const held = inv.held();
@@ -709,6 +946,7 @@
     if (G.saveT > 10) { G.saveT = 0; G.saveWorld(); }
     world.saveDirty();
     G.swing = Math.max(0, G.swing - dt * 3.5);
+    G.hintT = Math.max(0, (G.hintT || 0) - dt);
     G.itemNameT = Math.max(0, (G.itemNameT || 0) - dt);
   }
   G.simulate = simulate;

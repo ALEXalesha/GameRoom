@@ -22,7 +22,7 @@
   Player.prototype.reset = function () {
     this.health = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 15; this.hurtCool = 0; this.hurtFlash = 0; this.regenT = 0; this.starveT = 0; this.drownT = 0;
-    this.fallTop = null; this.dead = false; this.lastDamage = null;
+    this.fallTop = null; this.dead = false; this.lastDamage = null; this.fireT = 0; this.burnT = 0;
     this.vel.set(0, 0, 0);
   };
   Player.prototype.eye = function () { return this.pos.y + (this.sneaking && !this.flying ? EYE_SNEAK : EYE); };
@@ -35,18 +35,28 @@
     return new THREE.Vector3(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
   };
 
-  // Твёрдо ли в клетке (незагруженный кусок - твёрдый: не провалиться, пока мир грузится)
-  function solidAt(world, x, y, z) {
-    if (y < 0) return true;
-    if (y >= C.CH) return false;
+  // Коробки столкновения блока в мировых координатах: полный куб или своя форма (дверь, кровать,
+  // сундук, грядка, кактус). Незагруженный кусок - твёрдый: не провалиться, пока мир грузится.
+  const FULL = [[0, 0, 0, 16, 16, 16]];
+  function boxesAt(world, x, y, z) {
+    if (y < 0) return FULL;
+    if (y >= C.CH) return null;
     const b = world.getBlock(x, y, z);
-    return b < 0 ? true : C.SOLID[b] === 1;
+    if (b < 0) return FULL;
+    if (C.SOLID[b] !== 1) return null;
+    return C.SHAPE[b] || FULL;
   }
+  function solidAt(world, x, y, z) { return !!boxesAt(world, x, y, z); }
   function boxHits(world, b) {
     for (let x = Math.floor(b[0]); x <= Math.floor(b[3] - EPS); x++)
       for (let y = Math.floor(b[1]); y <= Math.floor(b[4] - EPS); y++)
-        for (let z = Math.floor(b[2]); z <= Math.floor(b[5] - EPS); z++)
-          if (solidAt(world, x, y, z)) return true;
+        for (let z = Math.floor(b[2]); z <= Math.floor(b[5] - EPS); z++) {
+          const bx = boxesAt(world, x, y, z);
+          if (!bx) continue;
+          for (const s of bx) {
+            if (b[0] < x + s[3] / 16 - EPS && b[3] > x + s[0] / 16 + EPS && b[1] < y + s[4] / 16 - EPS && b[4] > y + s[1] / 16 + EPS && b[2] < z + s[5] / 16 - EPS && b[5] > z + s[2] / 16 + EPS) return true;
+          }
+        }
     return false;
   }
   // Сколько можно сдвинуться по оси (0 x, 1 y, 2 z) на d, не войдя в блок
@@ -56,19 +66,24 @@
     const mn = lo.slice(), mx = hi.slice();
     if (d > 0) mx[axis] += d; else mn[axis] += d;
     for (let x = Math.floor(mn[0]); x <= Math.floor(mx[0] - EPS); x++)
-      for (let y = Math.floor(mn[1]); y <= Math.floor(mx[1] - EPS); y++)
+      for (let y = Math.floor(mn[1] - 0.5); y <= Math.floor(mx[1] - EPS); y++)
         for (let z = Math.floor(mn[2]); z <= Math.floor(mx[2] - EPS); z++) {
-          if (!solidAt(world, x, y, z)) continue;
-          const bl = [x, y, z], bh = [x + 1, y + 1, z + 1];
-          let overlap = true;
-          for (let k = 0; k < 3 && overlap; k++) if (k !== axis && (hi[k] <= bl[k] + EPS || lo[k] >= bh[k] - EPS)) overlap = false;
-          if (!overlap) continue;
-          if (d > 0 && hi[axis] <= bl[axis] + EPS) d = Math.min(d, bl[axis] - hi[axis]);
-          else if (d < 0 && lo[axis] >= bh[axis] - EPS) d = Math.max(d, bh[axis] - lo[axis]);
+          const bx = boxesAt(world, x, y, z);
+          if (!bx) continue;
+          for (const s of bx) {
+            const bl = [x + s[0] / 16, y + s[1] / 16, z + s[2] / 16], bh = [x + s[3] / 16, y + s[4] / 16, z + s[5] / 16];
+            let overlap = true;
+            for (let k = 0; k < 3 && overlap; k++) if (k !== axis && (hi[k] <= bl[k] + EPS || lo[k] >= bh[k] - EPS)) overlap = false;
+            if (!overlap) continue;
+            if (d > 0 && hi[axis] <= bl[axis] + EPS) d = Math.min(d, bl[axis] - hi[axis]);
+            else if (d < 0 && lo[axis] >= bh[axis] - EPS) d = Math.max(d, bh[axis] - lo[axis]);
+          }
         }
     return d;
   }
-  function moveBox(world, p, dx, dy, dz) {
+  // Движение по осям; на земле невысокая ступень (до 0.6: кровать, грядка) берётся шагом, как в оригинале
+  function moveBox(world, p, dx, dy, dz, canStep) {
+    const x0 = p.pos.x, y0 = p.pos.y, z0 = p.pos.z;
     let b = p.box();
     const ry = sweep(world, b, 1, dy);
     p.pos.y += ry; b = p.box();
@@ -76,11 +91,42 @@
     p.pos.x += rx; b = p.box();
     const rz = sweep(world, b, 2, dz);
     p.pos.z += rz;
-    return { cx: rx !== dx, cy: ry !== dy, cz: rz !== dz, down: dy < 0 && ry !== dy };
+    const res = { cx: rx !== dx, cy: ry !== dy, cz: rz !== dz, down: dy < 0 && ry !== dy };
+    if (canStep && (res.cx || res.cz)) {
+      const sx = p.pos.x, sy = p.pos.y, sz = p.pos.z;
+      p.pos.set(x0, y0, z0);
+      let bb = p.box();
+      const up = sweep(world, bb, 1, 0.6);
+      p.pos.y += up; bb = p.box();
+      const ax = sweep(world, bb, 0, dx); p.pos.x += ax; bb = p.box();
+      const az = sweep(world, bb, 2, dz); p.pos.z += az; bb = p.box();
+      const down = sweep(world, bb, 1, -up + Math.min(0, dy)); p.pos.y += down;
+      if (Math.hypot(p.pos.x - x0, p.pos.z - z0) > Math.hypot(sx - x0, sz - z0) + 1e-4 && up > 0) {
+        return { cx: ax !== dx, cy: true, cz: az !== dz, down: true, stepped: true };
+      }
+      p.pos.set(sx, sy, sz);
+    }
+    return res;
   }
 
   // Вода: коробка касается воды ногами и головой
-  function waterAt(world, x, y, z) { return world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z)) === C.B.water; }
+  const fluidAt = (world, x, y, z) => { const b = world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z)); return b > 0 ? C.FLUID[b] : 0; };
+  function waterAt(world, x, y, z) { return fluidAt(world, x, y, z) === 1; }
+  // Касается ли коробка блока с id из набора (кактус - чуть шире коробки, огонь и лава - клетка)
+  function touching(world, box, ids, pad) {
+    for (let x = Math.floor(box[0] - pad); x <= Math.floor(box[3] + pad - EPS); x++)
+      for (let y = Math.floor(box[1]); y <= Math.floor(box[4] - EPS); y++)
+        for (let z = Math.floor(box[2] - pad); z <= Math.floor(box[5] + pad - EPS); z++) {
+          const b = world.getBlock(x, y, z);
+          if (b <= 0 || !ids(b)) continue;
+          const q = C.SHAPE[b] ? C.SHAPE[b][0] : FULL[0];
+          if (box[0] - pad < x + q[3] / 16 && box[3] + pad > x + q[0] / 16 && box[1] < y + q[4] / 16 && box[4] > y + q[1] / 16 && box[2] - pad < z + q[5] / 16 && box[5] + pad > z + q[2] / 16) return [x + 0.5, y, z + 0.5];
+        }
+    return null;
+  }
+  const isCactus = (b) => b === C.B.cactus;
+  const isLava = (b) => C.FLUID[b] === 2;
+  const isFire = (b) => b === C.B.fire;
 
   // input: { f, b, l, r, jump, sneak, sprint } - кнопки; mode: 'creative' | 'survival'
   Player.prototype.update = function (dt, input, world, mode, ev) {
@@ -90,6 +136,8 @@
     this.sneaking = !!input.sneak && !this.flying;
     this.inWater = waterAt(world, this.pos.x, this.pos.y + 0.4, this.pos.z);
     this.headInWater = waterAt(world, this.pos.x, this.eye() + 0.1, this.pos.z);
+    this.inLava = !!touching(world, this.box(), isLava, 0);
+    if (this.inLava) this.inWater = true;           // в лаве двигаешься как в воде, только медленнее и больно
     // направление по кнопкам в плоскости взгляда
     let mx = 0, mz = 0;
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -147,7 +195,7 @@
       if (dz === 0) this.vel.z = 0;
     }
     const y0 = this.pos.y;
-    const hit = moveBox(world, this, dx, dy, dz);
+    const hit = moveBox(world, this, dx, dy, dz, (this.onGround || this.flying) && !this.inWater);
     if (hit.cx) this.vel.x = 0;
     if (hit.cz) this.vel.z = 0;
     if (hit.cy) {
@@ -179,11 +227,33 @@
     if (this.onGround) this.fallTop = null;
     if (this.pos.y < -64) { this.damage(creative ? 0 : 1000, 'void', ev); if (creative) { this.pos.y = C.CH + 10; this.vel.y = 0; } }
 
-    if (!creative) this.survivalTick(dt, ev);
+    if (!creative) { this.contactTick(dt, world, ev); this.survivalTick(dt, ev); }
     this.hurtCool = Math.max(0, this.hurtCool - dt);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
   };
 
+  // Лава, огонь, кактус: урон при касании, горение после выхода из огня
+  Player.prototype.contactTick = function (dt, world, ev) {
+    const box = this.box();
+    if (this.inLava) {
+      this.fireT = 15;
+      this.damage(4, 'lava', ev);
+    } else if (touching(world, box, isFire, 0)) {
+      this.fireT = Math.max(this.fireT || 0, 8);
+      this.damage(1, 'fire', ev);
+    }
+    const c = touching(world, box, isCactus, 0.02);
+    if (c && this.damage(1, 'cactus', ev)) {
+      const dx = this.pos.x - c[0], dz = this.pos.z - c[2], d = Math.hypot(dx, dz) || 1;
+      this.vel.x += dx / d * 3; this.vel.z += dz / d * 3;
+    }
+    if (this.inWater && !this.inLava) this.fireT = 0;
+    if (this.fireT > 0) {
+      this.fireT -= dt;
+      this.burnT = (this.burnT || 0) + dt;
+      if (this.burnT >= 1) { this.burnT -= 1; this.damage(1, 'burn', ev, true); }
+    } else this.burnT = 0;
+  };
   Player.prototype.exhaust = function (v) {
     this.exhaustion += v;
     while (this.exhaustion >= 4) {
@@ -215,13 +285,40 @@
   Player.prototype.damage = function (n, cause, ev, ignoreCool) {
     if (this.dead || n <= 0) return false;
     if (this.hurtCool > 0 && !ignoreCool && cause !== 'fall') return false;
-    this.health = Math.max(0, this.health - n);
+    n = this.armorReduce(n, cause);
+    this.health = Math.max(0, Math.round((this.health - n) * 100) / 100);
     this.hurtCool = 0.5; this.hurtFlash = 0.35;
     this.lastDamage = { n, cause };
     this.exhaust(0.1);
     if (ev) ev('hurt', { n, cause });
     if (this.health <= 0) { this.dead = true; if (ev) ev('death', cause); }
     return true;
+  };
+  // Броня по формуле оригинала: урон x (1 - min(20, max(броня/5, броня - урон/(2 + прочность/4)))/25).
+  // Падение, утопление, голод, горение и пустота броней не гасятся.
+  const ARMORED = new Set(['zombie', 'skeleton', 'spider', 'arrow', 'cactus', 'lava', 'fire', 'mob']);
+  Player.prototype.armorPoints = function () {
+    const a = this.armorSlots ? this.armorSlots() : null;
+    let pts = 0, tough = 0;
+    if (a) for (const s of a) { const ar = s && VX.data.armorOf(s.id); if (ar) { pts += ar.pts; tough += ar.tough; } }
+    return { pts, tough };
+  };
+  Player.prototype.armorReduce = function (n, cause) {
+    if (!ARMORED.has(cause)) return n;
+    const { pts, tough } = this.armorPoints();
+    if (!pts) return n;
+    const cut = Math.min(20, Math.max(pts / 5, pts - n / (2 + tough / 4)));
+    // каждая надетая вещь теряет прочность: не меньше 1 за удар
+    const a = this.armorSlots();
+    const wear = Math.max(1, Math.floor(n / 4));
+    for (let i = 0; i < 4; i++) {
+      const s = a[i];
+      const ar = s && VX.data.armorOf(s.id);
+      if (!ar) continue;
+      s.dmg = (s.dmg || 0) + wear;
+      if (s.dmg >= ar.dur) { a[i] = null; if (VX.audio) VX.audio.play('break', { surface: 'stone' }); }
+    }
+    return n * (1 - cut / 25);
   };
   Player.prototype.eat = function (food) {
     this.food = Math.min(20, this.food + food.h);
@@ -243,5 +340,5 @@
   };
 
   VX.Player = Player;
-  VX.phys = { boxHits, sweep, solidAt, HALF, HEIGHT, EYE, SPEED };
+  VX.phys = { boxHits, sweep, solidAt, boxesAt, touching, isCactus, isLava, isFire, HALF, HEIGHT, EYE, SPEED, fluidAt };
 })();

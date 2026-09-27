@@ -94,12 +94,24 @@
       parts.push({ m, vx: (rnd() - 0.5) * 4, vy: 2 + rnd() * 3, vz: (rnd() - 0.5) * 4, life: 0.5 + rnd() * 0.4 });
     }
   }
+  // облачко при гибели моба
+  let poofGeo = null;
+  const poofMat = new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.8 });
+  function poof(m) {
+    if (!poofGeo) poofGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    for (let k = 0; k < 14; k++) {
+      const q = new THREE.Mesh(poofGeo, poofMat);
+      q.position.set(m.x + (rnd() - 0.5) * m.w, m.y + rnd() * m.h, m.z + (rnd() - 0.5) * m.w);
+      scene().add(q);
+      parts.push({ m: q, vx: (rnd() - 0.5) * 2, vy: 1 + rnd() * 2, vz: (rnd() - 0.5) * 2, life: 0.6 + rnd() * 0.4, float: true });
+    }
+  }
   function updateParts(dt) {
     for (let i = parts.length - 1; i >= 0; i--) {
       const q = parts[i];
       q.life -= dt;
       if (q.life <= 0) { group.remove(q.m); parts.splice(i, 1); continue; }
-      q.vy -= 18 * dt;
+      q.vy -= (q.float ? -1 : 18) * dt;
       const nx = q.m.position.x + q.vx * dt, ny = q.m.position.y + q.vy * dt, nz = q.m.position.z + q.vz * dt;
       const b = G.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz));
       if (b > 0 && C.SOLID[b]) { q.vx *= 0.3; q.vz *= 0.3; q.vy = 0; } else q.m.position.set(nx, ny, nz);
@@ -207,7 +219,8 @@
     VX.audio.play('mobhurt');
     if (m.hp <= 0) {
       m.deadT = 0.001;
-      for (const [id, a, b] of m.def.drops) {
+      poof(m);
+      if (cause !== 'creative') for (const [id, a, b] of m.def.drops) {
         const n2 = a + Math.floor(rnd() * (b - a + 1));
         if (n2 > 0) spawnItem({ id, count: n2 }, m.x, m.y + 0.5, m.z, (rnd() - 0.5) * 2, 3, (rnd() - 0.5) * 2, 0.5);
       }
@@ -337,8 +350,10 @@
     if (t && t.dist < hit.dist) return false;
     const held = G.inv.held();
     const tool = D.toolOf(held && held.id);
-    const dmg = tool ? tool.dmg : 1;
     const p = G.player;
+    // творческий режим: любой моб с одного удара и без выпадения, как в оригинале
+    if (G.mode === 'creative') { hurtMob(hit.mob, 1e6, p.pos.x, p.pos.z, 'creative'); G.swing = 1; return true; }
+    const dmg = tool ? tool.dmg : 1;
     hurtMob(hit.mob, dmg, p.pos.x, p.pos.z, 'player');
     if (tool) { G.inv.wearHeld(); if (tool.type !== 'sword') G.inv.wearHeld(); }
     G.swing = 1;

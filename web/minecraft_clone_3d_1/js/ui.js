@@ -578,7 +578,7 @@
   function buildHud() {
     hud = el('div', 'hud');
     hud.id = 'hud';
-    hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните, чтобы продолжить</div>
+    hud.innerHTML = `<div id="crosshair"></div><div id="debug"></div><div id="fpsMini"></div><div id="clickHint">Щёлкните по миру, чтобы управлять мышью</div>
       <div id="hurt"></div><div id="waterTint"></div><div id="bars"><div id="hearts"></div><div id="foodbar"></div><div id="airbar"></div></div>
       <div id="itemName"></div><div id="hotbar"></div><div id="toasts"></div>`;
     root.appendChild(hud);
@@ -615,7 +615,10 @@
     nm.style.opacity = Math.min(1, G.itemNameT || 0);
     $('#hurt', hud).style.opacity = Math.min(0.5, p.hurtFlash * 1.6);
     $('#waterTint', hud).style.display = G.underwater ? 'block' : 'none';
-    $('#clickHint', hud).style.display = G.state === 'play' && G.needClick && !G.testMode ? 'block' : 'none';
+    const hint = $('#clickHint', hud);
+    const showHint = G.state === 'play' && G.needClick && (G.hintT || 0) > 0;
+    hint.style.display = showHint ? 'block' : 'none';
+    hint.style.opacity = Math.min(1, (G.hintT || 0) * 1.5);
     const fm = $('#fpsMini', hud);
     fm.style.display = G.settings.showFps && !G.debug ? 'block' : 'none';
     if (G.settings.showFps) fm.textContent = (G.fps || 0) + ' к/с';

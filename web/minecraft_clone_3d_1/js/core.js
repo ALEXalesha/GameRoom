@@ -22,6 +22,9 @@ function VoxelCore() {
     'wool_green', 'wool_black', 'bookshelf', 'tall_grass', 'dandelion', 'poppy', 'dead_bush', 'torch',
     'oak_leaves_fast', 'birch_leaves_fast', 'spruce_leaves_fast', 'clay', 'obsidian', 'pumpkin_side', 'pumpkin_top', 'glowstone',
     'mossy_cobblestone', 'blue_flower',
+    'lava', 'fire', 'farmland', 'wheat_0', 'wheat_1', 'wheat_2', 'wheat_3', 'wheat_4',
+    'door_wood_lower', 'door_wood_upper', 'door_iron_lower', 'door_iron_upper', 'chest_top', 'chest_side', 'chest_front', 'bed_head_top',
+    'bed_foot_top', 'bed_side_head', 'bed_side_foot', 'lever', 'water_flow',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -98,8 +101,42 @@ function VoxelCore() {
   def(59, 'glowstone', 'Светокамень', { tex: 'glowstone', hardness: 0.3, sound: 'glass', light: 15, group: 'color' });
   def(60, 'mossy_cobblestone', 'Замшелый булыжник', { tex: 'mossy_cobblestone', hardness: 2, tool: 'pickaxe', level: 0 });
   def(61, 'blue_flower', 'Василёк', { render: 'cross', tex: 'blue_flower', solid: false, hardness: 0, sound: 'grass', group: 'nature' });
+  // ---- третий заход: огонь, грядка, пшеница, жидкости с уровнями, двери, сундук, кровать, рычаг
+  const ITEM_DOOR_WOOD = 349, ITEM_DOOR_IRON = 350, ITEM_BED = 351;       // предметы (см. data.js)
+  def(62, 'fire', 'Огонь', { render: 'cross', tex: 'fire', solid: false, hardness: 0, light: 15, drop: 0, creative: false, sound: 'wood' });
+  def(63, 'farmland', 'Грядка', { render: 'box', shape: [[0, 0, 0, 16, 15, 16]], tex: { top: 'farmland', bottom: 'dirt', side: 'dirt' }, hardness: 0.6, tool: 'shovel', sound: 'gravel', drop: 2, group: 'nature' });
+  for (let st = 0; st < 8; st++) def(64 + st, 'wheat_' + st, 'Пшеница', { render: 'crop', tex: 'wheat_' + [0, 0, 1, 1, 2, 2, 3, 4][st], solid: false, hardness: 0, sound: 'grass', creative: false, crop: st, drop: 0 });
+  // вода: 25 - источник, 72..78 - течение уровней 1..7, 79 - падающая; лава: 80 - источник, 81..83 - уровни 2, 4, 6, 84 - падающая
+  const water = { render: 'water', tex: 'water', solid: false, hardness: -1, sound: 'water', drop: 0, creative: false, fluid: 1 };
+  BLOCKS[25].fluid = 1; BLOCKS[25].level = 0;
+  for (let l = 1; l <= 7; l++) def(71 + l, 'water_' + l, 'Вода', Object.assign({}, water, { tex: 'water_flow', level: l }));
+  def(79, 'water_fall', 'Вода', Object.assign({}, water, { tex: 'water_flow', level: 0, falling: true }));
+  const lava = { render: 'lava', tex: 'lava', solid: false, hardness: -1, sound: 'water', drop: 0, creative: false, fluid: 2, light: 15, level: 0 };
+  def(80, 'lava', 'Лава', lava);
+  for (let l = 1; l <= 3; l++) def(80 + l, 'lava_' + l, 'Лава', Object.assign({}, lava, { level: l * 2 }));
+  def(84, 'lava_fall', 'Лава', Object.assign({}, lava, { falling: true }));
+  // двери: id = начало + край*4 + открыта*2 + верх; край - сторона клетки, у которой стоит закрытая створка
+  const PLATE = [[0, 0, 0, 16, 16, 3], [13, 0, 0, 16, 16, 16], [0, 0, 13, 16, 16, 16], [0, 0, 0, 3, 16, 16]];
+  const DOOR_WOOD = 86, DOOR_IRON = 102;
+  for (const [base, kind, name, o] of [[DOOR_WOOD, 'wood', 'Деревянная дверь', { hardness: 3, tool: 'axe', sound: 'wood' }], [DOOR_IRON, 'iron', 'Железная дверь', { hardness: 5, tool: 'pickaxe', level: 0, sound: 'stone' }]]) {
+    for (let e = 0; e < 4; e++) for (let op = 0; op < 2; op++) for (let up = 0; up < 2; up++) {
+      const id = base + e * 4 + op * 2 + up;
+      def(id, 'door_' + kind + '_' + id, name, Object.assign({ render: 'box', shape: [PLATE[op ? (e + 1) % 4 : e]], tex: 'door_' + kind + (up ? '_upper' : '_lower'),
+        creative: false, door: kind, edge: e, open: !!op, upper: !!up, drop: up ? 0 : (kind === 'wood' ? ITEM_DOOR_WOOD : ITEM_DOOR_IRON) }, o));
+    }
+  }
+  def(118, 'chest', 'Сундук', { render: 'box', shape: [[1, 0, 1, 15, 14, 15]], tex: { top: 'chest_top', bottom: 'chest_top', side: 'chest_side', front: 'chest_front' }, facing: true, hardness: 2.5, tool: 'axe', sound: 'wood', group: 'tools' });
+  // кровать: ноги 122+dir, изголовье 126+dir; dir - куда смотрел игрок (0 -Z, 1 -X, 2 +Z, 3 +X), изголовье дальше
+  for (let d = 0; d < 4; d++) for (let hd = 0; hd < 2; hd++) {
+    def(122 + hd * 4 + d, 'bed_' + (hd ? 'head_' : 'foot_') + d, 'Кровать', { render: 'box', shape: [[0, 0, 0, 16, 9, 16]], rot: d,
+      tex: { top: hd ? 'bed_head_top' : 'bed_foot_top', bottom: 'oak_planks', side: hd ? 'bed_side_head' : 'bed_side_foot' }, hardness: 0.2, sound: 'cloth', creative: false, bed: true, bedDir: d, bedHead: !!hd, drop: hd ? 0 : ITEM_BED });
+  }
+  def(130, 'lever', 'Рычаг', { render: 'box', shape: [[5, 0, 4, 11, 2, 12, 'cobblestone'], [6, 2, 7, 8, 11, 9, 'lever']], tex: 'lever', solid: false, hardness: 0.5, sound: 'wood', group: 'tools' });
+  def(131, 'lever_on', 'Рычаг', { render: 'box', shape: [[5, 0, 4, 11, 2, 12, 'cobblestone'], [8, 2, 7, 10, 11, 9, 'lever']], tex: 'lever', solid: false, hardness: 0.5, sound: 'wood', creative: false, item: 130, drop: 130 });
+  BLOCKS[29].render = 'box'; BLOCKS[29].shape = [[1, 0, 1, 15, 16, 15]];      // кактус чуть уже клетки: его можно коснуться
+
   // повороты: копии с тем же видом и тем же предметом
-  for (const [base, n] of [[31, 1], [35, 1]]) {
+  for (const [base, n] of [[31, 1], [35, 1], [118, 1]]) {
     for (let r = 1; r < 4; r++) {
       const src = BLOCKS[base];
       BLOCKS[base + r] = Object.assign({}, src, { id: base + r, key: src.key + '_' + r, item: src.item, creative: false, rot: r });
@@ -112,8 +149,12 @@ function VoxelCore() {
   const WALL_TORCH = 52;
 
   // Быстрые таблицы свойств по id (Uint8Array на 256): мешер и свет читают только их
-  const RENDER = new Uint8Array(256);   // 0 нет, 1 куб, 2 листва, 3 стекло, 4 вода, 5 лёд, 6 крест, 7 факел
-  const RCODE = { none: 0, cube: 1, leaves: 2, glass: 3, water: 4, ice: 5, cross: 6, torch: 7 };
+  const RENDER = new Uint8Array(256);   // 0 нет, 1 куб, 2 листва, 3 стекло, 4 вода, 5 лёд, 6 крест, 7 факел, 8 коробки, 9 посев, 10 лава
+  const RCODE = { none: 0, cube: 1, leaves: 2, glass: 3, water: 4, ice: 5, cross: 6, torch: 7, box: 8, crop: 9, lava: 10 };
+  const FLUID = new Uint8Array(256);    // 1 вода, 2 лава
+  const FLEVEL = new Uint8Array(256);   // уровень течения (0 - источник или падающая)
+  const FFALL = new Uint8Array(256);
+  const SHAPE = [];                     // коробки не во всю клетку, в шестнадцатых: [x0, y0, z0, x1, y1, z1]
   const SOLID = new Uint8Array(256);
   const EMIT = new Uint8Array(256);
   const FILTER = new Uint8Array(256);   // сколько света гасит клетка (15 - непрозрачная)
@@ -127,7 +168,9 @@ function VoxelCore() {
     RENDER[id] = RCODE[b.render];
     SOLID[id] = b.solid ? 1 : 0;
     EMIT[id] = b.light;
-    FILTER[id] = b.render === 'cube' ? 15 : (b.render === 'leaves' || b.render === 'water' || b.render === 'ice') ? 1 : 0;
+    FILTER[id] = b.render === 'cube' ? 15 : (b.render === 'leaves' || b.render === 'water' || b.render === 'ice' || b.render === 'lava') ? 1 : 0;
+    FLUID[id] = b.fluid || 0; FLEVEL[id] = b.level || 0; FFALL[id] = b.falling ? 1 : 0;
+    if (b.shape) SHAPE[id] = b.shape;
     for (let f = 0; f < 6; f++) {
       const t = b.tex || {};
       let name = t.all || (f === 3 ? t.top : f === 2 ? t.bottom : t.side);
@@ -235,21 +278,73 @@ function VoxelCore() {
   const PLAINS = 0, FOREST = 1, DESERT = 2, SNOWY = 3, MOUNTAINS = 4, OCEAN = 5, BEACH = 6, FROZEN = 7;
   const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+  // ---------- Старая версия игры (остров 48x48, 32 в высоту) ----------
+  // Постройки старой версии хранились только отличиями от её мира. Чтобы они встали на место,
+  // мир «Старый мир» повторяет прежний остров клетка в клетку (та же формула высоты, те же 18
+  // деревьев от того же зерна), поднятый на LEG_DY, а вокруг - море и дальше обычный мир.
+  const LEG_HALF = 24, LEG_DY = 44, LEG_SEED = 20240926;
+  const LEG_MAP = [0, 1, 2, 3, 9, 12, 6, 15];            // старые id -> новые (трава, земля, камень, бревно, листва, песок, доски)
+  const legHeight = (x, z) => Math.round(Math.sin(x * 0.15) * 2 + Math.cos(z * 0.18) * 2 + Math.sin((x + z) * 0.08) * 3 + Math.cos(x * 0.05) * 2.5 + Math.sin(z * 0.07) * 2) + 8;
+  let legacyCells = null;
+  function legacyIsland() {
+    if (legacyCells) return legacyCells;
+    const SX = 48, SY = 32, H = LEG_HALF;
+    const c = new Uint8Array(SX * SY * SX);
+    const inW = (x, y, z) => x >= -H && x < H && y >= 0 && y < SY && z >= -H && z < H;
+    const ix = (x, y, z) => ((y * SX) + (z + H)) * SX + (x + H);
+    const get = (x, y, z) => (inW(x, y, z) ? c[ix(x, y, z)] : 0);
+    for (let x = -H; x < H; x++) for (let z = -H; z < H; z++) {
+      const h = legHeight(x, z);
+      for (let y = 0; y <= h; y++) c[ix(x, y, z)] = y === h ? (h < 6 ? 6 : 1) : y > h - 3 ? 2 : 3;
+    }
+    const rnd = mulberry32(LEG_SEED);
+    for (let i = 0; i < 18; i++) {
+      const x = Math.floor((rnd() - 0.5) * SX * 0.8), z = Math.floor((rnd() - 0.5) * SX * 0.8);
+      const h = legHeight(x, z);
+      if (get(x, h, z) !== 1) continue;
+      const th = 4 + Math.floor(rnd() * 2);
+      for (let k = 1; k <= th; k++) if (inW(x, h + k, z)) c[ix(x, h + k, z)] = 4;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = th - 1; dy <= th + 2; dy++) {
+        if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy - th - 0.5) > 3.5) continue;
+        if (dx === 0 && dz === 0 && dy <= th) continue;
+        const X = x + dx, Y = h + dy, Z = z + dz;
+        if (inW(X, Y, Z) && !get(X, Y, Z)) c[ix(X, Y, Z)] = 5;
+      }
+    }
+    legacyCells = { get: (x, y, z) => LEG_MAP[get(x, y, z)], top: (x, z) => { let y = SY - 1; while (y > 0 && !get(x, y, z)) y--; return y; } };
+    return legacyCells;
+  }
+  const inLegacy = (x, z) => x >= -LEG_HALF && x < LEG_HALF && z >= -LEG_HALF && z < LEG_HALF;
+
   const worlds = new Map();   // кэш шумов по зерну
-  function worldOf(seed) {
-    let w = worlds.get(seed);
+  function worldOf(seed, gen) {
+    const key = seed + '|' + (gen || '');
+    let w = worlds.get(key);
     if (w) return w;
     w = {
-      seed,
+      seed, legacy: gen === 'legacy',
       cont: makeNoise(seed), det: makeNoise(seed + 11), mnt: makeNoise(seed + 23), rid: makeNoise(seed + 37),
       temp: makeNoise(seed + 41), hum: makeNoise(seed + 53), cave: makeNoise(seed + 67), cave2: makeNoise(seed + 71),
       big: makeNoise(seed + 83), floor: makeNoise(seed + 97),
     };
-    worlds.set(seed, w);
+    worlds.set(key, w);
     return w;
   }
   // Колонка мира: высота поверхности и биом. Чистая функция зерна и координат.
   function column(w, x, z) {
+    if (w.legacy) {
+      if (inLegacy(x, z)) { const oh = legHeight(x, z); return { h: oh + LEG_DY, biome: oh < 6 ? BEACH : PLAINS, m: 0, legacy: true }; }
+      // вокруг острова - море, дальше обычный мир
+      const d = Math.max(Math.max(-LEG_HALF - x, x - LEG_HALF + 1), Math.max(-LEG_HALF - z, z - LEG_HALF + 1));
+      const base = normalColumn(w, x, z);
+      if (d >= 56) return base;
+      const t = smooth(24, 56, d);
+      const h = Math.floor((SEA - 6) * (1 - t) + base.h * t);
+      return { h, biome: h < SEA - 1 ? OCEAN : h <= SEA + 1 ? BEACH : base.biome, m: base.m * t };
+    }
+    return normalColumn(w, x, z);
+  }
+  function normalColumn(w, x, z) {
     const c = w.cont.fbm2(x / 720, z / 720, 4);
     const d = w.det.fbm2(x / 96, z / 96, 4);
     const m0 = w.mnt.fbm2(x / 420 + 31.7, z / 420 - 17.3, 3);
@@ -275,6 +370,7 @@ function VoxelCore() {
 
   // Какое дерево растёт в колонке (0 - нет). Нужна и соседним кускам: крона переходит границу.
   function treeAt(w, x, z, col) {
+    if (col.legacy) return 0;
     const r = hash3(x, 7, z, w.seed ^ 0x5bd1e995);
     const b = col.biome, h = col.h;
     if (h <= SEA) return 0;
@@ -287,8 +383,8 @@ function VoxelCore() {
   }
 
   // ---------- Генерация куска ----------
-  function generate(seed, cx, cz) {
-    const w = worldOf(seed);
+  function generate(seed, cx, cz, gen) {
+    const w = worldOf(seed, gen);
     const data = new Uint8Array(CVOL);
     const X0 = cx * CS, Z0 = cz * CS;
     const M = 3, W = CS + 2 * M;
@@ -316,6 +412,16 @@ function VoxelCore() {
         top = h > SEA - 7 ? B.sand : f > 0.35 ? B.gravel : f < -0.55 ? B.clay : B.dirt;
         fill = top === B.clay ? B.clay : B.dirt === top ? B.dirt : top;
       }
+      if (col.legacy) {
+        const isl = legacyIsland();
+        for (let y = 1; y < CH; y++) {
+          const i = cidx(x, y, z);
+          if (data[i]) continue;
+          if (y < LEG_DY) data[i] = B.stone;
+          else if (y < LEG_DY + 32) data[i] = isl.get(wx, y - LEG_DY, wz);
+        }
+        continue;
+      }
       for (let y = 1; y <= h; y++) {
         const i = cidx(x, y, z);
         if (data[i]) continue;
@@ -333,6 +439,7 @@ function VoxelCore() {
     for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
       const col = colAt(x, z), h = col.h;
       const wx = X0 + x, wz = Z0 + z;
+      if (col.legacy) continue;
       const wet = h <= SEA + 2;
       const treeCol = treeAt(w, wx, wz, col) !== 0;
       const ymax = wet ? Math.min(h - 7, SEA - 8) : treeCol ? h - 3 : h;
@@ -343,12 +450,13 @@ function VoxelCore() {
         if (!carve && y < 40) carve = w.big.n3(wx / 64, y / 30, wz / 64) > 0.66;
         if (carve) {
           const i = cidx(x, y, z);
-          if (data[i] !== B.bedrock && data[i] !== B.water) data[i] = 0;
+          // глубоко в пещерах - озёра лавы, как в оригинале (ниже 11)
+          if (data[i] !== B.bedrock && data[i] !== B.water) data[i] = y <= 10 ? LAVA : 0;
         }
       }
     }
     // руда: жилы, начатые в этом куске
-    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100]];
+    const ores = [[B.coal_ore, 18, 12, 6, 110], [B.iron_ore, 10, 8, 5, 64], [B.gold_ore, 3, 7, 5, 32], [B.diamond_ore, 2, 5, 5, 16], [B.gravel, 6, 16, 8, 90], [B.dirt, 5, 16, 10, 100], [B.glowstone, 2, 6, 5, 26]];
     const orng = mulberry32((seed ^ Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663)) | 0);
     for (const [id, count, size, ymin, ymaxO] of ores) {
       for (let v = 0; v < count; v++) {
@@ -364,7 +472,7 @@ function VoxelCore() {
     // растения на поверхности
     for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
       const col = colAt(x, z), h = col.h;
-      if (h >= CH - 2 || h <= SEA) continue;
+      if (h >= CH - 2 || h <= SEA || col.legacy) continue;
       const wx = X0 + x, wz = Z0 + z;
       const topId = get(x, h, z);
       if (get(x, h + 1, z) !== 0) continue;
@@ -443,7 +551,8 @@ function VoxelCore() {
   }
 
   // Точка появления: ближайшая к началу суша без воды над ней
-  function findSpawn(seed) {
+  function findSpawn(seed, gen) {
+    if (gen === 'legacy') return { x: 0, z: 0, h: legacyIsland().top(0, 0) + LEG_DY };
     const w = worldOf(seed);
     // сперва открытая местность (равнины, пустыня, тундра), потом любая суша
     for (const open of [true, false]) {
@@ -607,6 +716,12 @@ function VoxelCore() {
       buf.ni = n; buf.nv += 4; buf.quads++;
     }
 
+    // высота жидкости в клетке (в шестнадцатых): над ней та же жидкость - во всю клетку
+    const fluidH = (ri, rid) => {
+      if (ri + RA < RVOL && FLUID[R[ri + RA]] === FLUID[rid]) return 16;
+      const l = FLEVEL[rid];
+      return FFALL[rid] || l === 0 ? 14 : (8 - l) / 9 * 16;
+    };
     const verts = [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]];
     const lights = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
     const cellLight = (i) => [sky[i] * 17, blk[i] * 17, 255];
@@ -659,8 +774,90 @@ function VoxelCore() {
         emitQuad(opaque, verts, t, 1, lights, false);
         continue;
       }
-      const buf = (rc === 4 || rc === 5) ? trans : opaque;
-      const waterTop = rc === 4 && R[i + RA] !== B.water && y < CH - 1;
+      if (rc === 4 || rc === 10) {      // вода и лава: высота по уровню, грани к своей жидкости - только ступенька
+        const fam = FLUID[id];
+        const hh = fluidH(i, id);
+        const bufF = rc === 4 ? trans : opaque;
+        for (let f = 0; f < 6; f++) {
+          const F = FACES[f];
+          const nx = x + F.n[0], ny = y + F.n[1], nz = z + F.n[2];
+          if (ny < 0) continue;
+          const nid = ny >= CH ? 0 : R[ridx(nx, ny, nz)];
+          if (isOpq(nid)) continue;
+          let lo = 0;
+          if (FLUID[nid] === fam) {
+            if (f === 2 || f === 3) continue;
+            const nh = fluidH(ridx(nx, ny, nz), nid);
+            if (nh >= hh) continue;
+            lo = nh;
+          }
+          if (f === 3 && hh === 16) continue;
+          if (rc === 4 && nid === B.ice) continue;
+          const ni = ny >= CH ? -1 : ridx(nx, ny, nz);
+          const L = ni < 0 ? [255, 0, 255] : [sky[ni] * 17, blk[ni] * 17, 255];
+          const vs = VERT[f];
+          for (let k = 0; k < 4; k++) {
+            const V = vs[k];
+            let py = V.p[1] ? hh : lo;
+            if (f === 2) py = 0;
+            if (f === 3) py = hh;
+            verts[k] = [(lx + V.p[0]) * 16, y * 16 + py, (lz + V.p[2]) * 16, V.u, f === 2 || f === 3 ? V.v : py / 16];
+            lights[k] = L;
+          }
+          emitQuad(bufF, verts, texT[id * 6 + f], F.shade, lights, false);
+        }
+        continue;
+      }
+      if (rc === 9) {      // посев: четыре плоскости решёткой, с двух сторон
+        const t = TEXF[id * 6];
+        const L = cellLight(i);
+        for (let k = 0; k < 4; k++) lights[k] = L;
+        const X = lx * 16, Y = y * 16 - 1, Z = lz * 16;
+        for (const [p0, p1] of [[[4, 0], [4, 16]], [[12, 0], [12, 16]], [[0, 4], [16, 4]], [[0, 12], [16, 12]]]) {
+          for (const back of [false, true]) {
+            const A = back ? p1 : p0, Bq = back ? p0 : p1;
+            verts[0] = [X + A[0], Y, Z + A[1], 0, 0]; verts[1] = [X + Bq[0], Y, Z + Bq[1], 1, 0];
+            verts[2] = [X + A[0], Y + 16, Z + A[1], 0, 1]; verts[3] = [X + Bq[0], Y + 16, Z + Bq[1], 1, 1];
+            emitQuad(opaque, verts, t, 0.9, lights, false);
+          }
+        }
+        continue;
+      }
+      if (rc === 8) {      // коробки не во всю клетку: двери, кровать, сундук, грядка, кактус, рычаг
+        const rot = BLOCKS[id].rot || 0;
+        for (const bx of SHAPE[id]) {
+          const lo = [bx[0], bx[1], bx[2]], hi = [bx[3], bx[4], bx[5]];
+          for (let f = 0; f < 6; f++) {
+            const F = FACES[f];
+            const ax = F.n[0] ? 0 : F.n[1] ? 1 : 2, pos = F.n[ax] > 0;
+            const edge = pos ? hi[ax] === 16 : lo[ax] === 0;
+            let ni = i;
+            if (edge) {
+              const nx = x + F.n[0], ny = y + F.n[1], nz = z + F.n[2];
+              if (ny < 0) continue;
+              if (ny < CH) { const nid = R[ridx(nx, ny, nz)]; if (isOpq(nid)) continue; ni = ridx(nx, ny, nz); } else ni = -1;
+            }
+            const L = ni < 0 ? [255, 0, 255] : [Math.max(sky[ni], sky[i]) * 17, Math.max(blk[ni], blk[i]) * 17, 255];
+            const t = bx[6] ? T[bx[6]] : texT[id * 6 + f];
+            const vs = VERT[f];
+            const a1 = F.e1[0] ? 0 : F.e1[1] ? 1 : 2, s1 = F.e1[a1];
+            const a2 = F.e2[0] ? 0 : F.e2[1] ? 1 : 2, s2 = F.e2[a2];
+            for (let k = 0; k < 4; k++) {
+              const V = vs[k];
+              const c = [V.p[0] ? hi[0] : lo[0], V.p[1] ? hi[1] : lo[1], V.p[2] ? hi[2] : lo[2]];
+              let u = s1 > 0 ? c[a1] / 16 : 1 - c[a1] / 16;
+              let v = s2 > 0 ? c[a2] / 16 : 1 - c[a2] / 16;
+              if (f === 3 && rot) { for (let r2 = 0; r2 < rot; r2++) { const tu = u; u = v; v = 1 - tu; } }
+              verts[k] = [lx * 16 + c[0], y * 16 + c[1], lz * 16 + c[2], u, v];
+              lights[k] = L;
+            }
+            emitQuad(opaque, verts, t, F.shade, lights, false);
+          }
+        }
+        continue;
+      }
+      const buf = rc === 5 ? trans : opaque;
+      const waterTop = false;
       for (let f = 0; f < 6; f++) {
         const F = FACES[f];
         const nx = x + F.n[0], ny = y + F.n[1], nz = z + F.n[2];
@@ -668,8 +865,7 @@ function VoxelCore() {
         const nid = ny >= CH ? 0 : R[ridx(nx, ny, nz)];
         // видна ли грань
         if (isOpq(nid)) continue;
-        if ((rc === 3 || rc === 4 || rc === 5) && nid === id) continue;
-        if (rc === 4 && (nid === B.ice)) continue;
+        if ((rc === 3 || rc === 5) && nid === id) continue;
         if (rc === 2 && fancy === false && RENDER[nid] === 2) continue;
         const t = texT[id * 6 + f];
         const ni = ny >= CH ? -1 : ridx(nx, ny, nz);
@@ -709,6 +905,7 @@ function VoxelCore() {
     }
     return { opaque: opaque.out(), trans: trans.out() };
   }
+  const LAVA = 80;
 
   // Упаковка куска для хранения: пары (длина, значение)
   function rleEncode(d) {
@@ -730,6 +927,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
+    FLUID, FLEVEL, FFALL, SHAPE, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }

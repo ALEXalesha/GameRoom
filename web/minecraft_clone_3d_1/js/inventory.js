@@ -15,16 +15,18 @@
   // Контейнер - именованный массив ячеек. У инвентаря игрока их несколько.
   function Inventory() {
     this.slots = new Array(36).fill(null);
+    this.armor = [null, null, null, null];     // шлем, нагрудник, поножи, ботинки
     this.selected = 0;
     this.cursor = null;          // что держим мышью в открытом окне
   }
   Inventory.prototype.held = function () { return this.slots[this.selected]; };
-  Inventory.prototype.clear = function () { this.slots.fill(null); this.cursor = null; };
-  Inventory.prototype.toJSON = function () { return { slots: this.slots.map(clone), selected: this.selected }; };
+  Inventory.prototype.clear = function () { this.slots.fill(null); this.armor.fill(null); this.cursor = null; };
+  Inventory.prototype.toJSON = function () { return { slots: this.slots.map(clone), armor: this.armor.map(clone), selected: this.selected }; };
   Inventory.prototype.load = function (o) {
     this.clear();
     if (!o) return;
     (o.slots || []).forEach((s, i) => { if (i < 36 && s && s.id && s.count > 0) this.slots[i] = clone(s); });
+    (o.armor || []).forEach((s, i) => { if (i < 4 && s && s.id) this.armor[i] = clone(s); });
     this.selected = Math.max(0, Math.min(8, o.selected | 0));
   };
   Inventory.prototype.count = function (id) { let n = 0; for (const s of this.slots) if (s && s.id === id) n += s.count; return n; };
@@ -183,6 +185,7 @@
   }
   PlayerView.prototype.get = function (i) {
     if (i < 36) return this.inv.slots[i];
+    if (i >= 40 && i < 44) return this.inv.armor[i - 40];
     if (i >= 100 && i < 200) return this.grid[i - 100];
     if (i === 200) { const r = this.recipe(); return r ? newStack(r.outId, r.count) : null; }
     return null;
@@ -190,7 +193,13 @@
   PlayerView.prototype.set = function (i, s) {
     if (s && s.count <= 0) s = null;
     if (i < 36) this.inv.slots[i] = s;
+    else if (i >= 40 && i < 44) { this.inv.armor[i - 40] = s; if (s && this.onEquip) this.onEquip(s); }
     else if (i >= 100 && i < 200) this.grid[i - 100] = s;
+  };
+  // в ячейку брони - только своя часть брони
+  PlayerView.prototype.canPut = function (i, s) {
+    if (i >= 40 && i < 44) { const a = D.armorOf(s.id); return !!a && a.slot === i - 40 && s.count === 1; }
+    return i !== 200;
   };
   PlayerView.prototype.isOutput = (i) => i === 200;
   PlayerView.prototype.recipe = function () { return D.matchRecipe(this.grid.map((s) => (s ? s.id : 0)), this.size); };
@@ -206,7 +215,9 @@
   };
   // Shift: панель <-> рюкзак, сетка -> инвентарь
   PlayerView.prototype.shiftMove = function (i, s) {
-    const order = i >= 100 ? MAIN.concat(HOTBAR) : i < 9 ? MAIN : HOTBAR;
+    const a = D.armorOf(s.id);
+    if (a && i < 36 && !this.inv.armor[a.slot]) { this.set(40 + a.slot, clone(s)); return 0; }   // Shift по броне - надеть
+    const order = i >= 40 ? MAIN.concat(HOTBAR) : i < 9 ? MAIN : HOTBAR;
     const probe = this.inv.slots;
     const left = addTo(probe, order, s.id, s.count, s.dmg);
     return left;
@@ -218,6 +229,33 @@
       const s = this.grid[k];
       if (s) { const left = this.inv.add(s.id, s.count, s.dmg); if (left) spill.push(newStack(s.id, left, s.dmg)); this.grid[k] = null; }
     }
+    const c = this.inv.cursor;
+    if (c) { const left = this.inv.add(c.id, c.count, c.dmg); if (left) spill.push(newStack(c.id, left, c.dmg)); this.inv.cursor = null; }
+    return spill;
+  };
+
+  // Окно сундука: 500.. - ячейки сундука (27, у двойного - 54), 0..35 - игрок
+  function ChestView(inv, chests) { this.inv = inv; this.chests = chests; this.size = chests.length * 27; }
+  ChestView.prototype.get = function (i) {
+    if (i < 36) return this.inv.slots[i];
+    const k = i - 500;
+    return k >= 0 && k < this.size ? this.chests[(k / 27) | 0][k % 27] : null;
+  };
+  ChestView.prototype.set = function (i, s) {
+    if (s && s.count <= 0) s = null;
+    if (i < 36) { this.inv.slots[i] = s; return; }
+    const k = i - 500;
+    if (k >= 0 && k < this.size) this.chests[(k / 27) | 0][k % 27] = s;
+  };
+  const R27 = []; for (let k = 0; k < 27; k++) R27.push(k);
+  ChestView.prototype.shiftMove = function (i, s) {
+    if (i >= 500) return addTo(this.inv.slots, HOTBAR.slice().reverse().concat(MAIN.slice().reverse()), s.id, s.count, s.dmg);
+    let left = s.count;
+    for (const ch of this.chests) { if (left <= 0) break; left = addTo(ch, R27, s.id, left, s.dmg); }
+    return left;
+  };
+  ChestView.prototype.close = function () {
+    const spill = [];
     const c = this.inv.cursor;
     if (c) { const left = this.inv.add(c.id, c.count, c.dmg); if (left) spill.push(newStack(c.id, left, c.dmg)); this.inv.cursor = null; }
     return spill;
@@ -271,7 +309,8 @@
       const fv = fuel ? D.fuelOf(fuel.id) : 0;
       if (fv > 0) {
         f.burn = f.burnMax = fv;
-        fuel.count--; if (!fuel.count) f.slots[1] = null;
+        const back = (D.info(fuel.id) || {}).fuelLeft;       // ведро лавы сгорает, ведро остаётся
+        fuel.count--; if (!fuel.count) f.slots[1] = back ? newStack(back, 1) : null;
       }
     }
     const burning = f.burn > 0;
@@ -288,5 +327,5 @@
     return burning;
   }
 
-  VX.inv = { Inventory, click, drag, addTo, PlayerView, FurnaceView, newFurnace, tickFurnace, newStack, clone, HOTBAR, MAIN, ALL };
+  VX.inv = { Inventory, click, drag, addTo, PlayerView, FurnaceView, ChestView, newFurnace, tickFurnace, newStack, clone, HOTBAR, MAIN, ALL };
 })();
