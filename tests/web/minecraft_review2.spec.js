@@ -423,3 +423,92 @@ test.describe('minecraft_clone_3d_1: Esc-Esc как просил владеле�
     expect(r.locked).toBe(true);
   });
 });
+
+test.describe('minecraft_clone_3d_1: медленная загрузка кусков', () => {
+  // мир с героем на земле в 30 блоках от точки появления; записан и закрыт
+  const prepare = (page) => page.evaluate(async () => {
+    const v = __voxel, p = v.player, G = v.game;
+    v.settings.renderDistance = 3; G.applySettings();
+    G.autoSpawn = false;
+    const x = Math.floor(p.pos.x) + 30, z = Math.floor(p.pos.z) - 20;
+    p.flying = false; p.pos.set(x + 0.5, 120, z + 0.5); p.vel.set(0, 0, 0);
+    await v.waitIdle(1);
+    // площадка из камня высоко над землёй: стоять на ней можно ровно, а упасть было бы больно
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { v.setBlock(x + dx, 99, z + dz, v.core.B.stone); for (let y = 100; y < 104; y++) v.setBlock(x + dx, y, z + dz, 0); }
+    p.pos.set(x + 0.5, 100, z + 0.5); p.vel.set(0, 0, 0); p.fallTop = null;
+    v.step(0.05, 10);
+    const id = v.meta.id; await v.flush(); await v.exitToTitle();
+    // сравнивать будем с тем, что записано (быстрый снимок новее записи в базе - берётся он)
+    const m = await v.VX.store.getWorld(id);
+    let q = null; try { q = JSON.parse(localStorage.getItem('cw2_quick_' + id)); } catch (e) { /* нет */ }
+    const pos = q && q.t > (m.lastPlayed || 0) + 500 ? q.player.pos : m.player.pos;
+    return { id, saved: { x: pos[0], y: pos[1], z: pos[2] } };
+  });
+  // ответы потоков и хранилища опаздывают на ms
+  const slow = (page, ms) => page.evaluate((ms) => {
+    const w = __voxel.world, S = __voxel.VX.store;
+    const onResult = w.onResult.bind(w);
+    w.onResult = (wk, m) => setTimeout(() => onResult(wk, m), ms);
+    const gc = S.getChunks;
+    S.getChunks = (...a) => new Promise((rr) => setTimeout(() => rr(gc(...a)), ms));
+  }, ms);
+  const throttle = async (page, rate) => { const cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate }); return cdp; };
+
+  test('куски и хранилище отвечают с опозданием 3 с, процессор в 6 раз медленнее: герой ровно там, где был сохранён, не падает и не ранен', async ({ page }) => {
+    test.setTimeout(180000);
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    const { id, saved } = await prepare(page);
+    await slow(page, 3000);
+    const cdp = await throttle(page, 6);
+    await page.evaluate((id) => __voxel.game.openWorld(id), id);
+    const track = await page.evaluate(async (saved) => {
+      const v = __voxel, p = v.player, out = { maxDev: 0, minHp: 20, states: new Set() };
+      const t0 = performance.now(); let playT = 0;
+      while (performance.now() - t0 < 120000 && (!playT || performance.now() - playT < 6000)) {
+        if (!playT && v.state === 'play') playT = performance.now();
+        out.states.add(v.state);
+        if (v.state !== 'loading') { out.maxDev = Math.max(out.maxDev, Math.hypot(p.pos.x - saved.x, p.pos.y - saved.y, p.pos.z - saved.z)); out.minHp = Math.min(out.minHp, p.health); }
+        await new Promise((rr) => setTimeout(rr, 100));
+      }
+      return { maxDev: out.maxDev, minHp: out.minHp, states: [...out.states], dead: p.dead, pos: [p.pos.x, p.pos.y, p.pos.z] };
+    }, saved);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    expect(track.states).toContain('play');
+    expect(track.maxDev).toBeLessThan(0.01);
+    expect(track.minHp).toBe(20);
+    expect(track.dead).toBe(false);
+  });
+
+  test('загрузка сдалась по времени раньше, чем пришёл кусок под героем: герой стоит на месте (физика ждёт кусок), не взлетает, не падает, не в точке появления', async ({ page }) => {
+    test.setTimeout(180000);
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    const { id, saved } = await prepare(page);
+    await slow(page, 6000);
+    await page.evaluate(() => { __voxel.game.loadTimeout = 1.5; });     // сдаться раньше, чем придут куски
+    await page.evaluate((id) => __voxel.game.openWorld(id), id);
+    const track = await page.evaluate(async (saved) => {
+      const v = __voxel, p = v.player, G = v.game, out = { maxDev: 0, minHp: 20, waited: false, playedEarly: false };
+      const t0 = performance.now(); let loadedT = 0;
+      while (performance.now() - t0 < 120000 && (!loadedT || performance.now() - loadedT < 4000)) {
+        if (!loadedT && v.world.isLoaded(p.pos.x, p.pos.z) && v.state !== 'loading') loadedT = performance.now();
+        if (v.state === 'play' || v.state === 'paused') {
+          if (!v.world.isLoaded(p.pos.x, p.pos.z)) { out.playedEarly = true; if (G.waitingChunk) out.waited = true; }
+          out.maxDev = Math.max(out.maxDev, Math.hypot(p.pos.x - saved.x, p.pos.y - saved.y, p.pos.z - saved.z));
+          out.minHp = Math.min(out.minHp, p.health);
+        }
+        await new Promise((rr) => setTimeout(rr, 100));
+      }
+      const sp = v.meta.spawn;
+      return { ...out, dead: p.dead, loaded: v.world.isLoaded(p.pos.x, p.pos.z), fromSpawn: Math.hypot(p.pos.x - sp.x, p.pos.z - sp.z) };
+    }, saved);
+    expect(track.playedEarly).toBe(true);                // игра пошла до прихода куска
+    expect(track.waited).toBe(true);                     // и ждала его
+    expect(track.loaded).toBe(true);
+    expect(track.maxDev).toBeLessThan(0.01);
+    expect(track.minHp).toBe(20);
+    expect(track.dead).toBe(false);
+    expect(track.fromSpawn).toBeGreaterThan(20);
+  });
+});

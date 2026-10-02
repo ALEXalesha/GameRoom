@@ -1246,6 +1246,12 @@
     G.play();
     G.saveWorld();
   };
+  // куски под коробкой героя (с запасом в блок) загружены?
+  function playerChunksReady() {
+    const x = player.pos.x, z = player.pos.z;
+    return world.isLoaded(x - 1, z - 1) && world.isLoaded(x + 1, z - 1) && world.isLoaded(x - 1, z + 1) && world.isLoaded(x + 1, z + 1);
+  }
+  G.playerChunksReady = playerChunksReady;
   let lastBiome = -1, achT = 0;
   function simulate(dt) {
     const running = G.state === 'play' || G.state === 'inv' || G.state === 'dead';
@@ -1255,7 +1261,11 @@
     const inp = G.state === 'play' && !G.sleeping ? inputState() : {};
     // в лодке или вагонетке героем правит транспорт (Shift - выйти)
     const riding = G.riding && VX.vehicles && G.state !== 'dead' && VX.vehicles.ride(dt, inp);
-    if (G.state !== 'dead' && !riding) player.update(dt, inp, world, G.mode, playerEvent);
+    // кусок под героем ещё не пришёл (медленная машина, смена измерения, долгий кадр): физика стоит,
+    // герой ждёт на месте - не падает, не выталкивается и не попадает в точку появления
+    G.waitingChunk = !playerChunksReady();
+    if (G.waitingChunk) { player.vel.set(0, 0, 0); player.fallTop = null; }
+    else if (G.state !== 'dead' && !riding) player.update(dt, inp, world, G.mode, playerEvent);
     if (player.dead && G.state !== 'dead') { G.onDeath(player.lastDamage && player.lastDamage.cause); return; }
     if (player.inWater && !wasWater && Math.abs(player.vel.y) > 2) VX.audio.play('splash');
     // шаги
@@ -1372,11 +1382,14 @@
     } else if (G.state === 'loading') {
       G.loadT += dt;
       // ждём куски вокруг (при дальности 2 сетки строятся только в радиусе 2 - ждём ближний квадрат 3x3)
-      if (world.readyAround(player.pos.x, player.pos.z, Math.min(2, world.radius - 1)) || G.loadT > 25) {
+      if (world.readyAround(player.pos.x, player.pos.z, Math.min(2, world.radius - 1)) || G.loadT > (G.loadTimeout || 25)) {
         if (G.afterLoad) { const f = G.afterLoad; G.afterLoad = null; f(); }
-        // игрок не должен оказаться внутри земли: поднимаем до свободного места
+        // игрок не должен оказаться внутри земли: поднимаем до свободного места - но только по
+        // настоящим блокам. Незагруженный кусок считается сплошным, и на медленной машине (загрузка
+        // сдалась по времени) героя выталкивало на 140 блоков вверх - он падал и разбивался
+        // («телепорт в начало мира»). Пока куска нет, герой ждёт его на месте (simulate).
         let guard = 0;
-        while (VX.phys.boxHits(world, player.box()) && guard++ < 140) player.pos.y += 1;
+        if (playerChunksReady()) while (VX.phys.boxHits(world, player.box()) && guard++ < 140) player.pos.y += 1;
         G.emit('enter', {});
         G.state = 'paused';
         // во время загрузки оболочка попросила паузу или вкладку скрыли - не запускаем игру, а показываем паузу
