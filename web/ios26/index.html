@@ -1956,6 +1956,10 @@ body.dark .banner .n-card, body.dark #nc-list .n-card { --lg-tint: rgba(28,28,32
 /* браузер в тёмной теме: страница тоже тёмная, иначе белый текст строки состояния и подписей на белом */
 body.dark .browser-app .safari-content { background: #000; color: #fff; }
 body.dark .browser-app .safari-meta { color: #8e8e93; }
+/* Плитки пункта управления едут над уже размытым слоем .cc-back: свой фильтр им в движении не нужен,
+   а любой (даже одна насыщенность) - это кадры по 33 мс вместо 16.7 (замер). Подкраска остаётся. */
+#control-center.lg-moving .lg, #control-center .lg.lg-hold { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.cc-back { transition: opacity 0.22s ease; }
 </style>
 </head>
 <body>

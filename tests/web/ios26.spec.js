@@ -814,9 +814,11 @@ test('пока стекло едет, под ним размытие, а не п
   expect(await bf('#nc-list .n-card'), 'карточки центра уведомлений едут без размытия').toMatch(/blur\(\d/);
   await page.evaluate(() => closeNC());
   await page.waitForTimeout(700);
+  // плитки пункта управления едут над размытым слоем .cc-back (свой фильтр в движении - кадры по 33 мс)
   await page.evaluate(() => openCC());
   await page.waitForTimeout(120);
-  expect(await bf('#control-center [data-cc="rotation"]'), 'плитки едут без размытия').toMatch(/blur\(\d/);
+  expect(await bf('#control-center .cc-back'), 'под плитками нет размытого слоя').toMatch(/blur\(\d/);
+  expect(+(await page.evaluate(() => getComputedStyle(document.querySelector('#control-center .cc-back')).opacity)), 'размытый слой ещё прозрачный').toBeGreaterThan(0.3);
 });
 
 // Ревью просило возвращать стекло по 1-2 элемента за кадр. Замер процессора (3 открытия пункта управления):
