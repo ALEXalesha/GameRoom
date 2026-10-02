@@ -502,3 +502,195 @@ test('запись не удалась (мало места): уведомлен
   await expect(page.locator('.banner')).toContainText('Не сохранено: мало места');
   await expect.poll(() => page.evaluate(() => FS.has('Документы/большой.txt'))).toBe(false);
 });
+
+// ===== Жидкое стекло в духе iOS 26 (техника проекта LiquidGlass: SDF кромки, три текстуры, feDisplacementMap) =====
+// Пиксели снимков разбираются в отдельной пустой вкладке: сама страница телефона ничего не знает о проверке.
+async function decoder(context) {
+  const p = await context.newPage();
+  await p.setContent('<canvas></canvas>');
+  return p;
+}
+// Снимок области: массив RGBA и размер
+async function grab(page, dec, clip) {
+  const b64 = (await page.screenshot({ clip })).toString('base64');
+  return dec.evaluate(async (b) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b; await img.decode();
+    const c = document.querySelector('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    return { w: img.width, h: img.height, d: Array.from(x.getImageData(0, 0, img.width, img.height).data) };
+  }, b64);
+}
+const mean = (px) => { const s = [0, 0, 0]; const n = px.d.length / 4; for (let i = 0; i < px.d.length; i += 4) { s[0] += px.d[i]; s[1] += px.d[i + 1]; s[2] += px.d[i + 2]; } return s.map((v) => v / n); };
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const luma = (r, g, b) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+// середина элемента без краёв: кромка стекла светится, а проверяется то, что видно сквозь него
+async function inner(page, sel, k = 0.3) {
+  const b = await page.locator(sel).first().boundingBox();
+  return { x: b.x + b.width * k, y: b.y + b.height * k, width: b.width * (1 - 2 * k), height: b.height * (1 - 2 * k) };
+}
+async function glassReady(page, sel) {
+  await expect.poll(() => page.evaluate((s) => !!(window.LG && LG.ready(document.querySelector(s))), sel), { timeout: 8000, message: sel + ': стекло не готово' }).toBe(true);
+}
+async function setWall(page, w) {
+  await page.evaluate((x) => setS('wallpaper', x), w);
+  await expect.poll(() => page.evaluate(() => !window.Wall || Wall.ready())).toBe(true);
+}
+
+test('док, плитки пункта управления и виджет - фильтр Жидкого стекла (преломление, дисперсия), а не просто размытие', async ({ page }) => {
+  const errors = await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => openCC());
+  for (const sel of ['#dock', '#home-grid .home-widget', '#control-center [data-cc="rotation"]', '#control-center [data-slider="brightness"]']) {
+    await glassReady(page, sel);
+    const g = await page.locator(sel).first().evaluate((el) => {
+      const bf = getComputedStyle(el).backdropFilter;
+      const id = (bf.match(/url\("?#([^")]+)"?\)/) || [])[1];
+      const f = id && document.getElementById(id);
+      return { bf, filter: !!f, disp: f ? [...f.querySelectorAll('feDisplacementMap')].map((d) => +d.getAttribute('scale')) : [], img: f ? (f.querySelector('feImage').getAttribute('href') || '').slice(0, 14) : '' };
+    });
+    expect(g.bf, sel + ': в backdrop-filter нет ссылки на фильтр').toMatch(/url\(/);
+    expect(g.filter, sel + ': фильтра нет в документе').toBe(true);
+    expect(g.img, sel + ': карта смещения не картинка').toBe('data:image/pn');
+    expect(g.disp.length, sel + ': дисперсия - три прохода смещения').toBe(3);
+    expect(Math.max(...g.disp), sel + ': кромка тянет фон внутрь (масштаб отрицательный)').toBeLessThan(0);
+    expect(new Set(g.disp).size, sel + ': каналы R, G, B смещаются по-разному').toBe(3);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('сквозь док, виджет и плитки видно обои; пункт управления не сплошной: цвет под ними меняется вместе с обоями', async ({ page, context }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const dec = await decoder(context);
+  const probe = {};
+  for (const w of ['forest', 'sunset']) {
+    await setWall(page, w);
+    await page.waitForTimeout(300);
+    const cc = page.locator('#control-center');
+    probe[w] = { dock: mean(await grab(page, dec, await inner(page, '#dock', 0.35))), widget: mean(await grab(page, dec, await inner(page, '#home-grid .home-widget'))) };
+    await page.evaluate(() => openCC());
+    await glassReady(page, '#control-center [data-cc="rotation"]');
+    await page.waitForTimeout(700);
+    probe[w].tile = mean(await grab(page, dec, await inner(page, '#control-center [data-cc="rotation"]', 0.2)));
+    // фон пункта управления под сеткой, где плиток нет
+    const d = await page.locator('#device').boundingBox(), grid = await cc.locator('.cc-grid').boundingBox();
+    probe[w].back = mean(await grab(page, dec, { x: d.x + d.width * 0.2, y: grid.y + grid.height + 40, width: d.width * 0.6, height: 60 }));
+    await page.keyboard.press('Escape');
+    await expect(cc).not.toHaveClass(/open/);
+  }
+  for (const k of ['dock', 'widget', 'tile', 'back']) {
+    expect(dist(probe.forest[k], probe.sunset[k]), `${k}: цвет не зависит от обоев (${probe.forest[k].map(Math.round)} / ${probe.sunset[k].map(Math.round)})`).toBeGreaterThan(40);
+  }
+  // пункт управления и плитки полупрозрачные
+  const a = await page.evaluate(() => {
+    const alpha = (el) => { const m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/); const p = m ? m[1].split(',').map(Number) : [0, 0, 0, 0]; return p.length > 3 ? p[3] : 1; };
+    return [alpha(document.getElementById('control-center')), ...[...document.querySelectorAll('#control-center .cc-back, #control-center .cc-tile:not(.active), #control-center .cc-slider')].map(alpha)];
+  });
+  for (const x of a) expect(x, 'сплошной фон в пункте управления').toBeLessThan(0.6);
+});
+
+test('время и дата на экране блокировки читаются на трёх разных обоях: контраст не меньше 4.5', async ({ page, context }) => {
+  await openOs(page, NAME);
+  const dec = await decoder(context);
+  for (const w of ['liquid', 'pearl', 'forest']) {
+    await setWall(page, w);
+    await page.waitForTimeout(400);
+    for (const sel of ['#lock-time', '#lock-date']) {
+      const clip = await page.locator(sel).boundingBox();
+      const withText = await grab(page, dec, clip);
+      await page.evaluate(() => document.querySelectorAll('#lock-time, #lock-date, .glyph-layer').forEach((e) => { e.style.visibility = 'hidden'; }));
+      await page.waitForTimeout(100);
+      const without = await grab(page, dec, clip);
+      await page.evaluate(() => document.querySelectorAll('#lock-time, #lock-date, .glyph-layer').forEach((e) => { e.style.visibility = ''; }));
+      // пиксели букв - где снимки расходятся; цвет букв - середина самых непохожих, фон - худший случай под ними
+      const diff = [];
+      for (let i = 0; i < withText.d.length; i += 4) {
+        const dd = Math.abs(withText.d[i] - without.d[i]) + Math.abs(withText.d[i + 1] - without.d[i + 1]) + Math.abs(withText.d[i + 2] - without.d[i + 2]);
+        if (dd > 60) diff.push([dd, luma(withText.d[i], withText.d[i + 1], withText.d[i + 2]), luma(without.d[i], without.d[i + 1], without.d[i + 2])]);
+      }
+      expect(diff.length, `${w} ${sel}: текста не видно`).toBeGreaterThan(30);
+      diff.sort((x, y) => y[0] - x[0]);
+      const core = diff.slice(0, Math.ceil(diff.length / 2));
+      const fg = core.map((x) => x[1]).sort((x, y) => x - y)[Math.floor(core.length / 2)];
+      const bgs = diff.map((x) => x[2]).sort((x, y) => x - y);
+      const light = fg > bgs[Math.floor(bgs.length / 2)];
+      const bg = light ? bgs[Math.floor(bgs.length * 0.9)] : bgs[Math.floor(bgs.length * 0.1)];
+      expect(contrast(fg, bg), `${w} ${sel}: контраст букв ${fg.toFixed(3)} и фона ${bg.toFixed(3)}`).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});
+
+test('значок - суперэллипс (непрерывная кривизна угла), а не скруглённый квадрат: пиксели угла', async ({ page, context }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const dec = await decoder(context);
+  // тот же класс значка, только крупно и белым: кромка угла меряется с долей пикселя по покрытию столбцов
+  const S = 400;
+  await page.evaluate((s) => {
+    const st = document.createElement('style'); st.textContent = '#probe::before,#probe::after{display:none!important}'; document.head.appendChild(st);
+    const p = document.createElement('div'); p.className = 'icon'; p.id = 'probe';
+    p.style.cssText = `position:fixed;left:20px;top:20px;width:${s}px;height:${s}px;background:#fff;box-shadow:none;z-index:99999;transform:none`;
+    document.body.appendChild(p);
+  }, S);
+  const px = await grab(page, dec, { x: 20, y: 20, width: S / 2, height: S / 2 });
+  const inset = (x) => { let cov = 0; for (let y = 0; y < px.h; y++) { const i = (y * px.w + x) * 4; cov += (px.d[i] + px.d[i + 1] + px.d[i + 2]) / 765; } return px.h - cov; };
+  const bgCorner = px.d[(Math.round(S * 0.03) * px.w + Math.round(S * 0.03)) * 4];
+  expect(bgCorner, 'угол не скруглён').toBeLessThan(128);
+  const at10 = inset(Math.round(S * 0.1)), at25 = (inset(Math.round(S * 0.24)) + inset(Math.round(S * 0.25)) + inset(Math.round(S * 0.26))) / 3;
+  // у окружности радиуса ~22% кромка к четверти стороны уже прямая (0), у большого круга отступ на 0.1 стороны огромный
+  expect(at25, `к четверти стороны угол ещё плавно изгибается (отступ ${at25.toFixed(2)} пкс)`).toBeGreaterThan(0.35);
+  expect(at25, `отступ на четверти стороны ${at25.toFixed(2)} пкс - это уже не значок`).toBeLessThan(4);
+  expect(at10, `отступ на десятой доле стороны ${at10.toFixed(1)} пкс`).toBeGreaterThan(S * 0.02);
+  expect(at10, `отступ на десятой доле стороны ${at10.toFixed(1)} пкс - угол слишком круглый`).toBeLessThan(S * 0.065);
+});
+
+test('текстуры стекла кэшируются по размеру: повторное открытие пункта управления их не печёт', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__tdu = 0;
+    const o = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (...a) { window.__tdu++; return o.apply(this, a); };
+  });
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => openCC());
+  await glassReady(page, '#control-center [data-cc="rotation"]');
+  await expect.poll(() => page.evaluate(() => LG.idle())).toBe(true);
+  // одинаковые круглые кнопки - одна выпечка и один фильтр на всех
+  const ids = await page.evaluate(() => [...document.querySelectorAll('#control-center .cc-tile:not(.active)')].map((t) => (getComputedStyle(t).backdropFilter.match(/#([^")]+)/) || [])[1]));
+  expect(new Set(ids).size, 'у одинаковых плиток разные фильтры').toBe(1);
+  const before = await page.evaluate(() => [window.__tdu, LG.stats.bakes]);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => openCC());
+  await page.waitForTimeout(900);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => openCC());
+  await page.waitForTimeout(900);
+  expect(await page.evaluate(() => [window.__tdu, LG.stats.bakes]), 'повторное открытие печёт текстуры заново').toEqual(before);
+});
+
+test('программа раскрывается из своего значка пружиной и сворачивается обратно', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const icon = await page.locator('#home-grid .app-icon[data-app="notes"] .icon').boundingBox();
+  await page.locator('#home-grid .app-icon[data-app="notes"]').click();
+  const a = await page.evaluate(() => {
+    const el = document.getElementById('app-notes'); const an = el.getAnimations()[0];
+    if (!an) return null;
+    an.pause(); an.currentTime = 0;
+    const r = el.getBoundingClientRect(); const easing = an.effect.getTiming().easing; an.play();
+    return { x: r.x, y: r.y, w: r.width, h: r.height, easing };
+  });
+  expect(a, 'у экрана программы нет анимации раскрытия').not.toBeNull();
+  expect(a.easing, 'пружина - кривая linear() с отскоком').toMatch(/^linear\(/);
+  expect(Math.abs(a.x + a.w / 2 - (icon.x + icon.width / 2)), 'раскрытие начинается не из значка').toBeLessThan(12);
+  expect(Math.abs(a.y + a.h / 2 - (icon.y + icon.height / 2)), 'раскрытие начинается не из значка').toBeLessThan(40);
+  await expect(screen(page, 'notes')).toBeVisible();
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Escape');
+  // закрытие: программа закрыта сразу (current пуст), а картинка сворачивается в значок и исчезает
+  expect(await page.evaluate(() => current)).toBe(null);
+  await expect(screen(page, 'notes')).toBeHidden();
+});
