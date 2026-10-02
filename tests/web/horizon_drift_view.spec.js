@@ -59,7 +59,7 @@ test.describe('horizon_drift_offline: вид из салона и свободн
     expect(r3.gear).toBe(r3.pgear);
   });
 
-  test('салон каждого класса без дыр: ниже линии панели не видно дороги; взгляд по умолчанию - вперёд поверх панели; руки не толще настоящих', async ({ page }) => {
+  test('салон каждого класса без дыр: ниже линии панели не видно дороги; приборы видны; взгляд по умолчанию - вперёд поверх панели; руки не толще настоящих', async ({ page }) => {
     await page.setViewportSize({ width: 960, height: 540 });
     await openDrift(page);
     const ids = await page.evaluate(() => __drift.data.CARS.map((c) => c.id));
@@ -70,11 +70,16 @@ test.describe('horizon_drift_offline: вид из салона и свободн
         await __drift.startWorld('coast'); __drift.manual = true; __drift.setCamera('cockpit');
         const W = __drift.worldRender; for (let k = 0; k < 8; k++) { __drift.stepWorld(2, { thr: 0.5 }); W.frame(1 / 60, 1, 'cockpit'); }
         const cov = __drift.render.cockpit.coverage(__drift.renderer), arms = __drift.render.cockpit.armRadius || 1;
+        const vis = __drift.render.cockpit.gaugeVisibility(__drift.renderer);
         // взгляд вниз на руль и под ноги - и там пол, ниша для ног и панель, а не дорога
         __drift.view.pitch = -0.9; __drift.setLook({ idle: 0 }); for (let k = 0; k < 3; k++) W.frame(1 / 60, 1, 'cockpit');
         const down = __drift.render.cockpit.coverage(__drift.renderer); __drift.view.pitch = 0;
+        // вбок-вниз и назад: нижняя треть кадра по всей ширине - салон (двери, пол, сиденья, задняя стенка)
+        const side = [];
+        for (const [yaw, pitch] of [[-1.57, -0.6], [1.57, -0.6], [2.6, -0.25], [-2.6, -0.25]]) { __drift.view.yaw = yaw; __drift.view.pitch = pitch; for (let k = 0; k < 3; k++) W.frame(1 / 60, 1, 'cockpit'); side.push(+__drift.render.cockpit.coverage(__drift.renderer, 0.3).holes.toFixed(4)); }
+        __drift.view.yaw = 0; __drift.view.pitch = 0;
         __drift.quitWorld();
-        return { id, shape: __drift.data.CARS.find((x) => x.id === id).shape, lineY: +cov.lineY.toFixed(2), holes: +cov.holes.toFixed(4), rows: cov.rows, arms, downHoles: +down.holes.toFixed(4), downRows: down.rows };
+        return { id, shape: __drift.data.CARS.find((x) => x.id === id).shape, lineY: +cov.lineY.toFixed(2), holes: +cov.holes.toFixed(4), rows: cov.rows, arms, downHoles: +down.holes.toFixed(4), downRows: down.rows, side, digits: +vis.digits.frac.toFixed(2), digitsPx: vis.digits.px, gear: +vis.gear.frac.toFixed(2), cluster: +vis.cluster.frac.toFixed(2) };
       }, id);
       out.push(r);
     }
@@ -84,6 +89,12 @@ test.describe('horizon_drift_offline: вид из салона и свободн
       expect(r.rows, r.id).toBeGreaterThan(20);
       expect(r.downHoles, r.id + ': взгляд вниз - дыры').toBeLessThan(0.002);
       expect(r.downRows, r.id).toBeGreaterThan(100);
+      // приборы видны на экране: цифры скорости и передача не закрыты ни панелью, ни козырьком, ни рулём
+      expect(r.digitsPx, r.id).toBeGreaterThan(40);
+      expect(r.digits, r.id + ': видимая доля цифр скорости').toBeGreaterThan(0.85);
+      expect(r.gear, r.id + ': видимая доля передачи').toBeGreaterThan(0.85);
+      expect(r.cluster, r.id + ': видимая доля щитка').toBeGreaterThan(0.6);
+      expect(Math.max(...r.side), r.id + ': вбок и назад - дыры ' + r.side.join(',')).toBeLessThan(0.002);
       expect(r.lineY, r.id + ': панель не задирается к середине кадра').toBeGreaterThan(0.55);
       expect(r.lineY, r.id + ': панель видна').toBeLessThan(0.85);
       expect(r.arms, r.id + ': предплечья не толще 5 см').toBeLessThan(0.05);
