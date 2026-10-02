@@ -14,6 +14,9 @@ const fs = require('fs');
 const { chromium } = require('@playwright/test');
 const { GAMES } = require('../app/games');
 const { pageUrl } = require('../tests/helpers');
+// Захват мыши - только подмена: в headless Chromium на Windows настоящий requestPointerLock
+// зажимает курсор человека за компьютером в прямоугольник скрытого окна (ClipCursor).
+const { lockStub } = require('../tests/web/_voxel-helpers');
 
 const OUT = path.join(__dirname, '..', 'app', 'assets', 'thumbs');
 
@@ -24,12 +27,16 @@ const PLAY = {
   fps_1: { hold: ['KeyW'], wait: 1500, click: true },
   mario: { hold: ['ArrowRight'], wait: 1800 },
   jungle_strike: { hold: ['ArrowRight'], wait: 1500 },
-  horizon_drift_offline: { hold: ['ArrowUp'], wait: 3000 },
+  horizon_drift_offline: { buttons: [/Свободная езда/, /поехать/i], hold: ['ArrowUp'], wait: 5000, noStart: true },
   space_shooter: { hold: [], wait: 5000, mouse: true },
+  // «Кубический мир»: сразу в мир (без меню), снимок, когда построились куски вокруг
+  minecraft_clone_3d_1: { query: 'seed=2026&mode=creative', hold: [], wait: 2500, ready: '() => window.__voxel && __voxel.state === "play"', noStart: true,
+    after: '(() => { const v = __voxel, p = v.player; v.game.hideHud = true; v.game.hideHand = true; v.game.autoSpawn = false; p.flying = true; p.pos.y += 18; v.look(0.7, -0.35); v.game.ticks = 5000; })()' },
 };
 
 async function start(page) {
-  const btn = page.locator('button:visible', { hasText: /играть|поехали|начать|старт/i }).first();
+  // кнопка старта, но не «Как играть»
+  const btn = page.locator('button:visible', { hasText: /^\s*(играть|поехали|начать|старт)/i }).first();
   if (await btn.count()) await btn.click({ timeout: 2000 }).catch(() => {});
   await page.waitForTimeout(300);
   for (const key of ['Enter', 'Space']) {
@@ -41,11 +48,15 @@ async function start(page) {
 async function shoot(browser, id) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 0.5 });
   const page = await ctx.newPage();
+  await page.addInitScript(lockStub);
   await page.route(/^https?:\/\//, (r) => r.abort());
-  await page.goto(pageUrl(id));
-  await page.waitForTimeout(1200);
-  await start(page);
   const how = PLAY[id.replace('-', '_')] || { hold: [], wait: 2000 };
+  await page.goto(pageUrl(id) + (how.query ? '?' + how.query : ''));
+  await page.waitForTimeout(1200);
+  if (how.ready) await page.waitForFunction(how.ready, null, { timeout: 60000 }).catch(() => {});
+  if (!how.noStart) await start(page);
+  for (const b of how.buttons || []) { await page.locator('button:visible', { hasText: b }).first().click({ timeout: 3000 }).catch(() => {}); await page.waitForTimeout(800); }
+  if (how.after) await page.evaluate(how.after);
   if (how.click) await page.mouse.click(640, 360);
   if (how.mouse) { await page.mouse.move(640, 500); await page.mouse.down(); }
   for (const k of how.hold) await page.keyboard.down(k);
