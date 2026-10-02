@@ -31,13 +31,31 @@ function initialVolume() {
 }
 
 // Режим проверок: игра не может захватить мышь человека за компьютером, даже если
-// разрешение почему-то пройдёт - requestPointerLock ничего не делает.
+// разрешение почему-то пройдёт - настоящий requestPointerLock недостижим. Вместо него подмена,
+// которая ведёт себя как браузер и записывает вызовы (их сверяют проверки): document.pointerLockElement,
+// pointerlockchange; после выхода по Esc (__browserEsc) захват дают только по новому действию
+// человека (щелчок, клавиша кроме Esc), как настоящий Chromium.
 if (setup.test) {
   try {
     contextBridge.executeInMainWorld({
       func: () => {
-        const noop = function () { return Promise.resolve(); };
-        Object.defineProperty(Element.prototype, 'requestPointerLock', { configurable: true, writable: true, value: noop });
+        let pl = null, exitAt = 0, gestureAt = 0;
+        window.__lockCalls = 0;
+        const fire = (t) => setTimeout(() => document.dispatchEvent(new Event(t)));
+        Object.defineProperty(Document.prototype, 'pointerLockElement', { configurable: true, get() { return pl; } });
+        const stub = function () {
+          window.__lockCalls++;
+          if (exitAt && gestureAt <= exitAt) { fire('pointerlockerror'); return Promise.reject(new DOMException('нужен новый щелчок', 'SecurityError')); }
+          pl = this; fire('pointerlockchange'); return Promise.resolve();
+        };
+        Object.defineProperty(Element.prototype, 'requestPointerLock', { configurable: true, writable: true, value: stub });
+        // выход по exitPointerLock() (из кода страницы) - новый захват можно и без щелчка, как в Chromium
+        window.__unlockCalls = 0;
+        Object.defineProperty(Document.prototype, 'exitPointerLock', { configurable: true, writable: true, value: function () { window.__unlockCalls++; exitAt = 0; if (!pl) return; pl = null; fire('pointerlockchange'); } });
+        for (const t of ['mousedown', 'keydown']) window.addEventListener(t, (e) => { if (e.isTrusted && e.code !== 'Escape') gestureAt = performance.now(); }, { capture: true });
+        // Esc при захвате: браузер сам снимает захват, клавиша в страницу не приходит
+        window.addEventListener('keydown', (e) => { if (e.isTrusted && e.code === 'Escape' && pl) { e.stopImmediatePropagation(); e.preventDefault(); window.__browserEsc(); } }, { capture: true });
+        window.__browserEsc = () => { exitAt = performance.now(); if (!pl) return false; pl = null; document.dispatchEvent(new Event('pointerlockchange')); return true; };
       },
     });
   } catch {

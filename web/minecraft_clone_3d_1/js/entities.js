@@ -993,8 +993,25 @@
     if (!visible) { if (pm) pm.root.visible = false; return; }
     if (!pm) pm = newPlayerModel();
     pm.root.visible = true;
+    pm.root.rotation.order = 'YXZ';
+    if (p.swimming) {
+      // плывёт лёжа: тело по взгляду, голова вперёд, середина тела - в середине коробки; руки
+      // загребают по очереди, ноги бьют
+      const f = p.forward();
+      pm.root.position.set(p.pos.x - f.x * 0.9, p.pos.y + 0.3 - f.y * 0.9, p.pos.z - f.z * 0.9);
+      pm.root.rotation.set(Math.PI / 2 - p.pitch, p.yaw + Math.PI, 0);
+      pm.head.rotation.x = -0.6;
+      pm.phase += dt * (p.swimStroke ? 9 : 3);
+      const s = Math.sin(pm.phase);
+      pm.arms[0].rotation.x = -Math.PI + s * 1.4; pm.arms[1].rotation.x = -Math.PI - s * 1.4;
+      pm.legs[0].rotation.x = Math.sin(pm.phase * 2) * 0.4; pm.legs[1].rotation.x = -Math.sin(pm.phase * 2) * 0.4;
+      pm.body.position.y = 0;
+      const held = G.inv.held();
+      dressModel(pm, G.inv.armor, held ? held.id : 0);
+      return;
+    }
     pm.root.position.set(p.pos.x, p.pos.y, p.pos.z);
-    pm.root.rotation.y = p.yaw + Math.PI;
+    pm.root.rotation.set(0, p.yaw + Math.PI, 0);
     pm.head.rotation.x = -p.pitch * 0.8;
     const sp = Math.hypot(p.vel.x, p.vel.z);
     pm.phase += sp * dt * 2.2;
@@ -1124,5 +1141,5 @@
     };
   }
 
-  VX.entities = { buildModel, teleportMob, lookedAt, playerEv, fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { playerModelState: () => pm, buildModel, teleportMob, lookedAt, playerEv, fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

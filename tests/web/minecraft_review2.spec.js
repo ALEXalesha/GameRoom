@@ -338,3 +338,270 @@ test.describe('minecraft_clone_3d_1: второе ревью - мелочи и �
     expect(r.after).toBeGreaterThan(0);
   });
 });
+
+test.describe('minecraft_clone_3d_1: Esc-Esc как просил владелец', () => {
+  test('Esc - пауза, второй Esc - игра идёт сразу: никакой надписи «нажмите/щёлкните», клавиатура работает до щелчка; первый щелчок тихо возвращает захват и не ломает блок; отказ браузера - повтор на следующем щелчке', async ({ page }) => {
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    await page.evaluate(() => { __voxel.game.autoSpawn = false; __voxel.entities.clear(); });
+    await flatArena(page, 70, 7);
+    const shot = (n) => page.screenshot({ path: require('path').join(process.env.TEMP || '.', 'voxel-esc-' + n + '.png') }).catch(() => {});
+    // как в настоящем браузере: захват только по действию человека (щелчок), Esc действием не считается
+    await page.evaluate(() => { window.__lockNeedsGesture = true; __voxel.game.testMode = false; __voxel.look(0, -1.2); });
+    await humanClick(page);                                   // захватили мышь
+    await page.waitForTimeout(100);
+    const visibleText = () => page.evaluate(() => document.body.innerText);
+    const s0 = await page.evaluate(() => ({ locked: !!document.pointerLockElement, broken: __voxel.meta.stats.broken }));
+    expect(s0.locked).toBe(true);
+    // Esc в браузере снимает захват (сама клавиша в страницу не приходит) - пауза
+    await page.evaluate(() => window.__browserEsc());
+    await page.waitForTimeout(100);
+    await shot('1-pause');
+    expect(await page.evaluate(() => __voxel.state)).toBe('paused');
+    // второй Esc - игра
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    await shot('2-esc2');
+    const t1 = await visibleText();
+    await page.waitForTimeout(800);
+    await shot('3-wait');
+    const t2 = await visibleText();
+    const st = await page.evaluate(() => ({ state: __voxel.state, locked: !!document.pointerLockElement, screens: [...document.querySelectorAll('.screen.show')].map((s) => s.id), hint: getComputedStyle(document.getElementById('clickHint')).display }));
+    expect(st.state).toBe('play');
+    expect(st.locked).toBe(false);                            // браузер по Esc захват не дал
+    expect(st.screens).toEqual(['scr-hud']);
+    expect(st.hint).toBe('none');
+    expect(t1).not.toMatch(/нажмите|щёлкните|click/i);
+    expect(t2).not.toMatch(/нажмите|щёлкните|click/i);
+    // клавиатура работает до щелчка
+    const z0 = await page.evaluate(() => __voxel.player.pos.z);
+    await page.keyboard.down('KeyW'); await page.waitForTimeout(400); await page.keyboard.up('KeyW');
+    const z1 = await page.evaluate(() => __voxel.player.pos.z);
+    expect(z0 - z1).toBeGreaterThan(0.5);
+    // первый щелчок, но браузер ещё отказывает (пауза после Esc) - молча, без надписи; второй щелчок - захват
+    // творческий: любой щелчок, дошедший до игры, сломал бы блок сразу - так видно, что щелчки захвата не ломают
+    await page.evaluate(() => { __voxel.game.mode = 'creative'; __voxel.look(0, -1.2); });
+    const before = await page.evaluate(() => ({ calls: window.__lockCalls, broken: __voxel.meta.stats.broken, under: __voxel.target() && __voxel.target().id }));
+    await page.evaluate(() => { window.__denyLock = true; });
+    await humanClick(page);
+    await page.waitForTimeout(150);
+    await shot('4-click-denied');
+    const mid = await page.evaluate(() => ({ calls: window.__lockCalls, locked: !!document.pointerLockElement, text: document.body.innerText, broken: __voxel.meta.stats.broken }));
+    expect(mid.calls).toBeGreaterThan(before.calls);
+    expect(mid.locked).toBe(false);
+    expect(mid.text).not.toMatch(/нажмите|щёлкните|click/i);
+    await page.evaluate(() => { window.__denyLock = false; });
+    await humanClick(page);
+    await page.waitForTimeout(150);
+    await shot('5-click-locked');
+    const after = await page.evaluate(() => ({ calls: window.__lockCalls, locked: !!document.pointerLockElement, broken: __voxel.meta.stats.broken, under: __voxel.target() && __voxel.target().id, mining: !!__voxel.game.mining }));
+    expect(after.calls).toBeGreaterThan(mid.calls);
+    expect(after.locked).toBe(true);
+    expect(after.broken).toBe(before.broken);                // щелчки захвата блок не ломали
+    expect(after.under).toBe(before.under);
+    expect(after.mining).toBe(false);
+  });
+
+  test('отказ браузера на щелчке - повтор и при движении мыши с нажатой кнопкой; при самом первом входе в мир без захвата подсказка короткая, при Esc-Esc - никогда', async ({ page }) => {
+    await page.addInitScript(() => { window.__denyLock = true; });
+    await openVoxel(page, 'seed=5&mode=creative');
+    await page.waitForFunction(() => __voxel.state === 'play', null, { timeout: 60000 });
+    const first = await page.evaluate(() => ({ hint: getComputedStyle(document.getElementById('clickHint')).display, hintT: __voxel.game.hintT }));
+    await page.evaluate(() => { __voxel.game.testMode = false; });
+    const c0 = await page.evaluate(() => window.__lockCalls);
+    await page.mouse.move(640, 360); await page.mouse.down();          // щелчок - браузер ещё отказывает
+    await page.waitForTimeout(100);
+    const c1 = await page.evaluate(() => window.__lockCalls);
+    await page.evaluate(() => { window.__denyLock = false; });
+    await page.mouse.move(660, 370, { steps: 3 });                       // кнопка нажата, мышь двигается - повтор
+    await page.waitForTimeout(400);
+    await page.mouse.up();
+    const r = await page.evaluate(() => ({ calls: window.__lockCalls, locked: !!document.pointerLockElement }));
+    expect(first.hintT).toBeGreaterThan(0);                  // первый вход в мир: короткая подсказка допустима
+    expect(c1).toBeGreaterThan(c0);
+    expect(r.calls).toBeGreaterThan(c1);
+    expect(r.locked).toBe(true);
+  });
+});
+
+test.describe('minecraft_clone_3d_1: медленная загрузка кусков', () => {
+  // мир с героем на земле в 30 блоках от точки появления; записан и закрыт
+  const prepare = (page) => page.evaluate(async () => {
+    const v = __voxel, p = v.player, G = v.game;
+    v.settings.renderDistance = 3; G.applySettings();
+    G.autoSpawn = false;
+    const x = Math.floor(p.pos.x) + 30, z = Math.floor(p.pos.z) - 20;
+    p.flying = false; p.pos.set(x + 0.5, 120, z + 0.5); p.vel.set(0, 0, 0);
+    await v.waitIdle(1);
+    // площадка из камня высоко над землёй: стоять на ней можно ровно, а упасть было бы больно
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { v.setBlock(x + dx, 99, z + dz, v.core.B.stone); for (let y = 100; y < 104; y++) v.setBlock(x + dx, y, z + dz, 0); }
+    p.pos.set(x + 0.5, 100, z + 0.5); p.vel.set(0, 0, 0); p.fallTop = null;
+    v.step(0.05, 10);
+    const id = v.meta.id; await v.flush(); await v.exitToTitle();
+    // сравнивать будем с тем, что записано (быстрый снимок новее записи в базе - берётся он)
+    const m = await v.VX.store.getWorld(id);
+    let q = null; try { q = JSON.parse(localStorage.getItem('cw2_quick_' + id)); } catch (e) { /* нет */ }
+    const pos = q && q.t > (m.lastPlayed || 0) + 500 ? q.player.pos : m.player.pos;
+    return { id, saved: { x: pos[0], y: pos[1], z: pos[2] } };
+  });
+  // ответы потоков и хранилища опаздывают на ms
+  const slow = (page, ms) => page.evaluate((ms) => {
+    const w = __voxel.world, S = __voxel.VX.store;
+    const onResult = w.onResult.bind(w);
+    w.onResult = (wk, m) => setTimeout(() => onResult(wk, m), ms);
+    const gc = S.getChunks;
+    S.getChunks = (...a) => new Promise((rr) => setTimeout(() => rr(gc(...a)), ms));
+  }, ms);
+  const throttle = async (page, rate) => { const cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate }); return cdp; };
+
+  test('куски и хранилище отвечают с опозданием 3 с, процессор в 6 раз медленнее: герой ровно там, где был сохранён, не падает и не ранен', async ({ page }) => {
+    test.setTimeout(180000);
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    const { id, saved } = await prepare(page);
+    await slow(page, 3000);
+    const cdp = await throttle(page, 6);
+    await page.evaluate((id) => __voxel.game.openWorld(id), id);
+    const track = await page.evaluate(async (saved) => {
+      const v = __voxel, p = v.player, out = { maxDev: 0, minHp: 20, states: new Set() };
+      const t0 = performance.now(); let playT = 0;
+      while (performance.now() - t0 < 120000 && (!playT || performance.now() - playT < 6000)) {
+        if (!playT && v.state === 'play') playT = performance.now();
+        out.states.add(v.state);
+        if (v.state !== 'loading') { out.maxDev = Math.max(out.maxDev, Math.hypot(p.pos.x - saved.x, p.pos.y - saved.y, p.pos.z - saved.z)); out.minHp = Math.min(out.minHp, p.health); }
+        await new Promise((rr) => setTimeout(rr, 100));
+      }
+      return { maxDev: out.maxDev, minHp: out.minHp, states: [...out.states], dead: p.dead, pos: [p.pos.x, p.pos.y, p.pos.z] };
+    }, saved);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    expect(track.states).toContain('play');
+    expect(track.maxDev).toBeLessThan(0.01);
+    expect(track.minHp).toBe(20);
+    expect(track.dead).toBe(false);
+  });
+
+  test('загрузка сдалась по времени раньше, чем пришёл кусок под героем: герой стоит на месте (физика ждёт кусок), не взлетает, не падает, не в точке появления', async ({ page }) => {
+    test.setTimeout(180000);
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    const { id, saved } = await prepare(page);
+    await slow(page, 6000);
+    await page.evaluate(() => { __voxel.game.loadTimeout = 1.5; });     // сдаться раньше, чем придут куски
+    await page.evaluate((id) => __voxel.game.openWorld(id), id);
+    const track = await page.evaluate(async (saved) => {
+      const v = __voxel, p = v.player, G = v.game, out = { maxDev: 0, minHp: 20, waited: false, playedEarly: false };
+      const t0 = performance.now(); let loadedT = 0;
+      while (performance.now() - t0 < 120000 && (!loadedT || performance.now() - loadedT < 4000)) {
+        if (!loadedT && v.world.isLoaded(p.pos.x, p.pos.z) && v.state !== 'loading') loadedT = performance.now();
+        if (v.state === 'play' || v.state === 'paused') {
+          if (!v.world.isLoaded(p.pos.x, p.pos.z)) { out.playedEarly = true; if (G.waitingChunk) out.waited = true; }
+          out.maxDev = Math.max(out.maxDev, Math.hypot(p.pos.x - saved.x, p.pos.y - saved.y, p.pos.z - saved.z));
+          out.minHp = Math.min(out.minHp, p.health);
+        }
+        await new Promise((rr) => setTimeout(rr, 100));
+      }
+      const sp = v.meta.spawn;
+      return { ...out, dead: p.dead, loaded: v.world.isLoaded(p.pos.x, p.pos.z), fromSpawn: Math.hypot(p.pos.x - sp.x, p.pos.z - sp.z) };
+    }, saved);
+    expect(track.playedEarly).toBe(true);                // игра пошла до прихода куска
+    expect(track.waited).toBe(true);                     // и ждала его
+    expect(track.loaded).toBe(true);
+    expect(track.maxDev).toBeLessThan(0.01);
+    expect(track.minHp).toBe(20);
+    expect(track.dead).toBe(false);
+    expect(track.fromSpawn).toBeGreaterThan(20);
+  });
+});
+
+test.describe('minecraft_clone_3d_1: полный экран - Esc без щелчка', () => {
+  const shotDir = require('path').join(process.env.TEMP || '.', 'voxel-fs-');
+  const state = (page) => page.evaluate(() => ({
+    state: __voxel.state, screen: __voxel.screen, locked: !!document.pointerLockElement, fs: !!document.fullscreenElement,
+    lockCalls: window.__lockCalls, unlockCalls: window.__unlockCalls, kb: window.__kbLockCalls.map((k) => k.join(',')), kbUn: window.__kbUnlockCalls,
+    text: document.body.innerText, hint: getComputedStyle(document.getElementById('clickHint')).display,
+  }));
+  test('кнопка «Во весь экран»: keyboard.lock([Escape]); Esc - пауза и exitPointerLock (курсор и меню), Esc - игра и захват без щелчка; вышли из полного экрана - unlock и снова «захват по щелчку»', async ({ page }) => {
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'survival' });
+    await page.evaluate(() => { __voxel.game.autoSpawn = false; __voxel.entities.clear(); window.__lockNeedsGesture = true; __voxel.game.testMode = false; });
+    await flatArena(page, 70, 7);
+    const shot = (n) => page.screenshot({ path: shotDir + n + '.png' }).catch(() => {});
+    // в меню паузы - кнопка полного экрана
+    await page.evaluate(() => __voxel.game.pause());
+    await page.locator('#fullscreenBtn').click();
+    await page.waitForTimeout(150);
+    let s = await state(page);
+    expect(s.fs).toBe(true);
+    expect(s.kb).toEqual(['Escape']);
+    await expect(page.locator('#fullscreenBtn')).toHaveText('Выйти из полного экрана');
+    await page.locator('#scr-pause').getByText('Вернуться к игре').click();
+    await page.waitForTimeout(100);
+    await page.mouse.click(640, 360);                         // захват щелчком
+    await page.waitForTimeout(100);
+    s = await state(page);
+    expect(s.locked).toBe(true);
+    await shot('1-play');
+    // Esc в полном экране приходит в игру: пауза, захват снят кодом игры
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    await shot('2-esc-pause');
+    const p1 = await state(page);
+    expect(p1.state).toBe('paused');
+    expect(p1.screen).toBe('pause');
+    expect(p1.locked).toBe(false);
+    expect(p1.unlockCalls).toBeGreaterThan(s.unlockCalls);    // exitPointerLock() - не «Esc человека»
+    // второй Esc: игра и захват БЕЗ щелчка
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    await shot('3-esc-play');
+    const p2 = await state(page);
+    expect(p2.state).toBe('play');
+    expect(p2.lockCalls).toBeGreaterThan(p1.lockCalls);
+    expect(p2.locked).toBe(true);
+    expect(p2.text).not.toMatch(/нажмите|щёлкните|click/i);
+    expect(p2.hint).toBe('none');
+    // клавиша F - выйти из полного экрана; unlock; дальше как в обычном окне
+    await page.keyboard.press('KeyF');
+    await page.waitForTimeout(150);
+    const p3 = await state(page);
+    expect(p3.fs).toBe(false);
+    expect(p3.kbUn).toBeGreaterThan(0);
+    await page.keyboard.press('Escape');                      // в обычном окне Esc снимает захват браузер
+    await page.waitForTimeout(150);
+    expect((await state(page)).state).toBe('paused');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    await shot('4-window-esc2');
+    const p4 = await state(page);
+    expect(p4.state).toBe('play');
+    expect(p4.locked).toBe(false);                            // без щелчка браузер не даёт
+    expect(p4.text).not.toMatch(/нажмите|щёлкните|click/i);
+    await page.mouse.click(640, 360);
+    await page.waitForTimeout(150);
+    expect((await state(page)).locked).toBe(true);
+  });
+
+  test('полный экран сняли «удержанием Esc» (браузер) - unlock, игра встаёт на паузу как в окне, захват по следующему щелчку', async ({ page }) => {
+    await openVoxel(page);
+    await newWorld(page, { seed: 8, mode: 'creative' });
+    await page.evaluate(() => { window.__lockNeedsGesture = true; __voxel.game.testMode = false; });
+    await page.keyboard.press('KeyF');
+    await page.waitForTimeout(150);
+    await page.mouse.click(640, 360);
+    await page.waitForTimeout(100);
+    const a = await state(page);
+    expect(a.fs).toBe(true);
+    expect(a.locked).toBe(true);
+    await page.evaluate(() => { window.__userExitFullscreen(); window.__browserEsc(); });
+    await page.waitForTimeout(150);
+    const b = await state(page);
+    expect(b.fs).toBe(false);
+    expect(b.kbUn).toBeGreaterThan(0);
+    expect(b.state).toBe('paused');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    const c = await state(page);
+    expect(c.state).toBe('play');
+    expect(c.locked).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
-// Погода по правилам оригинала (упрощённо): ясно, дождь, гроза; в холодных биомах и высоко в горах
-// вместо дождя - снег, в пустыне осадков нет. Погода меняется сама раз в несколько игровых дней,
+// Погода по правилам оригинала (упрощённо): ясно, дождь, гроза и снегопад; в холодных биомах и высоко
+// в горах вместо дождя - снег, снегопад (по просьбе владельца) идёт везде, в пустыне осадков нет. Погода меняется сама раз в несколько игровых дней,
 // переходы плавные (небо, туман и свет темнеют постепенно), состояние хранится в мире.
 // Капли и снежинки - частицы вокруг камеры; под крышей их нет: капля живёт только над верхним
 // блоком своего столбца. В грозу бьют молнии: вспышка, гром с задержкой по расстоянию, удар
@@ -11,8 +11,8 @@
   const R = { rnd: Math.random };
   const W = () => G.world;
   const DAY = 24000;
-  const KINDS = ['clear', 'rain', 'thunder'];
-  const NAMES = { clear: 'ясно', rain: 'дождь', thunder: 'гроза' };
+  const KINDS = ['clear', 'rain', 'thunder', 'snow'];
+  const NAMES = { clear: 'ясно', rain: 'дождь', thunder: 'гроза', snow: 'снег' };
   const DESERT = 2, SNOWY = 3, MOUNTAINS = 4, FROZEN = 7;
   const SNOW_Y = 100;                                   // выше - снег в любом биоме
 
@@ -28,7 +28,8 @@
   }
   // длительность в тиках: ясно 1-4 дня, дождь и гроза - полдня-день
   function duration(kind) { return kind === 'clear' ? DAY * (1 + R.rnd() * 3) : DAY * (0.5 + R.rnd() * 0.5); }
-  function next(kind) { return kind !== 'clear' ? 'clear' : R.rnd() < 0.3 ? 'thunder' : 'rain'; }
+  // после осадков - ясно; после ясного: гроза 30%, снегопад 25%, дождь 45%
+  function next(kind) { if (kind !== 'clear') return 'clear'; const r = R.rnd(); return r < 0.3 ? 'thunder' : r < 0.55 ? 'snow' : 'rain'; }
   // поставить погоду (команда в меню, проверки): на заданное время или своё по правилам
   function set(kind, ticks) {
     if (!KINDS.includes(kind)) return false;
@@ -41,6 +42,7 @@
   function precipAt(x, y, z) {
     const bi = C.column(C.worldOf(W().seed, W().gen), Math.floor(x), Math.floor(z)).biome;
     if (bi === DESERT) return null;
+    if (G.meta && G.meta.weather && G.meta.weather.kind === 'snow') return 'snow';      // снегопад - везде
     if (bi === SNOWY || bi === FROZEN || y > SNOW_Y || (bi === MOUNTAINS && y > SNOW_Y - 12)) return 'snow';
     return 'rain';
   }

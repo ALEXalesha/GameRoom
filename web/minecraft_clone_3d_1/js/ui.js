@@ -203,7 +203,7 @@
     UI.loadingFill = fill; UI.loadingSub = sub;
     UI.loadingTitle = (dim) => { t.textContent = dim === 'nether' ? 'Нижний мир' : dim === 'end' ? 'Край' : 'Загрузка мира'; };
   }
-  UI.loaded = function () { G.play(); };
+  UI.loaded = function () { G.play({ first: true }); };      // первый вход в мир - можно короткую подсказку
 
   function buildPause() {
     const s = screen('pause', 'list-screen');
@@ -215,11 +215,17 @@
       button('Настройки', () => UI.show('settings')),
       button('Сохранить и выйти в меню', () => G.exitToTitle()),
     );
-    // творческий режим: погода по кругу ясно - дождь - гроза (как команда /weather в оригинале)
-    const wb = button('', () => { const W = VX.weather, k = W.KINDS[(W.KINDS.indexOf(W.state().kind) + 1) % 3]; W.set(k); wb.refresh(); });
+    // полный экран (F): Esc тогда приходит в игру, второй Esc прячет курсор без щелчка
+    const fs = button('', () => { G.toggleFullscreen(); });
+    fs.id = 'fullscreenBtn';
+    UI.refreshFullscreen = () => setText(fs, document.fullscreenElement ? 'Выйти из полного экрана' : 'Во весь экран (F)');
+    UI.refreshFullscreen();
+    col.insertBefore(fs, col.children[3]);
+    // творческий режим: погода по кругу ясно - дождь - гроза - снег (как команда /weather в оригинале)
+    const wb = button('', () => { const W = VX.weather, k = W.KINDS[(W.KINDS.indexOf(W.state().kind) + 1) % W.KINDS.length]; W.set(k); wb.refresh(); });
     wb.id = 'weatherBtn';
     wb.refresh = () => setText(wb, 'Погода: ' + (VX.weather ? VX.weather.label() : 'ясно'));
-    col.insertBefore(wb, col.children[3]);
+    col.insertBefore(wb, col.children[4]);
     s.append(col);
     s.onShow = () => { wb.style.display = G.mode === 'creative' && G.dim === 'over' && VX.weather ? '' : 'none'; wb.refresh(); };
   }
