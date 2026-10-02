@@ -86,7 +86,7 @@ body.dark .n-top span { color: rgba(235,235,245,0.6); }
 #switcher { position: absolute; inset: 0; z-index: 480; display: none; background: rgba(0,0,0,0.35); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
 #switcher.open { display: flex; align-items: center; animation: swIn 0.3s ease-out; }
 @keyframes swIn { from { opacity: 0; } }
-.sw-row { display: flex; gap: 18px; overflow-x: auto; padding: 0 calc(50% - 110px); width: 100%; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.sw-row { position: relative; display: flex; gap: 18px; overflow-x: auto; padding: 0 calc(50% - 110px); width: 100%; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .sw-row::-webkit-scrollbar { display: none; }
 .sw-card { flex: 0 0 220px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 8px; transition: transform 0.2s, opacity 0.2s; touch-action: none; }
 .sw-card.gone { transform: translateY(-120%) !important; opacity: 0 !important; }
