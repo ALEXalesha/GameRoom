@@ -66,6 +66,9 @@ test('блокировка: время верное, разблокировка 
 });
 
 test('каждая программа открывается и закрывается жестом, полоской и Esc', async ({ page }) => {
+  // Изменено намеренно: программа раскрывается из значка пружиной (~0.4 с) и сворачивается обратно,
+  // а Playwright ждёт неподвижности кнопки с паузами 20/100/100/500 мс - 14 программ туда-обратно дольше 30 с
+  test.slow();
   const errors = await openOs(page, NAME);
   await unlock(page);
   for (const id of APPS) {
@@ -340,21 +343,28 @@ test('скрытая вкладка ставит музыку и анимаци�
 
 test('собранная страница совпадает с исходниками в src/', async () => {
   const built = fs.readFileSync(path.join(WEB, NAME, 'index.html'), 'utf8');
-  for (const f of ['kit.js', 'kit.css', 'extra.css']) expect(built.includes(fs.readFileSync(path.join(WEB, NAME, 'src', f), 'utf8')), f + ' не собран в index.html').toBe(true);
+  for (const f of ['kit.js', 'kit.css', 'extra.css', 'glass.css', 'glass.js', 'wall.js', 'look.js']) expect(built.includes(fs.readFileSync(path.join(WEB, NAME, 'src', f), 'utf8')), f + ' не собран в index.html').toBe(true);
 });
 
 // ===== Замечания ревьюера =====
 const vm = require('vm');
 const GAMES = (() => { const ctx = { window: {} }; vm.runInNewContext(fs.readFileSync(path.join(WEB, '_os-shared', 'games.js'), 'utf8'), ctx); return ctx.window.OS_GAMES; })();
 
-test('пункт управления со стеклом: размытие и затемнение, текст читается', async ({ page }) => {
+// Изменено намеренно (вид iOS 26): размытие и затемнение - отдельный слой .cc-back под плитками. У элемента
+// с backdrop-filter дети видят только его собственный фон, поэтому на самом пункте управления фильтра больше нет:
+// иначе стеклянные плитки преломляли бы плоскую заливку, а не обои.
+test('пункт управления со стеклом: размытие и лёгкое затемнение отдельным слоем, сама панель прозрачная', async ({ page }) => {
   await openOs(page, NAME);
   await unlock(page);
   await page.evaluate(() => openCC());
-  const cs = await page.locator('#control-center').evaluate((e) => { const s = getComputedStyle(e); return [s.backdropFilter, s.backgroundColor]; });
-  expect(cs[0]).toMatch(/blur\(30px\)/);
-  expect(cs[0]).toMatch(/saturate\(1\.6\)/);
-  expect(cs[1]).toMatch(/rgba\(18, 18, 26, 0\.6\)/);
+  await expect(page.locator('#control-center .cc-back')).toHaveCSS('opacity', '1');
+  const cs = await page.evaluate(() => { const b = getComputedStyle(document.querySelector('#control-center .cc-back')), c = getComputedStyle(document.getElementById('control-center')); return [b.backdropFilter, b.backgroundColor, c.backdropFilter, c.backgroundColor]; });
+  expect(cs[0]).toMatch(/blur\(2\dpx\)/);
+  expect(cs[0]).toMatch(/saturate\(1\.\d+\)/);
+  const a = +(cs[1].match(/rgba\([^)]*,\s*([\d.]+)\)/) || [0, 1])[1];
+  expect(a, 'затемнение не сплошное').toBeLessThan(0.5);
+  expect(cs[2]).toBe('none');
+  expect(cs[3]).toBe('rgba(0, 0, 0, 0)');
 });
 
 test('папка «Игры» на рабочем столе, игра на весь экран из соседней папки, выход жестом «Домой»', async ({ page }) => {
@@ -368,6 +378,8 @@ test('папка «Игры» на рабочем столе, игра на ве
   const scr = screen(page, 'game-' + g.id);
   await expect(scr).toBeVisible();
   await expect(scr.locator('iframe')).toHaveAttribute('src', `../${g.dir}/index.html`);
+  // изменено намеренно: игра раскрывается из значка папки - размер рамки меряется после анимации
+  await scr.evaluate((e) => Promise.all(e.getAnimations().map((a) => a.finished)));
   const fb = await scr.locator('iframe').boundingBox(), pb = await page.locator('#screen').boundingBox();
   expect(fb.width / pb.width, 'игра во всю ширину').toBeGreaterThan(0.98);
   expect(fb.height / pb.height, 'игра почти во всю высоту').toBeGreaterThan(0.9);
@@ -552,7 +564,7 @@ test('док, плитки пункта управления и виджет - �
     });
     expect(g.bf, sel + ': в backdrop-filter нет ссылки на фильтр').toMatch(/url\(/);
     expect(g.filter, sel + ': фильтра нет в документе').toBe(true);
-    expect(g.img, sel + ': карта смещения не картинка').toBe('data:image/pn');
+    expect(g.img, sel + ': карта смещения не картинка').toBe('data:image/png');
     expect(g.disp.length, sel + ': дисперсия - три прохода смещения').toBe(3);
     expect(Math.max(...g.disp), sel + ': кромка тянет фон внутрь (масштаб отрицательный)').toBeLessThan(0);
     expect(new Set(g.disp).size, sel + ': каналы R, G, B смещаются по-разному').toBe(3);
@@ -658,7 +670,7 @@ test('текстуры стекла кэшируются по размеру: п
   await glassReady(page, '#control-center [data-cc="rotation"]');
   await expect.poll(() => page.evaluate(() => LG.idle())).toBe(true);
   // одинаковые круглые кнопки - одна выпечка и один фильтр на всех
-  const ids = await page.evaluate(() => [...document.querySelectorAll('#control-center .cc-tile:not(.active)')].map((t) => (getComputedStyle(t).backdropFilter.match(/#([^")]+)/) || [])[1]));
+  const ids = await page.evaluate(() => [...document.querySelectorAll('#control-center .cc-tile:not(.active):not(.large)')].map((t) => (getComputedStyle(t).backdropFilter.match(/#([^")]+)/) || [])[1]));
   expect(new Set(ids).size, 'у одинаковых плиток разные фильтры').toBe(1);
   const before = await page.evaluate(() => [window.__tdu, LG.stats.bakes]);
   await page.keyboard.press('Escape');

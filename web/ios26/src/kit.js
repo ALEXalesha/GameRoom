@@ -179,7 +179,7 @@ function iosSheet(title, actions) {
 }
 
 // ===== Программа «Файлы» =====
-ICONS.files = ['icon-files', '<svg width="36" height="36" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5h4.2l1.8 2h9A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" fill="#fff"/><path d="M3 9h18" stroke="#60a5fa" stroke-width="1.2"/></svg>'];
+ICONS.files = ['icon-files', G60('<path d="M9 19a4 4 0 014-4h10.5l4 4.2H47a4 4 0 014 4V42a4 4 0 01-4 4H13a4 4 0 01-4-4z" fill="#1a8cff"/><path d="M9 25h42v17a4 4 0 01-4 4H13a4 4 0 01-4-4z" fill="#4db0ff"/>')];
 APPS.files = { name: 'Файлы', cls: 'files-app', light: true, init: initFiles };
 HOME.splice(HOME.indexOf('calendar') + 1, 0, 'files');
 (function addFilesScreen() {
@@ -287,7 +287,7 @@ function renderNotifs() {
   const ln = document.createElement('div'); ln.id = 'lock-notifs'; ln.className = 'lock-notifs';
   $('lock-page').insertBefore(ln, $('lock-page').querySelector('.lock-widgets'));
   const nc = document.createElement('div'); nc.id = 'nc'; nc.setAttribute('role', 'dialog'); nc.setAttribute('aria-label', 'Центр уведомлений');
-  nc.innerHTML = '<div class="status-bar" data-sb></div><div class="nc-clock"><div class="nc-date"></div><div class="nc-time"></div></div><div class="nc-head"><b>Уведомления</b><button id="nc-clear">Очистить</button></div><div id="nc-list"></div><div class="home-indicator"></div>';
+  nc.innerHTML = '<div class="nc-back"></div><div class="status-bar" data-sb></div><div class="nc-clock"><div class="nc-date"></div><div class="nc-time"></div></div><div class="nc-head"><b>Уведомления</b><button id="nc-clear">Очистить</button></div><div id="nc-list"></div><div class="home-indicator"></div>';
   $('screen').appendChild(nc);
   renderStatusBars();
 })();
@@ -297,7 +297,7 @@ $('nc').addEventListener('click', e => {
   if (e.target.closest('#nc-clear')) { NOTIFS = []; renderNotifs(); return; }
   const c = e.target.closest('[data-n]');
   if (c) { const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); closeNC(); if (n) openApp(n.app); return; }
-  if (e.target.closest('.home-indicator') || e.target.id === 'nc' || e.target.closest('.nc-clock')) closeNC();
+  if (e.target.closest('.home-indicator') || e.target.id === 'nc' || e.target.classList.contains('nc-back') || e.target.closest('.nc-clock')) closeNC();
 });
 $('lock-notifs').addEventListener('pointerup', e => { if (e.target.closest('.n-card')) e.stopPropagation(); });
 $('lock-notifs').addEventListener('click', e => { const c = e.target.closest('[data-n]'); if (!c) return; e.stopPropagation(); const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); if (n) openApp(n.app); });
@@ -380,7 +380,7 @@ setInterval(() => { const d = new Date(), hm = pad2(d.getHours()) + ':' + pad2(d
 
 
 // ===== Чёткий значок «Настроек»: шестерня из зубцов и кольца =====
-ICONS.settings = ['icon-settings', '<svg width="44" height="44" viewBox="0 0 44 44"><g fill="#3a3a3c">' + Array.from({ length: 12 }, (_, i) => '<rect x="20" y="4" width="4" height="8" rx="1.2" transform="rotate(' + i * 30 + ' 22 22)"/>').join('') + '</g><circle cx="22" cy="22" r="13" fill="#3a3a3c"/><circle cx="22" cy="22" r="9.5" fill="#d1d1d6"/><circle cx="22" cy="22" r="4.5" fill="#3a3a3c"/></svg>'];
+ICONS.settings = ['icon-settings', G60('<g fill="#4a4a4f">' + Array.from({ length: 12 }, (_, i) => '<rect x="27.4" y="7.5" width="5.2" height="9" rx="1.6" transform="rotate(' + i * 30 + ' 30 30)"/>').join('') + '</g><circle cx="30" cy="30" r="16" fill="#4a4a4f"/><circle cx="30" cy="30" r="12" fill="#d1d1d6"/><circle cx="30" cy="30" r="5.5" fill="#4a4a4f"/>')];
 
 // ===== Игры «Игротеки»: папка на рабочем столе, игра на весь экран телефона =====
 // Таблица - ../_os-shared/games.js; игра открывает ../<папка>/index.html; пауза - протокол из README.md.
@@ -416,9 +416,9 @@ APPS.games = { name: 'Игры', cls: 'folder', init() { } };
 if (GAME_IDS.length) HOME.push('games');
 (function buildGamesFolder() {
   const f = document.createElement('div'); f.id = 'games-folder'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Папка «Игры»');
-  f.innerHTML = '<div class="gf-title">Игры</div><div class="gf-box">' + GAME_IDS.map(id => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') + '</div>';
+  f.innerHTML = '<div class="gf-back"></div><div class="gf-title">Игры</div><div class="gf-box">' + GAME_IDS.map(id => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') + '</div>';
   $('home-page').appendChild(f);
-  f.addEventListener('click', e => { if (e.target === f) f.classList.remove('open'); });
+  f.addEventListener('click', e => { if (e.target === f || e.target.classList.contains('gf-back')) f.classList.remove('open'); });
   buildHome(); updateWidgets();
 })();
 const openApp1 = openApp;

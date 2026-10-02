@@ -1648,6 +1648,233 @@ body.dark .app-screen[data-light] .home-indicator { background: rgba(255,255,255
 .gf-box .app-label { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); font-size: 11px; text-align: center; }
 .sw-game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #111; }
 .sw-game .icon { width: 90px; height: 90px; border-radius: 22px; }
+
+/* ===== Вид iOS 26: Жидкое стекло, суперэллипсы, сетка и пропорции телефона ===== */
+html, body { background: radial-gradient(ellipse at 50% 40%, #26262b 0%, #141416 70%); }
+.device { box-shadow: 0 0 0 11px #0a0a0b, 0 0 0 13px #48484d, 0 0 0 14.5px #1c1c1e, 0 40px 90px rgba(0,0,0,0.6); }
+.side-btn { background: #48484d; right: -15px; }
+.dynamic-island { width: 126px; height: 37px; top: 11px; border-radius: 19px; }
+
+/* строка состояния: время по центру левого «уха», значки - правого */
+.status-bar { display: grid; grid-template-columns: 1fr 126px 1fr; padding: 0; height: 54px; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.status-bar .time { grid-column: 1; justify-self: center; padding: 2px 0 0 12px; font-variant-numeric: tabular-nums; }
+.status-bar .right { grid-column: 3; justify-self: center; gap: 6px; padding: 2px 6px 0 0; }
+
+/* ----- материал ----- */
+.lg {
+  background-color: var(--lg-tint, rgba(255,255,255,0.10));
+  background-image: var(--lg-spec, none), var(--lg-shade, none);
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.16), 0 2px 6px rgba(0,0,0,0.08);
+  border: none;
+}
+@supports (corner-shape: squircle) { .lg:not(.capsule) { corner-shape: squircle; } }
+.lg[data-tone="light"] { color: #111; }
+.lg[data-tone="dark"] { color: #fff; }
+/* пока панель едет - простое размытие (цепочка с картой смещения считается на процессоре) */
+.lg-moving .lg, .lg.lg-moving { backdrop-filter: var(--lg-cheap) !important; -webkit-backdrop-filter: var(--lg-cheap) !important; }
+html.lg-lite .lg { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.16); }
+.page.lg-measure { display: block !important; visibility: hidden !important; }
+/* «Меньше стекла»: плотная подложка без преломления */
+body.no-glass .lg { backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; background-image: none !important; background-color: rgba(28,28,34,0.94) !important; color: #fff !important; }
+body.no-glass .lock-glass { backdrop-filter: none !important; background-image: none !important; }
+
+/* ----- обои ----- */
+.wallpaper::after { display: none; }
+.wall-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ----- значки: суперэллипс, градиент, блик и тонкая светлая кромка ----- */
+.icon { width: 62px; height: 62px; border-radius: 23%; box-shadow: 0 2px 8px rgba(0,0,0,0.20); font-size: 0; }
+@supports (corner-shape: squircle) { .icon { border-radius: 41%; corner-shape: squircle; } .icon::after { corner-shape: inherit; } }
+@supports not (corner-shape: squircle) {
+  .icon { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0z'/%3E%3C/svg%3E") center/100% 100%; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0z'/%3E%3C/svg%3E") center/100% 100%; }
+}
+.icon::before { display: none; }
+.icon::after { content: ''; position: absolute; inset: 0; height: auto; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0) 44%);
+  box-shadow: inset 0 0 0 0.6px rgba(255,255,255,0.24), inset 0 1px 1px rgba(255,255,255,0.32); }
+.icon > svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 1px 1.2px rgba(0,0,0,0.16)); }
+.icon-phone, .icon-messages { background: linear-gradient(180deg, #67f286, #0cbf3b); }
+.icon-mail { background: linear-gradient(180deg, #5fd0ff, #1766ff); }
+.icon-browser { background: linear-gradient(180deg, #ffffff, #e6ebf3); }
+.icon-camera { background: linear-gradient(180deg, #ececf1, #9d9ea4); }
+.icon-photos, .icon-notes, .icon-files, .icon-calendar { background: #fff; }
+.icon-music { background: linear-gradient(180deg, #ff6d84, #fa233b); }
+.icon-weather { background: linear-gradient(180deg, #52b9ff, #1564d6); }
+.icon-clock { background: #0b0b0c; }
+.icon-calc { background: linear-gradient(180deg, #2c2c2e, #0a0a0b); }
+.icon-settings { background: linear-gradient(180deg, #e8e8ed, #9a9aa0); }
+.icon-calendar { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.icon-calendar .cal-dow { font-size: 11px; font-weight: 600; color: #ff3b30; letter-spacing: 0.3px; margin-top: 2px; }
+.icon-calendar .cal-num { font-size: 33px; font-weight: 300; color: #1c1c1e; line-height: 1; margin-top: -1px; }
+.icon-folder { padding: 8px; background-color: var(--lg-tint, rgba(255,255,255,0.18)); box-shadow: none; }
+.icon-folder::after { display: none; }
+.folder-grid { gap: 4px; }
+.folder-grid i { border-radius: 30%; }
+.app-label { font-size: 12px; font-weight: 500; letter-spacing: -0.1px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.35); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.app-icon { gap: 5px; }
+.app-icon:active .icon { transform: scale(0.9); }
+.app-icon:focus-visible { border-radius: 18px; }
+
+/* ----- домашний экран: сетка 4x6 в пропорциях телефона ----- */
+.home-grid { top: 72px; padding: 0 14px; grid-auto-rows: 82px; gap: 18px 0; }
+.home-widget { justify-self: center; align-self: start; width: calc(100% - 28px); height: 160px; padding: 14px 15px; border-radius: 36px; }
+.home-widget-title { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; opacity: 0.9; margin-bottom: 2px; }
+.weather-widget .temp { font-size: 46px; font-weight: 300; letter-spacing: -1.5px; margin: 0 0 14px; line-height: 1.05; }
+.weather-widget .city { font-size: 14px; font-weight: 600; }
+.weather-widget .desc { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.home-widget::before { display: none; }
+.dock { left: 12px; right: 12px; bottom: 14px; height: 94px; border-radius: 42px; padding: 0 14px; justify-content: space-around; }
+.dock::before { display: none; }
+.home-search { position: absolute; left: 50%; bottom: 122px; transform: translateX(-50%); height: 32px; padding: 0 15px 0 13px; border-radius: 16px; display: flex; align-items: center; gap: 6px; color: #fff; font-size: 15px; font-weight: 600; z-index: 45; cursor: pointer; }
+.home-search[data-tone="light"] { color: #1c1c1e; }
+#home-page.wall-light .app-label { color: #1c1c1e; text-shadow: 0 0 5px rgba(255,255,255,0.7); }
+#home-page.wall-light .status-bar, #lock-page.wall-light .status-bar { color: #000; }
+#home-page.wall-light > .home-indicator, #lock-page.wall-light > .home-indicator { background: rgba(0,0,0,0.45); }
+
+/* ----- экран блокировки ----- */
+.lock-clock { top: 66px; }
+.lock-date { position: relative; z-index: 2; font-size: 19px; font-weight: 600; letter-spacing: 0; color: rgba(255,255,255,0.96); text-shadow: none; margin-bottom: 0; }
+.lock-time { position: relative; z-index: 2; font-size: 108px; font-weight: 700; letter-spacing: -3px; line-height: 1.02; color: transparent; text-shadow: none; display: inline-block; padding: 0 6px; }
+.lock-glass { position: absolute; z-index: 3; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; background-size: 100% 100%, 100% 100%; background-repeat: no-repeat; }
+.lock-scrim { position: absolute; left: 34px; right: 34px; top: -6px; bottom: -6px; border-radius: 70px; filter: blur(22px); z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+#lock-page.dark-clock .lock-date { color: rgba(14,14,20,0.96); }
+.lock-widgets { top: 236px; bottom: auto; left: 22px; right: 22px; gap: 12px; }
+.widget { height: 76px; padding: 11px 14px; border-radius: 28px; }
+.widget::before { display: none; }
+.widget-title { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; margin-bottom: 2px; opacity: 0.85; }
+.widget-value { font-size: 21px; font-weight: 700; line-height: 1.15; }
+.widget-sub { font-size: 12px; opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lock-notifs { top: 336px; bottom: 132px; justify-content: flex-end; left: 12px; right: 12px; }
+.lock-bottom { bottom: 46px; padding: 0 44px; }
+.lock-circle { width: 50px; height: 50px; border-radius: 50%; color: #fff; }
+.lock-circle[data-tone="light"] { color: #111; }
+.lock-circle.on { background: rgba(255,255,255,0.92); color: #000; background-image: none; }
+.swipe-hint { animation: none; bottom: 18px; font-size: 13px; color: rgba(255,255,255,0.75); }
+#lock-page.wall-light .swipe-hint { color: rgba(0,0,0,0.6); }
+
+/* ----- уведомления ----- */
+.n-card { border-radius: 26px; padding: 12px 14px; --lg-tint: rgba(250,250,252,0.42); color: #000; box-shadow: 0 10px 28px rgba(0,0,0,0.14); }
+body.dark .n-card { --lg-tint: rgba(30,30,36,0.46); color: #fff; background-color: var(--lg-tint); }
+.n-card[data-tone="dark"] { color: #fff; }
+.n-card[data-tone="light"] { color: #000; }
+.n-top span { color: inherit !important; opacity: 0.62; }
+.n-ic .icon { width: 38px; height: 38px; }
+.banner { top: 50px; left: 9px; right: 9px; }
+#nc { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#nc > :not(.nc-back) { position: relative; z-index: 1; }
+#nc > .status-bar, #nc > .home-indicator { position: absolute; }
+.nc-back { position: absolute; inset: 0; z-index: 0; background: rgba(10,10,22,0.30); backdrop-filter: blur(26px) saturate(1.5); -webkit-backdrop-filter: blur(26px) saturate(1.5); }
+.nc-time { font-weight: 700; font-size: 84px; }
+.nc-head button { border-radius: 14px; }
+#nc-list .n-card { --lg-tint: rgba(250,250,252,0.40); }
+body.dark #nc-list .n-card { --lg-tint: rgba(30,30,36,0.46); }
+
+/* ----- пункт управления: размытые обои, поверх - стеклянные кнопки и ползунки ----- */
+.control-center { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; transform: none !important; padding: 66px 24px 30px; visibility: hidden; transition: visibility 0s linear 0.5s; }
+.control-center.open { visibility: visible; transition: none; }
+.cc-back { position: absolute; inset: 0; background: rgba(6,6,16,0.32); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); opacity: 0; transition: opacity 0.35s ease; }
+.control-center.open .cc-back { opacity: 1; }
+.cc-grid { position: relative; z-index: 1; gap: 16px 15px; transform: translateY(-118%) scale(0.94); transition: transform 0.52s cubic-bezier(0.22, 1.16, 0.36, 1); }
+.control-center.open .cc-grid { transform: none; }
+.cc-tile { border-radius: 50%; color: #fff; font-size: 0; }
+.cc-tile svg { width: 24px; height: 24px; }
+.cc-tile.active { background: rgba(255,255,255,0.95); color: #1c1c1e; background-image: none; }
+.cc-tile.active[data-cc="dnd"] { color: #5e5ce6; }
+.cc-tile.active[data-cc="rotation"] { color: #ff3b30; }
+.cc-tile.large { border-radius: 38px; padding: 12px; }
+.cc-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cc-conn { gap: 6px; }
+.cc-conn-item { width: 54px; height: 54px; background: rgba(255,255,255,0.16); }
+.cc-conn-item.on { background: #0a84ff; }
+.cc-conn-item.green.on, .cc-conn-item.green:not(.off) { background: #30d158; }
+.cc-slider { border-radius: 999px; justify-content: flex-end; padding: 0 0 20px; }
+.cc-slider-fill { background: rgba(255,255,255,0.92); }
+.cc-slider-icon { position: relative; z-index: 2; color: #fff; }
+.cc-slider.lit .cc-slider-icon { color: #3a3a3c; }
+.cc-note { position: relative; z-index: 1; margin-top: 18px; color: rgba(255,255,255,0.75); }
+
+/* ----- папка «Игры» ----- */
+#games-folder { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#games-folder.open { animation: none; }
+.gf-back { position: absolute; inset: 0; background: rgba(0,0,0,0.18); backdrop-filter: blur(26px) saturate(1.4); -webkit-backdrop-filter: blur(26px) saturate(1.4); animation: gfFade 0.3s ease; }
+@keyframes gfFade { from { opacity: 0; } }
+.gf-title, .gf-box { position: relative; z-index: 1; }
+.gf-title { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 1px 8px rgba(0,0,0,0.3); align-self: stretch; margin: 0 40px; text-align: left; }
+.gf-box { width: 330px; padding: 24px 14px; border-radius: 46px; gap: 20px 6px; --lg-tint: rgba(255,255,255,0.14); color: #fff; animation: gfIn2 0.42s cubic-bezier(0.22, 1.2, 0.36, 1); }
+@keyframes gfIn2 { from { transform: scale(0.6) translateY(-60px); } }
+
+/* ----- поиск ----- */
+#spotlight { position: absolute; inset: 0; z-index: 320; display: none; flex-direction: column; align-items: center; padding-top: 70px; }
+#spotlight.open { display: flex; }
+.sp-back { position: absolute; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4); }
+.sp-box { position: relative; z-index: 1; width: calc(100% - 32px); height: 46px; border-radius: 23px; display: flex; align-items: center; gap: 8px; padding: 0 16px; color: #fff; animation: spIn 0.4s cubic-bezier(0.22, 1.2, 0.36, 1); }
+@keyframes spIn { from { transform: translateY(380px) scale(0.5); } }
+.sp-box input { flex: 1; border: none; outline: none; background: transparent; color: inherit; font-size: 17px; }
+.sp-box input::placeholder { color: inherit; opacity: 0.6; }
+.sp-res { position: relative; z-index: 1; width: 100%; padding: 22px 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px 0; }
+.sp-none { grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); }
+
+/* ----- диалоги и листы ----- */
+.ios-alert { width: 286px; border-radius: 34px; --lg-tint: rgba(250,250,252,0.62); color: #000; padding-top: 22px; }
+body.dark .ios-alert { --lg-tint: rgba(36,36,40,0.62); color: #fff; }
+.ia-btns { gap: 8px; padding: 0 14px 14px; border-top: none; }
+.ia-btns button { height: 44px; border-radius: 22px; background: rgba(120,120,128,0.18); }
+.ia-btns button + button { border-left: none; }
+.ios-alert input { border-radius: 12px; height: 34px; }
+.is-group { border-radius: 30px; --lg-tint: rgba(250,250,252,0.6); }
+body.dark .is-group { --lg-tint: rgba(36,36,40,0.62); }
+body.dark .is-group button { color: #0a84ff; }
+
+/* ----- стеклянные панели внутри программ ----- */
+.glass-bar, .glass-btn { --lg-tint: rgba(48,48,52,0.52); color: #fff; }
+.app-screen[data-light] .glass-bar, .app-screen[data-light] .glass-btn { --lg-tint: rgba(255,255,255,0.62); color: #007aff; }
+body.dark .app-screen[data-light] .glass-bar, body.dark .app-screen[data-light] .glass-btn { --lg-tint: rgba(48,48,52,0.52); color: #0a84ff; }
+.glass-btn { padding: 6px 13px 6px 10px; border-radius: 18px; font-size: 16px; font-weight: 500; }
+.clock-tabs.glass-bar { left: 22px; right: 22px; bottom: 30px; height: 62px; border-radius: 31px; border-top: none; padding: 0 8px; align-items: center; z-index: 6; }
+.clock-content { bottom: 96px; }
+.safari-toolbar.glass-bar { top: 54px; left: 14px; right: 14px; height: 44px; border-radius: 22px; padding: 0 16px; }
+.safari-bottom-bar.glass-bar { bottom: 32px; left: 22px; right: 22px; height: 56px; border-radius: 28px; border-top: none; padding: 0 10px; }
+.safari-content { bottom: 0; padding-bottom: 110px; }
+.msg-input-bar.glass-bar { bottom: 32px; left: 10px; right: 10px; border-top: none; border-radius: 26px; padding: 7px 8px 7px 10px; }
+.msg-input-bar.glass-bar .msg-input { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+.msg-list { bottom: 92px; }
+.msg-header { background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: none; }
+
+/* ----- «Настройки»: сгруппированные списки со вставкой ----- */
+.settings-app .app-header { padding: 60px 20px 8px; }
+.settings-list { top: 108px; padding: 0 16px 40px; }
+.settings-search { height: 38px; border-radius: 19px; padding: 0 12px; margin-bottom: 18px; background: rgba(118,118,128,0.14); }
+.settings-group { border-radius: 26px; margin-bottom: 22px; }
+@supports (corner-shape: squircle) { .settings-group { border-radius: 34px; corner-shape: squircle; } }
+.settings-row { min-height: 52px; padding: 0 16px; border-bottom: none !important; position: relative; }
+.settings-row + .settings-row::before { content: ''; position: absolute; top: 0; left: 58px; right: 0; border-top: 0.5px solid rgba(60,60,67,0.29); }
+body.dark .settings-row + .settings-row::before { border-top-color: rgba(84,84,88,0.65); }
+.settings-icon { width: 30px; height: 30px; border-radius: 23%; }
+@supports (corner-shape: squircle) { .settings-icon { border-radius: 41%; corner-shape: squircle; } }
+.settings-label b { display: block; font-size: 19px; font-weight: 600; }
+.settings-label small { display: block; font-size: 13px; color: #8e8e93; margin-top: 1px; }
+.settings-profile .settings-row { min-height: 78px; }
+.sp-avatar { width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; font-weight: 600; background: linear-gradient(180deg, #a5b4fc, #6366f1); }
+.settings-row .chevron { font-size: 22px; color: #c4c4c7; margin-left: 2px; }
+.toggle { width: 62px; height: 28px; border-radius: 14px; }
+.toggle::after { width: 37px; height: 24px; border-radius: 12px; left: 23px; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+.toggle.off { background: rgba(120,120,128,0.18); }
+body.dark .toggle.off { background: rgba(120,120,128,0.34); }
+.walls { gap: 14px; }
+.wall-opt { height: 210px; border-radius: 24px; overflow: hidden; }
+.wall-opt .wall-th { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wall-opt span { z-index: 1; }
+
+/* ----- переключатель программ ----- */
+.sw-shot { border-radius: 36px; }
+
+/* ----- раскрытие и сворачивание программы ----- */
+.app-screen.closing { display: block !important; pointer-events: none; z-index: 199; }
+.launch-cover { position: absolute; left: 0; right: 0; z-index: 9990; pointer-events: none; }
+.launch-cover .icon { width: 100% !important; height: 100% !important; border-radius: 0 !important; box-shadow: none; }
+.launch-cover .icon > svg, .launch-cover .icon-calendar > * { transform: scale(0.98); }
 </style>
 </head>
 <body>
@@ -1696,10 +1923,11 @@ body.dark .app-screen[data-light] .home-indicator { background: rgba(255,255,255
       <div class="home-wallpaper" id="home-wall"></div>
       <div class="status-bar" data-sb></div>
       <div class="home-grid" id="home-grid"></div>
+      <div class="home-search" id="home-search" role="button" tabindex="0" aria-label="Поиск"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>Поиск</span></div>
       <div class="dock" id="dock"></div>
       <div class="home-indicator"></div>
-      <div class="control-center" id="control-center">
-        <div class="cc-hint"></div>
+      <div class="control-center" id="control-center" role="dialog" aria-label="Пункт управления">
+        <div class="cc-back"></div>
         <div class="cc-grid">
           <div class="cc-tile large">
             <div class="cc-conn">
@@ -1709,8 +1937,8 @@ body.dark .app-screen[data-light] .home-indicator { background: rgba(255,255,255
               <div class="cc-conn-item" data-cc="bt" title="Bluetooth" role="button" aria-label="Bluetooth"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3-5-5zm2 4.4l1.6 1.6L14 9.6V6.4zm0 9.2L15.6 17 14 18.6v-3z"/></svg></div>
             </div>
           </div>
-          <div class="cc-slider tall" data-slider="brightness" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Яркость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">☀️</div><div></div></div>
-          <div class="cc-slider tall" data-slider="volume" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Громкость"><div class="cc-slider-fill"></div><div class="cc-slider-icon-top">🔊</div><div></div></div>
+          <div class="cc-slider tall" data-slider="brightness" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Яркость"><div class="cc-slider-fill"></div><div></div><svg class="cc-slider-icon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+          <div class="cc-slider tall" data-slider="volume" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Громкость"><div class="cc-slider-fill"></div><div></div><svg class="cc-slider-icon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9.5v5h3.5L11 19V5L6.5 9.5z"/><path d="M14.5 8.5a5 5 0 010 7M17 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
           <button class="cc-tile" data-cc="rotation" title="Блокировка поворота"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Поворот</span></button>
           <button class="cc-tile" data-open="clock" title="Часы"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg><span class="cc-label">Часы</span></button>
           <button class="cc-tile" data-cc="dnd" title="Не беспокоить"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><span class="cc-label">Не беспок.</span></button>
@@ -1755,16 +1983,20 @@ const dayKey = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(
 
 // ===== Настройки =====
 const WALLS = {
+  liquid: { name: 'Стекло', lock: 'radial-gradient(ellipse at 80% 15%, #2f5bd8 0%, transparent 55%), radial-gradient(ellipse at 20% 85%, #0e7490 0%, transparent 55%), linear-gradient(180deg, #060c2a 0%, #0a1c52 55%, #02040e 100%)',
+    home: 'radial-gradient(ellipse at 80% 15%, #2f5bd8 0%, transparent 55%), radial-gradient(ellipse at 20% 85%, #0e7490 0%, transparent 55%), linear-gradient(180deg, #060c2a 0%, #0a1c52 55%, #02040e 100%)' },
+  pearl: { name: 'Жемчуг', lock: 'radial-gradient(ellipse at 20% 15%, #ffffff 0%, transparent 55%), radial-gradient(ellipse at 85% 80%, #fed7aa 0%, transparent 55%), linear-gradient(180deg, #fff7fb 0%, #f6f1ff 55%, #fff6ec 100%)',
+    home: 'radial-gradient(ellipse at 20% 15%, #ffffff 0%, transparent 55%), radial-gradient(ellipse at 85% 80%, #fed7aa 0%, transparent 55%), linear-gradient(180deg, #fff7fb 0%, #f6f1ff 55%, #fff6ec 100%)' },
   aurora: { name: 'Сияние', lock: 'radial-gradient(ellipse at 30% 20%, #ff7eb3 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, #7873f5 0%, transparent 50%), radial-gradient(ellipse at 40% 90%, #4ac1ff 0%, transparent 50%), linear-gradient(135deg, #1a0033 0%, #0d0d2b 100%)',
     home: 'radial-gradient(ellipse at 50% 0%, #ffa07a 0%, transparent 40%), radial-gradient(ellipse at 0% 50%, #ff6b9d 0%, transparent 40%), radial-gradient(ellipse at 100% 80%, #5e72eb 0%, transparent 50%), linear-gradient(180deg, #2d1b69 0%, #11052c 100%)' },
   ocean: { name: 'Океан', lock: 'radial-gradient(ellipse at 50% 30%, #67e8f9 0%, transparent 50%), linear-gradient(180deg, #0c4a6e 0%, #082f49 100%)', home: 'radial-gradient(ellipse at 20% 80%, #22d3ee 0%, transparent 50%), linear-gradient(180deg, #075985 0%, #0c1a33 100%)' },
   sunset: { name: 'Закат', lock: 'radial-gradient(ellipse at 50% 90%, #fde68a 0%, transparent 50%), linear-gradient(180deg, #312e81 0%, #be185d 70%, #fb923c 100%)', home: 'linear-gradient(180deg, #4c1d95 0%, #be185d 60%, #f97316 100%)' },
   forest: { name: 'Лес', lock: 'radial-gradient(ellipse at 70% 30%, #86efac 0%, transparent 45%), linear-gradient(160deg, #064e3b 0%, #14532d 60%, #1a2e05 100%)', home: 'radial-gradient(ellipse at 30% 20%, #4ade80 0%, transparent 45%), linear-gradient(180deg, #14532d 0%, #052e16 100%)' },
 };
-const DEF = { airplane: false, cellular: true, wifi: true, bt: true, dnd: false, dark: false, torch: false, rotation: false, brightness: 100, volume: 60, wallpaper: 'aurora', glass: true };
+const DEF = { airplane: false, cellular: true, wifi: true, bt: true, dnd: false, dark: false, torch: false, rotation: false, brightness: 100, volume: 60, wallpaper: 'liquid', glass: true };
 const S = Object.assign({}, DEF, store.get('settings', {}));
 function applySettings() {
-  const w = WALLS[S.wallpaper] || WALLS.aurora;
+  const w = WALLS[S.wallpaper] || WALLS.liquid;
   $('lock-wall').style.background = w.lock;
   $('home-wall').style.background = w.home;
   document.body.classList.toggle('dark', S.dark);
@@ -1788,30 +2020,39 @@ function setS(k, v) {
 // ===== Строка состояния =====
 function statusHTML() {
   const d = new Date();
-  const net = S.airplane ? '<svg width="16" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>'
-    : (S.cellular ? '<svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><path d="M1 3.5h2v4H1zm4-1h2v5H5zm4-1h2v6H9zm4-1h2v7h-2z"/></svg>' : '') +
-      (S.wifi ? '<svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor"><path d="M2 5.5C4 3 7 2 8 2s4 1 6 3.5"/><path d="M4 7.5c1.5-1.5 2.5-2 4-2s2.5.5 4 2"/><circle cx="8" cy="9" r="1" fill="currentColor"/></svg>' : '');
-  return '<span class="time">' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '</span><span class="right" title="Пункт управления">' + (S.dnd ? '🌙' : '') + net +
-    '<svg width="27" height="11" viewBox="0 0 27 11" fill="none"><rect x="0.5" y="0.5" width="22" height="10" rx="2.5" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="7" rx="1.5" fill="currentColor"/><path d="M24 4v3" stroke="currentColor" opacity="0.5"/></svg></span>';
+  // значки строки состояния в пропорциях телефона: полоски связи 18x12, веер Wi-Fi 16x12, батарея 27x13
+  const moon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.2A8.6 8.6 0 019.8 3.5a8.6 8.6 0 1010.7 10.7z"/></svg>';
+  const net = S.airplane ? '<svg width="16" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>'
+    : (S.cellular ? '<svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3.2" height="4" rx="0.9"/><rect x="4.9" y="5.6" width="3.2" height="6.4" rx="0.9"/><rect x="9.8" y="3" width="3.2" height="9" rx="0.9"/><rect x="14.7" y="0" width="3.2" height="12" rx="0.9"/></svg>' : '') +
+      (S.wifi ? '<svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.4c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.7 10.7 0 008 .6 10.7 10.7 0 00.5 3.6l1.2 1.3A9 9 0 018 2.4z"/><path d="M8 5.9c1.5 0 2.9.6 3.9 1.5l1.2-1.3A7.4 7.4 0 008 4.1c-2 0-3.8.8-5.1 2l1.2 1.3c1-.9 2.4-1.5 3.9-1.5z"/><path d="M8 9.3c.6 0 1.2.2 1.6.6L8 11.6 6.4 9.9c.4-.4 1-.6 1.6-.6z"/></svg>' : '');
+  return '<span class="time">' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '</span><span class="right" title="Пункт управления">' + (S.dnd ? moon : '') + net +
+    '<svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.6" y="0.6" width="23.4" height="11.8" rx="3.6" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.1"/><rect x="2.4" y="2.4" width="19.8" height="8.2" rx="2.2" fill="currentColor"/><path d="M25.5 4.6v3.8c.8-.3 1.3-1 1.3-1.9s-.5-1.6-1.3-1.9z" fill="currentColor" fill-opacity="0.45"/></svg></span>';
 }
 function renderStatusBars() { const h = statusHTML(); document.querySelectorAll('[data-sb]').forEach(sb => { if (sb.innerHTML !== h) sb.innerHTML = h; }); }
 document.addEventListener('click', e => { if (e.target.closest('.status-bar .right') && $('home-page').classList.contains('active') && !document.querySelector('.app-screen.active')) openCC(); });
 
 // ===== Значки =====
+// Значки: суперэллипс (форма в CSS), насыщенный градиент с бликом сверху и объёмный белый знак.
+// Нарисованы заново в духе телефона, без чужих логотипов.
+const G60 = (inner) => '<svg width="100%" height="100%" viewBox="0 0 60 60">' + inner + '</svg>';
 const ICONS = {
-  phone: ['icon-phone', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C9.4 21 3 14.6 3 6c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg>'],
-  messages: ['icon-messages', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.5 1.4 4.6 3.6 6L4 20l3.5-1.2c1.3.5 2.9.7 4.5.7 5.5 0 10-3.6 10-8s-4.5-8.5-10-8.5z"/></svg>'],
-  mail: ['icon-mail', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'],
-  browser: ['icon-browser', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18"/></svg>'],
-  camera: ['icon-camera', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M9 4l-1.5 2H4a1 1 0 00-1 1v11a1 1 0 001 1h16a1 1 0 001-1V7a1 1 0 00-1-1h-3.5L15 4z"/><circle cx="12" cy="13" r="4" fill="#fff" opacity="0.3"/></svg>'],
-  photos: ['icon-photos', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><rect x="3" y="5" width="18" height="14" rx="2" opacity="0.9"/><circle cx="8.5" cy="10" r="2" fill="#ec4899"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fbbf24"/></svg>'],
-  music: ['icon-music', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M9 17V7l10-2v10c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2V8l-6 1.2v8.6c0 1.7-1.3 3-3 3s-3-1.3-3-3 1.3-3 3-3c.4 0 .7.1 1 .2z"/></svg>'],
-  weather: ['icon-weather', '<svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="11" r="4" fill="#fde047"/><path d="M14 14c2 0 4 1.5 4 4s-2 3-4 3H8c-2 0-3.5-1-3.5-3s2-4 4.5-4h5z"/></svg>'],
-  clock: ['icon-clock', '<svg width="44" height="44" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#fff"/><line x1="50" y1="50" x2="50" y2="20" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="50" stroke="#000" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="50" x2="50" y2="78" stroke="#ff9500" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="50" r="3" fill="#000"/></svg>'],
-  calc: ['icon-calc', '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="8" y="5" width="8" height="3" rx="0.5"/><circle cx="9" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="15" cy="12" r="1" fill="#fb923c"/><circle cx="9" cy="16" r="1"/><circle cx="12" cy="16" r="1"/><circle cx="15" cy="16" r="1" fill="#fb923c"/></svg>'],
-  notes: ['icon-notes', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1f2937" stroke-width="1.5"><path d="M5 4h14v16H5z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/></svg>'],
-  calendar: ['icon-calendar', () => { const d = new Date(); return '<div style="font-size:9px;font-weight:700;color:#ef4444;margin-bottom:-4px;">' + MONTHS[d.getMonth()].slice(0, 3).toUpperCase() + '</div><div style="font-size:30px;font-weight:300;color:#1f2937;">' + d.getDate() + '</div>'; }],
-  settings: ['icon-settings', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5"><circle cx="12" cy="12" r="3" fill="#374151"/><path d="M12 2l1.5 3 3.3-.5-.5 3.3L19 9l-1.7 2.5L19 14l-2.7 1.2.5 3.3-3.3-.5L12 21l-1.5-3-3.3.5.5-3.3L5 14l1.7-2.5L5 9l2.7-1.2-.5-3.3 3.3.5z" fill="#9ca3af"/></svg>'],
+  phone: ['icon-phone', G60('<path fill="#fff" d="M21.6 15.4c1-.6 2.3-.3 3 .6l3.3 4.6c.6.9.6 2.1-.1 2.9l-2 2.4c1.6 3.4 4.3 6.1 7.7 7.7l2.4-2c.8-.7 2-.7 2.9-.1l4.6 3.3c.9.7 1.2 2 .6 3l-1.6 2.6c-.8 1.3-2.4 2-3.9 1.6C28.9 39.6 20.4 31.1 17.9 21.5c-.4-1.5.3-3.1 1.6-3.9z"/>')],
+  messages: ['icon-messages', G60('<path fill="#fff" d="M30 14.5c-9.7 0-17.5 6.4-17.5 14.3 0 4.6 2.7 8.7 6.9 11.3-.4 2.2-1.6 4.2-3.3 5.6 3.2.2 6.3-.9 8.7-2.9 1.7.4 3.4.6 5.2.6 9.7 0 17.5-6.4 17.5-14.3S39.7 14.5 30 14.5z"/>')],
+  mail: ['icon-mail', G60('<rect x="11" y="17" width="38" height="26" rx="4.5" fill="#fff"/><path d="M12.5 19.5L30 32l17.5-12.5" fill="none" stroke="#2f7bff" stroke-width="2.4" stroke-linejoin="round"/>')],
+  browser: ['icon-browser', G60('<circle cx="30" cy="30" r="19" fill="url(#ic-cmp)"/><defs><linearGradient id="ic-cmp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#29c8ff"/><stop offset="1" stop-color="#1060ff"/></linearGradient></defs>' +
+    Array.from({ length: 24 }, (_, i) => '<rect x="29.4" y="12.5" width="1.2" height="' + (i % 6 ? 2.4 : 4) + '" fill="#fff" opacity="0.85" transform="rotate(' + i * 15 + ' 30 30)"/>').join('') +
+    '<path d="M30 30l9-11-11 9z" fill="#ff3b30"/><path d="M30 30l-9 11 11-9z" fill="#fff"/>')],
+  camera: ['icon-camera', G60('<rect x="10" y="19" width="40" height="26" rx="6" fill="#3a3a3c"/><path d="M22 19l2.5-4h11l2.5 4z" fill="#3a3a3c"/><circle cx="30" cy="32" r="9.5" fill="#1c1c1e" stroke="#c7c7cc" stroke-width="2"/><circle cx="30" cy="32" r="5" fill="#2c4a7a"/><circle cx="28" cy="30" r="1.6" fill="#9cc2ff"/><circle cx="43" cy="24" r="1.6" fill="#ffd60a"/>')],
+  photos: ['icon-photos', G60('<g transform="translate(30 30)" style="mix-blend-mode:multiply">' +
+    ['#ff9f0a', '#ffd60a', '#a2d939', '#30d158', '#40c8e0', '#0a84ff', '#bf5af2', '#ff375f'].map((c, i) => '<ellipse cx="0" cy="-10" rx="6.2" ry="10.5" fill="' + c + '" opacity="0.82" transform="rotate(' + i * 45 + ')"/>').join('') + '</g>')],
+  music: ['icon-music', G60('<path fill="#fff" d="M38.5 13.5v20.6a5.6 5.6 0 11-2.6-4.7V20.4l-12.4 2.9v14.1a5.6 5.6 0 11-2.6-4.7V18.5z"/>')],
+  weather: ['icon-weather', G60('<circle cx="24" cy="24" r="8" fill="#ffd60a"/><path fill="#fff" d="M41 31.5a6.5 6.5 0 00-12.4-2.6 5.5 5.5 0 00-7.6 5.1 5 5 0 00.1 1H21a5 5 0 000 10h19.5a7 7 0 00.5-13.5z"/>')],
+  clock: ['icon-clock', G60('<circle cx="30" cy="30" r="22" fill="#fff"/>' + Array.from({ length: 12 }, (_, i) => '<rect x="29.3" y="10" width="1.4" height="' + (i % 3 ? 2.6 : 4) + '" fill="#1c1c1e" transform="rotate(' + i * 30 + ' 30 30)"/>').join('') +
+    '<path d="M30 30V17" stroke="#1c1c1e" stroke-width="2.6" stroke-linecap="round"/><path d="M30 30l9 5" stroke="#1c1c1e" stroke-width="2.6" stroke-linecap="round"/><path d="M30 33V13" stroke="#ff9500" stroke-width="1.2" stroke-linecap="round"/><circle cx="30" cy="30" r="2" fill="#ff9500"/>')],
+  calc: ['icon-calc', G60([[19, 19, '#a5a5a5'], [30, 19, '#a5a5a5'], [41, 19, '#ff9f0a'], [19, 30, '#505050'], [30, 30, '#505050'], [41, 30, '#ff9f0a'], [19, 41, '#505050'], [30, 41, '#505050'], [41, 41, '#ff9f0a']].map(([x, y, c]) => '<circle cx="' + x + '" cy="' + y + '" r="4.6" fill="' + c + '"/>').join(''))],
+  notes: ['icon-notes', G60('<rect x="0" y="0" width="60" height="17" fill="#ffd60a"/><path d="M0 17h60" stroke="#e8b800"/>' + [26, 34, 42, 50].map((y) => '<path d="M9 ' + y + 'h42" stroke="#d1d1d6" stroke-width="1.2"/>').join(''))],
+  calendar: ['icon-calendar', () => { const d = new Date(); return '<div class="cal-dow">' + ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'][d.getDay()] + '</div><div class="cal-num">' + d.getDate() + '</div>'; }],
+  settings: ['icon-settings', ''],
 };
 const iconHTML = id => { const [cls, svg] = ICONS[id]; return '<div class="icon ' + cls + '">' + (typeof svg === 'function' ? svg() : svg) + '</div>'; };
 
@@ -1934,7 +2175,7 @@ document.addEventListener('keydown', e => {
 // ===== Пункт управления =====
 function openCC() { $('control-center').classList.add('open'); }
 function closeCC() { $('control-center').classList.remove('open'); }
-$('control-center').addEventListener('click', e => { if (e.target.id === 'control-center') closeCC(); });
+$('control-center').addEventListener('click', e => { if (e.target.id === 'control-center' || e.target.classList.contains('cc-back') || e.target.classList.contains('cc-grid')) closeCC(); });
 document.querySelectorAll('[data-slider]').forEach(sl => {
   sl.addEventListener('pointerdown', e => {
     e.stopPropagation();
@@ -2048,9 +2289,9 @@ function initMessages(sc) {
       return;
     }
     const c = chats[open];
-    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn" data-back>‹ Назад</button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
+    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn glass-btn" data-back>‹ Назад</button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
       c.msgs.map(m => '<div class="msg-bubble ' + (m.me ? 'me' : 'them') + '">' + esc(m.t) + '</div>').join('') + '</div>' +
-      '<form class="msg-input-bar"><input class="msg-input" id="msg-input" placeholder="Сообщение" autocomplete="off"><button class="msg-send" title="Отправить"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8z" transform="rotate(-90 12 12)"/></svg></button></form>');
+      '<form class="msg-input-bar glass-bar"><input class="msg-input" id="msg-input" placeholder="Сообщение" autocomplete="off"><button class="msg-send" title="Отправить"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8z" transform="rotate(-90 12 12)"/></svg></button></form>');
     const list = sc.el.querySelector('#msg-list'); list.scrollTop = list.scrollHeight;
   }
   sc.el.addEventListener('click', e => {
@@ -2086,7 +2327,7 @@ function initMail(sc) {
       return;
     }
     const l = LETTERS.find(x => x.id === open);
-    shell('mail', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Входящие</button></div><div class="read-view"><h2>' + esc(l.subj) + '</h2><div class="meta">' + esc(l.from) + '</div>' + l.body.map(p => '<p>' + esc(p) + '</p>').join('') + '</div>', true);
+    shell('mail', '<div class="nav-bar"><button class="nav-btn glass-btn" data-back>‹ Входящие</button></div><div class="read-view"><h2>' + esc(l.subj) + '</h2><div class="meta">' + esc(l.from) + '</div>' + l.body.map(p => '<p>' + esc(p) + '</p>').join('') + '</div>', true);
   }
   sc.el.addEventListener('click', e => {
     const r = e.target.closest('[data-letter]'); if (r) { open = +r.dataset.letter; read.add(open); store.set('mailRead', [...read]); render(); return; }
@@ -2107,8 +2348,8 @@ function initBrowser(sc) {
   };
   const hist = [], fwd = [];
   let cur = 'about:start';
-  shell('browser', '<div class="safari-toolbar"><form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form></div><div class="safari-content" id="b-content"></div>' +
-    '<div class="safari-bottom-bar"><button class="safari-action" data-b="back" title="Назад"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
+  shell('browser', '<div class="safari-toolbar glass-bar"><form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form></div><div class="safari-content" id="b-content"></div>' +
+    '<div class="safari-bottom-bar glass-bar"><button class="safari-action" data-b="back" title="Назад"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
     '<button class="safari-action" data-b="fwd" title="Вперёд"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
     '<button class="safari-action" data-b="reload" title="Обновить"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.7M20 4v5h-5"/></svg></button>' +
     '<button class="safari-action" data-b="home" title="Стартовая"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></button></div>');
@@ -2307,7 +2548,7 @@ function initClock(sc) {
       sw.laps.map((l, i) => '<div><span>Круг ' + (sw.laps.length - i) + '</span><span>' + swFmt(l) + '</span></div>').join('') + '</div>';
   }
   function render() {
-    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs">' + [['world', 'Мировые'], ['alarms', 'Будильник'], ['stopwatch', 'Секундомер']].map(([k, n]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '">' + n + '</button>').join('') + '</div>');
+    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs glass-bar">' + [['world', 'Мировые'], ['alarms', 'Будильник'], ['stopwatch', 'Секундомер']].map(([k, n]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '">' + n + '</button>').join('') + '</div>');
   }
   const saveAl = () => store.set('alarms', alarms);
   sc.el.addEventListener('click', e => {
@@ -2347,7 +2588,7 @@ function initNotes(sc) {
       return;
     }
     const n = notes.find(x => x.id === open);
-    shell('notes', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Заметки</button><button class="nav-btn" data-delnote style="color:#ff3b30">Удалить</button></div><div class="note-edit"><textarea aria-label="Текст заметки" placeholder="Первая строка - заголовок"></textarea></div>', true);
+    shell('notes', '<div class="nav-bar"><button class="nav-btn glass-btn" data-back>‹ Заметки</button><button class="nav-btn" data-delnote style="color:#ff3b30">Удалить</button></div><div class="note-edit"><textarea aria-label="Текст заметки" placeholder="Первая строка - заголовок"></textarea></div>', true);
     const ta = sc.el.querySelector('textarea');
     ta.value = n.text;
     ta.addEventListener('input', () => { n.text = ta.value; n.t = Date.now(); save(); });
@@ -2410,20 +2651,20 @@ function initSettings(sc) {
   const tog = k => '<div class="toggle' + (S[k] ? '' : ' off') + '" data-set="' + k + '" role="switch" aria-checked="' + !!S[k] + '"></div>';
   const G = p => '<svg viewBox="0 0 24 24" fill="#fff">' + p + '</svg>';
   const ROWS = [
-    { k: 'airplane', name: 'Авиарежим', color: '#ff9500', toggle: true, g: G('<path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>') },
-    { k: 'wifi', name: 'Wi-Fi', color: '#007aff', toggle: true, g: G('<path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-8c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/>') },
-    { k: 'bt', name: 'Bluetooth', color: '#007aff', toggle: true, g: G('<path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3z"/>') },
-    { k: 'cellular', name: 'Сотовые данные', color: '#34c759', toggle: true, g: G('<path d="M2 22h3v-5H2zm5 0h3v-9H7zm5 0h3V9h-3zm5 0h3V4h-3z"/>') },
-    { k: 'dnd', name: 'Не беспокоить', color: '#5856d6', toggle: true, g: G('<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>') },
-    { p: 'display', name: 'Экран и яркость', color: '#007aff', g: G('<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="#fff" stroke-width="2"/>') },
-    { p: 'wall', name: 'Обои', color: '#a855f7', g: G('<path d="M4 5h16v14H4z" fill="none" stroke="#fff" stroke-width="2"/><path d="M5 18l5-6 4 4 2-2 3 4z"/>') },
-    { p: 'sound', name: 'Звуки', color: '#ff3b30', g: G('<path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16 8a5 5 0 010 8" fill="none" stroke="#fff" stroke-width="1.8"/>') },
-    { p: 'about', name: 'Об устройстве', color: '#8e8e93', g: G('<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M11 10h2v7h-2zM11 7h2v2h-2z"/>') },
+    { grp: 1, k: 'airplane', name: 'Авиарежим', color: '#ff9500', toggle: true, g: G('<path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>') },
+    { grp: 1, k: 'wifi', name: 'Wi-Fi', color: '#007aff', toggle: true, g: G('<path d="M12 18a2 2 0 100 4 2 2 0 000-4zm0-8c-2.7 0-5.2 1-7 2.7l1.4 1.4c1.5-1.3 3.5-2.1 5.6-2.1s4.1.8 5.6 2.1l1.4-1.4c-1.8-1.7-4.3-2.7-7-2.7zm0-4C8.4 6 5.1 7.4 2.6 9.7L4 11.1C6.1 9.2 8.9 8 12 8s5.9 1.2 8 3.1l1.4-1.4C18.9 7.4 15.6 6 12 6z"/>') },
+    { grp: 1, k: 'bt', name: 'Bluetooth', color: '#007aff', toggle: true, g: G('<path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3z"/>') },
+    { grp: 1, k: 'cellular', name: 'Сотовые данные', color: '#34c759', toggle: true, g: G('<path d="M2 22h3v-5H2zm5 0h3v-9H7zm5 0h3V9h-3zm5 0h3V4h-3z"/>') },
+    { grp: 2, k: 'dnd', name: 'Не беспокоить', color: '#5856d6', toggle: true, g: G('<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>') },
+    { grp: 3, p: 'display', name: 'Экран и яркость', color: '#007aff', g: G('<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="#fff" stroke-width="2"/>') },
+    { grp: 3, p: 'wall', name: 'Обои', color: '#a855f7', g: G('<path d="M4 5h16v14H4z" fill="none" stroke="#fff" stroke-width="2"/><path d="M5 18l5-6 4 4 2-2 3 4z"/>') },
+    { grp: 2, p: 'sound', name: 'Звуки', color: '#ff3b30', g: G('<path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16 8a5 5 0 010 8" fill="none" stroke="#fff" stroke-width="1.8"/>') },
+    { grp: 4, p: 'about', name: 'Об устройстве', color: '#8e8e93', g: G('<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M11 10h2v7h-2zM11 7h2v2h-2z"/>') },
   ];
   const PAGES = {
     display: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Тёмное оформление</div>' + tog('dark') + '</div><div class="settings-row"><div class="settings-label">Меньше стекла</div><div class="toggle' + (S.glass ? ' off' : '') + '" data-set="glass-inv" role="switch" aria-checked="' + !S.glass + '"></div></div></div>' +
       '<div class="settings-group"><div class="settings-row"><span>☀️</span><input type="range" min="30" max="100" value="' + S.brightness + '" data-range="brightness" aria-label="Яркость"></div></div>',
-    wall: () => '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall-opt' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" style="background:' + w.home + '"><span>' + w.name + '</span></div>').join('') + '</div>',
+    wall: () => '<div class="walls">' + Object.entries(WALLS).map(([k, w]) => '<div class="wall-opt' + (S.wallpaper === k ? ' on' : '') + '" data-wall="' + k + '" style="background:' + w.home + '"><canvas class="wall-th" data-th="' + k + '"></canvas><span>' + w.name + '</span></div>').join('') + '</div>',
     sound: () => '<div class="settings-group"><div class="settings-row"><span>🔈</span><input type="range" min="0" max="100" value="' + S.volume + '" data-range="volume" aria-label="Громкость"><span>🔊</span></div></div><div class="about-note">Громкость действует на «Музыку».</div>',
     about: () => '<div class="settings-group"><div class="settings-row"><div class="settings-label">Название</div><div class="settings-value">Телефон «Стекло»</div></div><div class="settings-row"><div class="settings-label">Версия</div><div class="settings-value">2.0</div></div></div>' +
       '<div class="about-note"><b>Фан-концепт интерфейса, не связан с Microsoft/Apple/Samsung.</b> Значки и обои нарисованы заново, шрифты системные, сеть не нужна.</div><button class="sheet-btn" data-reset>Сбросить всё</button>',
@@ -2431,13 +2672,16 @@ function initSettings(sc) {
   function render() {
     if (page === 'main') {
       const rows = ROWS.filter(r => !q || r.name.toLowerCase().includes(q));
-      shell('settings', '<div class="app-header"><div class="app-title">Настройки</div></div><div class="settings-list"><label class="settings-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Поиск" aria-label="Поиск настроек"></label><div class="settings-group">' +
-        (rows.length ? rows.map(r => '<div class="settings-row"' + (r.p ? ' data-page="' + r.p + '"' : '') + '><div class="settings-icon" style="background:' + r.color + '">' + r.g + '</div><div class="settings-label">' + r.name + '</div>' + (r.toggle ? tog(r.k) : '<div class="chevron">›</div>') + '</div>').join('') : '<div class="settings-row"><div class="settings-label" style="color:#8e8e93">Ничего не найдено</div></div>') + '</div></div>', true);
+      const row = r => '<div class="settings-row"' + (r.p ? ' data-page="' + r.p + '"' : '') + '><div class="settings-icon" style="background:' + r.color + '">' + r.g + '</div><div class="settings-label">' + r.name + '</div>' + (r.k === 'wifi' ? '<div class="settings-value">' + (S.wifi ? 'Дом' : 'Выкл.') + '</div>' : '') + (r.toggle ? tog(r.k) : '<div class="chevron">›</div>') + '</div>';
+      const groups = q ? [rows] : [1, 2, 3, 4].map(n => rows.filter(r => r.grp === n));
+      const profile = q ? '' : '<div class="settings-group settings-profile"><div class="settings-row"><div class="sp-avatar">Г</div><div class="settings-label"><b>Гость</b><small>Локальный профиль, всё хранится в браузере</small></div><div class="chevron">›</div></div></div>';
+      shell('settings', '<div class="app-header"><div class="app-title">Настройки</div></div><div class="settings-list"><label class="settings-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Поиск" aria-label="Поиск настроек"></label>' + profile +
+        (rows.length ? groups.filter(g => g.length).map(g => '<div class="settings-group">' + g.map(row).join('') + '</div>').join('') : '<div class="settings-group"><div class="settings-row"><div class="settings-label" style="color:#8e8e93">Ничего не найдено</div></div></div>') + '</div>', true);
       const inp = sc.el.querySelector('.settings-search input'); inp.value = q;
       inp.addEventListener('input', () => { q = inp.value.trim().toLowerCase(); const pos = inp.selectionStart; render(); const i2 = sc.el.querySelector('.settings-search input'); i2.focus(); i2.setSelectionRange(pos, pos); });
       return;
     }
-    shell('settings', '<div class="nav-bar"><button class="nav-btn" data-back>‹ Настройки</button><div class="nb-title">' + ROWS.find(r => r.p === page).name + '</div></div><div class="scr-body">' + PAGES[page]() + '</div>', true);
+    shell('settings', '<div class="nav-bar"><button class="nav-btn glass-btn" data-back>‹ Настройки</button><div class="nb-title">' + ROWS.find(r => r.p === page).name + '</div></div><div class="scr-body">' + PAGES[page]() + '</div>', true);
   }
   let own = false;
   sc.el.addEventListener('click', e => {
@@ -2657,7 +2901,7 @@ function iosSheet(title, actions) {
 }
 
 // ===== Программа «Файлы» =====
-ICONS.files = ['icon-files', '<svg width="36" height="36" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5h4.2l1.8 2h9A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" fill="#fff"/><path d="M3 9h18" stroke="#60a5fa" stroke-width="1.2"/></svg>'];
+ICONS.files = ['icon-files', G60('<path d="M9 19a4 4 0 014-4h10.5l4 4.2H47a4 4 0 014 4V42a4 4 0 01-4 4H13a4 4 0 01-4-4z" fill="#1a8cff"/><path d="M9 25h42v17a4 4 0 01-4 4H13a4 4 0 01-4-4z" fill="#4db0ff"/>')];
 APPS.files = { name: 'Файлы', cls: 'files-app', light: true, init: initFiles };
 HOME.splice(HOME.indexOf('calendar') + 1, 0, 'files');
 (function addFilesScreen() {
@@ -2765,7 +3009,7 @@ function renderNotifs() {
   const ln = document.createElement('div'); ln.id = 'lock-notifs'; ln.className = 'lock-notifs';
   $('lock-page').insertBefore(ln, $('lock-page').querySelector('.lock-widgets'));
   const nc = document.createElement('div'); nc.id = 'nc'; nc.setAttribute('role', 'dialog'); nc.setAttribute('aria-label', 'Центр уведомлений');
-  nc.innerHTML = '<div class="status-bar" data-sb></div><div class="nc-clock"><div class="nc-date"></div><div class="nc-time"></div></div><div class="nc-head"><b>Уведомления</b><button id="nc-clear">Очистить</button></div><div id="nc-list"></div><div class="home-indicator"></div>';
+  nc.innerHTML = '<div class="nc-back"></div><div class="status-bar" data-sb></div><div class="nc-clock"><div class="nc-date"></div><div class="nc-time"></div></div><div class="nc-head"><b>Уведомления</b><button id="nc-clear">Очистить</button></div><div id="nc-list"></div><div class="home-indicator"></div>';
   $('screen').appendChild(nc);
   renderStatusBars();
 })();
@@ -2775,7 +3019,7 @@ $('nc').addEventListener('click', e => {
   if (e.target.closest('#nc-clear')) { NOTIFS = []; renderNotifs(); return; }
   const c = e.target.closest('[data-n]');
   if (c) { const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); closeNC(); if (n) openApp(n.app); return; }
-  if (e.target.closest('.home-indicator') || e.target.id === 'nc' || e.target.closest('.nc-clock')) closeNC();
+  if (e.target.closest('.home-indicator') || e.target.id === 'nc' || e.target.classList.contains('nc-back') || e.target.closest('.nc-clock')) closeNC();
 });
 $('lock-notifs').addEventListener('pointerup', e => { if (e.target.closest('.n-card')) e.stopPropagation(); });
 $('lock-notifs').addEventListener('click', e => { const c = e.target.closest('[data-n]'); if (!c) return; e.stopPropagation(); const n = NOTIFS.find(x => x.id === c.dataset.n); NOTIFS = NOTIFS.filter(x => x !== n); renderNotifs(); if (n) openApp(n.app); });
@@ -2858,7 +3102,7 @@ setInterval(() => { const d = new Date(), hm = pad2(d.getHours()) + ':' + pad2(d
 
 
 // ===== Чёткий значок «Настроек»: шестерня из зубцов и кольца =====
-ICONS.settings = ['icon-settings', '<svg width="44" height="44" viewBox="0 0 44 44"><g fill="#3a3a3c">' + Array.from({ length: 12 }, (_, i) => '<rect x="20" y="4" width="4" height="8" rx="1.2" transform="rotate(' + i * 30 + ' 22 22)"/>').join('') + '</g><circle cx="22" cy="22" r="13" fill="#3a3a3c"/><circle cx="22" cy="22" r="9.5" fill="#d1d1d6"/><circle cx="22" cy="22" r="4.5" fill="#3a3a3c"/></svg>'];
+ICONS.settings = ['icon-settings', G60('<g fill="#4a4a4f">' + Array.from({ length: 12 }, (_, i) => '<rect x="27.4" y="7.5" width="5.2" height="9" rx="1.6" transform="rotate(' + i * 30 + ' 30 30)"/>').join('') + '</g><circle cx="30" cy="30" r="16" fill="#4a4a4f"/><circle cx="30" cy="30" r="12" fill="#d1d1d6"/><circle cx="30" cy="30" r="5.5" fill="#4a4a4f"/>')];
 
 // ===== Игры «Игротеки»: папка на рабочем столе, игра на весь экран телефона =====
 // Таблица - ../_os-shared/games.js; игра открывает ../<папка>/index.html; пауза - протокол из README.md.
@@ -2894,9 +3138,9 @@ APPS.games = { name: 'Игры', cls: 'folder', init() { } };
 if (GAME_IDS.length) HOME.push('games');
 (function buildGamesFolder() {
   const f = document.createElement('div'); f.id = 'games-folder'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Папка «Игры»');
-  f.innerHTML = '<div class="gf-title">Игры</div><div class="gf-box">' + GAME_IDS.map(id => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') + '</div>';
+  f.innerHTML = '<div class="gf-back"></div><div class="gf-title">Игры</div><div class="gf-box">' + GAME_IDS.map(id => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') + '</div>';
   $('home-page').appendChild(f);
-  f.addEventListener('click', e => { if (e.target === f) f.classList.remove('open'); });
+  f.addEventListener('click', e => { if (e.target === f || e.target.classList.contains('gf-back')) f.classList.remove('open'); });
   buildHome(); updateWidgets();
 })();
 const openApp1 = openApp;
@@ -2906,6 +3150,795 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('games-f
 // ===== Вкладка скрыта - анимации и звук на паузе =====
 document.addEventListener('visibilitychange', () => { document.body.classList.toggle('paused', document.hidden); emit('visibility'); });
 renderNotifs();
+
+// ================================================================
+// Жидкое стекло. Техника из проекта LiquidGlass (index.html): SVG-фильтр внутри backdrop-filter.
+// Для формы элемента строится поле расстояний (SDF) скруглённого прямоугольника или суперэллипса,
+// из него профиль высоты кромки h(t) = sqrt(1 - (1 - t)^2), а из профиля три текстуры:
+//   disp  - R и G смещение фона, B кольцо кромки (feDisplacementMap + маска насыщенного свечения);
+//   spec  - белый с альфой блика (Блинн-Фонг + френель по нормали из того же поля высот);
+//   shade - чёрный с альфой самозатенения.
+// Цепочка фильтра: три прохода смещения с разным масштабом для R, G, B (дисперсия), кривая
+// читаемости, насыщенное кольцо по краю. Масштаб отрицательный: кромка тянет внутрь то, что снаружи.
+// Текстур три, а не четыре: каждый toDataURL стоит ~1 мс независимо от размера.
+// Кэш по форме (ширина, высота, радиус, фаска, вид угла): одинаковые кнопки пекутся один раз,
+// повторное открытие панели не печёт ничего. Печь - в простое главного потока, форма за формой.
+// Слабое устройство, ?lite, «понижение прозрачности» или браузер без SVG в backdrop-filter -
+// дешёвое стекло: размытие, насыщенность и нарисованная кромка.
+// ================================================================
+const LG = (() => {
+  // ---------- пиксельная математика (как в LiquidGlass) ----------
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function byte(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
+  // n-норма: n=2 - круглый угол, n=4 - непрерывный угол (суперэллипс), как у значков
+  function corner(a, b, n) {
+    if (a <= 0) return b <= 0 ? 0 : b;
+    if (b <= 0) return a;
+    if (n === 2) return Math.sqrt(a * a + b * b);
+    return Math.pow(Math.pow(a, n) + Math.pow(b, n), 1 / n);
+  }
+  function sdf(px, py, hw, hh, r, n) {
+    const qx = Math.abs(px) - (hw - r), qy = Math.abs(py) - (hh - r);
+    return corner(qx, qy, n) + Math.min(Math.max(qx, qy), 0) - r;
+  }
+  function pow46(x) { const a = x * x, b = a * a, c = b * b, d = c * c, e = d * d; return e * c * b * a; }
+  function pow26(x) { const a = x * x, b = a * a, c = b * b, d = c * c; return d * c * a; }
+
+  // поле расстояний прямоугольной формы в пикселях карты
+  function rectField(cw, ch, r, n) {
+    const D = new Float32Array(cw * ch), hw = cw / 2, hh = ch / 2;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) D[y * cw + x] = sdf(x + 0.5 - hw, y + 0.5 - hh, hw, hh, r, n);
+    return D;
+  }
+  // поле расстояний произвольной маски (буквы часов): двухпроходный фаскный обход 3-4
+  function maskField(alpha, cw, ch) {
+    const BIG = 1e9, d = new Float32Array(cw * ch);
+    for (let i = 0; i < d.length; i++) d[i] = alpha[i] >= 128 ? BIG : 0;
+    const at = (x, y) => (x < 0 || y < 0 || x >= cw || y >= ch) ? 0 : d[y * cw + x];
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { const i = y * cw + x; if (!d[i]) continue; d[i] = Math.min(d[i], at(x - 1, y) + 3, at(x, y - 1) + 3, at(x - 1, y - 1) + 4, at(x + 1, y - 1) + 4); }
+    for (let y = ch - 1; y >= 0; y--) for (let x = cw - 1; x >= 0; x--) { const i = y * cw + x; if (!d[i]) continue; d[i] = Math.min(d[i], at(x + 1, y) + 3, at(x, y + 1) + 3, at(x + 1, y + 1) + 4, at(x - 1, y + 1) + 4); }
+    const D = new Float32Array(cw * ch);
+    for (let i = 0; i < D.length; i++) D[i] = d[i] ? -(d[i] / 3) + 0.5 : 0.5 + (1 - alpha[i] / 255);
+    return D;
+  }
+
+  // Текстуры из поля расстояний D (отрицательно внутри). Тело - bakeFields из LiquidGlass,
+  // только поле приходит готовым: прямоугольник или буквы.
+  function bakeFields(cw, ch, D, bevel, dpr, lightDeg) {
+    const bv = Math.max(2, bevel * dpr);
+    const H = new Float32Array(cw * ch), T = new Float32Array(cw * ch), A = new Float32Array(cw * ch);
+    const deepLo = new Int32Array(ch), deepHi = new Int32Array(ch);
+    for (let y = 0; y < ch; y++) {
+      let lo = -1, hi = -2;
+      for (let x = 0; x < cw; x++) {
+        const i = y * cw + x, d = D[i], t = clamp(-d / bv, 0, 1);
+        T[i] = t;
+        H[i] = t >= 1 ? 1 : (t <= 0 ? 0 : Math.sqrt(2 * t - t * t));
+        A[i] = clamp(-d / dpr + 0.5, 0, 1);
+        if (t >= 1) { if (lo < 0) lo = x; hi = x; }
+      }
+      deepLo[y] = lo; deepHi[y] = hi;
+    }
+    const rad = lightDeg * Math.PI / 180;
+    const lx = Math.cos(rad), ly = -Math.sin(rad), lz = 0.60;
+    const ll = Math.sqrt(lx * lx + ly * ly + lz * lz);
+    const Lx = lx / ll, Ly = ly / ll, Lz = lz / ll;
+    const hh3 = Math.sqrt(Lx * Lx + Ly * Ly + (Lz + 1) * (Lz + 1));
+    const Hx = Lx / hh3, Hy = Ly / hh3, Hz = (Lz + 1) / hh3;
+    const Fx = -Lx, Fy = -Ly, Fz = Lz;
+    const fh = Math.sqrt(Fx * Fx + Fy * Fy + (Fz + 1) * (Fz + 1));
+    const Gx = Fx / fh, Gy = Fy / fh, Gz = (Fz + 1) / fh;
+    const disp = new ImageData(cw, ch), spec = new ImageData(cw, ch), shade = new ImageData(cw, ch);
+    const dp = disp.data, sp = spec.data, sh = shade.data;
+    const SLOPE = 0.34, NSTR = 1.35, EDGE = clamp(2.2 * dpr / bv, 0.03, 0.45);
+    const flatLine = Math.exp(-(1 / EDGE) * Math.sqrt(1 / EDGE) * 2.4);
+    const flatSpec = byte(clamp(pow46(Math.max(Hz, 0)) * 1.55 + pow26(Math.max(Gz, 0)) * 0.40 + flatLine * (0.24 + 0.66 * clamp(Lz, 0, 1) + 0.28 * clamp(Fz, 0, 1)), 0, 1) * 255);
+    const flatShade = byte(clamp(flatLine * Math.max(-Lz, 0) * 0.55, 0, 1) * 255);
+    for (let y = 0; y < ch; y++) {
+      const yUp = y > 0 ? y - 1 : 0, yDn = y < ch - 1 ? y + 1 : ch - 1;
+      let flatLo = -1, flatHi = -2;
+      if (deepLo[y] >= 0 && deepLo[yUp] >= 0 && deepLo[yDn] >= 0) {
+        flatLo = Math.max(deepLo[y], deepLo[yUp], deepLo[yDn]) + 1;
+        flatHi = Math.min(deepHi[y], deepHi[yUp], deepHi[yDn]) - 1;
+      }
+      for (let x = 0; x < cw; x++) {
+        // плоская середина: наклон, блик и кольцо нулевые - одно значение на весь отрезок
+        if (x >= flatLo && x <= flatHi) {
+          for (; x <= flatHi; x++) {
+            const i = (y * cw + x) * 4;
+            dp[i] = 128; dp[i + 1] = 128; dp[i + 2] = 0; dp[i + 3] = 255;
+            sp[i] = sp[i + 1] = sp[i + 2] = 255; sp[i + 3] = flatSpec;
+            sh[i] = sh[i + 1] = sh[i + 2] = 0; sh[i + 3] = flatShade;
+          }
+          x--;
+          continue;
+        }
+        const xl = H[y * cw + (x > 0 ? x - 1 : 0)], xr = H[y * cw + (x < cw - 1 ? x + 1 : cw - 1)];
+        const yt = H[yUp * cw + x], yb = H[yDn * cw + x];
+        const gx = (xr - xl) * 0.5 * bv, gy = (yb - yt) * 0.5 * bv;
+        const i = (y * cw + x) * 4;
+        dp[i] = byte(128 + 127 * Math.tanh(gx * SLOPE));
+        dp[i + 1] = byte(128 + 127 * Math.tanh(gy * SLOPE));
+        dp[i + 3] = 255;
+        const nx = -gx * NSTR, ny = -gy * NSTR, nl = Math.sqrt(nx * nx + ny * ny + 1);
+        const Nx = nx / nl, Ny = ny / nl, Nz = 1 / nl;
+        const ndh = Nx * Hx + Ny * Hy + Nz * Hz, ndl = Nx * Lx + Ny * Ly + Nz * Lz;
+        const ndg = Nx * Gx + Ny * Gy + Nz * Gz, ndf = Nx * Fx + Ny * Fy + Nz * Fz;
+        const fres = Math.pow(1 - Nz, 2.6);
+        const k = y * cw + x, inside = A[k], u = T[k] / EDGE;
+        const line = Math.exp(-u * Math.sqrt(u) * 2.4);
+        const hi = clamp(pow46(Math.max(ndh, 0)) * 1.55 + pow26(Math.max(ndg, 0)) * 0.40 + line * (0.24 + 0.66 * clamp(ndl, 0, 1) + 0.28 * clamp(ndf, 0, 1)) + fres * 0.09, 0, 1) * inside;
+        const lo = clamp(line * Math.max(-ndl, 0) * 0.55 + fres * 0.12, 0, 1) * inside;
+        sp[i] = sp[i + 1] = sp[i + 2] = 255; sp[i + 3] = byte(hi * 255);
+        sh[i] = sh[i + 1] = sh[i + 2] = 0; sh[i + 3] = byte(lo * 255);
+        dp[i + 2] = byte(clamp(fres * 1.7, 0, 1) * inside * 255);
+      }
+    }
+    return { cw, ch, disp, spec, shade };
+  }
+
+  // ---------- режим ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const LIGHT = 118;   // свет сверху слева, как у системного стекла
+  const SQUIRCLE = typeof CSS !== 'undefined' && CSS.supports('corner-shape', 'squircle');
+  const SVG_OK = typeof CSS !== 'undefined' && CSS.supports('backdrop-filter', 'url(#a)') && !/^((?!chrome|chromium|android).)*safari/i.test(navigator.userAgent);
+  const q = location.search + location.hash;
+  const WEAK = /[?&#]lite\b/.test(q) || (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+    (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches);
+  let mode = SVG_OK && !WEAK ? 'full' : 'lite';
+  document.documentElement.classList.toggle('lg-lite', mode === 'lite');
+
+  // Оптика по видам. refr - сила преломления (пкс), ab - дисперсия, rim - свечение кромки,
+  // leg - кривая читаемости, blur/sat - размытие и насыщенность фона под стеклом.
+  const PRESETS = {
+    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0.10, blur: 1.5, sat: 180 },
+    widget: { bevel: 16, refr: 40, ab: 0.16, rim: 0.36, leg: 0.28, blur: 8, sat: 165 },
+    tile: { bevel: 14, refr: 34, ab: 0.18, rim: 0.40, leg: 0.08, blur: 1, sat: 170 },
+    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0.10, blur: 2, sat: 175 },
+    card: { bevel: 14, refr: 32, ab: 0.14, rim: 0.30, leg: 0.30, blur: 12, sat: 170 },
+    panel: { bevel: 20, refr: 50, ab: 0.16, rim: 0.36, leg: 0.18, blur: 5, sat: 170 },
+    bar: { bevel: 14, refr: 34, ab: 0.16, rim: 0.36, leg: 0.22, blur: 6, sat: 185 },
+    glyph: { bevel: 9, refr: 18, ab: 0.22, rim: 0.50, leg: 0, blur: 0.6, sat: 190 },
+  };
+  for (const k in PRESETS) PRESETS[k].name = k;
+  const SPEC_K = 0.85, SHADE_K = 0.55;
+
+  const holder = document.createElementNS(NS, 'svg');
+  holder.setAttribute('aria-hidden', 'true');
+  holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+  const defs = document.createElementNS(NS, 'defs');
+  holder.appendChild(defs);
+  document.body.appendChild(holder);
+
+  const maps = new Map();      // форма -> { disp, spec, shade }
+  const filters = new Map();   // форма|вид -> id фильтра
+  const state = new WeakMap(); // элемент -> { p, key, applied, wall }
+  const items = new Set();
+  const waiting = new Set();   // элементы, которым нужна выпечка
+  const stats = { bakes: 0, filters: 0, bakeMs: 0 };
+  let fid = 0, pumping = 0;
+
+  function encode(img, k) {
+    if (k !== undefined && k !== 1) { const d = img.data; for (let i = 3; i < d.length; i += 4) d[i] = d[i] * k; }
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    cv.getContext('2d').putImageData(img, 0, 0);
+    return cv.toDataURL();
+  }
+  function bakeShape(w, h, r, bevel, n) {
+    const t0 = performance.now();
+    let dpr = DPR;
+    if (w * h * dpr * dpr > 4e5) dpr = Math.sqrt(4e5 / (w * h));   // крупная панель - карта грубее, бюджет пикселей
+    const cw = Math.max(4, Math.round(w * dpr)), ch = Math.max(4, Math.round(h * dpr));
+    const f = bakeFields(cw, ch, rectField(cw, ch, Math.min(r, Math.min(w, h) / 2) * dpr, n), bevel, dpr, LIGHT);
+    const m = { disp: encode(f.disp), spec: encode(f.spec, SPEC_K), shade: encode(f.shade, SHADE_K) };
+    stats.bakes++; stats.bakeMs += performance.now() - t0;
+    return m;
+  }
+
+  // ---------- фильтр ----------
+  const ONLY_R = '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0';
+  const ONLY_G = '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0';
+  const ONLY_B = '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0';
+  // кривая читаемости: поднимает тёмное и прижимает светлое, белый текст держит контраст
+  const CALM_FROM = [0.00, 0.20, 0.40, 0.60, 0.80, 1.00];
+  const CALM_TO = [0.10, 0.26, 0.42, 0.56, 0.68, 0.78];
+  const calmTable = (a) => CALM_FROM.map((v, i) => v + (CALM_TO[i] - v) * a);
+  function filterMarkup(id, disp, w, h, p) {
+    const s = -p.refr, ab = p.ab, sel = 'xChannelSelector="R" yChannelSelector="G"';
+    let body = '<feImage href="' + disp + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="none" result="map"/>' +
+      '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + (s * (1 + ab)).toFixed(2) + '" ' + sel + ' result="dR"/>' +
+      '<feColorMatrix in="dR" type="matrix" values="' + ONLY_R + '" result="cR"/>' +
+      '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + s.toFixed(2) + '" ' + sel + ' result="dG"/>' +
+      '<feColorMatrix in="dG" type="matrix" values="' + ONLY_G + '" result="cG"/>' +
+      '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + (s * (1 - ab)).toFixed(2) + '" ' + sel + ' result="dB"/>' +
+      '<feColorMatrix in="dB" type="matrix" values="' + ONLY_B + '" result="cB"/>' +
+      '<feComposite in="cR" in2="cG" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="cRG"/>' +
+      '<feComposite in="cRG" in2="cB" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="ref"/>';
+    let last = 'ref';
+    if (p.leg > 0) {
+      const f = 'type="table" tableValues="' + calmTable(p.leg).map((v) => v.toFixed(4)).join(' ') + '"';
+      body += '<feComponentTransfer in="ref" result="calm"><feFuncR ' + f + '/><feFuncG ' + f + '/><feFuncB ' + f + '/></feComponentTransfer>';
+      last = 'calm';
+    }
+    if (p.rim > 0) {
+      body += '<feColorMatrix in="map" type="matrix" result="ring" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 1 0 0"/>' +
+        '<feColorMatrix in="' + last + '" type="saturate" values="' + (1 + p.rim * 2.4).toFixed(2) + '" result="vivid"/>' +
+        '<feComposite in="vivid" in2="ring" operator="in" result="glow"/>' +
+        '<feComposite in="glow" in2="' + last + '" operator="arithmetic" k1="0" k2="' + (p.rim * 0.7).toFixed(2) + '" k3="1" k4="0" result="lit"/>';
+    }
+    // область фильтра - только докуда достаёт смещение
+    const pad = Math.ceil(p.refr * 0.6 + p.blur * 3 + 8);
+    return '<filter id="' + id + '" filterUnits="userSpaceOnUse" x="' + (-pad) + '" y="' + (-pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '" color-interpolation-filters="sRGB">' + body + '</filter>';
+  }
+  function filterFor(shape, p, m, w, h) {
+    const k = shape + '|' + p.name;
+    let id = filters.get(k);
+    if (id) return id;
+    id = 'lgf' + (fid++);
+    const node = new DOMParser().parseFromString('<svg xmlns="' + NS + '">' + filterMarkup(id, m.disp, w, h, p) + '</svg>', 'image/svg+xml').querySelector('filter');
+    defs.appendChild(document.importNode(node, true));
+    filters.set(k, id);
+    stats.filters++;
+    return id;
+  }
+
+  // ---------- элементы ----------
+  function metrics(el) {
+    const w = el.offsetWidth, h = el.offsetHeight;
+    if (!w || !h) return null;
+    const cs = getComputedStyle(el);
+    const raw = cs.borderTopLeftRadius;
+    let r = raw.endsWith('%') ? parseFloat(raw) / 100 * Math.min(w, h) : parseFloat(raw) || 0;
+    r = Math.min(r, Math.min(w, h) / 2);
+    const capsule = r >= Math.min(w, h) / 2 - 0.6;
+    el.classList.toggle('capsule', capsule);
+    const n = SQUIRCLE && !capsule && cs.getPropertyValue('corner-shape').trim() !== 'round' ? 4 : 2;
+    return { w, h, r, n };
+  }
+  const cheapOf = (p) => 'blur(' + Math.max(8, p.blur + 6) + 'px) saturate(' + p.sat + '%)';
+  function setBF(el, v) { el.style.backdropFilter = v; el.style.webkitBackdropFilter = v; }
+  function sync(el) {
+    const st = state.get(el);
+    if (!st || !el.isConnected) return;
+    const m = metrics(el);
+    if (!m) return;
+    const bevel = Math.min(st.p.bevel, Math.min(m.w, m.h) / 2.2);
+    const shape = [m.w, m.h, m.r.toFixed(1), bevel.toFixed(1), m.n, DPR].join(':');
+    if (st.wall) tone(el);
+    if (shape === st.key && st.applied) return;
+    st.key = shape; st.m = m; st.bevel = bevel;
+    if (mode === 'lite') { setBF(el, cheapOf(st.p)); st.applied = 'lite'; return; }
+    const hit = maps.get(shape);
+    if (hit) { apply(el, st, hit); return; }
+    // пока карты пекутся, элемент уже читается как стекло - обычным размытием
+    if (!st.applied) setBF(el, cheapOf(st.p));
+    waiting.add(el);
+    pump();
+  }
+  function apply(el, st, m) {
+    const id = filterFor(st.key, st.p, m, st.m.w, st.m.h);
+    el.style.setProperty('--lg-spec', 'url("' + m.spec + '")');
+    el.style.setProperty('--lg-shade', 'url("' + m.shade + '")');
+    setBF(el, 'blur(' + st.p.blur + 'px) saturate(' + st.p.sat + '%) url(#' + id + ')');
+    st.applied = 'full';
+    el.dataset.lgf = id;
+  }
+  // выпечка в простое: по одной форме, пока в кадре есть время
+  function pump() {
+    if (pumping || !waiting.size) return;
+    const run = () => {
+      pumping = 0;
+      const until = performance.now() + 10;
+      let baked = 0;
+      for (const el of [...waiting]) {
+        const st = state.get(el);
+        if (!st || !el.isConnected || !st.m) { waiting.delete(el); continue; }
+        if (!maps.has(st.key)) {
+          if (baked && performance.now() > until) break;
+          baked++;
+          if (maps.size > 80) maps.clear();
+          maps.set(st.key, bakeShape(st.m.w, st.m.h, st.m.r, st.bevel, st.m.n));
+        }
+        waiting.delete(el);
+        // все, кто ждёт ту же форму, получают её сразу
+        for (const o of [...waiting]) { const so = state.get(o); if (so && so.key === st.key) { apply(o, so, maps.get(st.key)); waiting.delete(o); } }
+        apply(el, st, maps.get(st.key));
+      }
+      if (waiting.size) pump();
+    };
+    pumping = window.requestIdleCallback ? requestIdleCallback(run, { timeout: 120 }) : setTimeout(run, 16);
+  }
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver((es) => es.forEach((e) => sync(e.target))) : null;
+
+  function add(el, preset, opts) {
+    if (!el || state.has(el)) return;
+    const p = PRESETS[preset] || PRESETS.card;
+    state.set(el, { p, key: '', applied: '', wall: !!(opts && opts.wall) });
+    items.add(el);
+    el.classList.add('lg');
+    el.dataset.lg = p.name;
+    el.style.setProperty('--lg-cheap', cheapOf(p));
+    if (ro) ro.observe(el);
+    sync(el);
+  }
+
+  // ---------- автоматическая регистрация ----------
+  const AUTO = [];
+  function scan(root) {
+    if (!root || root.nodeType !== 1) return;
+    for (const [sel, preset, opts] of AUTO) {
+      if (root.matches(sel)) add(root, preset, opts);
+      root.querySelectorAll(sel).forEach((e) => add(e, preset, opts));
+    }
+  }
+  const mo = new MutationObserver((list) => {
+    for (const r of list) r.addedNodes.forEach(scan);
+    for (const el of items) if (!el.isConnected) { items.delete(el); waiting.delete(el); if (ro) ro.unobserve(el); }
+  });
+  function auto(rules) { AUTO.push(...rules); scan(document.body); mo.observe(document.body, { childList: true, subtree: true }); }
+
+  // ---------- тон: стекло отвечает на то, что под ним ----------
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  function calm(c, leg) {
+    if (!leg) return c;
+    const t = calmTable(leg);
+    return c.map((v) => { const x = v / 255 * 5, i = Math.min(4, Math.floor(x)); return (t[i] + (t[i + 1] - t[i]) * (x - i)) * 255; });
+  }
+  // Подбор подложки: белый текст на тёмной дымке или тёмный на светлой - что требует меньше дымки
+  // для контраста 4.5 на самом неудобном участке фона. darkPref - светлый текст в приоритете.
+  function solve(cells, leg, darkPref) {
+    const W = 1, D = 0.0122, need = 4.6;
+    const bg = cells.map((c) => calm(c, leg));
+    let aw = 1, ad = 1;
+    for (let a = 0; a <= 0.8; a += 0.02) { const mx = Math.max(...bg.map((c) => lum(c.map((v) => v * (1 - a))))); if (ratio(W, mx) >= need) { aw = a; break; } }
+    for (let a = 0; a <= 0.8; a += 0.02) { const mn = Math.min(...bg.map((c) => lum(c.map((v) => v * (1 - a) + 255 * a)))); if (ratio(mn, D) >= need) { ad = a; break; } }
+    const light = darkPref ? ad + 0.12 < aw : !(aw + 0.12 < ad);
+    return light ? { tone: 'light', a: ad } : { tone: 'dark', a: aw };
+  }
+  function localRect(el) {
+    const s = document.getElementById('screen'), sr = s.getBoundingClientRect(), k = sr.width / s.offsetWidth || 1, r = el.getBoundingClientRect();
+    return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
+  }
+  function tone(el) {
+    const st = state.get(el);
+    if (!st || !window.Wall || !Wall.ready() || !el.offsetWidth) return;
+    const cells = Wall.sample(localRect(el));
+    if (!cells.length) return;
+    const t = solve(cells, mode === 'full' ? st.p.leg : 0, document.body.classList.contains('dark'));
+    el.dataset.tone = t.tone;
+    el.style.setProperty('--lg-tint', t.tone === 'light' ? 'rgba(255,255,255,' + Math.max(0.16, t.a).toFixed(2) + ')' : 'rgba(0,0,0,' + Math.max(0.06, t.a).toFixed(2) + ')');
+  }
+  function retone() { for (const el of items) { const st = state.get(el); if (st && st.wall) tone(el); } }
+
+  // Пока панель едет, у стекла под ней (и у неё самой) только размытие: цепочка с feImage
+  // и feDisplacementMap считается на процессоре, а движущийся фон заставляет пересчитывать её каждый кадр.
+  const movers = new Map();
+  function moving(el, ms) {
+    if (!el) return;
+    el.classList.add('lg-moving');
+    clearTimeout(movers.get(el));
+    movers.set(el, setTimeout(() => { el.classList.remove('lg-moving'); movers.delete(el); }, ms));
+  }
+
+  // Заранее испечь формы скрытой страницы: на время замера она видима, но невидима глазу
+  function prewarm(root) {
+    if (!root || mode === 'lite') return;
+    root.classList.add('lg-measure');
+    for (const el of items) if (root.contains(el)) sync(el);
+    root.classList.remove('lg-measure');
+  }
+
+  // Стеклянные буквы (часы блокировки): поле расстояний строится по маске самих букв
+  const glyphCache = new Map();
+  function glyphs(alpha, cw, ch, w, h, key) {
+    if (mode === 'lite') return null;
+    let g = glyphCache.get(key);
+    if (g) return clockFilter(g);
+    const t0 = performance.now(), dpr = cw / w;
+    const f = bakeFields(cw, ch, maskField(alpha, cw, ch), PRESETS.glyph.bevel, dpr, LIGHT);
+    g = { disp: encode(f.disp), spec: encode(f.spec, SPEC_K), shade: encode(f.shade, SHADE_K), w, h, key };
+    stats.bakes++; stats.bakeMs += performance.now() - t0;
+    if (glyphCache.size > 6) glyphCache.clear();
+    glyphCache.set(key, g);
+    return clockFilter(g);
+  }
+  // у букв часов один узел фильтра: при смене времени он пересобирается с новой картой
+  function clockFilter(g) {
+    const old = document.getElementById('lg-clock');
+    if (!old || old.dataset.key !== g.key) {
+      const node = new DOMParser().parseFromString('<svg xmlns="' + NS + '">' + filterMarkup('lg-clock', g.disp, g.w, g.h, PRESETS.glyph) + '</svg>', 'image/svg+xml').querySelector('filter');
+      const fresh = document.importNode(node, true);
+      fresh.dataset.key = g.key;
+      if (old) old.replaceWith(fresh); else defs.appendChild(fresh);
+    }
+    g.id = 'lg-clock';
+    return g;
+  }
+
+  return {
+    PRESETS, stats, add, auto, sync, tone, retone, moving, prewarm, glyphs, solve, bakeFields, rectField, maskField,
+    get mode() { return mode; },
+    // готово - значит видно полное стекло: карты на месте и элемент сейчас не едет
+    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && !el.closest('.lg-moving')); },
+    idle: () => waiting.size === 0 && !pumping,
+    resyncAll: () => items.forEach(sync),
+  };
+})();
+
+// ================================================================
+// Обои в духе iOS 26: слои изогнутых полупрозрачных «стёкол» с яркой кромкой поверх глубокого фона.
+// Рисуются на холсте (сети нет), светлый и тёмный вариант по теме. Верх оставлен спокойным - там часы.
+// По готовой картинке считается сетка средних цветов 8x8 пкс: по ней стекло выбирает подложку
+// и цвет текста (контраст 4.5), а часы блокировки - светлые они или тёмные.
+// Градиент из WALLS по-прежнему стоит в style.background (на случай, если холст не нарисован).
+// ================================================================
+const Wall = (() => {
+  // r: [левый край, правый край, толщина, цвет1, цвет2, прозрачность, изгиб]
+  const P = {
+    liquid: {
+      dark: { base: ['#060c2a', '#0a1c52', '#02040e'], glow: [[0.85, 0.12, 0.65, 'rgba(70,120,255,0.38)'], [0.05, 0.92, 0.75, 'rgba(20,184,166,0.28)']],
+        r: [[0.66, 0.30, 0.15, '#1d4ed8', '#22d3ee', 0.85, 0.10], [0.82, 0.47, 0.13, '#4f46e5', '#a78bfa', 0.80, -0.08], [0.97, 0.64, 0.17, '#0369a1', '#38bdf8', 0.85, 0.12], [1.10, 0.83, 0.19, '#ea580c', '#fb7185', 0.78, -0.06]] },
+      light: { base: ['#dce9ff', '#c4d8ff', '#eef4ff'], glow: [[0.85, 0.12, 0.65, 'rgba(255,255,255,0.55)'], [0.05, 0.92, 0.75, 'rgba(125,211,252,0.45)']],
+        r: [[0.66, 0.30, 0.15, '#3b82f6', '#7dd3fc', 0.75, 0.10], [0.82, 0.47, 0.13, '#6366f1', '#c4b5fd', 0.70, -0.08], [0.97, 0.64, 0.17, '#0ea5e9', '#a5f3fc', 0.75, 0.12], [1.10, 0.83, 0.19, '#fb923c', '#fda4af', 0.72, -0.06]] },
+    },
+    pearl: { base: ['#fff7fb', '#f6f1ff', '#fff6ec'], glow: [[0.2, 0.15, 0.6, 'rgba(255,255,255,0.8)'], [0.9, 0.8, 0.6, 'rgba(254,215,170,0.5)']],
+      r: [[0.70, 0.40, 0.15, '#fbcfe8', '#fde68a', 0.85, 0.08], [0.86, 0.55, 0.13, '#ddd6fe', '#bfdbfe', 0.85, -0.07], [1.00, 0.70, 0.16, '#fecaca', '#fed7aa', 0.85, 0.10], [1.12, 0.86, 0.18, '#e9d5ff', '#fbcfe8', 0.85, -0.05]] },
+    aurora: { base: ['#1a0033', '#140a3c', '#0d0d2b'], glow: [[0.3, 0.2, 0.6, 'rgba(255,126,179,0.30)'], [0.7, 0.6, 0.6, 'rgba(120,115,245,0.35)']],
+      r: [[0.64, 0.32, 0.15, '#ff7eb3', '#7873f5', 0.85, 0.10], [0.80, 0.50, 0.13, '#7873f5', '#4ac1ff', 0.80, -0.08], [0.96, 0.66, 0.16, '#4ac1ff', '#a5f3fc', 0.80, 0.12], [1.10, 0.84, 0.19, '#ff9a8b', '#ff6b9d', 0.78, -0.06]] },
+    ocean: { base: ['#0c4a6e', '#075985', '#082f49'], glow: [[0.5, 0.3, 0.6, 'rgba(103,232,249,0.30)']],
+      r: [[0.64, 0.32, 0.15, '#22d3ee', '#67e8f9', 0.80, 0.10], [0.80, 0.50, 0.13, '#0ea5e9', '#38bdf8', 0.80, -0.08], [0.96, 0.66, 0.16, '#155e75', '#22d3ee', 0.85, 0.12], [1.10, 0.84, 0.19, '#0369a1', '#7dd3fc', 0.80, -0.06]] },
+    sunset: { base: ['#312e81', '#be185d', '#fb923c'], glow: [[0.5, 0.95, 0.6, 'rgba(253,230,138,0.45)']],
+      r: [[0.64, 0.32, 0.15, '#f97316', '#fde68a', 0.80, 0.10], [0.80, 0.50, 0.13, '#be185d', '#fb7185', 0.80, -0.08], [0.96, 0.66, 0.16, '#7c3aed', '#f472b6', 0.80, 0.12], [1.10, 0.84, 0.19, '#fb923c', '#fef3c7', 0.80, -0.06]] },
+    forest: { base: ['#064e3b', '#14532d', '#052e16'], glow: [[0.7, 0.3, 0.55, 'rgba(134,239,172,0.30)']],
+      r: [[0.64, 0.32, 0.15, '#16a34a', '#86efac', 0.80, 0.10], [0.80, 0.50, 0.13, '#15803d', '#4ade80', 0.80, -0.08], [0.96, 0.66, 0.16, '#065f46', '#34d399', 0.85, 0.12], [1.10, 0.84, 0.19, '#365314', '#a3e635', 0.80, -0.06]] },
+  };
+  const palette = (id, dark) => { const p = P[id] || P.liquid; return p.dark ? (dark ? p.dark : p.light) : p; };
+
+  // Слой-«стекло»: полоса между двумя кривыми, светлая кромка сверху и тень снизу
+  function ribbon(x, W, H, r, q) {
+    const [yl, yr, th, c1, c2, a, bend] = r;
+    const top = (t) => [W * (-0.15 + 1.3 * t), H * (yl + (yr - yl) * t + bend * Math.sin(t * Math.PI))];
+    const bot = (t) => { const [px, py] = top(t); return [px, py + H * th * (0.75 + 0.5 * Math.sin(t * Math.PI * 0.9 + 0.4))]; };
+    const path = () => {
+      x.beginPath();
+      for (let i = 0; i <= 24; i++) { const [px, py] = top(i / 24); i ? x.lineTo(px, py) : x.moveTo(px, py); }
+      for (let i = 24; i >= 0; i--) { const [px, py] = bot(i / 24); x.lineTo(px, py); }
+      x.closePath();
+    };
+    const [ax, ay] = top(0.5), [, by] = bot(0.5);
+    const g = x.createLinearGradient(0, ay - H * 0.05, W, by + H * 0.08);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    x.save();
+    x.globalAlpha = a;
+    x.shadowColor = 'rgba(0,0,0,0.35)'; x.shadowBlur = 30 * q; x.shadowOffsetY = 10 * q;
+    path(); x.fillStyle = g; x.fill();
+    x.restore();
+    // внутренний объём: к нижнему краю темнее
+    x.save(); path(); x.clip();
+    const s = x.createLinearGradient(0, ay, 0, by + H * 0.06);
+    s.addColorStop(0, 'rgba(255,255,255,0.18)'); s.addColorStop(0.45, 'rgba(255,255,255,0)'); s.addColorStop(1, 'rgba(0,0,20,0.28)');
+    x.fillStyle = s; x.fillRect(0, 0, W, H);
+    x.restore();
+    // кромка: тонкая яркая линия и мягкое свечение
+    const edge = (lw, col, blur) => {
+      x.save(); x.filter = blur ? 'blur(' + blur + 'px)' : 'none';
+      x.beginPath();
+      for (let i = 0; i <= 24; i++) { const [px, py] = top(i / 24); i ? x.lineTo(px, py) : x.moveTo(px, py); }
+      x.strokeStyle = col; x.lineWidth = lw; x.stroke(); x.restore();
+    };
+    edge(10 * q, 'rgba(255,255,255,0.16)', 6 * q);
+    edge(1.4 * q, 'rgba(255,255,255,0.65)', 0);
+    return ax;
+  }
+  function paint(cv, id, dark, W, H, q) {
+    cv.width = Math.round(W * q); cv.height = Math.round(H * q);
+    const x = cv.getContext('2d'), w = cv.width, h = cv.height, p = palette(id, dark);
+    const b = x.createLinearGradient(0, 0, 0, h);
+    b.addColorStop(0, p.base[0]); b.addColorStop(0.55, p.base[1]); b.addColorStop(1, p.base[2]);
+    x.fillStyle = b; x.fillRect(0, 0, w, h);
+    for (const [gx, gy, gr, c] of p.glow) {
+      const r = x.createRadialGradient(w * gx, h * gy, 0, w * gx, h * gy, Math.max(w, h) * gr);
+      r.addColorStop(0, c); r.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = r; x.fillRect(0, 0, w, h);
+    }
+    for (const r of p.r) ribbon(x, w, h, r, q);
+    if (dark && !P[id].dark) { x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, 0, w, h); }
+  }
+
+  const CELL = 8;
+  let key = '', grid = null, gw = 0, gh = 0, gW = 393, gH = 852;
+  function size() {
+    const s = document.getElementById('screen');
+    return [s.offsetWidth || 393, s.offsetHeight || 852];
+  }
+  function canvasIn(holder) {
+    let cv = holder.querySelector('canvas.wall-cv');
+    if (!cv) { cv = document.createElement('canvas'); cv.className = 'wall-cv'; cv.setAttribute('aria-hidden', 'true'); holder.appendChild(cv); }
+    return cv;
+  }
+  function sync() {
+    const [W, H] = size();
+    const k = S.wallpaper + ':' + (S.dark ? 1 : 0) + ':' + W + 'x' + H;
+    if (k === key) return false;
+    const q = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    const lock = canvasIn(document.getElementById('lock-wall')), home = canvasIn(document.getElementById('home-wall'));
+    paint(lock, S.wallpaper, S.dark, W, H, q);
+    home.width = lock.width; home.height = lock.height;
+    home.getContext('2d').drawImage(lock, 0, 0);
+    // сетка средних цветов для подбора подложки стекла
+    gw = Math.ceil(W / CELL); gh = Math.ceil(H / CELL); gW = W; gH = H;
+    const s = document.createElement('canvas'); s.width = gw; s.height = gh;
+    const sx = s.getContext('2d'); sx.imageSmoothingQuality = 'high';
+    sx.drawImage(lock, 0, 0, gw, gh);
+    grid = sx.getImageData(0, 0, gw, gh).data;
+    key = k;
+    return true;
+  }
+  function sample(r) {
+    if (!grid) return [];
+    const x0 = Math.max(0, Math.floor(r.x / CELL)), y0 = Math.max(0, Math.floor(r.y / CELL));
+    const x1 = Math.min(gw - 1, Math.floor((r.x + r.w) / CELL)), y1 = Math.min(gh - 1, Math.floor((r.y + r.h) / CELL));
+    const out = [];
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = (y * gw + x) * 4; out.push([grid[i], grid[i + 1], grid[i + 2]]); }
+    return out;
+  }
+  function thumb(cv, id) { paint(cv, id, S.dark, 60, 130, 2); }
+  return { sync, sample, thumb, palette, ready: () => !!grid && key.startsWith(S.wallpaper + ':' + (S.dark ? 1 : 0)), get key() { return key; } };
+})();
+
+// ================================================================
+// Вид iOS 26 поверх программ: где стекло, обои и тон стекла, стеклянные часы блокировки,
+// пружинное раскрытие программы из значка и сворачивание обратно, «Поиск» над доком.
+// ================================================================
+// для проверок и отладки: движок стекла и обои видны как window.LG и window.Wall
+window.LG = LG; window.Wall = Wall;
+const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+LG.auto([
+  ['#dock', 'dock', { wall: true }],
+  ['#home-grid .home-widget', 'widget', { wall: true }],
+  ['#home-grid .icon-folder', 'button', { wall: true }],
+  ['#home-search', 'button', { wall: true }],
+  ['.lock-widgets .widget', 'widget', { wall: true }],
+  ['.lock-circle', 'button', { wall: true }],
+  ['#lock-notifs .n-card', 'card', { wall: true }],
+  ['.banner .n-card', 'card'],
+  ['#nc-list .n-card', 'card'],
+  ['#control-center .cc-tile', 'tile'],
+  ['#control-center .cc-slider', 'tile'],
+  ['.gf-box', 'panel'],
+  ['.ios-alert', 'card'],
+  ['.is-group', 'card'],
+  ['.glass-bar', 'bar'],
+  ['.glass-btn', 'button'],
+  ['.sp-box', 'panel'],
+]);
+
+// координаты внутри экрана телефона без масштаба корпуса
+function localBox(el) {
+  const s = $('screen'), sr = s.getBoundingClientRect(), k = sr.width / s.offsetWidth || 1, r = el.getBoundingClientRect();
+  return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
+}
+
+// ===== Стеклянные часы блокировки =====
+// Буквы - стекло по маске самих букв (поле расстояний по маске, те же три текстуры), поверх -
+// заливка. Светлые или тёмные буквы и сила дымки под ними выбираются по обоям так, чтобы контраст
+// на самом неудобном месте был не меньше 4.5.
+const lockGlass = document.createElement('div');
+lockGlass.className = 'lock-glass glyph-layer';
+lockGlass.setAttribute('aria-hidden', 'true');
+const lockScrim = document.createElement('div');
+lockScrim.className = 'lock-scrim';
+document.querySelector('.lock-clock').prepend(lockScrim);
+document.querySelector('.lock-clock').appendChild(lockGlass);
+const FILL_A = 0.86;
+function clockTone(cells) {
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  const worst = (white, a) => {
+    let w = 99;
+    for (const c of cells) {
+      const b = white ? c.map((v) => v * (1 - a)) : c.map((v) => v * (1 - a) + 255 * a);
+      const f = b.map((v) => v * (1 - FILL_A) + (white ? 255 : 14) * FILL_A);
+      w = Math.min(w, ratio(lum(f), lum(b)));
+    }
+    return w;
+  };
+  const find = (white) => { for (let a = 0; a <= 0.9; a += 0.02) if (worst(white, a) >= 5) return a; return 0.9; };
+  const aw = find(true), ad = find(false);
+  return ad + 0.1 < aw ? { white: false, a: ad } : { white: true, a: aw };
+}
+let lockKey = '';
+function lockClock(force) {
+  if (!$('lock-page').classList.contains('active') || !Wall.ready()) return;
+  const t = $('lock-time'), d = $('lock-date');
+  const w = t.offsetWidth, h = t.offsetHeight;
+  if (!w || !h) return;
+  const box = localBox(t), dbox = localBox(d);
+  const cells = Wall.sample({ x: box.x + w * 0.15, y: box.y + h * 0.1, w: w * 0.7, h: h * 0.8 }).concat(Wall.sample({ x: dbox.x + dbox.w * 0.25, y: dbox.y, w: dbox.w * 0.5, h: dbox.h }));
+  const tone = clockTone(cells);
+  const fill = tone.white ? 'rgba(255,255,255,' + FILL_A + ')' : 'rgba(14,14,20,' + FILL_A + ')';
+  $('lock-page').classList.toggle('dark-clock', !tone.white);
+  lockScrim.style.background = tone.white ? 'rgba(0,0,0,' + tone.a.toFixed(2) + ')' : 'rgba(255,255,255,' + tone.a.toFixed(2) + ')';
+  lockScrim.style.opacity = tone.a > 0.01 ? '1' : '0';
+  const cs = getComputedStyle(t);
+  const key = [t.textContent, w, h, cs.font, cs.letterSpacing, fill].join('|');
+  Object.assign(lockGlass.style, { left: t.offsetLeft + 'px', top: t.offsetTop + 'px', width: w + 'px', height: h + 'px' });
+  if (key === lockKey && !force) return;
+  lockKey = key;
+  // маска букв тем же шрифтом, что у #lock-time (сам текст прозрачный: виден только стеклянный слой)
+  const q = Math.min(2, Math.max(1.5, window.devicePixelRatio || 1));
+  const cv = document.createElement('canvas'); cv.width = Math.round(w * q); cv.height = Math.round(h * q);
+  const x = cv.getContext('2d');
+  x.font = cs.fontWeight + ' ' + parseFloat(cs.fontSize) * q + 'px ' + cs.fontFamily;
+  if ('letterSpacing' in x) x.letterSpacing = (parseFloat(cs.letterSpacing) || 0) * q + 'px';
+  x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+  const m = x.measureText(t.textContent);
+  const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent;
+  x.fillStyle = '#fff';
+  x.fillText(t.textContent, cv.width / 2, (cv.height + asc - desc) / 2);
+  const img = x.getImageData(0, 0, cv.width, cv.height).data;
+  const alpha = new Uint8Array(cv.width * cv.height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = img[i * 4 + 3];
+  const mask = 'url("' + cv.toDataURL() + '")';
+  lockGlass.style.webkitMaskImage = lockGlass.style.maskImage = mask;
+  const g = LG.glyphs(alpha, cv.width, cv.height, w, h, t.textContent + '|' + w + 'x' + h + '|' + cs.font);
+  lockGlass.style.backgroundColor = fill;
+  if (g) {
+    lockGlass.style.backgroundImage = 'url("' + g.spec + '"), url("' + g.shade + '")';
+    const bf = 'blur(0.6px) saturate(190%) url(#' + g.id + ')';
+    lockGlass.style.backdropFilter = lockGlass.style.webkitBackdropFilter = bf;
+  } else {
+    lockGlass.style.backgroundImage = 'none';
+    lockGlass.style.backdropFilter = lockGlass.style.webkitBackdropFilter = 'none';
+  }
+}
+setInterval(() => lockClock(false), 1000);
+
+// ===== Обои, тема и тон стекла идут за настройками =====
+function syncLook() {
+  Wall.sync();
+  LG.retone();
+  lockClock(false);
+  document.querySelectorAll('canvas.wall-th').forEach((c) => { if (!c.width || c.dataset.done !== Wall.key) { Wall.thumb(c, c.dataset.th); c.dataset.done = Wall.key; } });
+  // значок на ползунке темнеет, когда его накрывает белая заливка
+  document.querySelectorAll('[data-slider]').forEach((sl) => sl.classList.toggle('lit', S[sl.dataset.slider] > 14));
+  // светлые обои: подписи значков, строка состояния и полоска «Домой» темнеют
+  const cells = Wall.sample({ x: 0, y: 0, w: 4000, h: 4000 });
+  if (cells.length) {
+    const L = cells.reduce((a, c) => a + (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255, 0) / cells.length;
+    ['home-page', 'lock-page'].forEach((id) => $(id).classList.toggle('wall-light', L > 0.62));
+  }
+}
+on('settings', syncLook);
+syncLook();
+const showLock1 = showLock;
+showLock = function () { showLock1(); requestAnimationFrame(() => lockClock(true)); };
+lockClock(true);
+// формы домашнего экрана и пункта управления - заранее, пока человек смотрит на блокировку
+(window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { LG.prewarm($('home-page')); }, { timeout: 800 });
+
+// ===== Пункт управления, центр уведомлений, папка: пока едут - простое размытие =====
+const openCC0 = openCC, closeCC0 = closeCC;
+openCC = function () { if (!$('control-center').classList.contains('open')) LG.moving($('control-center'), 620); openCC0(); };
+closeCC = function () { if ($('control-center').classList.contains('open')) LG.moving($('control-center'), 520); closeCC0(); };
+const openNC0 = openNC, closeNC0 = closeNC;
+openNC = function () { LG.moving($('nc'), 560); openNC0(); };
+closeNC = function () { if ($('nc').classList.contains('open')) LG.moving($('nc'), 560); closeNC0(); };
+const notify0 = notify;
+notify = function (app, title, body) {
+  const n = notify0(app, title, body);
+  const b = document.querySelector('.banner:last-of-type');
+  if (b && !b.dataset.lgw) { b.dataset.lgw = '1'; LG.moving(b, 600); b.addEventListener('animationstart', (e) => { if (e.animationName === 'bannerOut') LG.moving(b, 400); }); }
+  return n;
+};
+
+// ===== Пружина: раскрытие программы из значка и сворачивание в него =====
+// Кривая считается честной пружиной (жёсткость, затухание) и отдаётся анимации как linear(...)
+function spring(k, c) {
+  let x = 0, v = 0, t = 0;
+  const dt = 1 / 240, xs = [0];
+  for (; t < 2; t += dt) {
+    v += (k * (1 - x) - c * v) * dt; x += v * dt; xs.push(x);
+    if (t > 0.15 && Math.abs(1 - x) < 0.002 && Math.abs(v) < 0.03) break;
+  }
+  const N = 40, pts = [];
+  for (let i = 0; i <= N; i++) pts.push(i === N ? 1 : +xs[Math.round(i / N * (xs.length - 1))].toFixed(4));
+  return { easing: 'linear(' + pts.join(', ') + ')', duration: Math.round(xs.length * dt * 1000) };
+}
+const SPRING_OPEN = spring(300, 28), SPRING_CLOSE = spring(340, 31);
+let launchIcon = null;
+$('screen').addEventListener('click', (e) => { const a = e.target.closest('[data-app]'); launchIcon = a && a.querySelector('.icon') ? { id: a.dataset.app, el: a.querySelector('.icon'), t: Date.now() } : null; }, true);
+function iconFor(id) {
+  if (!$('home-page').classList.contains('active')) return null;
+  const vis = (el) => el && el.offsetWidth && el.getBoundingClientRect().width > 0 ? el : null;
+  if (launchIcon && launchIcon.id === id && Date.now() - launchIcon.t < 1500 && vis(launchIcon.el)) return launchIcon.el;
+  return vis(document.querySelector('#home-grid .app-icon[data-app="' + id + '"] .icon')) || vis(document.querySelector('#dock .app-icon[data-app="' + id + '"] .icon')) ||
+    (APPS[id] && APPS[id].game ? vis(document.querySelector('#home-grid .app-icon[data-app="games"] .icon')) : null);
+}
+function zoomFrames(el, ic) {
+  const W = el.offsetWidth, H = el.offsetHeight, r = localBox(ic);
+  const s = r.w / W, tx = r.x + r.w / 2 - W / 2, ty = r.y + r.h / 2 - H / 2;
+  const vis = W * r.h / r.w, iy = Math.max(0, (H - vis) / 2);
+  const cr = getComputedStyle(ic).borderTopLeftRadius, rad = (cr.endsWith('%') ? parseFloat(cr) / 100 * r.w : parseFloat(cr)) * 1.25 / s;
+  const end = parseFloat(getComputedStyle($('device')).borderTopLeftRadius) || 55;
+  return { from: { transform: 'translate(' + tx + 'px, ' + ty + 'px) scale(' + s + ')', clipPath: 'inset(' + iy + 'px 0px round ' + rad + 'px)' },
+    to: { transform: 'translate(0px, 0px) scale(1)', clipPath: 'inset(0px 0px round ' + end + 'px)' }, iy, vis };
+}
+function launchCover(el, ic, iy, vis) {
+  const c = document.createElement('div');
+  c.className = 'launch-cover';
+  c.style.top = iy + 'px'; c.style.height = vis + 'px';
+  const copy = ic.cloneNode(true); copy.removeAttribute('id');
+  c.appendChild(copy);
+  el.appendChild(c);
+  return c;
+}
+const openApp2 = openApp;
+openApp = function (id, arg) {
+  const sc = screens[id];
+  if (sc && sc.el.classList.contains('closing')) { sc.el.getAnimations().forEach((a) => a.cancel()); sc.el.classList.remove('closing'); sc.el.querySelectorAll('.launch-cover').forEach((c) => c.remove()); }
+  const ic = id !== 'games' && sc && !REDUCED ? iconFor(id) : null;
+  openApp2(id, arg);
+  if (id === 'games') { LG.moving($('games-folder'), 480); return; }
+  if (!ic || current !== id) return;
+  const f = zoomFrames(sc.el, ic);
+  // пока экран раскрывается, стекло под ним и в нём самом - простое размытие: иначе каждый кадр
+  // пересчитывает цепочки с картой смещения на процессоре
+  LG.moving($('home-page'), SPRING_OPEN.duration + 60);
+  LG.moving(sc.el, SPRING_OPEN.duration + 60);
+  sc.el.animate([f.from, f.to], { duration: SPRING_OPEN.duration, easing: SPRING_OPEN.easing });
+  const cover = launchCover(sc.el, ic, f.iy, f.vis);
+  cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' }).onfinish = () => cover.remove();
+};
+const hideApp1 = hideApp;
+hideApp = function () {
+  const id = current, el = id && screens[id] && screens[id].el;
+  hideApp1();
+  if (!el || REDUCED) return;
+  // анимация - уже после того, как вызвавший решил, куда ушёл телефон: домой - сворачиваемся в значок
+  queueMicrotask(() => {
+    if (current || !$('home-page').classList.contains('active') || $('lock-page').classList.contains('active')) return;
+    const ic = iconFor(id);
+    if (!ic) return;
+    const f = zoomFrames(el, ic);
+    el.classList.add('closing');
+    LG.moving($('home-page'), SPRING_CLOSE.duration + 60);
+    LG.moving(el, SPRING_CLOSE.duration + 60);
+    const cover = launchCover(el, ic, f.iy, f.vis);
+    cover.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: SPRING_CLOSE.duration * 0.8, fill: 'forwards' });
+    const an = el.animate([f.to, f.from], { duration: SPRING_CLOSE.duration, easing: SPRING_CLOSE.easing });
+    $('home-grid').animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: SPRING_CLOSE.duration, easing: SPRING_CLOSE.easing });
+    an.onfinish = an.oncancel = () => { el.classList.remove('closing'); cover.remove(); };
+  });
+};
+
+// ===== «Поиск» над доком: программы по названию =====
+const spot = document.createElement('div');
+spot.id = 'spotlight'; spot.setAttribute('role', 'dialog'); spot.setAttribute('aria-label', 'Поиск');
+spot.innerHTML = '<div class="sp-back"></div><div class="sp-box"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><input id="sp-input" placeholder="Поиск" aria-label="Поиск программ" autocomplete="off"></div><div class="sp-res" id="sp-res"></div>';
+$('home-page').appendChild(spot);
+function spotRender() {
+  const q = $('sp-input').value.trim().toLowerCase();
+  const ids = Object.keys(APPS).filter((id) => id !== 'games' && ICONS[id] && (!q || APPS[id].name.toLowerCase().includes(q))).slice(0, 16);
+  $('sp-res').innerHTML = ids.length ? ids.map((id) => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') : '<div class="sp-none">Ничего не найдено</div>';
+}
+function openSpot() { closeCC(); spot.classList.add('open'); LG.moving(spot, 420); $('sp-input').value = ''; spotRender(); setTimeout(() => $('sp-input').focus(), 30); }
+function closeSpot() { spot.classList.remove('open'); $('sp-input').blur(); }
+$('home-search').addEventListener('click', openSpot);
+$('home-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') openSpot(); });
+$('sp-input').addEventListener('input', spotRender);
+$('sp-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const a = $('sp-res').querySelector('[data-app]'); if (a) { closeSpot(); openApp(a.dataset.app); } } });
+spot.addEventListener('click', (e) => { if (e.target === spot || e.target.classList.contains('sp-back')) closeSpot(); else if (e.target.closest('[data-app]')) closeSpot(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && spot.classList.contains('open')) { closeSpot(); e.stopImmediatePropagation(); } }, true);
+const openApp3 = openApp;
+openApp = function (id, arg) { closeSpot(); openApp3(id, arg); };
+const showLock2 = showLock;
+showLock = function () { closeSpot(); showLock2(); };
 
 </script>
 </body>

@@ -1,0 +1,227 @@
+
+/* ===== Вид iOS 26: Жидкое стекло, суперэллипсы, сетка и пропорции телефона ===== */
+html, body { background: radial-gradient(ellipse at 50% 40%, #26262b 0%, #141416 70%); }
+.device { box-shadow: 0 0 0 11px #0a0a0b, 0 0 0 13px #48484d, 0 0 0 14.5px #1c1c1e, 0 40px 90px rgba(0,0,0,0.6); }
+.side-btn { background: #48484d; right: -15px; }
+.dynamic-island { width: 126px; height: 37px; top: 11px; border-radius: 19px; }
+
+/* строка состояния: время по центру левого «уха», значки - правого */
+.status-bar { display: grid; grid-template-columns: 1fr 126px 1fr; padding: 0; height: 54px; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.status-bar .time { grid-column: 1; justify-self: center; padding: 2px 0 0 12px; font-variant-numeric: tabular-nums; }
+.status-bar .right { grid-column: 3; justify-self: center; gap: 6px; padding: 2px 6px 0 0; }
+
+/* ----- материал ----- */
+.lg {
+  background-color: var(--lg-tint, rgba(255,255,255,0.10));
+  background-image: var(--lg-spec, none), var(--lg-shade, none);
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.16), 0 2px 6px rgba(0,0,0,0.08);
+  border: none;
+}
+@supports (corner-shape: squircle) { .lg:not(.capsule) { corner-shape: squircle; } }
+.lg[data-tone="light"] { color: #111; }
+.lg[data-tone="dark"] { color: #fff; }
+/* пока панель едет - простое размытие (цепочка с картой смещения считается на процессоре) */
+.lg-moving .lg, .lg.lg-moving { backdrop-filter: var(--lg-cheap) !important; -webkit-backdrop-filter: var(--lg-cheap) !important; }
+html.lg-lite .lg { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.16); }
+.page.lg-measure { display: block !important; visibility: hidden !important; }
+/* «Меньше стекла»: плотная подложка без преломления */
+body.no-glass .lg { backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; background-image: none !important; background-color: rgba(28,28,34,0.94) !important; color: #fff !important; }
+body.no-glass .lock-glass { backdrop-filter: none !important; background-image: none !important; }
+
+/* ----- обои ----- */
+.wallpaper::after { display: none; }
+.wall-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ----- значки: суперэллипс, градиент, блик и тонкая светлая кромка ----- */
+.icon { width: 62px; height: 62px; border-radius: 23%; box-shadow: 0 2px 8px rgba(0,0,0,0.20); font-size: 0; }
+@supports (corner-shape: squircle) { .icon { border-radius: 41%; corner-shape: squircle; } .icon::after { corner-shape: inherit; } }
+@supports not (corner-shape: squircle) {
+  .icon { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0z'/%3E%3C/svg%3E") center/100% 100%; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0z'/%3E%3C/svg%3E") center/100% 100%; }
+}
+.icon::before { display: none; }
+.icon::after { content: ''; position: absolute; inset: 0; height: auto; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0) 44%);
+  box-shadow: inset 0 0 0 0.6px rgba(255,255,255,0.24), inset 0 1px 1px rgba(255,255,255,0.32); }
+.icon > svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 1px 1.2px rgba(0,0,0,0.16)); }
+.icon-phone, .icon-messages { background: linear-gradient(180deg, #67f286, #0cbf3b); }
+.icon-mail { background: linear-gradient(180deg, #5fd0ff, #1766ff); }
+.icon-browser { background: linear-gradient(180deg, #ffffff, #e6ebf3); }
+.icon-camera { background: linear-gradient(180deg, #ececf1, #9d9ea4); }
+.icon-photos, .icon-notes, .icon-files, .icon-calendar { background: #fff; }
+.icon-music { background: linear-gradient(180deg, #ff6d84, #fa233b); }
+.icon-weather { background: linear-gradient(180deg, #52b9ff, #1564d6); }
+.icon-clock { background: #0b0b0c; }
+.icon-calc { background: linear-gradient(180deg, #2c2c2e, #0a0a0b); }
+.icon-settings { background: linear-gradient(180deg, #e8e8ed, #9a9aa0); }
+.icon-calendar { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.icon-calendar .cal-dow { font-size: 11px; font-weight: 600; color: #ff3b30; letter-spacing: 0.3px; margin-top: 2px; }
+.icon-calendar .cal-num { font-size: 33px; font-weight: 300; color: #1c1c1e; line-height: 1; margin-top: -1px; }
+.icon-folder { padding: 8px; background-color: var(--lg-tint, rgba(255,255,255,0.18)); box-shadow: none; }
+.icon-folder::after { display: none; }
+.folder-grid { gap: 4px; }
+.folder-grid i { border-radius: 30%; }
+.app-label { font-size: 12px; font-weight: 500; letter-spacing: -0.1px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.35); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.app-icon { gap: 5px; }
+.app-icon:active .icon { transform: scale(0.9); }
+.app-icon:focus-visible { border-radius: 18px; }
+
+/* ----- домашний экран: сетка 4x6 в пропорциях телефона ----- */
+.home-grid { top: 72px; padding: 0 14px; grid-auto-rows: 82px; gap: 18px 0; }
+.home-widget { justify-self: center; align-self: start; width: calc(100% - 28px); height: 160px; padding: 14px 15px; border-radius: 36px; }
+.home-widget-title { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; opacity: 0.9; margin-bottom: 2px; }
+.weather-widget .temp { font-size: 46px; font-weight: 300; letter-spacing: -1.5px; margin: 0 0 14px; line-height: 1.05; }
+.weather-widget .city { font-size: 14px; font-weight: 600; }
+.weather-widget .desc { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.home-widget::before { display: none; }
+.dock { left: 12px; right: 12px; bottom: 14px; height: 94px; border-radius: 42px; padding: 0 14px; justify-content: space-around; }
+.dock::before { display: none; }
+.home-search { position: absolute; left: 50%; bottom: 122px; transform: translateX(-50%); height: 32px; padding: 0 15px 0 13px; border-radius: 16px; display: flex; align-items: center; gap: 6px; color: #fff; font-size: 15px; font-weight: 600; z-index: 45; cursor: pointer; }
+.home-search[data-tone="light"] { color: #1c1c1e; }
+#home-page.wall-light .app-label { color: #1c1c1e; text-shadow: 0 0 5px rgba(255,255,255,0.7); }
+#home-page.wall-light .status-bar, #lock-page.wall-light .status-bar { color: #000; }
+#home-page.wall-light > .home-indicator, #lock-page.wall-light > .home-indicator { background: rgba(0,0,0,0.45); }
+
+/* ----- экран блокировки ----- */
+.lock-clock { top: 66px; }
+.lock-date { position: relative; z-index: 2; font-size: 19px; font-weight: 600; letter-spacing: 0; color: rgba(255,255,255,0.96); text-shadow: none; margin-bottom: 0; }
+.lock-time { position: relative; z-index: 2; font-size: 108px; font-weight: 700; letter-spacing: -3px; line-height: 1.02; color: transparent; text-shadow: none; display: inline-block; padding: 0 6px; }
+.lock-glass { position: absolute; z-index: 3; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; background-size: 100% 100%, 100% 100%; background-repeat: no-repeat; }
+.lock-scrim { position: absolute; left: 34px; right: 34px; top: -6px; bottom: -6px; border-radius: 70px; filter: blur(22px); z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+#lock-page.dark-clock .lock-date { color: rgba(14,14,20,0.96); }
+.lock-widgets { top: 236px; bottom: auto; left: 22px; right: 22px; gap: 12px; }
+.widget { height: 76px; padding: 11px 14px; border-radius: 28px; }
+.widget::before { display: none; }
+.widget-title { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; margin-bottom: 2px; opacity: 0.85; }
+.widget-value { font-size: 21px; font-weight: 700; line-height: 1.15; }
+.widget-sub { font-size: 12px; opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lock-notifs { top: 336px; bottom: 132px; justify-content: flex-end; left: 12px; right: 12px; }
+.lock-bottom { bottom: 46px; padding: 0 44px; }
+.lock-circle { width: 50px; height: 50px; border-radius: 50%; color: #fff; }
+.lock-circle[data-tone="light"] { color: #111; }
+.lock-circle.on { background: rgba(255,255,255,0.92); color: #000; background-image: none; }
+.swipe-hint { animation: none; bottom: 18px; font-size: 13px; color: rgba(255,255,255,0.75); }
+#lock-page.wall-light .swipe-hint { color: rgba(0,0,0,0.6); }
+
+/* ----- уведомления ----- */
+.n-card { border-radius: 26px; padding: 12px 14px; --lg-tint: rgba(250,250,252,0.42); color: #000; box-shadow: 0 10px 28px rgba(0,0,0,0.14); }
+body.dark .n-card { --lg-tint: rgba(30,30,36,0.46); color: #fff; background-color: var(--lg-tint); }
+.n-card[data-tone="dark"] { color: #fff; }
+.n-card[data-tone="light"] { color: #000; }
+.n-top span { color: inherit !important; opacity: 0.62; }
+.n-ic .icon { width: 38px; height: 38px; }
+.banner { top: 50px; left: 9px; right: 9px; }
+#nc { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#nc > :not(.nc-back) { position: relative; z-index: 1; }
+#nc > .status-bar, #nc > .home-indicator { position: absolute; }
+.nc-back { position: absolute; inset: 0; z-index: 0; background: rgba(10,10,22,0.30); backdrop-filter: blur(26px) saturate(1.5); -webkit-backdrop-filter: blur(26px) saturate(1.5); }
+.nc-time { font-weight: 700; font-size: 84px; }
+.nc-head button { border-radius: 14px; }
+#nc-list .n-card { --lg-tint: rgba(250,250,252,0.40); }
+body.dark #nc-list .n-card { --lg-tint: rgba(30,30,36,0.46); }
+
+/* ----- пункт управления: размытые обои, поверх - стеклянные кнопки и ползунки ----- */
+.control-center { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; transform: none !important; padding: 66px 24px 30px; visibility: hidden; transition: visibility 0s linear 0.5s; }
+.control-center.open { visibility: visible; transition: none; }
+.cc-back { position: absolute; inset: 0; background: rgba(6,6,16,0.32); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); opacity: 0; transition: opacity 0.35s ease; }
+.control-center.open .cc-back { opacity: 1; }
+.cc-grid { position: relative; z-index: 1; gap: 16px 15px; transform: translateY(-118%) scale(0.94); transition: transform 0.52s cubic-bezier(0.22, 1.16, 0.36, 1); }
+.control-center.open .cc-grid { transform: none; }
+.cc-tile { border-radius: 50%; color: #fff; font-size: 0; }
+.cc-tile svg { width: 24px; height: 24px; }
+.cc-tile.active { background: rgba(255,255,255,0.95); color: #1c1c1e; background-image: none; }
+.cc-tile.active[data-cc="dnd"] { color: #5e5ce6; }
+.cc-tile.active[data-cc="rotation"] { color: #ff3b30; }
+.cc-tile.large { border-radius: 38px; padding: 12px; }
+.cc-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cc-conn { gap: 6px; }
+.cc-conn-item { width: 54px; height: 54px; background: rgba(255,255,255,0.16); }
+.cc-conn-item.on { background: #0a84ff; }
+.cc-conn-item.green.on, .cc-conn-item.green:not(.off) { background: #30d158; }
+.cc-slider { border-radius: 999px; justify-content: flex-end; padding: 0 0 20px; }
+.cc-slider-fill { background: rgba(255,255,255,0.92); }
+.cc-slider-icon { position: relative; z-index: 2; color: #fff; }
+.cc-slider.lit .cc-slider-icon { color: #3a3a3c; }
+.cc-note { position: relative; z-index: 1; margin-top: 18px; color: rgba(255,255,255,0.75); }
+
+/* ----- папка «Игры» ----- */
+#games-folder { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#games-folder.open { animation: none; }
+.gf-back { position: absolute; inset: 0; background: rgba(0,0,0,0.18); backdrop-filter: blur(26px) saturate(1.4); -webkit-backdrop-filter: blur(26px) saturate(1.4); animation: gfFade 0.3s ease; }
+@keyframes gfFade { from { opacity: 0; } }
+.gf-title, .gf-box { position: relative; z-index: 1; }
+.gf-title { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 1px 8px rgba(0,0,0,0.3); align-self: stretch; margin: 0 40px; text-align: left; }
+.gf-box { width: 330px; padding: 24px 14px; border-radius: 46px; gap: 20px 6px; --lg-tint: rgba(255,255,255,0.14); color: #fff; animation: gfIn2 0.42s cubic-bezier(0.22, 1.2, 0.36, 1); }
+@keyframes gfIn2 { from { transform: scale(0.6) translateY(-60px); } }
+
+/* ----- поиск ----- */
+#spotlight { position: absolute; inset: 0; z-index: 320; display: none; flex-direction: column; align-items: center; padding-top: 70px; }
+#spotlight.open { display: flex; }
+.sp-back { position: absolute; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4); }
+.sp-box { position: relative; z-index: 1; width: calc(100% - 32px); height: 46px; border-radius: 23px; display: flex; align-items: center; gap: 8px; padding: 0 16px; color: #fff; animation: spIn 0.4s cubic-bezier(0.22, 1.2, 0.36, 1); }
+@keyframes spIn { from { transform: translateY(380px) scale(0.5); } }
+.sp-box input { flex: 1; border: none; outline: none; background: transparent; color: inherit; font-size: 17px; }
+.sp-box input::placeholder { color: inherit; opacity: 0.6; }
+.sp-res { position: relative; z-index: 1; width: 100%; padding: 22px 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px 0; }
+.sp-none { grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); }
+
+/* ----- диалоги и листы ----- */
+.ios-alert { width: 286px; border-radius: 34px; --lg-tint: rgba(250,250,252,0.62); color: #000; padding-top: 22px; }
+body.dark .ios-alert { --lg-tint: rgba(36,36,40,0.62); color: #fff; }
+.ia-btns { gap: 8px; padding: 0 14px 14px; border-top: none; }
+.ia-btns button { height: 44px; border-radius: 22px; background: rgba(120,120,128,0.18); }
+.ia-btns button + button { border-left: none; }
+.ios-alert input { border-radius: 12px; height: 34px; }
+.is-group { border-radius: 30px; --lg-tint: rgba(250,250,252,0.6); }
+body.dark .is-group { --lg-tint: rgba(36,36,40,0.62); }
+body.dark .is-group button { color: #0a84ff; }
+
+/* ----- стеклянные панели внутри программ ----- */
+.glass-bar, .glass-btn { --lg-tint: rgba(48,48,52,0.52); color: #fff; }
+.app-screen[data-light] .glass-bar, .app-screen[data-light] .glass-btn { --lg-tint: rgba(255,255,255,0.62); color: #007aff; }
+body.dark .app-screen[data-light] .glass-bar, body.dark .app-screen[data-light] .glass-btn { --lg-tint: rgba(48,48,52,0.52); color: #0a84ff; }
+.glass-btn { padding: 6px 13px 6px 10px; border-radius: 18px; font-size: 16px; font-weight: 500; }
+.clock-tabs.glass-bar { left: 22px; right: 22px; bottom: 30px; height: 62px; border-radius: 31px; border-top: none; padding: 0 8px; align-items: center; z-index: 6; }
+.clock-content { bottom: 96px; }
+.safari-toolbar.glass-bar { top: 54px; left: 14px; right: 14px; height: 44px; border-radius: 22px; padding: 0 16px; }
+.safari-bottom-bar.glass-bar { bottom: 32px; left: 22px; right: 22px; height: 56px; border-radius: 28px; border-top: none; padding: 0 10px; }
+.safari-content { bottom: 0; padding-bottom: 110px; }
+.msg-input-bar.glass-bar { bottom: 32px; left: 10px; right: 10px; border-top: none; border-radius: 26px; padding: 7px 8px 7px 10px; }
+.msg-input-bar.glass-bar .msg-input { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+.msg-list { bottom: 92px; }
+.msg-header { background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: none; }
+
+/* ----- «Настройки»: сгруппированные списки со вставкой ----- */
+.settings-app .app-header { padding: 60px 20px 8px; }
+.settings-list { top: 108px; padding: 0 16px 40px; }
+.settings-search { height: 38px; border-radius: 19px; padding: 0 12px; margin-bottom: 18px; background: rgba(118,118,128,0.14); }
+.settings-group { border-radius: 26px; margin-bottom: 22px; }
+@supports (corner-shape: squircle) { .settings-group { border-radius: 34px; corner-shape: squircle; } }
+.settings-row { min-height: 52px; padding: 0 16px; border-bottom: none !important; position: relative; }
+.settings-row + .settings-row::before { content: ''; position: absolute; top: 0; left: 58px; right: 0; border-top: 0.5px solid rgba(60,60,67,0.29); }
+body.dark .settings-row + .settings-row::before { border-top-color: rgba(84,84,88,0.65); }
+.settings-icon { width: 30px; height: 30px; border-radius: 23%; }
+@supports (corner-shape: squircle) { .settings-icon { border-radius: 41%; corner-shape: squircle; } }
+.settings-label b { display: block; font-size: 19px; font-weight: 600; }
+.settings-label small { display: block; font-size: 13px; color: #8e8e93; margin-top: 1px; }
+.settings-profile .settings-row { min-height: 78px; }
+.sp-avatar { width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; font-weight: 600; background: linear-gradient(180deg, #a5b4fc, #6366f1); }
+.settings-row .chevron { font-size: 22px; color: #c4c4c7; margin-left: 2px; }
+.toggle { width: 62px; height: 28px; border-radius: 14px; }
+.toggle::after { width: 37px; height: 24px; border-radius: 12px; left: 23px; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+.toggle.off { background: rgba(120,120,128,0.18); }
+body.dark .toggle.off { background: rgba(120,120,128,0.34); }
+.walls { gap: 14px; }
+.wall-opt { height: 210px; border-radius: 24px; overflow: hidden; }
+.wall-opt .wall-th { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wall-opt span { z-index: 1; }
+
+/* ----- переключатель программ ----- */
+.sw-shot { border-radius: 36px; }
+
+/* ----- раскрытие и сворачивание программы ----- */
+.app-screen.closing { display: block !important; pointer-events: none; z-index: 199; }
+.launch-cover { position: absolute; left: 0; right: 0; z-index: 9990; pointer-events: none; }
+.launch-cover .icon { width: 100% !important; height: 100% !important; border-radius: 0 !important; box-shadow: none; }
+.launch-cover .icon > svg, .launch-cover .icon-calendar > * { transform: scale(0.98); }
