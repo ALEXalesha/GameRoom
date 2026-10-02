@@ -553,8 +553,9 @@ async function setWall(page, w) {
 test('док, плитки пункта управления и виджет - фильтр Жидкого стекла (преломление, дисперсия), а не просто размытие', async ({ page }) => {
   const errors = await openOs(page, NAME);
   await unlock(page);
-  await page.evaluate(() => openCC());
+  // дом - до пункта управления: под открытой панелью стекло дома не считается (его не видно)
   for (const sel of ['#dock', '#home-grid .home-widget', '#control-center [data-cc="rotation"]', '#control-center [data-slider="brightness"]']) {
+    if (sel.startsWith('#control-center')) await page.evaluate(() => openCC());
     await glassReady(page, sel);
     const g = await page.locator(sel).first().evaluate((el) => {
       const bf = getComputedStyle(el).backdropFilter;

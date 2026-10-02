@@ -131,12 +131,24 @@ lockClock(true);
 (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { LG.prewarm($('home-page')); }, { timeout: 800 });
 
 // ===== Пункт управления, центр уведомлений, папка: пока едут - простое размытие =====
+// пока открыта сплошная панель, стекло дома под ней выключено (класс снимается после того, как панель уехала)
+let coverTimer = 0;
+function syncCovered() {
+  const open = $('control-center').classList.contains('open') || $('games-folder').classList.contains('open') || spot.classList.contains('open');
+  clearTimeout(coverTimer);
+  if (open) $('home-page').classList.add('lg-covered');
+  else coverTimer = setTimeout(() => $('home-page').classList.remove('lg-covered'), 520);
+}
+new MutationObserver(syncCovered).observe($('control-center'), { attributes: true, attributeFilter: ['class'] });
+new MutationObserver(syncCovered).observe($('games-folder'), { attributes: true, attributeFilter: ['class'] });
+// под панелью - активная страница (дом или блокировка) и открытая программа
+function movingUnder(ms) { ['home-page', 'lock-page'].forEach((id) => { if ($(id).classList.contains('active')) LG.moving($(id), ms); }); if (current && screens[current]) LG.moving(screens[current].el, ms); }
 const openCC0 = openCC, closeCC0 = closeCC;
-openCC = function () { if (!$('control-center').classList.contains('open')) LG.moving($('control-center'), 620); openCC0(); };
-closeCC = function () { if ($('control-center').classList.contains('open')) LG.moving($('control-center'), 520); closeCC0(); };
+openCC = function () { if (!$('control-center').classList.contains('open')) movingUnder(620); openCC0(); };
+closeCC = function () { if ($('control-center').classList.contains('open')) movingUnder(560); closeCC0(); };
 const openNC0 = openNC, closeNC0 = closeNC;
-openNC = function () { LG.moving($('nc'), 560); openNC0(); };
-closeNC = function () { if ($('nc').classList.contains('open')) LG.moving($('nc'), 560); closeNC0(); };
+openNC = function () { LG.moving($('nc'), 560); movingUnder(560); openNC0(); };
+closeNC = function () { if ($('nc').classList.contains('open')) { LG.moving($('nc'), 560); movingUnder(560); } closeNC0(); };
 const notify0 = notify;
 notify = function (app, title, body) {
   const n = notify0(app, title, body);
@@ -144,6 +156,13 @@ notify = function (app, title, body) {
   if (b && !b.dataset.lgw) { b.dataset.lgw = '1'; LG.moving(b, 600); b.addEventListener('animationstart', (e) => { if (e.animationName === 'bannerOut') LG.moving(b, 400); }); }
   return n;
 };
+
+// ползунок тянут - стекло пункта управления плоское, иначе каждый шаг пересчитывает все цепочки
+document.querySelectorAll('[data-slider]').forEach((sl) => {
+  sl.addEventListener('pointerdown', () => $('control-center').classList.add('lg-moving'));
+  const up = () => setTimeout(() => $('control-center').classList.remove('lg-moving'), 80);
+  sl.addEventListener('pointerup', up); sl.addEventListener('pointercancel', up);
+});
 
 // ===== Пружина: раскрытие программы из значка и сворачивание в него =====
 // Кривая считается честной пружиной (жёсткость, затухание) и отдаётся анимации как linear(...)
@@ -192,7 +211,7 @@ openApp = function (id, arg) {
   if (sc && sc.el.classList.contains('closing')) { sc.el.getAnimations().forEach((a) => a.cancel()); sc.el.classList.remove('closing'); sc.el.querySelectorAll('.launch-cover').forEach((c) => c.remove()); }
   const ic = id !== 'games' && sc && !REDUCED ? iconFor(id) : null;
   openApp2(id, arg);
-  if (id === 'games') { LG.moving($('games-folder'), 480); return; }
+  if (id === 'games') { movingUnder(480); return; }
   if (!ic || current !== id) return;
   const f = zoomFrames(sc.el, ic);
   // пока экран раскрывается, стекло под ним и в нём самом - простое размытие: иначе каждый кадр
@@ -235,8 +254,9 @@ function spotRender() {
   const ids = Object.keys(APPS).filter((id) => id !== 'games' && ICONS[id] && (!q || APPS[id].name.toLowerCase().includes(q))).slice(0, 16);
   $('sp-res').innerHTML = ids.length ? ids.map((id) => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') : '<div class="sp-none">Ничего не найдено</div>';
 }
-function openSpot() { closeCC(); spot.classList.add('open'); LG.moving(spot, 420); $('sp-input').value = ''; spotRender(); setTimeout(() => $('sp-input').focus(), 30); }
+function openSpot() { closeCC(); spot.classList.add('open'); movingUnder(440); $('sp-input').value = ''; spotRender(); setTimeout(() => $('sp-input').focus(), 30); }
 function closeSpot() { spot.classList.remove('open'); $('sp-input').blur(); }
+new MutationObserver(syncCovered).observe(spot, { attributes: true, attributeFilter: ['class'] });
 $('home-search').addEventListener('click', openSpot);
 $('home-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') openSpot(); });
 $('sp-input').addEventListener('input', spotRender);

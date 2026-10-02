@@ -136,13 +136,14 @@ const LG = (() => {
   let mode = SVG_OK && !WEAK ? 'full' : 'lite';
   document.documentElement.classList.toggle('lg-lite', mode === 'lite');
 
+  // Кривая читаемости (feComponentTransfer - самая дорогая стадия цепочки) только там, где на стекле текст.
   // Оптика по видам. refr - сила преломления (пкс), ab - дисперсия, rim - свечение кромки,
   // leg - кривая читаемости, blur/sat - размытие и насыщенность фона под стеклом.
   const PRESETS = {
-    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0.10, blur: 1.5, sat: 180 },
+    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0, blur: 1.5, sat: 180 },
     widget: { bevel: 16, refr: 40, ab: 0.16, rim: 0.36, leg: 0.28, blur: 8, sat: 165 },
-    tile: { bevel: 14, refr: 34, ab: 0.18, rim: 0.40, leg: 0.08, blur: 1, sat: 170 },
-    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0.10, blur: 2, sat: 175 },
+    tile: { bevel: 10, refr: 28, ab: 0.18, rim: 0, leg: 0, blur: 1, sat: 170 },
+    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0, blur: 2, sat: 175 },
     card: { bevel: 14, refr: 32, ab: 0.14, rim: 0.30, leg: 0.30, blur: 12, sat: 170 },
     panel: { bevel: 20, refr: 50, ab: 0.16, rim: 0.36, leg: 0.18, blur: 5, sat: 170 },
     bar: { bevel: 14, refr: 34, ab: 0.16, rim: 0.36, leg: 0.22, blur: 6, sat: 185 },
@@ -215,8 +216,8 @@ const LG = (() => {
         '<feComposite in="vivid" in2="ring" operator="in" result="glow"/>' +
         '<feComposite in="glow" in2="' + last + '" operator="arithmetic" k1="0" k2="' + (p.rim * 0.7).toFixed(2) + '" k3="1" k4="0" result="lit"/>';
     }
-    // область фильтра - только докуда достаёт смещение
-    const pad = Math.ceil(p.refr * 0.6 + p.blur * 3 + 8);
+    // область фильтра - только докуда достаёт смещение: половина масштаба (канал 0..1 вокруг 0.5) с дисперсией
+    const pad = Math.ceil(p.refr * (1 + p.ab) / 2 + p.blur * 3 + 3);
     return '<filter id="' + id + '" filterUnits="userSpaceOnUse" x="' + (-pad) + '" y="' + (-pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '" color-interpolation-filters="sRGB">' + body + '</filter>';
   }
   function filterFor(shape, p, m, w, h) {
@@ -409,8 +410,8 @@ const LG = (() => {
   return {
     PRESETS, stats, add, auto, sync, tone, retone, moving, prewarm, glyphs, solve, bakeFields, rectField, maskField,
     get mode() { return mode; },
-    // готово - значит видно полное стекло: карты на месте и элемент сейчас не едет
-    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && !el.closest('.lg-moving')); },
+    // готово - значит видно полное стекло: карты на месте и фильтр действует (не едет, не закрыт панелью)
+    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && (mode === 'lite' || getComputedStyle(el).backdropFilter.includes('url('))); },
     idle: () => waiting.size === 0 && !pumping,
     resyncAll: () => items.forEach(sync),
   };

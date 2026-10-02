@@ -1672,9 +1672,13 @@ html, body { background: radial-gradient(ellipse at 50% 40%, #26262b 0%, #141416
 @supports (corner-shape: squircle) { .lg:not(.capsule) { corner-shape: squircle; } }
 .lg[data-tone="light"] { color: #111; }
 .lg[data-tone="dark"] { color: #fff; }
-/* пока панель едет - простое размытие (цепочка с картой смещения считается на процессоре) */
-.lg-moving .lg, .lg.lg-moving { backdrop-filter: var(--lg-cheap) !important; -webkit-backdrop-filter: var(--lg-cheap) !important; }
+/* Пока панель едет, у её стекла и у стекла под ней только подкраска. Цепочка с картой смещения
+   считается на процессоре, а любое движение в том же слое заставляет пересчитать её у всех стёкол
+   каждый кадр (замер: пункт управления 50-83 мс на кадр; без этого 16.7). Полное стекло - когда встало. */
+.lg-moving .lg, .lg.lg-moving { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background-image: none !important; }
 html.lg-lite .lg { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.16); }
+/* стекло домашнего экрана, закрытое пункт управления, папкой или поиском, не считается: его всё равно не видно */
+#home-page.lg-covered > .lg, #home-page.lg-covered #home-grid .lg { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .page.lg-measure { display: block !important; visibility: hidden !important; }
 /* «Меньше стекла»: плотная подложка без преломления */
 body.no-glass .lg { backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; background-image: none !important; background-color: rgba(28,28,34,0.94) !important; color: #fff !important; }
@@ -1774,10 +1778,11 @@ body.dark #nc-list .n-card { --lg-tint: rgba(30,30,36,0.46); }
 /* ----- пункт управления: размытые обои, поверх - стеклянные кнопки и ползунки ----- */
 .control-center { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; transform: none !important; padding: 66px 24px 30px; visibility: hidden; transition: visibility 0s linear 0.5s; }
 .control-center.open { visibility: visible; transition: none; }
-.cc-back { position: absolute; inset: 0; background: rgba(6,6,16,0.32); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); opacity: 0; transition: opacity 0.35s ease; }
+.cc-back { position: absolute; inset: 0; background: rgba(6,6,16,0.40); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); opacity: 0; transition: opacity 0.35s ease; }
 .control-center.open .cc-back { opacity: 1; }
 .cc-grid { position: relative; z-index: 1; gap: 16px 15px; transform: translateY(-118%) scale(0.94); transition: transform 0.52s cubic-bezier(0.22, 1.16, 0.36, 1); }
 .control-center.open .cc-grid { transform: none; }
+.cc-tile, .cc-slider { --lg-tint: rgba(255,255,255,0.05); }
 .cc-tile { border-radius: 50%; color: #fff; font-size: 0; }
 .cc-tile svg { width: 24px; height: 24px; }
 .cc-tile.active { background: rgba(255,255,255,0.95); color: #1c1c1e; background-image: none; }
@@ -3289,13 +3294,14 @@ const LG = (() => {
   let mode = SVG_OK && !WEAK ? 'full' : 'lite';
   document.documentElement.classList.toggle('lg-lite', mode === 'lite');
 
+  // Кривая читаемости (feComponentTransfer - самая дорогая стадия цепочки) только там, где на стекле текст.
   // Оптика по видам. refr - сила преломления (пкс), ab - дисперсия, rim - свечение кромки,
   // leg - кривая читаемости, blur/sat - размытие и насыщенность фона под стеклом.
   const PRESETS = {
-    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0.10, blur: 1.5, sat: 180 },
+    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0, blur: 1.5, sat: 180 },
     widget: { bevel: 16, refr: 40, ab: 0.16, rim: 0.36, leg: 0.28, blur: 8, sat: 165 },
-    tile: { bevel: 14, refr: 34, ab: 0.18, rim: 0.40, leg: 0.08, blur: 1, sat: 170 },
-    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0.10, blur: 2, sat: 175 },
+    tile: { bevel: 10, refr: 28, ab: 0.18, rim: 0, leg: 0, blur: 1, sat: 170 },
+    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0, blur: 2, sat: 175 },
     card: { bevel: 14, refr: 32, ab: 0.14, rim: 0.30, leg: 0.30, blur: 12, sat: 170 },
     panel: { bevel: 20, refr: 50, ab: 0.16, rim: 0.36, leg: 0.18, blur: 5, sat: 170 },
     bar: { bevel: 14, refr: 34, ab: 0.16, rim: 0.36, leg: 0.22, blur: 6, sat: 185 },
@@ -3368,8 +3374,8 @@ const LG = (() => {
         '<feComposite in="vivid" in2="ring" operator="in" result="glow"/>' +
         '<feComposite in="glow" in2="' + last + '" operator="arithmetic" k1="0" k2="' + (p.rim * 0.7).toFixed(2) + '" k3="1" k4="0" result="lit"/>';
     }
-    // область фильтра - только докуда достаёт смещение
-    const pad = Math.ceil(p.refr * 0.6 + p.blur * 3 + 8);
+    // область фильтра - только докуда достаёт смещение: половина масштаба (канал 0..1 вокруг 0.5) с дисперсией
+    const pad = Math.ceil(p.refr * (1 + p.ab) / 2 + p.blur * 3 + 3);
     return '<filter id="' + id + '" filterUnits="userSpaceOnUse" x="' + (-pad) + '" y="' + (-pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '" color-interpolation-filters="sRGB">' + body + '</filter>';
   }
   function filterFor(shape, p, m, w, h) {
@@ -3562,8 +3568,8 @@ const LG = (() => {
   return {
     PRESETS, stats, add, auto, sync, tone, retone, moving, prewarm, glyphs, solve, bakeFields, rectField, maskField,
     get mode() { return mode; },
-    // готово - значит видно полное стекло: карты на месте и элемент сейчас не едет
-    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && !el.closest('.lg-moving')); },
+    // готово - значит видно полное стекло: карты на месте и фильтр действует (не едет, не закрыт панелью)
+    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && (mode === 'lite' || getComputedStyle(el).backdropFilter.includes('url('))); },
     idle: () => waiting.size === 0 && !pumping,
     resyncAll: () => items.forEach(sync),
   };
@@ -3823,12 +3829,24 @@ lockClock(true);
 (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { LG.prewarm($('home-page')); }, { timeout: 800 });
 
 // ===== Пункт управления, центр уведомлений, папка: пока едут - простое размытие =====
+// пока открыта сплошная панель, стекло дома под ней выключено (класс снимается после того, как панель уехала)
+let coverTimer = 0;
+function syncCovered() {
+  const open = $('control-center').classList.contains('open') || $('games-folder').classList.contains('open') || spot.classList.contains('open');
+  clearTimeout(coverTimer);
+  if (open) $('home-page').classList.add('lg-covered');
+  else coverTimer = setTimeout(() => $('home-page').classList.remove('lg-covered'), 520);
+}
+new MutationObserver(syncCovered).observe($('control-center'), { attributes: true, attributeFilter: ['class'] });
+new MutationObserver(syncCovered).observe($('games-folder'), { attributes: true, attributeFilter: ['class'] });
+// под панелью - активная страница (дом или блокировка) и открытая программа
+function movingUnder(ms) { ['home-page', 'lock-page'].forEach((id) => { if ($(id).classList.contains('active')) LG.moving($(id), ms); }); if (current && screens[current]) LG.moving(screens[current].el, ms); }
 const openCC0 = openCC, closeCC0 = closeCC;
-openCC = function () { if (!$('control-center').classList.contains('open')) LG.moving($('control-center'), 620); openCC0(); };
-closeCC = function () { if ($('control-center').classList.contains('open')) LG.moving($('control-center'), 520); closeCC0(); };
+openCC = function () { if (!$('control-center').classList.contains('open')) movingUnder(620); openCC0(); };
+closeCC = function () { if ($('control-center').classList.contains('open')) movingUnder(560); closeCC0(); };
 const openNC0 = openNC, closeNC0 = closeNC;
-openNC = function () { LG.moving($('nc'), 560); openNC0(); };
-closeNC = function () { if ($('nc').classList.contains('open')) LG.moving($('nc'), 560); closeNC0(); };
+openNC = function () { LG.moving($('nc'), 560); movingUnder(560); openNC0(); };
+closeNC = function () { if ($('nc').classList.contains('open')) { LG.moving($('nc'), 560); movingUnder(560); } closeNC0(); };
 const notify0 = notify;
 notify = function (app, title, body) {
   const n = notify0(app, title, body);
@@ -3836,6 +3854,13 @@ notify = function (app, title, body) {
   if (b && !b.dataset.lgw) { b.dataset.lgw = '1'; LG.moving(b, 600); b.addEventListener('animationstart', (e) => { if (e.animationName === 'bannerOut') LG.moving(b, 400); }); }
   return n;
 };
+
+// ползунок тянут - стекло пункта управления плоское, иначе каждый шаг пересчитывает все цепочки
+document.querySelectorAll('[data-slider]').forEach((sl) => {
+  sl.addEventListener('pointerdown', () => $('control-center').classList.add('lg-moving'));
+  const up = () => setTimeout(() => $('control-center').classList.remove('lg-moving'), 80);
+  sl.addEventListener('pointerup', up); sl.addEventListener('pointercancel', up);
+});
 
 // ===== Пружина: раскрытие программы из значка и сворачивание в него =====
 // Кривая считается честной пружиной (жёсткость, затухание) и отдаётся анимации как linear(...)
@@ -3884,7 +3909,7 @@ openApp = function (id, arg) {
   if (sc && sc.el.classList.contains('closing')) { sc.el.getAnimations().forEach((a) => a.cancel()); sc.el.classList.remove('closing'); sc.el.querySelectorAll('.launch-cover').forEach((c) => c.remove()); }
   const ic = id !== 'games' && sc && !REDUCED ? iconFor(id) : null;
   openApp2(id, arg);
-  if (id === 'games') { LG.moving($('games-folder'), 480); return; }
+  if (id === 'games') { movingUnder(480); return; }
   if (!ic || current !== id) return;
   const f = zoomFrames(sc.el, ic);
   // пока экран раскрывается, стекло под ним и в нём самом - простое размытие: иначе каждый кадр
@@ -3927,8 +3952,9 @@ function spotRender() {
   const ids = Object.keys(APPS).filter((id) => id !== 'games' && ICONS[id] && (!q || APPS[id].name.toLowerCase().includes(q))).slice(0, 16);
   $('sp-res').innerHTML = ids.length ? ids.map((id) => '<div class="app-icon" data-app="' + id + '" role="button" aria-label="' + esc(APPS[id].name) + '">' + iconHTML(id) + '<div class="app-label">' + esc(APPS[id].name) + '</div></div>').join('') : '<div class="sp-none">Ничего не найдено</div>';
 }
-function openSpot() { closeCC(); spot.classList.add('open'); LG.moving(spot, 420); $('sp-input').value = ''; spotRender(); setTimeout(() => $('sp-input').focus(), 30); }
+function openSpot() { closeCC(); spot.classList.add('open'); movingUnder(440); $('sp-input').value = ''; spotRender(); setTimeout(() => $('sp-input').focus(), 30); }
 function closeSpot() { spot.classList.remove('open'); $('sp-input').blur(); }
+new MutationObserver(syncCovered).observe(spot, { attributes: true, attributeFilter: ['class'] });
 $('home-search').addEventListener('click', openSpot);
 $('home-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') openSpot(); });
 $('sp-input').addEventListener('input', spotRender);
