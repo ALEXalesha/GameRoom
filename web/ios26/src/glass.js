@@ -425,7 +425,7 @@ const LG = (() => {
   function hold(el, cls, ms) {
     if (!el) return;
     el.classList.add(cls);
-    const k = cls + ':' + (el.id || ''), t = timers.get(el) || {};
+    const t = timers.get(el) || {};
     clearTimeout(t[cls]);
     t[cls] = setTimeout(() => release(el, cls), ms);
     timers.set(el, t);

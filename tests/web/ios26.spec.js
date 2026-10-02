@@ -9,7 +9,7 @@ const { openOs, expectInside, dragFrom, expectNoPageOverflow, expectNoBrandGlyph
 const NAME = 'ios26';
 // захват мыши недоступен ни странице, ни рамкам игр: на этом компьютере работает человек
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => { Element.prototype.requestPointerLock = function () { return Promise.resolve(); }; });
+  await page.addInitScript(() => { Element.prototype.requestPointerLock = function () { return Promise.resolve(); }; document.exitPointerLock = function () {}; });
 });
 const APPS = ['weather', 'clock', 'phone', 'messages', 'mail', 'browser', 'camera', 'photos', 'music', 'calc', 'notes', 'calendar', 'files', 'settings'];
 const screen = (page, id) => page.locator(`#app-${id}`);
@@ -999,4 +999,72 @@ test('вид iOS 26: часы своими знаками, виджеты бло
   expect(col[1]).toBe('rgb(233, 233, 235)');
   expect(col[2]).toBe('rgb(0, 122, 255)');
   expect(col[3], 'кнопка «назад» - текст, а не значок').toBe('');
+});
+
+// ===== Повторное ревью: строка состояния в программах, заголовок папки, плитка музыки =====
+const settle = (page, sel) => page.evaluate((s) => Promise.all(document.querySelector(s).getAnimations().map((a) => a.finished.catch(() => {}))), sel);
+for (const dark of [false, true]) {
+  test(`строка состояния читается в каждой программе (${dark ? 'тёмная' : 'светлая'} тема): контраст времени не меньше 4.5`, async ({ page, context }) => {
+    test.slow();
+    await openOs(page, NAME);
+    const dec = await decoder(context);
+    await page.evaluate((d) => setS('dark', d), dark);
+    await unlock(page);
+    const views = APPS.map((id) => [id, null]).concat([['messages', 'ann']]);
+    for (const [id, chat] of views) {
+      await page.evaluate((x) => openApp(x), id);
+      await settle(page, '#app-' + id);
+      if (chat) { await page.locator(`#app-${id} [data-chat="${chat}"]`).click(); await page.waitForTimeout(100); }
+      const t = page.locator(`#app-${id} [data-sb] .time`);
+      const r = await textContrast(page, dec, await t.boundingBox(), `#app-${id} [data-sb] .time`);
+      expect.soft(r.ratio, `${id}${chat ? ' (переписка)' : ''}: время в строке состояния ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(4.5);
+      await page.evaluate(() => showHome());
+      await page.waitForTimeout(450);
+    }
+  });
+}
+
+test('заголовок папки «Игры» и надписи плитки музыки читаются на разных обоях в обеих темах', async ({ page, context }) => {
+  test.slow();
+  await openOs(page, NAME);
+  const dec = await decoder(context);
+  await unlock(page);
+  for (const dark of [false, true]) {
+    await page.evaluate((d) => setS('dark', d), dark);
+    for (const w of ['liquid', 'pearl', 'forest']) {
+      await setWall(page, w);
+      await page.evaluate(() => openApp('games'));
+      await page.waitForTimeout(550);
+      const r1 = await textContrast(page, dec, await page.locator('.gf-title').boundingBox(), '.gf-title');
+      expect.soft(r1.ratio, `${w}${dark ? ' тёмная' : ''}: заголовок папки ${JSON.stringify(r1)}`).toBeGreaterThanOrEqual(4.5);
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => openCC());
+      await glassReady(page, '#control-center [data-cc="rotation"]');
+      for (const sel of ['#ccm-title', '.cc-music .ccm-a']) {
+        const r = await textContrast(page, dec, await page.locator(sel).boundingBox(), sel);
+        expect.soft(r.ratio, `${w}${dark ? ' тёмная' : ''}: ${sel} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(4.5);
+      }
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(600);
+    }
+  }
+});
+
+test('строка состояния видна поверх пункта управления, папки, поиска и переключателя', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  // строка состояния своя у панели: есть, видна, с текущим временем и над её фоном (выше по наложению, чем слой размытия)
+  const visibleTime = (root) => page.evaluate((r) => { const sb = document.querySelector(r + ' > [data-sb], ' + r + ' [data-sb]'); const t = sb && sb.querySelector('.time'); if (!t) return false; const b = t.getBoundingClientRect(), cs = getComputedStyle(sb); return b.width > 0 && cs.visibility === 'visible' && +cs.opacity > 0.5 && /\d\d:\d\d/.test(t.textContent); }, root);
+  await page.evaluate(() => openCC()); await page.waitForTimeout(700);
+  expect(await visibleTime('#control-center'), 'пункт управления').toBe(true);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+  await page.evaluate(() => openApp('games')); await page.waitForTimeout(500);
+  expect(await visibleTime('#games-folder'), 'папка').toBe(true);
+  await page.keyboard.press('Escape');
+  await page.click('#home-search'); await page.waitForTimeout(500);
+  expect(await visibleTime('#spotlight'), 'поиск').toBe(true);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { openApp('notes'); }); await page.waitForTimeout(600);
+  await page.evaluate(() => openSwitcher()); await page.waitForTimeout(400);
+  expect(await visibleTime('#switcher'), 'переключатель').toBe(true);
 });

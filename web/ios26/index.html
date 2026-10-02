@@ -1676,7 +1676,7 @@ html, body { background: radial-gradient(ellipse at 50% 40%, #26262b 0%, #141416
    считается на процессоре, а любое движение в том же слое заставляет пересчитать её у всех стёкол
    каждый кадр (замер: пункт управления 50-83 мс на кадр; без этого 16.7). Полное стекло - когда встало. */
 .lg-under .lg { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background-image: none !important; }
-/* едущее стекло и то, что возвращается по два за кадр (lg-hold), - размытие с подкраской: текст под ним не просвечивает */
+/* едущее стекло и то, что ждёт возврата (lg-hold, один кадр), - размытие с подкраской: текст под ним не просвечивает */
 .lg-moving .lg, .lg.lg-moving, .lg.lg-hold { backdrop-filter: var(--lg-cheap) !important; -webkit-backdrop-filter: var(--lg-cheap) !important; background-image: none !important; }
 html.lg-lite .lg { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.16); }
 /* стекло домашнего экрана, закрытое пункт управления, папкой или поиском, не считается: его всё равно не видно */
@@ -1960,6 +1960,16 @@ body.dark .browser-app .safari-meta { color: #8e8e93; }
    а любой (даже одна насыщенность) - это кадры по 33 мс вместо 16.7 (замер). Подкраска остаётся. */
 #control-center.lg-moving .lg, #control-center .lg.lg-hold { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .cc-back { transition: opacity 0.22s ease; }
+
+/* ===== Повторное ревью: контраст надписей ===== */
+/* верх «Погоды» и «Музыки» темнее: белое время строки состояния - не меньше 4.5 */
+.app-screen.weather-app { background: linear-gradient(180deg, #2f6db8 0%, #1a3a5c 100%); }
+.app-screen.music-app { background: linear-gradient(180deg, #c2185b 0%, #5e0a8a 50%, #1a0033 100%); }
+/* плитка музыки: плотнее подложка, подпись без прозрачности - текст читается и над светлыми обоями */
+#control-center .cc-music { --lg-tint: rgba(0,0,0,0.42); }
+.cc-music .ccm-a { opacity: 1; color: rgba(255,255,255,0.86); }
+/* строка состояния поверх пункта управления, папки, поиска и переключателя, как в телефоне */
+.overlay-sb { z-index: 100; color: #fff; }
 </style>
 </head>
 <body>
@@ -2178,7 +2188,9 @@ function buildScreens() {
 }
 // каждый экран: строка состояния, содержимое программы, полоска «домой»
 function shell(id, inner, darkBar) {
-  screens[id].el.innerHTML = '<div class="status-bar' + (darkBar ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
+  // у светлой программы строка состояния тёмная всегда, а не только там, где не забыли передать darkBar
+  const dark = darkBar || (APPS[id] && APPS[id].light);
+  screens[id].el.innerHTML = '<div class="status-bar' + (dark ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
   renderStatusBars();
 }
 
@@ -3668,7 +3680,7 @@ const LG = (() => {
   function hold(el, cls, ms) {
     if (!el) return;
     el.classList.add(cls);
-    const k = cls + ':' + (el.id || ''), t = timers.get(el) || {};
+    const t = timers.get(el) || {};
     clearTimeout(t[cls]);
     t[cls] = setTimeout(() => release(el, cls), ms);
     timers.set(el, t);
@@ -4050,7 +4062,7 @@ lockClock(true);
 (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { LG.prewarm($('home-page')); }, { timeout: 800 });
 
 // ===== Пункт управления, центр уведомлений, папка, поиск: пока едут - размытие =====
-// пока открыта сплошная панель, стекло дома под ней не считается; возвращается по два элемента за кадр
+// пока открыта сплошная панель, стекло дома под ней не считается; возвращается одним шагом, когда панель уехала
 let coverTimer = 0;
 function syncCovered() {
   const open = $('control-center').classList.contains('open') || $('games-folder').classList.contains('open') || spot.classList.contains('open');
@@ -4149,7 +4161,7 @@ openApp = function (id, arg) {
   // значок мерить до открытия: из папки игра открывается, и папка в этот момент закрывается (размер 0 давал NaN)
   const f = ic ? zoomFrames(sc.el, ic) : null;
   openApp2(id, arg);
-  if (id === 'games') { LG.moving($('games-folder'), 480); underPages(480); return; }
+  if (id === 'games') { LG.moving($('games-folder'), 480); underPages(480); folderDim(); return; }
   if (!ic || current !== id) return;
   // пока экран раскрывается, стекло под ним - только подкраска, в нём самом - размытие
   LG.under($('home-page'), SPRING_OPEN.duration + 60);
@@ -4158,6 +4170,17 @@ openApp = function (id, arg) {
   const cover = launchCover(sc.el, ic, f.iy, f.vis);
   cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' }).onfinish = () => cover.remove();
 };
+// Заголовок папки белый, как в телефоне; на светлых обоях дымка под папкой гуще, пока его контраст
+// на самом светлом месте под ним не станет не меньше 5 (с запасом: под размытием ещё и значки)
+function folderDim() {
+  const t = document.querySelector('.gf-title');
+  if (!t || !Wall.ready()) return;
+  const cells = Wall.sample(LG.layoutRect(t));
+  if (!cells.length) return;
+  let a = 0.18;
+  for (; a < 0.8; a += 0.02) { const mx = Math.max(...cells.map((c) => lum(c.map((v) => v * (1 - a))))); if (ratio(1, mx) >= 6) break; }
+  document.querySelector('.gf-back').style.background = 'rgba(0,0,0,' + a.toFixed(2) + ')';
+}
 let dragged = null;   // программу смахнули пальцем: сворачивание начинается с того места, где её отпустили
 const hideApp1 = hideApp;
 hideApp = function () {
@@ -4307,6 +4330,16 @@ const openApp3 = openApp;
 openApp = function (id, arg) { closeSpot(); openApp3(id, arg); };
 const showLock2 = showLock;
 showLock = function () { closeSpot(); showLock2(); };
+
+// строка состояния поверх пункта управления, папки, поиска и переключателя
+['control-center', 'games-folder', 'spotlight', 'switcher'].forEach((id) => {
+  const r = $(id);
+  if (!r || r.querySelector(':scope > [data-sb]')) return;
+  const sb = document.createElement('div');
+  sb.className = 'status-bar overlay-sb'; sb.setAttribute('data-sb', '');
+  r.appendChild(sb);
+});
+renderStatusBars();
 
 </script>
 </body>

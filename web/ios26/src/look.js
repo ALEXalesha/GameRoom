@@ -203,7 +203,7 @@ lockClock(true);
 (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { LG.prewarm($('home-page')); }, { timeout: 800 });
 
 // ===== Пункт управления, центр уведомлений, папка, поиск: пока едут - размытие =====
-// пока открыта сплошная панель, стекло дома под ней не считается; возвращается по два элемента за кадр
+// пока открыта сплошная панель, стекло дома под ней не считается; возвращается одним шагом, когда панель уехала
 let coverTimer = 0;
 function syncCovered() {
   const open = $('control-center').classList.contains('open') || $('games-folder').classList.contains('open') || spot.classList.contains('open');
@@ -302,7 +302,7 @@ openApp = function (id, arg) {
   // значок мерить до открытия: из папки игра открывается, и папка в этот момент закрывается (размер 0 давал NaN)
   const f = ic ? zoomFrames(sc.el, ic) : null;
   openApp2(id, arg);
-  if (id === 'games') { LG.moving($('games-folder'), 480); underPages(480); return; }
+  if (id === 'games') { LG.moving($('games-folder'), 480); underPages(480); folderDim(); return; }
   if (!ic || current !== id) return;
   // пока экран раскрывается, стекло под ним - только подкраска, в нём самом - размытие
   LG.under($('home-page'), SPRING_OPEN.duration + 60);
@@ -311,6 +311,17 @@ openApp = function (id, arg) {
   const cover = launchCover(sc.el, ic, f.iy, f.vis);
   cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' }).onfinish = () => cover.remove();
 };
+// Заголовок папки белый, как в телефоне; на светлых обоях дымка под папкой гуще, пока его контраст
+// на самом светлом месте под ним не станет не меньше 5 (с запасом: под размытием ещё и значки)
+function folderDim() {
+  const t = document.querySelector('.gf-title');
+  if (!t || !Wall.ready()) return;
+  const cells = Wall.sample(LG.layoutRect(t));
+  if (!cells.length) return;
+  let a = 0.18;
+  for (; a < 0.8; a += 0.02) { const mx = Math.max(...cells.map((c) => lum(c.map((v) => v * (1 - a))))); if (ratio(1, mx) >= 6) break; }
+  document.querySelector('.gf-back').style.background = 'rgba(0,0,0,' + a.toFixed(2) + ')';
+}
 let dragged = null;   // программу смахнули пальцем: сворачивание начинается с того места, где её отпустили
 const hideApp1 = hideApp;
 hideApp = function () {
@@ -460,3 +471,13 @@ const openApp3 = openApp;
 openApp = function (id, arg) { closeSpot(); openApp3(id, arg); };
 const showLock2 = showLock;
 showLock = function () { closeSpot(); showLock2(); };
+
+// строка состояния поверх пункта управления, папки, поиска и переключателя
+['control-center', 'games-folder', 'spotlight', 'switcher'].forEach((id) => {
+  const r = $(id);
+  if (!r || r.querySelector(':scope > [data-sb]')) return;
+  const sb = document.createElement('div');
+  sb.className = 'status-bar overlay-sb'; sb.setAttribute('data-sb', '');
+  r.appendChild(sb);
+});
+renderStatusBars();

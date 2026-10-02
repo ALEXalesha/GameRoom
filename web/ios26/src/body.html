@@ -213,7 +213,9 @@ function buildScreens() {
 }
 // каждый экран: строка состояния, содержимое программы, полоска «домой»
 function shell(id, inner, darkBar) {
-  screens[id].el.innerHTML = '<div class="status-bar' + (darkBar ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
+  // у светлой программы строка состояния тёмная всегда, а не только там, где не забыли передать darkBar
+  const dark = darkBar || (APPS[id] && APPS[id].light);
+  screens[id].el.innerHTML = '<div class="status-bar' + (dark ? ' dark' : '') + '" data-sb></div>' + inner + '<div class="home-indicator" title="Домой"></div>';
   renderStatusBars();
 }
 

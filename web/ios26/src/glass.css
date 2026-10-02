@@ -26,7 +26,7 @@ html, body { background: radial-gradient(ellipse at 50% 40%, #26262b 0%, #141416
    считается на процессоре, а любое движение в том же слое заставляет пересчитать её у всех стёкол
    каждый кадр (замер: пункт управления 50-83 мс на кадр; без этого 16.7). Полное стекло - когда встало. */
 .lg-under .lg { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background-image: none !important; }
-/* едущее стекло и то, что возвращается по два за кадр (lg-hold), - размытие с подкраской: текст под ним не просвечивает */
+/* едущее стекло и то, что ждёт возврата (lg-hold, один кадр), - размытие с подкраской: текст под ним не просвечивает */
 .lg-moving .lg, .lg.lg-moving, .lg.lg-hold { backdrop-filter: var(--lg-cheap) !important; -webkit-backdrop-filter: var(--lg-cheap) !important; background-image: none !important; }
 html.lg-lite .lg { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.16); }
 /* стекло домашнего экрана, закрытое пункт управления, папкой или поиском, не считается: его всё равно не видно */
@@ -310,3 +310,13 @@ body.dark .browser-app .safari-meta { color: #8e8e93; }
    а любой (даже одна насыщенность) - это кадры по 33 мс вместо 16.7 (замер). Подкраска остаётся. */
 #control-center.lg-moving .lg, #control-center .lg.lg-hold { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .cc-back { transition: opacity 0.22s ease; }
+
+/* ===== Повторное ревью: контраст надписей ===== */
+/* верх «Погоды» и «Музыки» темнее: белое время строки состояния - не меньше 4.5 */
+.app-screen.weather-app { background: linear-gradient(180deg, #2f6db8 0%, #1a3a5c 100%); }
+.app-screen.music-app { background: linear-gradient(180deg, #c2185b 0%, #5e0a8a 50%, #1a0033 100%); }
+/* плитка музыки: плотнее подложка, подпись без прозрачности - текст читается и над светлыми обоями */
+#control-center .cc-music { --lg-tint: rgba(0,0,0,0.42); }
+.cc-music .ccm-a { opacity: 1; color: rgba(255,255,255,0.86); }
+/* строка состояния поверх пункта управления, папки, поиска и переключателя, как в телефоне */
+.overlay-sb { z-index: 100; color: #fff; }
