@@ -161,9 +161,11 @@
       f.x = nx; f.y = ny; f.z = nz;
     }
   }
+  const potMats = new Map();          // материал на цвет зелья - общий для всех бросков
+  const potMat = (c) => { let m = potMats.get(c); if (!m) { m = new THREE.MeshLambertMaterial({ color: c }); potMats.set(c, m); } return m; };
   function render() {
     for (const f of flying) {
-      if (!f.mesh) { if (!geo) geo = new THREE.BoxGeometry(0.2, 0.28, 0.2); f.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: f.color })); G.scene.add(f.mesh); }
+      if (!f.mesh) { if (!geo) geo = new THREE.BoxGeometry(0.2, 0.28, 0.2); f.mesh = new THREE.Mesh(geo, potMat(f.color)); G.scene.add(f.mesh); }
       f.mesh.position.set(f.x, f.y, f.z); f.mesh.rotation.x += 0.2;
     }
   }
@@ -175,5 +177,5 @@
     return Object.keys(e).map((k) => { const t = Math.ceil(e[k].t); return { key: k, text: EFF_NAMES[k] + ROMAN[e[k].lvl] + ' ' + Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0') }; });
   }
 
-  VX.brewing = { BREW, brewOf, isIngredient, isBottle, newStand, tickStand, BrewView, standAt, tick, apply, level, drink, fill, throwSplash, render, reset, hudLines, flying, BREW_TIME, EFF_NAMES };
+  VX.brewing = { potMats, BREW, brewOf, isIngredient, isBottle, newStand, tickStand, BrewView, standAt, tick, apply, level, drink, fill, throwSplash, render, reset, hudLines, flying, BREW_TIME, EFF_NAMES };
 })();

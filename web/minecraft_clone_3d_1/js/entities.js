@@ -222,6 +222,7 @@
     TEX.pSkin = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15));
     TEX.pFace = pixTex(8, 8, face(['#c89a78', '#d0a482'], [[1, 4, '#fff'], [2, 4, '#3a5a9a'], [5, 4, '#3a5a9a'], [6, 4, '#fff'], [3, 6, '#9a6a50'], [4, 6, '#9a6a50']], (g) => { g.fillStyle = '#4a2e1a'; g.fillRect(0, 0, 8, 2); g.fillRect(0, 2, 1, 2); g.fillRect(7, 2, 1, 2); }));
     TEX.pHair = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#4a2e1a', '#3e2614', '#56361f'], 16));
+    TEX.pHeadSide = pixTex(8, 8, (g, w, h) => { noiseFill(g, w, h, ['#c89a78', '#c0916f', '#d0a482'], 15); g.fillStyle = '#4a2e1a'; g.fillRect(0, 0, 8, 3); g.fillRect(5, 3, 3, 2); g.fillStyle = '#3e2614'; g.fillRect(2, 1, 3, 1); });
     TEX.pShirt = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#8a2a2a', '#7e2424', '#963030'], 17));
     TEX.pPants = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, ['#5a4028', '#4e3822', '#66482e'], 18));
     for (const [m, c] of Object.entries({ leather: ['#8a5a30', '#9a6838', '#7a4e28'], iron: ['#d8d8d8', '#e8e8e8', '#c4c4c4'], gold: ['#f0c830', '#fad84a', '#e0b420'], diamond: ['#4ad8cc', '#62e8dc', '#38c4b8'] })) TEX['armor_' + m] = pixTex(8, 8, (g, w, h) => noiseFill(g, w, h, c, 19));
@@ -350,6 +351,12 @@
       const zombie = type === 'zombie', skel = type === 'skeleton', pigman = type === 'zombie_pigman';
       const hm = zombie ? humanoid(T, T.zSkin, T.zFace, T.shirt, T.pants, body) : skel ? humanoid(T, T.bone, T.skull, T.bone, T.bone, body)
         : pigman ? humanoid(T, T.pigSkin, T.pigmanFace, T.pigSkin, T.loin, body) : humanoid(T, T.pSkin, T.pFace, T.pShirt, T.pPants, body);
+      if (!zombie && !skel && !pigman) {
+        // игрок: волосы на макушке и затылке, по бокам - верхние ряды (раньше сзади была одна кожа)
+        const hair = new THREE.MeshLambertMaterial({ map: T.pHair }), side = new THREE.MeshLambertMaterial({ map: T.pHeadSide });
+        hm.head.material[0] = side; hm.head.material[1] = side; hm.head.material[2] = hair; hm.head.material[5] = hair;
+        hm.head.userData.mats = hm.head.material;
+      }
       if (pigman) { const sw = G.itemMesh(D.I.gold_sword, 0.5); sw.position.set(0, -0.7, 0.2); sw.rotation.set(0, Math.PI / 2, 0); hm.arms[1].add(sw); }
       if (skel) { hm.torso.scale.set(0.6, 1, 0.6); for (const l of hm.legs.concat(hm.arms)) l.userData.mesh.scale.set(0.5, 1, 0.5); }
       head = hm.head; legs = hm.legs; arms = hm.arms;
@@ -529,7 +536,7 @@
       m.fireT -= dt; m.burnT += dt;
       if (m.burnT >= 1) { m.burnT -= 1; m.hurtT = 0; hurtMob(m, 1, m.x, m.z, 'burn'); }
     } else m.burnT = 0;
-    if (P.touching(G.world, mb, P.isCactus, 0.02)) hurtMob(m, 1, m.x, m.z, 'cactus');
+    if (P.touching(G.world, mb, P.isCactus, 0.075)) hurtMob(m, 1, m.x, m.z, 'cactus');
     // овца обрастает шерстью, пока щиплет траву
     if (m.sheared && (m.regrow -= dt) <= 0) m.sheared = false;
     m.noiseT -= dt;
@@ -1116,5 +1123,5 @@
     };
   }
 
-  VX.entities = { teleportMob, lookedAt, playerEv, fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
+  VX.entities = { buildModel, teleportMob, lookedAt, playerEv, fireballs, shootFireball, deflect, updateGhast, updateBlaze, blast, removeItemAt: removeItem, previewCanvas, renderPreview, spawnItem, spawnMob, burst, update, render, attack, bodies, reset, save, clear, hurtMob, items, mobs, arrows, inSun, rayMob, shootArrow, interact, playerModel, sees };
 })();

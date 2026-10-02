@@ -124,7 +124,17 @@
     if (kind === 'idb') packed = await tx('chunks', 'readonly', (os, set) => req(os.get(k), set));
     else if (kind === 'local') { const s = localStorage.getItem(LS + 'c_' + k); packed = s ? fromB64(s) : null; }
     else packed = mem.chunks.get(k) || null;
-    return packed ? C.rleDecode(new Uint8Array(packed)) : null;
+    return unpack(packed);
+  }
+  // Упакованный кусок - только ArrayBuffer или типизированный массив чётной длины; иначе (строка,
+  // объект, число - запись испорчена) кусок считается отсутствующим и строится генератором заново
+  function unpack(v) {
+    if (!v) return null;
+    let u8 = null;
+    if (v instanceof ArrayBuffer) u8 = new Uint8Array(v);
+    else if (ArrayBuffer.isView(v)) u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    if (!u8 || u8.length < 2 || u8.length % 2) return null;
+    return C.rleDecode(u8);
   }
   // Набор кусков одной транзакцией: ключи 'cx,cz' -> данные или null
   async function getChunks(w, list) {
@@ -133,7 +143,7 @@
       await tx('chunks', 'readonly', (os) => {
         for (const [cx, cz] of list) {
           const r = os.get(chunkKey(w, cx, cz));
-          r.onsuccess = () => out.set(cx + ',' + cz, r.result ? C.rleDecode(new Uint8Array(r.result)) : null);
+          r.onsuccess = () => out.set(cx + ',' + cz, unpack(r.result));
         }
       });
       return out;

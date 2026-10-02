@@ -10,10 +10,20 @@
   // ---------- Настройки ----------
   const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sneak: 'ShiftLeft', sprint: 'ControlLeft', inventory: 'KeyE', drop: 'KeyQ' };
   const DEFAULTS = { renderDistance: 8, fov: 70, sensitivity: 100, invertY: false, volume: 70, graphics: 'fancy', clouds: 2, smooth: true, showFps: false, bobbing: true, keys: DEFAULT_KEYS };
+  // Настройки из хранилища проверяются по типам и пределам: мусор (строка вместо числа, чужое
+  // значение) заменяется значением по умолчанию, числа зажимаются в пределы ползунков
+  const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
   function loadSettings() {
-    const s = Object.assign({}, DEFAULTS, VX.store.loadSettings() || {});
-    s.keys = Object.assign({}, DEFAULT_KEYS, s.keys || {});
-    s.renderDistance = Math.max(2, Math.min(12, s.renderDistance | 0));
+    let raw = VX.store.loadSettings();
+    if (!isObj(raw)) raw = {};
+    const s = Object.assign({}, DEFAULTS, raw);
+    const num = (k, lo, hi, int) => { let v = s[k]; if (typeof v !== 'number' || !Number.isFinite(v)) v = DEFAULTS[k]; v = Math.max(lo, Math.min(hi, v)); s[k] = int ? Math.round(v) : v; };
+    num('renderDistance', 2, 12, true); num('fov', 30, 110, true); num('sensitivity', 10, 200, false); num('volume', 0, 100, false); num('clouds', 0, 2, true);
+    if (s.graphics !== 'fast' && s.graphics !== 'fancy') s.graphics = DEFAULTS.graphics;
+    for (const k of ['invertY', 'smooth', 'showFps', 'bobbing']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
+    const keys = isObj(raw.keys) ? raw.keys : {};
+    s.keys = {};
+    for (const k in DEFAULT_KEYS) s.keys[k] = typeof keys[k] === 'string' && keys[k] ? keys[k] : DEFAULT_KEYS[k];
     return s;
   }
 
@@ -190,6 +200,18 @@
     m.userData.sharedGeo = true; m.userData.sharedMat = true;
     return m;
   };
+  // Точка на предмете в руке (в долях картинки предмета: x вправо, y вверх от центра) в мире:
+  // рука рисуется своей камерой с тем же углом обзора - её координаты совпадают с видом главной камеры
+  G.handPoint = function (ux, uy) {
+    if (!(G.view > 0) && hand.children.length && !G.hideHand) {
+      const m = hand.children[0].children[0];
+      if (m && m.geometry && m.geometry.type === 'PlaneGeometry') {
+        const s = m.geometry.parameters.width, v = new THREE.Vector3(ux * s, uy * s, 0);
+        hand.updateMatrixWorld(true); m.localToWorld(v); camera.updateMatrixWorld(); return camera.localToWorld(v);
+      }
+    }
+    return null;
+  };
   let handId = -1;
   function setHand(id) {
     if (id === handId) return;
@@ -271,7 +293,12 @@
     // быстрый снимок новее записи в базе - берём его (окно закрыли, пока база писала)
     try {
       const q = JSON.parse(localStorage.getItem('cw2_quick_' + meta.id) || 'null');
-      if (q && persist && q.t > (meta.lastPlayed || 0) + 500) { meta.player = q.player; meta.inv = q.inv; meta.ticks = q.ticks; }
+      if (isObj(q) && persist && q.t > (meta.lastPlayed || 0) + 500 && validPlayer(q.player)) {
+        meta.player = q.player;
+        if (isObj(q.inv)) meta.inv = q.inv;
+        if (Number.isFinite(q.ticks)) meta.ticks = q.ticks;
+        sanitizeMeta(meta);
+      }
     } catch (e) { /* битый снимок - игнорируем */ }
     if (meta.inv) sanitizeInv(meta.inv);
     if (meta.player) player.load(meta.player);
@@ -295,6 +322,7 @@
     if (VX.endgame) VX.endgame.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
+    G.pauseAfterLoad = false;
     G.loadT = 0;
     G.saveT = 0;
     if (persist && VX.ui) VX.ui.show('loading');
@@ -306,10 +334,40 @@
     if (o.slots) o.slots = o.slots.map((s) => (known(s) ? s : null));
     if (o.armor) o.armor = o.armor.map((s) => (known(s) && D.armorOf(s.id) ? s : null));
   }
+  // Запись мира могла испортиться (другая версия, ручная правка, сбой записи): типы проверяются,
+  // чего нет или что не того типа - заменяется пустым/по умолчанию, чтобы мир всё равно открылся
+  const finite3 = (p) => Array.isArray(p) && p.length >= 3 && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Number.isFinite(p[2]);
+  const validPlayer = (p) => isObj(p) && finite3(p.pos);
+  function sanitizeSlot(s) {
+    for (const k of ['chests', 'furnaces', 'crops']) if (!isObj(s[k])) s[k] = {};
+    for (const k in s.chests) s.chests[k] = Array.isArray(s.chests[k]) ? s.chests[k].map((q) => (known(q) ? q : null)) : [];
+    for (const k in s.furnaces) { const f = s.furnaces[k]; if (!isObj(f)) { delete s.furnaces[k]; continue; } f.slots = (Array.isArray(f.slots) ? f.slots : [null, null, null]).map((q) => (known(q) ? q : null)); }
+    if (s.entities !== undefined && s.entities !== null) {
+      if (!isObj(s.entities)) s.entities = null;
+      else {
+        s.entities.items = Array.isArray(s.entities.items) ? s.entities.items.filter((it) => isObj(it) && known(it.s) && [it.x, it.y, it.z].every(Number.isFinite)) : [];
+        s.entities.mobs = Array.isArray(s.entities.mobs) ? s.entities.mobs.filter((m) => isObj(m) && [m.x, m.y, m.z].every(Number.isFinite)) : [];
+      }
+    }
+    if (s.vehicles !== undefined && !Array.isArray(s.vehicles)) s.vehicles = [];
+  }
   function sanitizeMeta(meta) {
-    for (const k in meta.chests || {}) meta.chests[k] = (meta.chests[k] || []).map((s) => (known(s) ? s : null));
-    for (const k in meta.furnaces || {}) { const f = meta.furnaces[k]; f.slots = (f.slots || [null, null, null]).map((s) => (known(s) ? s : null)); }
-    if (meta.entities) meta.entities.items = (meta.entities.items || []).filter((it) => known(it.s));
+    if (!Number.isFinite(meta.seedNum)) meta.seedNum = C.seedFrom(String(meta.seed == null ? '' : meta.seed));
+    if (meta.mode !== 'survival' && meta.mode !== 'creative') meta.mode = 'survival';
+    if (!Number.isFinite(meta.ticks)) meta.ticks = 0;
+    const sp = meta.spawn;
+    if (!isObj(sp) || ![sp.x, sp.y, sp.z].every(Number.isFinite)) { const f = C.findSpawn(meta.seedNum, meta.gen); meta.spawn = { x: f.x + 0.5, y: f.h + 1, z: f.z + 0.5 }; }
+    if (meta.player !== null && meta.player !== undefined && !validPlayer(meta.player)) meta.player = null;
+    if (meta.inv !== null && meta.inv !== undefined && !isObj(meta.inv)) meta.inv = null;
+    if (meta.inv) { if (!Array.isArray(meta.inv.slots)) meta.inv.slots = []; if (!Array.isArray(meta.inv.armor)) meta.inv.armor = []; }
+    if (meta.dim !== undefined && !['over', 'nether', 'end'].includes(meta.dim)) meta.dim = 'over';
+    if (!isObj(meta.ach)) meta.ach = { got: {}, progress: {} };
+    if (!isObj(meta.ach.got)) meta.ach.got = {};
+    if (!isObj(meta.ach.progress)) meta.ach.progress = {};
+    if (!isObj(meta.stats)) meta.stats = { broken: 0, placed: 0, kills: 0, deaths: 0, played: 0 };
+    if (meta.bed && !(isObj(meta.bed) && [meta.bed.x, meta.bed.y, meta.bed.z].every(Number.isFinite))) meta.bed = null;
+    sanitizeSlot(meta);
+    if (meta.dimData !== undefined) { if (!isObj(meta.dimData)) meta.dimData = {}; for (const d in meta.dimData) { if (!isObj(meta.dimData[d])) meta.dimData[d] = {}; sanitizeSlot(meta.dimData[d]); } }
   }
   G.sanitizeMeta = sanitizeMeta;
   G.saveWorld = async function () {
@@ -445,9 +503,11 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (G.state === 'play' || G.state === 'inv') G.pause();
+      else if (G.state === 'loading') G.pauseAfterLoad = true;
+      G.menuPaused = true;
       VX.audio.mute(true);
       G.saveWorld();
-    } else VX.audio.mute(false);
+    } else { VX.audio.mute(false); G.menuPaused = false; }
   });
   // Оболочки ОС (симуляторы Windows и macOS) держат игру в iframe и шлют {mix:'pause'|'resume'}:
   // pause - как скрытая вкладка (пауза, звук заглушен, клавиши и мышь отпущены), resume - пауза остаётся
@@ -455,10 +515,12 @@
     const cmd = e.data && typeof e.data === 'object' ? e.data.mix : null;
     if (cmd === 'pause') {
       if (G.state === 'play' || G.state === 'inv') G.pause();
+      else if (G.state === 'loading') G.pauseAfterLoad = true;     // мир ещё грузится: пауза после загрузки
+      G.menuPaused = true;                                          // в меню панорама стоит и не рисуется
       releaseKeys(); unlock();
       VX.audio.mute(true);
       G.saveWorld();
-    } else if (cmd === 'resume') VX.audio.mute(false);
+    } else if (cmd === 'resume') { VX.audio.mute(false); G.menuPaused = false; }
   });
   window.addEventListener('pagehide', () => { G.saveWorld(); });
   window.addEventListener('blur', () => releaseKeys());
@@ -1268,6 +1330,8 @@
     const dt = Math.min(0.05, Math.max(0, (now - clock.last) / 1000));
     const frameMs = now - clock.last;
     clock.last = now;
+    // оболочка поставила на паузу (или вкладка скрыта), а на экране меню: панорама не крутится и не рисуется
+    if (G.menuPaused && (G.state === 'menu' || G.state === 'boot')) { requestAnimationFrame(frame); return; }
     const t0 = performance.now();
     let t1 = t0;
     try { tick(dt); t1 = performance.now(); render(dt); } catch (e) { console.error(e); }
@@ -1291,14 +1355,17 @@
       if (G.meta) player.pos.set(G.meta.spawn.x, G.meta.spawn.y, G.meta.spawn.z);
     } else if (G.state === 'loading') {
       G.loadT += dt;
-      if (world.readyAround(player.pos.x, player.pos.z, 2) || G.loadT > 25) {
+      // ждём куски вокруг (при дальности 2 сетки строятся только в радиусе 2 - ждём ближний квадрат 3x3)
+      if (world.readyAround(player.pos.x, player.pos.z, Math.min(2, world.radius - 1)) || G.loadT > 25) {
         if (G.afterLoad) { const f = G.afterLoad; G.afterLoad = null; f(); }
         // игрок не должен оказаться внутри земли: поднимаем до свободного места
         let guard = 0;
         while (VX.phys.boxHits(world, player.box()) && guard++ < 140) player.pos.y += 1;
         G.emit('enter', {});
         G.state = 'paused';
-        if (VX.ui) VX.ui.loaded();
+        // во время загрузки оболочка попросила паузу или вкладку скрыли - не запускаем игру, а показываем паузу
+        if (G.pauseAfterLoad || document.hidden) { G.pauseAfterLoad = false; releaseKeys(); unlock(); if (VX.ui) VX.ui.show('pause'); }
+        else if (VX.ui) VX.ui.loaded();
       }
     } else { const a = performance.now(); simulate(dt); G.perf.cur.sim = +(performance.now() - a).toFixed(1); }
     const b = performance.now();

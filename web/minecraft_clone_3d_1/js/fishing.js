@@ -114,11 +114,14 @@
     // леска: от кончика удочки (справа впереди от глаз) к поплавку
     const p = G.player, f = p.forward(), rx = -f.z, rz = f.x;
     const a = line.geometry.attributes.position;
-    a.setXYZ(0, p.pos.x + f.x * 0.8 + rx * 0.3, p.eye() - 0.2 + f.y * 0.8, p.pos.z + f.z * 0.8 + rz * 0.3);
+    // от кончика удочки в руке (картинка удочки: кончик справа сверху), от третьего лица - примерно у руки
+    const tip = G.handPoint ? G.handPoint(13.5 / 16 - 0.5, 0.5 - 3 / 16) : null;
+    if (tip) a.setXYZ(0, tip.x, tip.y, tip.z);
+    else a.setXYZ(0, p.pos.x + f.x * 0.8 + rx * 0.3, p.eye() - 0.2 + f.y * 0.8, p.pos.z + f.z * 0.8 + rz * 0.3);
     a.setXYZ(1, bob.x, bob.y + dip + 0.12, bob.z);
     a.needsUpdate = true;
   }
   function reset() { remove(); }
 
-  VX.fishing = { R, use, cast, reel, roll, tick, render, reset, get bob() { return bob; } };
+  VX.fishing = { get line() { return line; }, R, use, cast, reel, roll, tick, render, reset, get bob() { return bob; } };
 })();

@@ -33,8 +33,8 @@
   Inventory.prototype.load = function (o) {
     this.clear();
     if (!o) return;
-    (o.slots || []).forEach((s, i) => { if (i < 36 && s && s.id && s.count > 0) this.slots[i] = clone(s); });
-    (o.armor || []).forEach((s, i) => { if (i < 4 && s && s.id) this.armor[i] = clone(s); });
+    if (Array.isArray(o.slots)) o.slots.forEach((s, i) => { if (i < 36 && s && s.id && s.count > 0) this.slots[i] = clone(s); });
+    if (Array.isArray(o.armor)) o.armor.forEach((s, i) => { if (i < 4 && s && s.id) this.armor[i] = clone(s); });
     this.selected = Math.max(0, Math.min(8, o.selected | 0));
   };
   Inventory.prototype.count = function (id) { let n = 0; for (const s of this.slots) if (s && s.id === id) n += s.count; return n; };

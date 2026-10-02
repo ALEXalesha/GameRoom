@@ -20,6 +20,7 @@
 
   .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; gap: 8px; text-shadow: var(--shadow); }
   .screen.show { display: flex; }
+  .hud-screen { pointer-events: none; }        /* экран игры пустой: щелчки идут в холст (захват мыши) */
   .screen h2 { font-size: 24px; font-weight: normal; margin: 0 0 10px; }
   .hint { font-size: 16px; color: #d0d0d0; max-width: 620px; text-align: center; line-height: 1.5; }
   .note { font-size: 16px; color: #ffdf6a; min-height: 16px; }
@@ -117,7 +118,7 @@
   #bossbar .bb { height: 8px; margin-top: 3px; background: #2a0a3a; border: 1px solid #000; }
   #bossbar .fill { height: 100%; background: linear-gradient(#f070ff, #a020c0); }
   body.dim #bossbar { display: none !important; }
-  #actionBar { position: absolute; left: 50%; bottom: 130px; transform: translateX(-50%); font-size: 16px; text-shadow: var(--shadow); white-space: nowrap; opacity: 0; }
+  #actionBar { position: absolute; left: 50%; bottom: 130px; transform: translateX(-50%); font-size: 16px; text-shadow: var(--shadow); white-space: nowrap; opacity: 0; background: rgba(0, 0, 0, .55); padding: 2px 8px; }
   #sleepFade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .1s; }
   .armorcol { display: flex; flex-direction: column; margin-right: 18px; }
   .craft.withArmor { margin-left: 0; }

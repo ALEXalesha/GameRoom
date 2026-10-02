@@ -35,7 +35,7 @@
       orbs.push({ x: x + (rnd() - 0.5) * 0.5, y: y + 0.2, z: z + (rnd() - 0.5) * 0.5, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 2, vz: (rnd() - 0.5) * 3, value: v, age: 0, mesh: null });
     }
   }
-  let pickT = 0, group = null, tex = null;
+  let pickT = 0, group = null, tex = null, orbMat = null;
   function update(dt) {
     const p = G.player;
     pickT -= dt;
@@ -70,15 +70,17 @@
       for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const d = Math.hypot(x - 3.5, y - 3.5); if (d < 3.6) { g.fillStyle = d < 1.5 ? '#f0ff90' : d < 2.6 ? '#9aff30' : '#3a9a10'; g.fillRect(x, y, 1, 1); } }
       tex = new THREE.CanvasTexture(c); tex.magFilter = tex.minFilter = THREE.NearestFilter;
     }
+    // один материал на все шарики: переливается сам по времени (раньше - свой у каждого шарика)
+    if (!orbMat) orbMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    orbMat.color.setHSL(0.25 + Math.sin(performance.now() / 330) * 0.05, 1, 0.55);
     for (const o of orbs) {
       if (!o.mesh) {
-        o.mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+        o.mesh = new THREE.Sprite(orbMat);
         const s = 0.18 + Math.min(0.3, Math.log2(o.value + 1) * 0.04);
         o.mesh.scale.set(s, s, s);
         group.add(o.mesh);
       }
       o.mesh.position.set(o.x, o.y + 0.15 + Math.sin(o.age * 4) * 0.04, o.z);
-      o.mesh.material.color.setHSL(0.25 + Math.sin(o.age * 3) * 0.05, 1, 0.55);
     }
   }
   function clear() { for (let i = orbs.length - 1; i >= 0; i--) drop(i); }

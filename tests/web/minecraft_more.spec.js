@@ -142,6 +142,10 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
     await page.waitForTimeout(3000);
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('clickHint')).display)).toBe('none');
     expect(await page.evaluate(() => __voxel.ticks)).toBeGreaterThan(t0 + 20);
+    // щелчок мышью по игре (настоящий, через страницу) просит захват - управление вернулось
+    await page.evaluate(() => { window.__calls = 0; HTMLCanvasElement.prototype.requestPointerLock = function () { window.__calls++; return Promise.resolve(); }; });
+    await page.mouse.click(640, 360);
+    expect(await page.evaluate(() => ({ calls: window.__calls, state: __voxel.state }))).toEqual({ calls: 1, state: 'play' });
   });
 
   const hitRun = async (page, type, heldKey) => page.evaluate(({ type, heldKey }) => {

@@ -294,7 +294,7 @@
       this.fireT = Math.max(this.fireT || 0, 8);
       this.damage(1, 'fire', ev);
     }
-    const c = touching(world, box, isCactus, 0.02);
+    const c = touching(world, box, isCactus, 0.075);        // в клетке кактуса (его коробка на 1/16 уже)
     if (c && this.damage(1, 'cactus', ev)) {
       const dx = this.pos.x - c[0], dz = this.pos.z - c[2], d = Math.hypot(dx, dz) || 1;
       this.vel.x += dx / d * 3; this.vel.z += dz / d * 3;
@@ -392,7 +392,7 @@
   Player.prototype.load = function (o) {
     this.reset();
     if (!o) return;
-    this.pos.set(o.pos[0], o.pos[1], o.pos[2]);
+    if (Array.isArray(o.pos) && o.pos.slice(0, 3).every(Number.isFinite)) this.pos.set(o.pos[0], o.pos[1], o.pos[2]);
     this.yaw = o.yaw || 0; this.pitch = o.pitch || 0; this.flying = !!o.flying;
     if (typeof o.health === 'number') this.health = o.health;
     if (typeof o.food === 'number') this.food = o.food;

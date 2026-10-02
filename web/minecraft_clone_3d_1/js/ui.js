@@ -118,6 +118,7 @@
     bar1.append(bPlay, bNew); bar2.append(bDel, bBack);
     s.append(note, list, bar1, bar2);
     const refreshButtons = () => { bPlay.disabled = bDel.disabled = !selectedWorld; };
+    UI.worldsNote = (t) => { note.textContent = t; };
     s.onShow = async () => {
       const kind = VX.store.kind;
       note.textContent = kind === 'idb' ? '' : kind === 'local' ? 'IndexedDB недоступна: миры хранятся в localStorage, места там мало.' : 'Хранилище браузера недоступно: миры не сохранятся после закрытия вкладки.';
@@ -139,7 +140,16 @@
       refreshButtons();
     };
   }
-  async function playWorld(id) { await G.openWorld(id); }
+  // Мир не открылся (повреждённая запись, ошибка чтения): сообщение и чистый возврат в меню
+  async function playWorld(id) {
+    try { await G.openWorld(id); }
+    catch (e) {
+      console.warn('мир не открылся', e);
+      try { G.releaseKeys(); G.unlock(); await G.openPanorama(); } catch (e2) { /* панорама сама по себе */ }
+      UI.show('worlds');
+      if (UI.worldsNote) UI.worldsNote('Мир повреждён и не открылся: ' + (e && e.message ? e.message : 'ошибка записи'));
+    }
+  }
   UI.playWorld = playWorld;
 
   function buildCreate() {

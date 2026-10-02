@@ -148,15 +148,27 @@ test.describe('minecraft_clone_3d_1: кактус и броня', () => {
     await frames(page);
     const r = await page.evaluate(() => {
       const v = __voxel, p = v.player, I = v.data.I, inv = v.inv;
-      let meshes = 0; v.game.scene.traverse((o) => { if (o.isMesh && o.geometry && o.geometry.parameters && Math.abs(o.geometry.parameters.width - 0.56) < 1e-6) { let vis = true; for (let q = o; q; q = q.parent) if (!q.visible) vis = false; if (vis) meshes++; } });
+      // броня - на самой модели игрока: шлем у головы, нагрудник у туловища (а не где-то в сцене)
+      let meshes = 0, onHead = 0, onTorso = 0;
+      v.game.scene.traverse((o) => {
+        if (!(o.isMesh && o.geometry && o.geometry.parameters && Math.abs(o.geometry.parameters.width - 0.56) < 1e-6)) return;
+        let vis = true; for (let q = o; q; q = q.parent) if (!q.visible) vis = false;
+        if (!vis) return;
+        meshes++;
+        const wp = new THREE.Vector3(); o.getWorldPosition(wp);
+        if (Math.hypot(wp.x - p.pos.x, wp.y - (p.pos.y + 1.75), wp.z - p.pos.z) < 0.3) onHead++;
+        if (Math.hypot(wp.x - p.pos.x, wp.y - (p.pos.y + 1.1), wp.z - p.pos.z) < 0.3) onTorso++;
+      });
       inv.armor[3] = { id: I.leather_boots, count: 1, dmg: 64 };
       p.hurtCool = 0; p.damage(4, 'zombie');
       const bootsGone = inv.armor[3] === null;
       p.damage(100, 'fall'); v.step(0.05, 2);
-      return { meshes, bootsGone, dropped: v.entities.items.map((i) => i.stack.id), armorLeft: inv.armor.filter(Boolean).length };
+      return { meshes, onHead, onTorso, bootsGone, dropped: v.entities.items.map((i) => i.stack.id), armorLeft: inv.armor.filter(Boolean).length };
     });
     const I = await page.evaluate(() => __voxel.data.I);
     expect(r.meshes).toBeGreaterThanOrEqual(2);
+    expect(r.onHead).toBeGreaterThanOrEqual(1);
+    expect(r.onTorso).toBeGreaterThanOrEqual(1);
     expect(r.bootsGone).toBe(true);
     expect(r.dropped).toContain(I.diamond_helmet);
     expect(r.dropped).toContain(I.gold_chestplate);
