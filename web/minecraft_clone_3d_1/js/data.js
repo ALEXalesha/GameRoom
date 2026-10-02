@@ -496,6 +496,8 @@
     { id: 'fish', parent: 'root', name: 'Рыбный день', desc: 'Поймать рыбу удочкой', on: 'fish', items: ['raw_cod', 'raw_salmon'], icon: I.raw_cod },
     { id: 'boat', parent: 'planks', name: 'Отдать швартовы', desc: 'Проплыть на лодке 50 блоков', on: 'boat_trip', icon: I.boat },
     { id: 'rail', parent: 'iron', name: 'Поехали!', desc: 'Проехать в вагонетке 500 блоков', on: 'rail_trip', icon: I.minecart },
+    { id: 'lightning', parent: 'root', name: 'Гром и молния', desc: 'Увидеть удар молнии ближе 32 блоков', on: 'lightning_near', icon: B.oak_log },
+    { id: 'snowfall', parent: 'root', name: 'Белые мухи', desc: 'Попасть под снегопад', on: 'snowfall', icon: B.snow_grass },
     { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart },
     // вкладка «Край»: финал игры - победа над драконом и выход через портал (титры)
     { id: 'stronghold', tab: 'end', name: 'Всевидящее око', desc: 'Найти зал портала в крепости Края', on: 'stronghold', icon: C.END_FRAME + 1 },

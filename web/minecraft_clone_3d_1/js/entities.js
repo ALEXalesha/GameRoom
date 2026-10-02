@@ -532,6 +532,7 @@
     else if (P.touching(G.world, mb, P.isFire, 0)) { m.fireT = Math.max(m.fireT, 8); hurtMob(m, 1, m.x, m.z, 'burn'); }
     if (m.def.burns && inSun(m.x, m.y + m.h * 0.8, m.z) && !water) m.fireT = Math.max(m.fireT, 1.5);
     if (water && !P.touching(G.world, mb, P.isLava, 0)) m.fireT = 0;
+    if (m.fireT > 0 && VX.weather && VX.weather.rainingAt(m.x, m.y + m.h, m.z)) m.fireT = 0;        // дождь гасит
     if (m.fireT > 0) {
       m.fireT -= dt; m.burnT += dt;
       if (m.burnT >= 1) { m.burnT -= 1; m.hurtT = 0; hurtMob(m, 1, m.x, m.z, 'burn'); }

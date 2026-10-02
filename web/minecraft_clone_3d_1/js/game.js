@@ -9,7 +9,7 @@
 
   // ---------- Настройки ----------
   const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sneak: 'ShiftLeft', sprint: 'ControlLeft', inventory: 'KeyE', drop: 'KeyQ' };
-  const DEFAULTS = { renderDistance: 8, fov: 70, sensitivity: 100, invertY: false, volume: 70, graphics: 'fancy', clouds: 2, smooth: true, showFps: false, bobbing: true, keys: DEFAULT_KEYS };
+  const DEFAULTS = { renderDistance: 8, fov: 70, sensitivity: 100, invertY: false, volume: 70, graphics: 'fancy', clouds: 2, particles: 2, smooth: true, showFps: false, bobbing: true, keys: DEFAULT_KEYS };
   // Настройки из хранилища проверяются по типам и пределам: мусор (строка вместо числа, чужое
   // значение) заменяется значением по умолчанию, числа зажимаются в пределы ползунков
   const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -18,7 +18,7 @@
     if (!isObj(raw)) raw = {};
     const s = Object.assign({}, DEFAULTS, raw);
     const num = (k, lo, hi, int) => { let v = s[k]; if (typeof v !== 'number' || !Number.isFinite(v)) v = DEFAULTS[k]; v = Math.max(lo, Math.min(hi, v)); s[k] = int ? Math.round(v) : v; };
-    num('renderDistance', 2, 12, true); num('fov', 30, 110, true); num('sensitivity', 10, 200, false); num('volume', 0, 100, false); num('clouds', 0, 2, true);
+    num('renderDistance', 2, 12, true); num('fov', 30, 110, true); num('sensitivity', 10, 200, false); num('volume', 0, 100, false); num('clouds', 0, 2, true); num('particles', 0, 2, true);
     if (s.graphics !== 'fast' && s.graphics !== 'fancy') s.graphics = DEFAULTS.graphics;
     for (const k of ['invertY', 'smooth', 'showFps', 'bobbing']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
     const keys = isObj(raw.keys) ? raw.keys : {};
@@ -320,6 +320,7 @@
     if (VX.villages) VX.villages.reset();
     if (VX.brewing) VX.brewing.reset();
     if (VX.endgame) VX.endgame.reset();
+    if (VX.weather) VX.weather.reset();
     if (VX.ui && VX.ui.loadingTitle) VX.ui.loadingTitle(G.dim);
     G.state = persist ? 'loading' : 'menu';
     G.pauseAfterLoad = false;
@@ -420,6 +421,7 @@
     if (VX.redstone) VX.redstone.reset();
     if (VX.xp) VX.xp.clear();
     if (VX.endgame) VX.endgame.reset();
+    if (VX.weather) VX.weather.reset();
     G.mining = null; G.sleeping = null; G.portalT = 0; G.portalWait = true;
     player.pos.set(pos.x, pos.y, pos.z); player.vel.set(0, 0, 0); player.fallTop = null;
     G.afterLoad = after || null;
@@ -1277,6 +1279,7 @@
     if (VX.villages) VX.villages.tick(dt);
     if (VX.brewing && G.state !== 'dead') VX.brewing.tick(dt);
     if (VX.endgame) VX.endgame.tick(dt);
+    if (VX.weather) VX.weather.tick(dt);
     if (VX.fishing) VX.fishing.tick(dt);
     if (VX.vehicles) VX.vehicles.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
@@ -1409,6 +1412,7 @@
     G.underwater = under;
     const far = world.radius * C.CS;
     const sk = sky.update(G.ticks, camera, under, far, renderer);
+    if (VX.weather) VX.weather.adjustSky(sk, sky);          // дождь и гроза: темнее, серее; вспышка молнии
     const nether = G.dim === 'nether';
     if (nether) {
       // Нижний мир: неба нет, красноватая дымка, свет только от лавы, светокамня и порталов
@@ -1456,6 +1460,7 @@
     if (VX.endgame && G.meta && !G.panorama) VX.endgame.render();
     if (VX.fishing && G.meta && !G.panorama) VX.fishing.render();
     if (VX.vehicles && G.meta && !G.panorama) VX.vehicles.render();
+    if (VX.weather && G.meta && !G.panorama) VX.weather.render(dt);
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем

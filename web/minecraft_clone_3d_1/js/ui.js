@@ -215,7 +215,13 @@
       button('Настройки', () => UI.show('settings')),
       button('Сохранить и выйти в меню', () => G.exitToTitle()),
     );
+    // творческий режим: погода по кругу ясно - дождь - гроза (как команда /weather в оригинале)
+    const wb = button('', () => { const W = VX.weather, k = W.KINDS[(W.KINDS.indexOf(W.state().kind) + 1) % 3]; W.set(k); wb.refresh(); });
+    wb.id = 'weatherBtn';
+    wb.refresh = () => setText(wb, 'Погода: ' + (VX.weather ? VX.weather.label() : 'ясно'));
+    col.insertBefore(wb, col.children[3]);
     s.append(col);
+    s.onShow = () => { wb.style.display = G.mode === 'creative' && G.dim === 'over' && VX.weather ? '' : 'none'; wb.refresh(); };
   }
   function buildSettings() {
     const s = screen('settings', 'list-screen');
@@ -230,11 +236,12 @@
       slider('Громкость звуков', 0, 100, 5, () => S().volume, (v) => { S().volume = v; VX.audio.setVolume(v / 100); }, (v) => v ? v + '%' : 'Выкл'),
       toggle(() => 'Графика: ' + (S().graphics === 'fancy' ? 'Красивая' : 'Быстрая'), () => { S().graphics = S().graphics === 'fancy' ? 'fast' : 'fancy'; }),
       toggle(() => 'Облака: ' + ['Выкл', 'Быстрые', 'Красивые'][S().clouds], () => { S().clouds = (S().clouds + 2) % 3; }),
+      toggle(() => 'Частицы погоды: ' + ['Выкл', 'Мало', 'Много'][S().particles], () => { S().particles = (S().particles + 2) % 3; }),
       toggle(() => 'Мягкое освещение: ' + (S().smooth ? 'Вкл' : 'Выкл'), () => { S().smooth = !S().smooth; }),
       toggle(() => 'Покачивание камеры: ' + (S().bobbing ? 'Вкл' : 'Выкл'), () => { S().bobbing = !S().bobbing; }),
       toggle(() => 'Кадры/с на экране: ' + (S().showFps ? 'Вкл' : 'Выкл'), () => { S().showFps = !S().showFps; }),
     ];
-    items.forEach((w, i) => { w.dataset.k = ['renderDistance', 'fov', 'sensitivity', 'invertY', 'volume', 'graphics', 'clouds', 'smooth', 'bobbing', 'showFps'][i]; grid.append(w); });
+    items.forEach((w, i) => { w.dataset.k = ['renderDistance', 'fov', 'sensitivity', 'invertY', 'volume', 'graphics', 'clouds', 'particles', 'smooth', 'bobbing', 'showFps'][i]; grid.append(w); });
     grid.append(button('Управление…', () => UI.show('controls')));
     const hint = el('div', 'hint', 'Графика «Красивая»: прозрачная листва. «Быстрая»: листва сплошная, работает быстрее. Мягкое освещение - тени в углах и плавный свет. F3 - отладка.');
     s.append(grid, hint, el('div', 'row', ''));
@@ -284,7 +291,7 @@
     s.append(t, cause, row);
     const CAUSES = { fall: 'Разбился, упав с высоты', drown: 'Утонул', starve: 'Умер от голода', zombie: 'Убит зомби', void: 'Выпал из мира', burn: 'Сгорел',
       explosion: 'Взорван', skeleton: 'Застрелен скелетом', arrow: 'Застрелен', spider: 'Убит пауком', lava: 'Сгорел в лаве', fire: 'Сгорел', cactus: 'Исколот кактусом',
-      fireball: 'Сражён огненным шаром', zombie_pigman: 'Убит зомби-свиночеловеком', blaze: 'Сожжён ифритом', enderman: 'Убит эндерменом', dragon: 'Убит эндер-драконом' };
+      fireball: 'Сражён огненным шаром', zombie_pigman: 'Убит зомби-свиночеловеком', blaze: 'Сожжён ифритом', enderman: 'Убит эндерменом', dragon: 'Убит эндер-драконом', lightning: 'Убит молнией' };
     s.onShow = () => { const d = G.player.lastDamage; cause.textContent = CAUSES[d && d.cause] || 'Погиб'; };
   }
 

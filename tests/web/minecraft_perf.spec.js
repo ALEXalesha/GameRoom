@@ -11,7 +11,7 @@ test.describe('minecraft_clone_3d_1: замер кадров', () => {
   test.skip(!process.env.VOXEL_PERF, 'только по VOXEL_PERF=1');
   test.setTimeout(180000);
 
-  for (const scene of [{ name: 'стоя, дальность 8', move: false }, { name: 'на ходу, дальность 8', move: true }, { name: 'Нижний мир, на ходу, дальность 8', move: true, dim: 'nether' }, { name: 'Край: над островом, дракон и кристаллы, дальность 8', move: true, dim: 'end' }]) {
+  for (const scene of [{ name: 'стоя, дальность 8', move: false }, { name: 'на ходу, дальность 8', move: true }, { name: 'Нижний мир, на ходу, дальность 8', move: true, dim: 'nether' }, { name: 'Край: над островом, дракон и кристаллы, дальность 8', move: true, dim: 'end' }, { name: 'ливень с грозой, на ходу, дальность 8, частиц много', move: true, weather: 'thunder' }]) {
     test(scene.name, async ({ page }) => {
       await openVoxel(page);
       const gpu = await page.evaluate(() => { const gl = __voxel.game.renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'нет'; });
@@ -30,6 +30,7 @@ test.describe('minecraft_clone_3d_1: замер кадров', () => {
         await page.evaluate(() => { const v = __voxel, p = v.player; p.flying = true; for (let y = 60; y < 80; y++) for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) v.setBlock(x, y, z, 0); p.pos.set(0.5, 70, 0.5); });
         await page.evaluate(() => __voxel.waitIdle(5));
       }
+      if (scene.weather) await page.evaluate((k) => { const W = __voxel.VX.weather; W.set(k, 999999); W.state().rain = 1; W.state().thunder = k === 'thunder' ? 1 : 0; __voxel.settings.particles = 2; }, scene.weather);
       await page.waitForTimeout(1000);
       const res = await page.evaluate(async (move) => {
         const v = __voxel, p = v.player;

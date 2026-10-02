@@ -128,6 +128,8 @@
     eye_throw(t) { tone(t, 0.3, 'sine', 500, 1100, 0.1, 0.01); },
     eye_place(t) { tone(t, 0.25, 'triangle', 700, 520, 0.12); noise(t, 0.1, 'highpass', 3000, 1, 0.15); },
     end_portal(t) { [196, 247, 294, 392, 494].forEach((f, k) => tone(t + k * 0.12, 1.2, 'triangle', f, f, 0.1, 0.05)); noise(t, 1.5, 'bandpass', 500, 2, 0.1, 0.4); },
+    rain(t, o) { const k = Math.max(0.2, o.k || 1); noise(t, 0.6, 'highpass', 2500, 0.4, 0.05 * k, 0.15); noise(t + 0.1, 0.5, 'bandpass', 900, 0.6, 0.03 * k, 0.15); },
+    thunder(t, o) { const far = o.far; const f = noise(t, far ? 2.8 : 2.2, 'lowpass', far ? 260 : 700, 0.7, far ? 0.35 : 0.8, far ? 0.25 : 0.01); f.frequency.exponentialRampToValueAtTime(60, t + 2); tone(t, 1.6, 'sine', 55, 30, far ? 0.15 : 0.4, 0.02); },
     victory(t) { [392, 523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(t + k * 0.16, 0.5, 'triangle', f, f, 0.18)); },
   };
   function play(name, o) {
