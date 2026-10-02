@@ -49,8 +49,12 @@ if (setup.test) {
           pl = this; fire('pointerlockchange'); return Promise.resolve();
         };
         Object.defineProperty(Element.prototype, 'requestPointerLock', { configurable: true, writable: true, value: stub });
-        Object.defineProperty(Document.prototype, 'exitPointerLock', { configurable: true, writable: true, value: function () { if (!pl) return; pl = null; fire('pointerlockchange'); } });
+        // выход по exitPointerLock() (из кода страницы) - новый захват можно и без щелчка, как в Chromium
+        window.__unlockCalls = 0;
+        Object.defineProperty(Document.prototype, 'exitPointerLock', { configurable: true, writable: true, value: function () { window.__unlockCalls++; exitAt = 0; if (!pl) return; pl = null; fire('pointerlockchange'); } });
         for (const t of ['mousedown', 'keydown']) window.addEventListener(t, (e) => { if (e.isTrusted && e.code !== 'Escape') gestureAt = performance.now(); }, { capture: true });
+        // Esc при захвате: браузер сам снимает захват, клавиша в страницу не приходит
+        window.addEventListener('keydown', (e) => { if (e.isTrusted && e.code === 'Escape' && pl) { e.stopImmediatePropagation(); e.preventDefault(); window.__browserEsc(); } }, { capture: true });
         window.__browserEsc = () => { exitAt = performance.now(); if (!pl) return false; pl = null; document.dispatchEvent(new Event('pointerlockchange')); return true; };
       },
     });

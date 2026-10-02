@@ -49,6 +49,18 @@ The keys also work with the Russian keyboard layout. Cube World keeps F1, F2, F3
 itself (F5 switches the camera there), so in it restart with Ctrl+R, Ctrl+F5 or the tab
 menu. The keys a game keeps are listed in `app/games.js` (the `keys` field).
 
+Cube World also keeps Esc (the `escToGame` field): the first Esc pauses and shows the cursor, the
+second resumes and hides the cursor at once, with no click. To leave the shell's fullscreen in this
+game use F11 (Esc stays with the game).
+
+In a browser the same works in the **game's own** fullscreen: the "Во весь экран (F)" (fullscreen)
+button in the pause menu, or the F key. The game turns on keyboard lock
+(`navigator.keyboard.lock(['Escape'])`, available in Chrome and Edge), so Esc reaches the game; to
+leave fullscreen **hold Esc** (the browser shows a hint) or press F. Browser fullscreen via F11 does
+not enable keyboard lock (it is granted only to a page in fullscreen through the Fullscreen API), so
+there, as in a normal window, after the second Esc the cursor comes back on your first click in the
+game (a browser security rule: after leaving pointer lock with Esc a new click is required).
+
 | Question over a game | Settings | Light theme |
 |---|---|---|
 | ![](docs/screens/app-question.png) | ![](docs/screens/app-settings.png) | ![](docs/screens/app-light.png) |

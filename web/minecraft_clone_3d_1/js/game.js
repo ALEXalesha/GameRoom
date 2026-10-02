@@ -526,6 +526,7 @@
       VX.audio.mute(true);
       G.saveWorld();
     } else if (cmd === 'resume') { VX.audio.mute(false); G.menuPaused = false; }
+    else if (cmd === 'esc') { G.escOwned = true; onKeyDown(fakeEsc()); }
   });
   window.addEventListener('pagehide', () => { G.saveWorld(); });
   // Оболочка «Игротека» перед закрытием вкладки или окна ждёт эту функцию: мир записан до конца
@@ -1123,7 +1124,7 @@
   // ---------- Ввод ----------
   const action = (code) => { for (const k in G.settings.keys) if (G.settings.keys[k] === code) return k; return null; };
   let lastSpace = 0, lastW = 0;
-  window.addEventListener('keydown', (e) => {
+  function onKeyDown(e) {
     VX.audio.init();
     // F1-F3 и F5 - клавиши игры (F5 в браузере перезагрузил бы страницу)
     if (['F1', 'F2', 'F3', 'F5'].includes(e.code) && G.meta && !G.panorama) e.preventDefault();
@@ -1146,10 +1147,41 @@
       if (e.code === 'F5') G.view = ((G.view || 0) + 1) % 3;        // первое лицо -> сзади -> спереди
       if (e.code === 'F1') G.hideHud = !G.hideHud;
       if (e.code === 'F2') G.shotRequest = true;
+      if (e.code === 'KeyF' && !e.ctrlKey && !e.altKey) G.toggleFullscreen();
       if (e.code === 'Escape') G.pause();
     } else if (G.state === 'inv') {
       if (a === 'inventory' || e.code === 'Escape') { e.preventDefault(); G.closeContainer(); }
     } else if (G.state === 'paused' && e.code === 'Escape' && VX.ui && VX.ui.current === 'pause') { e.preventDefault(); G.play(); }
+  }
+  window.addEventListener('keydown', onKeyDown);
+  // Esc, который до браузера не дошёл: его перехватила оболочка «Игротека» (событие 'igroteka:esc',
+  // с действием человека) - тот же путь, что у клавиши: пауза, закрыть окно, назад в меню, игра.
+  // Захват мыши тогда снимает сама игра (exitPointerLock), и вернуть его можно без щелчка.
+  const fakeEsc = () => ({ code: 'Escape', key: 'Escape', repeat: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() {}, fake: true });
+  window.addEventListener('igroteka:esc', () => { G.escOwned = true; onKeyDown(fakeEsc()); });
+  G.escKey = () => onKeyDown(fakeEsc());
+
+  // ---------- Полный экран ----------
+  // Кнопка в меню паузы и клавиша F. В полном экране игры (Fullscreen API) Chromium даёт
+  // navigator.keyboard.lock(['Escape']): Esc приходит в игру обычной клавишей (выход из полного
+  // экрана - удержать Esc), игра сама снимает и возвращает захват мыши - без щелчка. Полный экран
+  // браузера по F11 блокировку клавиатуры не включает (только requestFullscreen со страницы).
+  G.toggleFullscreen = async function () {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch (e) { /* не дали - остаёмся как есть */ }
+  };
+  G.kbLocked = false;
+  document.addEventListener('fullscreenchange', async () => {
+    const kb = navigator.keyboard;
+    if (document.fullscreenElement) {
+      if (kb && kb.lock) { try { await kb.lock(['Escape']); G.kbLocked = !!document.fullscreenElement; } catch (e) { G.kbLocked = false; } }
+    } else {
+      if (G.kbLocked && kb && kb.unlock) kb.unlock();
+      G.kbLocked = false;
+    }
+    if (VX.ui && VX.ui.refreshFullscreen) VX.ui.refreshFullscreen();
   });
   window.addEventListener('keyup', (e) => {
     G.keys[e.code] = false;

@@ -198,7 +198,17 @@ function createView(id) {
   const wc = view.webContents;
   wc.setBackgroundThrottling(true);
   guardContents(wc, g.dir, () => !busy() && tabs.active === id && views.get(id) === view);
-  wc.on('before-input-event', onKey);
+  wc.on('before-input-event', (event, input) => {
+    // Esc игре, которая просила его себе (games.js, escToGame): Chromium клавишу не видит - захват мыши
+    // не снимается «по Esc человека», и игра потом может вернуть его без щелчка. Событие отдаётся с
+    // действием человека (executeJavaScript userGesture) - запрос захвата проходит наверняка.
+    if (g.escToGame && input.code === 'Escape' && !input.control && !input.alt && !input.meta && !busy()) {
+      event.preventDefault();
+      if (input.type === 'keyDown') wc.executeJavaScript("window.dispatchEvent(new Event('igroteka:esc'))", true).catch(() => {});
+      return;
+    }
+    onKey(event, input);
+  });
   errors[id] = errors[id] || [];
   wc.on('console-message', (e) => { if (e.level === 'error') log(errors[id], String(e.message)); });
   wc.on('preload-error', (_e, _p, err) => log(errors[id], 'preload: ' + err));
@@ -446,7 +456,7 @@ ipcMain.on('igroteka:page-setup', (e) => {
 
 ipcMain.handle('shell:init', (e) => (!fromShell(e) ? null : {
   product: { name: PRODUCT.name, version: PRODUCT.version },
-  games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc, keys: g.keys || [] })),
+  games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc, keys: g.keys || [], escToGame: !!g.escToGame })),
   platform: process.platform,
   ...snapshot(),
 }));

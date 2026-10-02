@@ -434,7 +434,7 @@ test.describe('minecraft_clone_3d_1: меню, миры, сохранение', 
     expect(m).toEqual({ name: 'Мой остров', seed: '12345', mode: 'creative' });
     await page.keyboard.press('Escape');
     await expect(page.locator('#scr-pause')).toBeVisible();
-    await expect(page.locator('#scr-pause .mc-btn')).toHaveText(['Вернуться к игре', 'Достижения', 'Настройки', 'Погода: ясно', 'Сохранить и выйти в меню']);   // погода - в творческом
+    await expect(page.locator('#scr-pause .mc-btn')).toHaveText(['Вернуться к игре', 'Достижения', 'Настройки', 'Во весь экран (F)', 'Погода: ясно', 'Сохранить и выйти в меню']);   // погода - в творческом
     await page.locator('#scr-pause').getByText('Вернуться к игре').click();
     expect(await page.evaluate(() => __voxel.state)).toBe('play');
     await page.keyboard.press('Escape');

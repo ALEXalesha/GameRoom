@@ -130,3 +130,73 @@ test('положение героя переживает закрытие вкл
   const afterRestart = await posAfterOpen(app);
   expect(Math.hypot(afterRestart[0] - want2[0], afterRestart[1] - want2[1])).toBeLessThan(1);
 });
+
+test('Esc перехватывает оболочка только у «Кубического мира»: в игру приходит событие, Chromium клавишу не видит; у других игр Esc как был', async () => {
+  const { app, shell } = ctx;
+  await open();
+  const rec = `(() => { window.__escSeen = 0; window.addEventListener('keydown', (e) => { if (e.code === 'Escape') window.__escSeen++; }, true); window.__evSeen = 0; window.addEventListener('igroteka:esc', () => window.__evSeen++); return 1; })()`;
+  await H.inGame(app, ID, rec);
+  await key(app, 'Escape');
+  await sleep(200);
+  expect(await H.inGame(app, ID, '({ key: window.__escSeen, ev: window.__evSeen })')).toEqual({ key: 0, ev: 1 });
+  // другая игра: Esc приходит обычной клавишей
+  await H.press(app, 'shell', 'T', ['control']);
+  await expect.poll(() => H.tabs(app).then((t) => t.active)).toBe('home');
+  await shell.click('.card[data-id="dino"]');
+  await H.gameLoaded(app, 'dino');
+  await H.inGame(app, 'dino', rec);
+  await H.press(app, 'dino', 'Escape');
+  await sleep(200);
+  expect(await H.inGame(app, 'dino', '({ key: window.__escSeen, ev: window.__evSeen })')).toEqual({ key: 1, ev: 0 });
+});
+
+test('Esc - пауза и exitPointerLock (курсор, меню); Esc - игра и захват мыши без щелчка (подмена говорит: захват дан); Esc в окне игры (инвентарь) работает; F11 и Ctrl+T оболочки на месте', async () => {
+  const { app } = ctx;
+  await open();
+  await H.inGame(app, ID, `(async () => {
+    const v = __voxel; v.settings.renderDistance = 2; v.game.applySettings();
+    await v.newWorld({ name: 'Esc', seed: '8', mode: 'survival' });
+    v.game.autoSpawn = false; v.entities.clear(); v.game.testMode = false;
+    window.__downs = 0; window.addEventListener('mousedown', () => window.__downs++, true);
+    return true;
+  })()`);
+  await sleep(300);
+  await click(app);
+  await sleep(150);
+  const st = () => H.inGame(app, ID, `({ state: __voxel.state, screen: __voxel.screen, locked: !!document.pointerLockElement, lock: window.__lockCalls, unlock: window.__unlockCalls, downs: window.__downs, text: document.body.innerText })`);
+  const s0 = await st();
+  expect(s0.locked).toBe(true);
+  await key(app, 'Escape');
+  await sleep(200);
+  const s1 = await st();
+  expect(s1.state).toBe('paused');
+  expect(s1.screen).toBe('pause');
+  expect(s1.locked).toBe(false);
+  expect(s1.unlock).toBeGreaterThan(s0.unlock);
+  await key(app, 'Escape');
+  await sleep(200);
+  const s2 = await st();
+  expect(s2.state).toBe('play');
+  expect(s2.locked).toBe(true);                               // захват дан без щелчка
+  expect(s2.lock).toBeGreaterThan(s1.lock);
+  expect(s2.downs).toBe(s0.downs);                            // щелчков не было
+  expect(s2.text).not.toMatch(/нажмите|щёлкните|click/i);
+  // инвентарь: E открыл, Esc закрыл (тем же путём)
+  await key(app, 'E');
+  await sleep(200);
+  expect((await st()).state).toBe('inv');
+  await key(app, 'Escape');
+  await sleep(200);
+  expect((await st()).state).toBe('play');
+  // клавиши оболочки: F11 - полный экран и обратно, Esc полный экран не снимает (он у игры), Ctrl+T - домой
+  await H.press(app, ID, 'F11');
+  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.fullscreen)).toBe(true);
+  await key(app, 'Escape');
+  await sleep(200);
+  expect(await app.evaluate(() => globalThis.__igroteka.fullscreen)).toBe(true);
+  expect((await st()).state).toBe('paused');
+  await H.press(app, ID, 'F11');
+  await expect.poll(() => app.evaluate(() => globalThis.__igroteka.fullscreen)).toBe(false);
+  await H.press(app, ID, 'T', ['control']);
+  await expect.poll(() => H.tabs(app).then((t) => t.active)).toBe('home');
+});
