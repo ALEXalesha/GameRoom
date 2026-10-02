@@ -86,4 +86,23 @@ test.describe('horizon_drift_offline: перемещение на фестива
     }
     expect(bad(out)).toEqual([]);
   });
+  test('кадр сразу после перемещения, ещё до шага физики: камера - число в каждом режиме (скорость перед перемещением была большой)', async ({ page }) => {
+    await page.setViewportSize({ width: 480, height: 270 });
+    await openDrift(page);
+    const r = await page.evaluate(async () => {
+      await __drift.startWorld('coast'); __drift.manual = true;
+      const out = [], W = __drift.worldRender, w = __drift.world;
+      for (const mode of ['chase', 'far', 'hood', 'cockpit']) {
+        __drift.setCamera(mode); w.setAutopilot(34); __drift.stepWorld(900); w.setAutopilot(0);
+        for (let k = 0; k < 3; k++) W.frame(1 / 60, 1, mode);
+        const speedBefore = w.player.speed;
+        __drift.openMap(); __drift.worldTravel('fest');
+        W.frame(1 / 60, 1, mode);                                       // без шага физики между перемещением и кадром
+        const c = __drift.render.camera.position;
+        out.push({ mode, speedBefore: Math.round(speedBefore), finite: [c.x, c.y, c.z].every(Number.isFinite), speedAfter: w.player.speed });
+      }
+      return out;
+    });
+    for (const x of r) { expect(x.speedBefore, x.mode).toBeGreaterThan(10); expect(x.finite, x.mode).toBe(true); expect(x.speedAfter, x.mode).toBe(0); }
+  });
 });
