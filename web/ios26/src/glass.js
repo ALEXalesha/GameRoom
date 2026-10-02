@@ -278,7 +278,9 @@ const LG = (() => {
     if (pumping || !waiting.size) return;
     const run = () => {
       pumping = 0;
-      const until = performance.now() + 10;
+      // пока что-то едет, не печём: выпечка в кадре анимации - это пропущенный кадр
+      if (document.querySelector('.lg-moving')) { pumping = setTimeout(() => { pumping = 0; pump(); }, 120); return; }
+      const until = performance.now() + 6;
       let baked = 0;
       for (const el of [...waiting]) {
         const st = state.get(el);
