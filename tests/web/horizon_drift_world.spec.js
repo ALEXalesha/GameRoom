@@ -220,6 +220,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
   }
 
   test('после прогрева езда по карте в разную погоду и время не собирает новых шейдеров; вход в мир быстрый', async ({ page }) => {
+    test.setTimeout(600_000);                 // под полной загрузкой машины прогон дольше; само условие то же
     await page.setViewportSize({ width: 640, height: 400 });
     await openDrift(page);
     for (const map of ['metro', 'coast']) {

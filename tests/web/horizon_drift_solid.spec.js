@@ -44,13 +44,21 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
         p.x = b.x - Math.sin(h) * 12 + Math.cos(h) * off; p.z = b.z - Math.cos(h) * 12 - Math.sin(h) * off; p.h = h; p.y = b.y; p.vx = Math.sin(h) * 20; p.vz = Math.cos(h) * 20; p.w = 0; p.air = false;
         for (let k = 0; k < 90; k++) { __drift.stepWorld(1, { thr: 1 }); for (const [x, z] of cornersOf(p)) worstCar = Math.max(worstCar, inside(x, z, boxOf(b))); for (const [x, z] of cornersOf(b)) worstCar = Math.max(worstCar, inside(x, z, boxOf(p))); }
       }
+      // машину у стены дома таранит другая на 180 и 290 км/ч сбоку - прижатая не входит в стену
+      let worstPinned = 0;
+      for (const v of [50, 80]) {
+        p.x = house.x + ux * (house.w / 2 + p.st.wid / 2 + 0.3); p.z = house.z + uz * (house.w / 2 + p.st.wid / 2 + 0.3); p.h = Math.atan2(vx, vz); p.y = M.groundAt(p.x, p.z).y; p.vx = p.vz = p.w = 0; p.air = false; p.solidCache = null;
+        b.x = p.x + ux * 9; b.z = p.z + uz * 9; b.h = Math.atan2(-ux, -uz); b.y = p.y; b.vx = -ux * v; b.vz = -uz * v; b.w = 0; b.air = false; b.solidCache = null;
+        for (let k = 0; k < 60; k++) { b.inp.thr = 1; __drift.stepWorld(1, {}); for (const [x, z] of cornersOf(p)) worstPinned = Math.max(worstPinned, inside(x, z, house)); }
+      }
       w.cars.splice(w.cars.indexOf(b), 1);
-      return { dims, worstHouse, worstCar, house: !!house };
+      return { dims, worstHouse, worstCar, worstPinned, house: !!house };
     });
     expect(r.dims.filter((d) => !d.ok)).toEqual([]);
     expect(r.house).toBe(true);
     expect(r.worstHouse).toBeLessThan(0.06);                  // угол кузова не уходит в стену дома
     expect(r.worstCar).toBeLessThan(0.08);                    // и в другую машину
+    expect(r.worstPinned).toBeLessThan(0.06);                 // прижатая другой машиной - не входит в стену
   });
 
   for (const map of MAPS) {
@@ -164,22 +172,38 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
           const why = mesh.userData.ghost;
           if (why && !NOT_SOLID.has(why)) { report('неизвестная пометка ' + why + ' ' + name, 0, 0); return; }
           if (why && why !== 'wall') return;
+          // не вершины, а сами треугольники на высоте кузова: каждый треугольник режется плоскостями на 0.5 и 1.2 м над землёй,
+          // точки разреза обязаны лежать в коробке из списка (иначе высокая коробка без коробки в списке была бы не видна)
           const pos = mesh.geometry.attributes.position; if (!pos) return;
-          const n = mesh.isInstancedMesh ? mesh.count : 1, stepV = Math.max(1, Math.floor(pos.count / 60));
+          const idx = mesh.geometry.index, tris = idx ? idx.count / 3 : pos.count / 3, stepT = why === 'wall' ? 1 : Math.max(1, Math.floor(tris / 80));     // стенки дорог - каждый треугольник
+          const n = mesh.isInstancedMesh ? mesh.count : 1;
+          const P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], cut = new THREE.Vector3();
+          const checkPoint = (pt) => {
+            const gy = M.groundAt(pt.x, pt.z, g, pt.y).y;
+            if (pt.y < gy + 0.25 || pt.y > gy + 1.45) return true;
+            checked++;
+            if (why === 'wall') {                                             // ограждение моста, стена тоннеля: стенка дороги в физике
+              const q = M.nearestRoad(pt.x, pt.z, {}, pt.y - 0.5);
+              let wallRoad = false; if (q) for (let j = q.i - 3; j <= q.i + 4; j++) if (M.FL[j] & 3) wallRoad = true;
+              if (q && wallRoad && Math.abs(q.lat) > q.hw - 0.1) return true;
+              report('стенка не у края моста или тоннеля ' + name, pt.x, pt.z); return false;
+            }
+            if (!M.solidAt(pt.x, pt.y, pt.z, 0.3)) { report((mesh.userData.solid ? 'нет коробки у ' : 'не помечено ') + name, pt.x, pt.z); return false; }
+            return true;
+          };
           for (let k = 0; k < n; k++) {
             if (mesh.isInstancedMesh) { mesh.getMatrixAt(k, m4); mw.multiplyMatrices(mesh.matrixWorld, m4); } else mw.copy(mesh.matrixWorld);
-            for (let j = 0; j < pos.count; j += stepV) {
-              v.fromBufferAttribute(pos, j).applyMatrix4(mw);
-              const gy = M.groundAt(v.x, v.z, g, v.y).y;
-              if (v.y < gy + 0.25 || v.y > gy + 1.45) continue;               // выше или ниже кузова - не мешает
-              checked++;
-              if (why === 'wall') {                                           // ограждение моста, стена тоннеля: стенка дороги в физике
-                const q = M.nearestRoad(v.x, v.z, {}, v.y - 0.5);
-                let wallRoad = false; if (q) for (let j = q.i - 3; j <= q.i + 4; j++) if (M.FL[j] & 3) wallRoad = true;
-                if (q && wallRoad && Math.abs(q.lat) > q.hw - 0.1) continue;
-                report('стенка не у края моста или тоннеля ' + name, v.x, v.z); break;
+            let ok = true;
+            for (let t = 0; t < tris && ok; t += stepT) {
+              for (let e = 0; e < 3; e++) P[e].fromBufferAttribute(pos, idx ? idx.getX(t * 3 + e) : t * 3 + e).applyMatrix4(mw);
+              for (let e = 0; e < 3 && ok; e++) if (!checkPoint(P[e])) ok = false;               // и сами вершины (у земли на концах мостов)
+              const cxz = (P[0].x + P[1].x + P[2].x) / 3, czz = (P[0].z + P[1].z + P[2].z) / 3, gy0 = M.groundAt(cxz, czz, g, (P[0].y + P[1].y + P[2].y) / 3).y;
+              for (const lev of [0.5, 1.2]) {
+                const h = gy0 + lev, pts = [];
+                for (let e = 0; e < 3 && ok; e++) { const A = P[e], B = P[(e + 1) % 3]; if ((A.y - h) * (B.y - h) < 0) { const f = (h - A.y) / (B.y - A.y); pts.push(cut.clone().copy(A).lerp(B, f)); } }
+                if (pts.length === 2) pts.push(pts[0].clone().lerp(pts[1], 0.5));
+                for (const pt of pts) if (ok && !checkPoint(pt)) ok = false;
               }
-              if (!M.solidAt(v.x, v.y, v.z, 0.3)) { report((mesh.userData.solid ? 'нет коробки у ' : 'не помечено ') + name, v.x, v.z); break; }
             }
           }
         };

@@ -189,6 +189,42 @@ test.describe('horizon_drift_offline: вид из салона и свободн
     expect(r.afterRelease).toBeCloseTo(r.dragYaw, 6);     // кнопка отпущена - мышь больше не крутит
   });
 
+  test('облёт под кронами деревьев: камера не входит в крону ни при каком повороте (сосны и лиственные, большие и обычные)', async ({ page }) => {
+    test.setTimeout(600_000);
+    await page.setViewportSize({ width: 480, height: 270 });
+    await openDrift(page);
+    const res = [];
+    for (const map of ['coast', 'mountains']) {
+      await startWorld(page, map);
+      const r = await page.evaluate(() => {
+        const w = __drift.world, M = w.M, W = __drift.worldRender, p = w.player, cam = __drift.render.camera.position, out = [];
+        w.trafficOn = false; for (const a of w.traffic.slice()) w.removeAi(a); for (const a of w.rivals.slice()) w.removeAi(a);
+        __drift.setCamera('chase');
+        // места: у ствола большого дерева каждого вида и точка из ревью на побережье
+        const spots = [];
+        if (M.id === 'coast') spots.push({ x: -3447, z: -3219, kind: 'ревью' });
+        const want = { tree: 2, pine: 2 };
+        for (let cx = -20; cx < 20 && (want.tree + want.pine) > 0; cx++) for (let cz = -20; cz < 20; cz++) for (const d of M.chunkDecor(cx, cz)) {
+          if (!want[d.type] || d.s < 1.15) continue;
+          spots.push({ x: d.x + 2.3 * d.s, z: d.z, kind: d.type + ' x' + d.s.toFixed(2) }); want[d.type]--; if ((want.tree + want.pine) <= 0) break;
+        }
+        for (const sp of spots) {
+          p.x = sp.x; p.z = sp.z; p.h = 0; p.y = M.groundAt(p.x, p.z).y; p.vx = p.vz = p.w = 0; p.air = false; p.solidCache = null;
+          __drift.stepWorld(20); for (let k = 0; k < 40; k++) W.stream(true);
+          for (let a = 0; a < 6.28; a += Math.PI / 6) for (const pt of [-0.3, 0, 0.5]) {
+            __drift.view.yaw = a; __drift.view.pitch = pt; __drift.setLook({ idle: 0 }); W.cam.init = false;
+            for (let k = 0; k < 22; k++) W.frame(1 / 60, 1, 'chase');
+            const hit = M.solidAt(cam.x, cam.y, cam.z, 0.2);
+            if (hit) out.push(sp.kind + ' поворот ' + a.toFixed(2) + ' наклон ' + pt + ' -> в ' + hit.kind);
+          }
+        }
+        return { spots: spots.length, bad: out };
+      });
+      res.push({ map, ...r });
+    }
+    for (const r of res) { expect(r.spots, r.map).toBeGreaterThan(2); expect(r.bad.slice(0, 8), r.map).toEqual([]); }
+  });
+
   test('настройки взгляда: чувствительность и инверсия сохраняются, инверсия меняет направление по вертикали', async ({ page }) => {
     await openDrift(page);
     await page.evaluate(() => { __drift.setSetting('lookSens', 2); __drift.setSetting('invertY', true); });
