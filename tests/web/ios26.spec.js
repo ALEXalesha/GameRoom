@@ -1054,7 +1054,7 @@ test('строка состояния видна поверх пункта уп�
   await openOs(page, NAME);
   await unlock(page);
   // строка состояния своя у панели: есть, видна, с текущим временем и над её фоном (выше по наложению, чем слой размытия)
-  const visibleTime = (root) => page.evaluate((r) => { const sb = document.querySelector(r + ' > [data-sb], ' + r + ' [data-sb]'); const t = sb && sb.querySelector('.time'); if (!t) return false; const b = t.getBoundingClientRect(), cs = getComputedStyle(sb); return b.width > 0 && cs.visibility === 'visible' && +cs.opacity > 0.5 && /\d\d:\d\d/.test(t.textContent); }, root);
+  const visibleTime = (root) => page.evaluate((r) => { const sb = document.querySelector(r + ' > [data-sbo]'); const t = sb && sb.querySelector('.time'); if (!t) return false; const b = t.getBoundingClientRect(), cs = getComputedStyle(sb); return b.width > 0 && cs.visibility === 'visible' && +cs.opacity > 0.5 && /\d\d:\d\d/.test(t.textContent); }, root);
   await page.evaluate(() => openCC()); await page.waitForTimeout(700);
   expect(await visibleTime('#control-center'), 'пункт управления').toBe(true);
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
@@ -1067,4 +1067,54 @@ test('строка состояния видна поверх пункта уп�
   await page.evaluate(() => { openApp('notes'); }); await page.waitForTimeout(600);
   await page.evaluate(() => openSwitcher()); await page.waitForTimeout(400);
   expect(await visibleTime('#switcher'), 'переключатель').toBe(true);
+});
+
+// ===== Переключатель программ: карточки листаются вбок =====
+// Причина (замер): карточка захватывала указатель и следила только за вертикалью (смахнуть вверх - закрыть),
+// у карточек touch-action: none, а протаскивание мышью само по себе прокрутку не двигает; колесо по вертикали
+// горизонтальный ряд не листало. overflow-x: auto и scroll-snap были на месте.
+async function switcherWith(page, ids) {
+  for (const id of ids) { await page.evaluate((x) => openApp(x), id); await page.waitForTimeout(450); }
+  await page.evaluate(() => openSwitcher());
+  await page.waitForTimeout(400);
+}
+const centered = (page) => page.evaluate(() => {
+  const r = $('sw-row'), rb = r.getBoundingClientRect(), mid = rb.left + rb.width / 2;
+  let best = null, d = 1e9;
+  r.querySelectorAll('.sw-card').forEach((c) => { const b = c.getBoundingClientRect(), dd = Math.abs(b.left + b.width / 2 - mid); if (dd < d) { d = dd; best = c.dataset.sw; } });
+  return { id: best, off: Math.round(d), scroll: Math.round(r.scrollLeft) };
+});
+test('переключатель: протаскивание вбок листает карточки с докатом и защёлкой на середине', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await switcherWith(page, ['notes', 'calc', 'files']);
+  expect((await centered(page)).id).toBe('files');
+  const c = await page.locator('.sw-card').first().boundingBox();
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2); await page.mouse.down();
+  await page.mouse.move(c.x + c.width / 2 - 140, c.y + c.height / 2 + 6, { steps: 10 });
+  // ряд идёт за пальцем ещё до отпускания
+  expect((await centered(page)).scroll, 'карточки не идут за пальцем').toBeGreaterThan(100);
+  await page.mouse.up();
+  await expect.poll(async () => (await centered(page)).id, { timeout: 3000, message: 'вторая карточка не встала в середину' }).toBe('calc');
+  await expect.poll(async () => (await centered(page)).off, { timeout: 3000, message: 'карточка не защёлкнулась точно по середине' }).toBeLessThan(6);
+  expect((await centered(page)).scroll).toBeGreaterThan(50);
+  // протаскивание вбок - не нажатие: переключатель открыт, программа не сменилась
+  await expect(page.locator('#switcher')).toHaveClass(/open/);
+});
+
+test('переключатель: колесо и тачпад (вертикальное колесо тоже вбок), стрелки и Enter', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await switcherWith(page, ['notes', 'calc', 'files']);
+  const c = await page.locator('.sw-card').first().boundingBox();
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+  await page.mouse.wheel(0, 120);
+  await expect.poll(async () => (await centered(page)).id, { timeout: 3000, message: 'колесо по вертикали не листает' }).toBe('calc');
+  await page.mouse.wheel(120, 0);
+  await expect.poll(async () => (await centered(page)).id, { timeout: 3000, message: 'колесо вбок не листает' }).toBe('notes');
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => (await centered(page)).id, { timeout: 3000, message: 'стрелка не листает' }).toBe('calc');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#switcher')).not.toHaveClass(/open/);
+  expect(await page.evaluate(() => current)).toBe('calc');
 });

@@ -332,6 +332,7 @@ function openSwitcher() {
   $('switcher').classList.toggle('empty', !RECENTS.length);
   $('switcher').classList.add('open');
   const cur = row.querySelector('[data-sw="' + current + '"]'); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
+  swIdx = Math.max(0, [...row.children].indexOf(cur));
 }
 function closeSwitcher(silent) { if (!$('switcher').classList.contains('open')) return; $('switcher').classList.remove('open'); if (!silent && !current) showHome(); }
 function killApp(id) {
@@ -340,20 +341,88 @@ function killApp(id) {
   const sc = screens[id]; if (sc.onHide) sc.onHide();
   if (sc.onKill) sc.onKill();   // программа закрыта совсем: музыка, секундомер, игра останавливаются
 }
+// Карточки листаются вбок: протаскиванием (с докатом по скорости и защёлкой на середине карточки),
+// колесом и тачпадом (вертикальное колесо тоже листает вбок), стрелками; Enter и нажатие открывают,
+// смахивание карточки вверх закрывает программу. Раньше карточка захватывала указатель и следила
+// только за вертикалью, а колесо по вертикали горизонтальный ряд не двигало.
 let swDrag = null;
 let swDown = false;   // отпускание того же нажатия, что открыло переключатель, его не закрывает
-$('switcher').addEventListener('pointerdown', e => { swDown = true; const c = e.target.closest('.sw-card'); if (!c) return; e.stopPropagation(); swDrag = { c, y: e.clientY, x: e.clientX, dy: 0 }; c.setPointerCapture(e.pointerId); });
-$('switcher').addEventListener('pointermove', e => { if (!swDrag) return; swDrag.dy = Math.min(0, e.clientY - swDrag.y); swDrag.c.style.transform = 'translateY(' + swDrag.dy + 'px)'; swDrag.c.style.opacity = String(1 + swDrag.dy / 400); });
+let swIdx = 0;        // карточка, к которой ряд едет или на которой стоит
+const swRow = () => $('sw-row');
+const swCards = () => [...swRow().querySelectorAll('.sw-card:not(.gone)')];
+// прокрутка, при которой середина карточки совпадает с серединой ряда
+const swTarget = (c) => c.offsetLeft + c.offsetWidth / 2 - swRow().clientWidth / 2;
+function swNearest(left) { let bi = 0, bd = 1e9; swCards().forEach((c, i) => { const d = Math.abs(swTarget(c) - left); if (d < bd) { bd = d; bi = i; } }); return bi; }
+function swGo(i) {
+  const cs = swCards(), r = swRow(); if (!cs.length) return;
+  swIdx = Math.max(0, Math.min(cs.length - 1, i));
+  // защёлка своя: на время доката снимаем scroll-snap, иначе браузер дёргает ряд к ближайшей карточке
+  r.style.scrollSnapType = 'none';
+  r.scrollTo({ left: swTarget(cs[swIdx]), behavior: 'smooth' });
+  clearTimeout(swGo.t); swGo.t = setTimeout(() => { r.style.scrollSnapType = ''; }, 700);
+}
+const swScale = () => $('device').getBoundingClientRect().width / $('device').offsetWidth || 1;
+$('switcher').addEventListener('pointerdown', e => {
+  swDown = true;
+  const c = e.target.closest('.sw-card');
+  if (c) e.stopPropagation();
+  const r = swRow();
+  swIdx = swNearest(r.scrollLeft);
+  swDrag = { c, x: e.clientX, y: e.clientY, s0: r.scrollLeft, axis: null, dy: 0, v: 0, lx: e.clientX, lt: performance.now() };
+  try { $('switcher').setPointerCapture(e.pointerId); } catch (er) { /* нет указателя */ }
+});
+$('switcher').addEventListener('pointermove', e => {
+  const d = swDrag; if (!d) return;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y, k = swScale();
+  if (!d.axis) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    d.axis = d.c && dy < 0 && Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+    if (d.axis === 'x') swRow().style.scrollSnapType = 'none';
+  }
+  if (d.axis === 'y') { d.dy = Math.min(0, dy); d.c.style.transform = 'translateY(' + d.dy + 'px)'; d.c.style.opacity = String(1 + d.dy / 400); return; }
+  swRow().scrollLeft = d.s0 - dx / k;
+  const now = performance.now();
+  d.v = (e.clientX - d.lx) / k / Math.max(1, now - d.lt); d.lx = e.clientX; d.lt = now;
+});
 $('switcher').addEventListener('pointerup', e => {
   e.stopPropagation();
   if (!swDown) return;
   swDown = false;
-  if (!swDrag) { if (!e.target.closest('.sw-card')) { closeSwitcher(); } return; }
-  const { c, dy, x, y } = swDrag; swDrag = null;
-  if (dy < -90) { c.classList.add('gone'); killApp(c.dataset.sw); setTimeout(() => { c.remove(); if (!RECENTS.length) { $('switcher').classList.add('empty'); } }, 200); return; }
-  c.style.transform = ''; c.style.opacity = '';
-  if (Math.abs(e.clientX - x) < 8 && Math.abs(e.clientY - y) < 8) { const id = c.dataset.sw; closeSwitcher(true); openApp(id); }
+  const d = swDrag; swDrag = null;
+  if (!d) return;
+  if (d.axis === 'x') {
+    // докат: куда ряд доехал бы по инерции, и защёлка на ближайшую к этому месту карточку;
+    // протащили заметно, но не до соседней - всё равно на соседнюю в ту сторону
+    const r = swRow(), start = swNearest(d.s0), moved = r.scrollLeft - d.s0;
+    let i = swNearest(r.scrollLeft - d.v * 260);
+    if (i === start && Math.abs(moved) > 40) i = start + Math.sign(moved);
+    swGo(i);
+    return;
+  }
+  if (d.axis === 'y') {
+    const c = d.c;
+    if (d.dy < -90) { c.classList.add('gone'); killApp(c.dataset.sw); setTimeout(() => { c.remove(); if (!RECENTS.length) { $('switcher').classList.add('empty'); } }, 200); return; }
+    c.style.transform = ''; c.style.opacity = '';
+    return;
+  }
+  // нажатие без движения: карточка открывается, пустое место закрывает переключатель
+  if (d.c) { const id = d.c.dataset.sw; closeSwitcher(true); openApp(id); } else closeSwitcher();
 });
+$('switcher').addEventListener('pointercancel', () => { if (swDrag && swDrag.c) { swDrag.c.style.transform = ''; swDrag.c.style.opacity = ''; } swDrag = null; swDown = false; });
+// колесо и тачпад: копим сдвиг, каждые 60 пкс - соседняя карточка (вертикальное колесо тоже листает вбок)
+let swWheel = 0, swWheelT = 0;
+$('switcher').addEventListener('wheel', e => {
+  e.preventDefault();
+  swWheel += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  clearTimeout(swWheelT); swWheelT = setTimeout(() => { swWheel = 0; }, 220);
+  if (Math.abs(swWheel) >= 60) { const step = Math.sign(swWheel); swWheel = 0; swGo(swIdx + step); }
+}, { passive: false });
+// стрелки листают, Enter и пробел открывают карточку посередине
+document.addEventListener('keydown', e => {
+  if (!$('switcher').classList.contains('open')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); swGo(swIdx + (e.key === 'ArrowRight' ? 1 : -1)); }
+  else if (e.key === 'Enter' || e.key === ' ') { const c = swCards()[swIdx]; if (!c) return; e.preventDefault(); e.stopImmediatePropagation(); const id = c.dataset.sw; closeSwitcher(true); openApp(id); }
+}, true);
 // жест: смахнуть снизу вверх и задержать палец - переключатель
 let hold = null;
 $('device').addEventListener('pointerdown', e => {

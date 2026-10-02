@@ -472,12 +472,15 @@ openApp = function (id, arg) { closeSpot(); openApp3(id, arg); };
 const showLock2 = showLock;
 showLock = function () { closeSpot(); showLock2(); };
 
-// строка состояния поверх пункта управления, папки, поиска и переключателя
+// строка состояния поверх пункта управления, папки, поиска и переключателя. Свой атрибут data-sbo, а не
+// data-sb: у страницы строка состояния одна, и её ищут по [data-sb]; обновляется вместе с остальными
 ['control-center', 'games-folder', 'spotlight', 'switcher'].forEach((id) => {
   const r = $(id);
-  if (!r || r.querySelector(':scope > [data-sb]')) return;
+  if (!r || r.querySelector(':scope > [data-sbo]')) return;
   const sb = document.createElement('div');
-  sb.className = 'status-bar overlay-sb'; sb.setAttribute('data-sb', '');
+  sb.className = 'status-bar overlay-sb'; sb.setAttribute('data-sbo', '');
   r.appendChild(sb);
 });
+const renderStatusBars0 = renderStatusBars;
+renderStatusBars = function () { renderStatusBars0(); const h = statusHTML(); document.querySelectorAll('[data-sbo]').forEach((sb) => { if (sb.innerHTML !== h) sb.innerHTML = h; }); };
 renderStatusBars();
