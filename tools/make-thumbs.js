@@ -1,7 +1,10 @@
 // Картинки карточек домашнего экрана: app/assets/thumbs/<игра>.jpg, 640x360.
 //
-//   npm run thumbs            # все игры
+//   npm run thumbs            # все игры и демо систем
 //   npm run thumbs -- dino    # одна
+//
+// Демо систем (SYSTEMS в web/_shared/games-data.js) нужны только браузерной странице
+// (index.html в корне): их снимок - сама система сразу после загрузки, без нажатий.
 //
 // Каждая игра открывается в Chromium по файловому адресу (как в web-проверках), сеть
 // закрыта. Игра начинается как у игрока: кнопка старта или Enter/пробел, потом пара
@@ -12,7 +15,7 @@
 const path = require('path');
 const fs = require('fs');
 const { chromium } = require('@playwright/test');
-const { GAMES } = require('../app/games');
+const { GAMES, SYSTEMS } = require('../web/_shared/games-data.js');
 const { pageUrl } = require('../tests/helpers');
 
 const OUT = path.join(__dirname, '..', 'app', 'assets', 'thumbs');
@@ -38,19 +41,34 @@ async function start(page) {
   }
 }
 
-async function shoot(browser, id) {
+// Настоящий захват мыши в Chromium без окна всё равно зажимает курсор человека за этим
+// компьютером в прямоугольник страницы. Поэтому до скриптов страницы и во всех рамках
+// захват подменяется пустышкой: игра думает, что попросила, и ничего не происходит.
+const NO_POINTER_LOCK = `(() => {
+  const none = function () { return Promise.resolve(); };
+  Object.defineProperty(Element.prototype, 'requestPointerLock', { configurable: true, writable: true, value: none });
+  Object.defineProperty(Document.prototype, 'exitPointerLock', { configurable: true, writable: true, value: function () {} });
+})();`;
+
+async function shoot(browser, id, system) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 0.5 });
+  await ctx.addInitScript(NO_POINTER_LOCK);
   const page = await ctx.newPage();
   await page.route(/^https?:\/\//, (r) => r.abort());
   await page.goto(pageUrl(id));
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(system ? 3000 : 1200);
+  if (system) return snap(page, ctx, id);
   await start(page);
   const how = PLAY[id.replace('-', '_')] || { hold: [], wait: 2000 };
   if (how.click) await page.mouse.click(640, 360);
   if (how.mouse) { await page.mouse.move(640, 500); await page.mouse.down(); }
   for (const k of how.hold) await page.keyboard.down(k);
   await page.waitForTimeout(how.wait);
-  // Кадр без паузы и курсора: на снимке должна быть сама игра.
+  return snap(page, ctx, id);
+}
+
+// Кадр без паузы и курсора: на снимке должна быть сама игра.
+async function snap(page, ctx, id) {
   const file = path.join(OUT, id + '.jpg');
   await page.screenshot({ path: file, type: 'jpeg', quality: 82 });
   await ctx.close();
@@ -63,9 +81,9 @@ async function shoot(browser, id) {
   const browser = await chromium.launch({
     args: ['--allow-file-access-from-files', '--autoplay-policy=no-user-gesture-required', '--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
-  for (const g of GAMES) {
+  for (const g of [...GAMES, ...SYSTEMS]) {
     if (only.length && !only.includes(g.id)) continue;
-    const file = await shoot(browser, g.id);
+    const file = await shoot(browser, g.id, SYSTEMS.includes(g));
     console.log(path.relative(process.cwd(), file), Math.round(fs.statSync(file).size / 1024) + ' КБ');
   }
   await browser.close();

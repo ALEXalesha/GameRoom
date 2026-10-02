@@ -39,6 +39,7 @@
     "files": [
       "package.json",
       "app/**/*",
+      "web/_shared/games-data.js",
       "web/minecraft_clone_3d_1/**/*",
       "web/roblox-mini/**/*",
       "web/fps_1/**/*",

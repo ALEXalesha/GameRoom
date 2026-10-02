@@ -1,0 +1,121 @@
+<!doctype html>
+<!-- Браузерная «Игротека»: те же карточки, что в приложении на Electron (app/), но в
+     обычном браузере - с диска двойным щелчком или с сайта (GitHub Pages). Игры
+     открываются во вкладках этой страницы, каждая в своей рамке <iframe>.
+     Без сборки, без сервера и без сети: все пути относительные. Таблица игр общая с
+     приложением - web/_shared/games-data.js, порядок вкладок и настройки - те же модули,
+     что у приложения (app/tabs.js, app/settings.js). -->
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Игротека: десять игр и четыре демо систем в одной странице, игры открываются во вкладках. Работает без интернета.">
+  <meta name="color-scheme" content="dark light">
+  <title>Игротека</title>
+  <link rel="icon" href="app/assets/logo-small.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app/renderer/style.css">
+  <link rel="stylesheet" href="web/_launcher/launcher.css">
+</head>
+<body>
+  <header id="bar">
+    <button class="tab home" data-id="home" title="Домашний экран">
+      <img class="logo" src="app/assets/logo-small.svg" alt="">
+      <span class="product">Игротека</span>
+    </button>
+    <div id="tabs" role="tablist" aria-label="Открытые игры"></div>
+    <button id="fullscreen" class="bar-btn" title="Игра на весь экран (выход - Esc)" aria-label="Игра на весь экран" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <img class="hero-logo" src="app/assets/logo.svg" alt="">
+      <div class="hero-text">
+        <h1 class="product">Игротека</h1>
+        <p id="subtitle"></p>
+      </div>
+      <button id="gear" class="icon-btn" title="Настройки" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+    </section>
+    <section id="grid" class="grid" aria-label="Игры"></section>
+
+    <section class="systems">
+      <h2 class="section-title">Демо систем</h2>
+      <p id="systems-note" class="section-note"></p>
+      <div id="systems" class="grid" aria-label="Демо систем"></div>
+    </section>
+
+    <footer class="note">Игры - фан-концепты, не связаны с правообладателями.</footer>
+  </main>
+
+  <!-- Рамки открытых игр: на весь экран под полосой вкладок, видна только активная. -->
+  <div id="stage"></div>
+
+  <noscript><p class="noscript">Для «Игротеки» нужен JavaScript.</p></noscript>
+
+  <div id="settings" class="sheet" hidden>
+    <div class="panel" role="dialog" aria-labelledby="settings-title">
+      <div class="panel-head">
+        <h2 id="settings-title">Настройки</h2>
+        <button class="icon-btn close" data-close aria-label="Закрыть">&#x2715;</button>
+      </div>
+
+      <h3>Вкладки</h3>
+      <label class="row"><span>Открывать вкладки прошлого раза</span><input type="checkbox" id="set-reopen" class="switch"></label>
+      <label class="row"><span>Выключать звук у вкладок в фоне</span><input type="checkbox" id="set-mute-bg" class="switch"></label>
+      <p class="hint">Игра в фоновой вкладке встаёт на паузу. Вернувшись, снимите паузу в самой игре.</p>
+
+      <h3>Звук</h3>
+      <div class="row">
+        <span>Громкость</span>
+        <div class="volume">
+          <button id="set-mute" class="icon-btn small" aria-label="Без звука" title="Без звука"></button>
+          <input type="range" id="set-volume" min="0" max="100" step="5" aria-label="Громкость">
+          <output id="volume-out"></output>
+        </div>
+      </div>
+      <p class="hint" id="volume-hint" hidden>Страница открыта с диска: браузер не даёт ей менять громкость игр. Громкость задаётся в самих играх или в системе. С сайта или локального сервера ползунок работает.</p>
+
+      <h3>Оформление</h3>
+      <div class="row">
+        <span>Тема</span>
+        <div class="segmented" id="set-theme">
+          <button data-theme-value="dark">Тёмная</button>
+          <button data-theme-value="light">Светлая</button>
+        </div>
+      </div>
+
+      <h3>Данные игр</h3>
+      <div class="row">
+        <select id="clear-game" aria-label="Игра"></select>
+        <button id="clear-btn" class="btn danger">Очистить данные</button>
+      </div>
+      <p class="hint" id="clear-hint"></p>
+
+      <h3>О странице</h3>
+      <div class="about">
+        <p>Браузерная версия «Игротеки». Каждая игра открывается во вкладке этой страницы; рекорды и сохранения хранит браузер.</p>
+        <p class="hint">Игры - фан-концепты, не связаны с правообладателями. Лицензия MIT.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" hidden>
+    <div class="modal-card" role="alertdialog" aria-labelledby="modal-title" aria-describedby="modal-text">
+      <h2 id="modal-title"></h2>
+      <p id="modal-text"></p>
+      <div class="modal-buttons">
+        <button class="btn cancel"></button>
+        <button class="btn primary ok"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="web/_shared/games-data.js"></script>
+  <script src="app/tabs.js"></script>
+  <script src="app/settings.js"></script>
+  <script src="web/_launcher/launcher.js"></script>
+</body>
+</html>

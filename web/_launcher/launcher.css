@@ -1,0 +1,92 @@
+/* Браузерная «Игротека». Основа вида - таблица стилей приложения
+   (app/renderer/style.css, index.html подключает её первой): те же цвета, карточки,
+   полоса вкладок и настройки. Здесь только то, чем браузер отличается: справа на полосе
+   нет системных кнопок окна, есть рамки игр (#stage), кнопка «на весь экран», раздел
+   «Демо систем» и раскладка для планшета и телефона. */
+
+html, body { -webkit-text-size-adjust: 100%; }
+
+/* В приложении справа на полосе стоят кнопки окна, под них оставлено место. */
+#bar { padding-right: 8px; }
+.tab { cursor: pointer; }
+
+/* Рамки открытых игр. Все стоят друг на друге одного размера, видна только активная:
+   спрятанная через visibility не меняет размер, и игра, вернувшись, не перестраивает
+   холст под нулевое окно. */
+#stage {
+  position: fixed;
+  inset: var(--bar-h) 0 0 0;
+  z-index: 5;
+  background: var(--app-base);
+}
+#stage[hidden] { display: none; }
+#stage iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  visibility: hidden;
+  background: #000;
+}
+#stage iframe.active { visibility: visible; }
+
+.bar-btn {
+  flex: none;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+.bar-btn:hover { background: var(--glass); color: var(--text); border-color: var(--glass-border); }
+.bar-btn svg { width: 18px; height: 18px; }
+.bar-btn[hidden] { display: none; }
+
+/* Раздел «Демо систем» - та же сетка карточек, что у игр. */
+.systems { width: 100%; max-width: 1600px; margin: 26px auto 0; }
+.section-title { margin: 0; font-size: 20px; font-weight: 700; }
+.section-note { margin: 4px 0 14px; color: var(--text-dim); font-size: 13px; }
+/* «в стиле iOS» - отдельной строкой под именем демо. */
+.card .style { display: block; margin-top: 3px; font-size: 11.5px; font-weight: 500; color: var(--text-dim); }
+#systems {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(210px, calc((100% - 3 * 18px) / 4)), 1fr));
+  gap: 18px;
+}
+
+.noscript { position: fixed; inset: auto 0 0; margin: 0; padding: 12px; text-align: center; background: var(--panel-bg); z-index: 40; }
+
+/* Планшет: поля поуже. */
+@media (max-width: 900px) {
+  #home { padding: 14px 20px; }
+}
+
+/* Телефон: одна колонка, полоса вкладок прокручивается вбок, у домашней вкладки
+   остаётся только значок. */
+@media (max-width: 600px) {
+  #home { padding: 12px 14px 14px; }
+  .hero { gap: 12px; margin-bottom: 12px; }
+  .hero-logo { width: 44px; height: 44px; }
+  .hero h1 { font-size: 24px; }
+  .hero p { font-size: 13px; }
+  #grid, #systems { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .tab.home .product { display: none; }
+  .tab.home { padding-right: 8px; }
+  .tab { min-width: 112px; }
+  .card .play { padding: 8px 22px; }
+  .volume input { width: 110px; }
+  .row { flex-wrap: wrap; }
+}
+
+/* В приложении домашний экран всегда на месте (игры лежат поверх него отдельными
+   окнами), здесь он прячется, пока открыта игра. */
+#home[hidden] { display: none; }
