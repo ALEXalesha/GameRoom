@@ -140,6 +140,28 @@ test('общие файлы работают и в браузере: window.IGRO
   assert.equal(JSON.stringify(win.IgrotekaTabs.closeTab({ open: ['a', 'b'], active: 'a' }, 'a')), JSON.stringify({ open: ['b'], active: 'b' }));
 });
 
+test('демо систем: страница и картинка есть, ходить можно в свою папку, _os-shared и папки игр', () => {
+  const sys = Games.systemsCatalog(ROOT);
+  assert.deepEqual(sys.map((s) => s.id), ['win11_3', 'macos-tahoe', 'ios26', 'oneui7']);
+  for (const s of sys) {
+    assert.ok(fs.existsSync(s.page), s.page);
+    assert.ok(s.style && s.desc && s.system, s.id);
+    assert.ok(fs.existsSync(path.join(ROOT, 'app', 'assets', 'thumbs', s.id + '.jpg')), 'нет картинки ' + s.id);
+    const page = url(s.page);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', '_os-shared', 'games.js')), s.folders), true);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'dino', 'index.html')), s.folders), true);
+    assert.equal(Security.navigation(url(path.join(ROOT, 'web', 'tetris', 'index.html')), s.folders), 'allow');
+    assert.equal(Security.allowRequest(page, s.folders), true);
+    // Чужое демо, другие страницы web/ и сеть - нельзя.
+    for (const other of sys) if (other.id !== s.id) assert.equal(Security.allowRequest(url(other.page), s.folders), false, other.id);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'python_ide', 'index.html')), s.folders), false);
+    assert.equal(Security.allowRequest('https://example.com/', s.folders), false);
+  }
+  // Одна папка у игры - как раньше, список у демо - то же правило для каждой.
+  assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'dino', 'index.html')), [folder]), true);
+  assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'mario', 'index.html')), [folder]), false);
+});
+
 test('имя из заголовка: без пометки о фан-версии и без пояснений', () => {
   const t = (s) => Games.shortTitle(`<title>${s}</title>`);
   assert.equal(t('Прыг-скок: мини-платформер (фан-версия, не связана с правообладателем)'), 'Прыг-скок');
@@ -152,9 +174,10 @@ test('имя из заголовка: без пометки о фан-верси
 
 // --- сборка ---
 
-test('в сборку попадают только app/, таблица игр и папки игр каталога', () => {
+test('в сборку попадают только app/, таблица игр, папки игр и демо систем', () => {
   const files = pkg.build.files.filter((f) => !f.startsWith('!'));
-  const expected = ['package.json', 'app/**/*', 'web/_shared/games-data.js', ...Games.IDS.map((id) => `web/${id}/**/*`)];
+  const expected = ['package.json', 'app/**/*', 'web/_shared/games-data.js', ...Games.IDS.map((id) => `web/${id}/**/*`),
+    ...Games.SYSTEM_IDS.map((id) => `web/${id}/**/*`), 'web/_os-shared/**/*'];
   assert.deepEqual([...files].sort(), [...expected].sort());
 });
 

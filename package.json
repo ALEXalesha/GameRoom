@@ -50,6 +50,11 @@
       "web/space_shooter/**/*",
       "web/tetris/**/*",
       "web/sudoku/**/*",
+      "web/win11_3/**/*",
+      "web/macos-tahoe/**/*",
+      "web/ios26/**/*",
+      "web/oneui7/**/*",
+      "web/_os-shared/**/*",
       "!**/desktop.ini",
       "!app/assets/icon.png"
     ],

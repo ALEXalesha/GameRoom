@@ -19,7 +19,9 @@ const path = require('path');
 const DATA = require('../web/_shared/games-data.js');
 
 const GAMES = DATA.GAMES;
+const SYSTEMS = DATA.SYSTEMS;
 const IDS = GAMES.map((g) => g.id);
+const SYSTEM_IDS = SYSTEMS.map((s) => s.id);
 
 const unescape = (t) => t.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 
@@ -61,4 +63,26 @@ function catalog(root) {
   });
 }
 
-module.exports = { GAMES, IDS, shortTitle, appName, pageName, catalog };
+/**
+ * Демо систем (win11_3, macos-tahoe, ios26, oneui7) для раздела «Демо систем». Каждое
+ * открывает в своих окнах полные игры из соседних папок (../<игра>/index.html) и читает
+ * общую таблицу ../_os-shared/games.js, поэтому кроме своей папки ему можно в эти:
+ * `folders` - список для app/security.js.
+ */
+function systemsCatalog(root) {
+  const web = path.join(root, 'web');
+  const shared = [path.join(web, '_os-shared'), ...GAMES.map((g) => path.join(web, g.id))];
+  return SYSTEMS.map((s) => {
+    const dir = path.join(web, s.id);
+    const page = path.join(dir, 'index.html');
+    let name = '';
+    try {
+      name = pageName(fs.readFileSync(page, 'utf8'));
+    } catch {
+      /* страницы нет - останется запасное имя */
+    }
+    return { ...s, system: true, name: name || s.name, dir, page, folders: [dir, ...shared] };
+  });
+}
+
+module.exports = { GAMES, IDS, SYSTEMS, SYSTEM_IDS, shortTitle, appName, pageName, catalog, systemsCatalog };
