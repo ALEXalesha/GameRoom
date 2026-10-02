@@ -69,6 +69,7 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
         for (const nk in M.nodes) { w.placeAt(M.nodes[nk].x + 2, M.nodes[nk].z + 2); w.resetPlayer(); rec('R на узле ' + nk); }
         // бездорожье: машину привезли на склон или к деревьям - физика её отодвигает, кузов лежит по земле
         for (let k = 0; k < 16; k++) { const i = Math.floor(rng() * M.N), a = rng() * 6.283, d = 14 + rng() * 50, pl = w.player; pl.x = M.X[i] + Math.cos(a) * d; pl.z = M.Z[i] + Math.sin(a) * d; pl.h = rng() * 6.283; pl.vx = pl.vz = pl.w = 0; pl.y = M.groundAt(pl.x, pl.z).y; pl.air = false; pl.solidCache = null; __drift.stepWorld(40); rec('бездорожье'); }
+        let mouths = 0; for (let i = 1; i < M.N - 1 && mouths < 6; i++) if ((M.FL[i] & 2) && !(M.FL[i - 1] & 2) && M.E[i] === M.E[i - 1]) { for (const k of [0, 1, 2, 3, 4]) { const j = i + k; w.placeAt(M.X[j], M.Z[j], Math.atan2(M.TX[j], M.TZ[j])); w.resetPlayer(); rec('R у входа в тоннель'); } mouths++; }
         let nb = 0, nt = 0; for (let i = 0; i < M.N; i += 9) { if ((M.FL[i] & 1) && nb < 4) { w.placeAt(M.X[i], M.Z[i]); w.resetPlayer(); rec('R на мосту'); nb++; i += 500; } else if ((M.FL[i] & 2) && nt < 4) { w.placeAt(M.X[i], M.Z[i]); w.resetPlayer(); rec('R в тоннеле'); nt++; i += 500; } }
         // занятое место: на точке фестиваля стоит машина трафика - игрок встаёт рядом, а не в неё
         const pt = M.pointById('fest'), i = pt.i, a = w.traffic[0] || w.rivals[0];
@@ -108,7 +109,8 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
           for (const mode of modes) {
             __drift.setCamera(mode); for (let k = 0; k < 3; k++) W.frame(1 / 60, 1, mode);
             const objs = P.targets();
-            P.double(() => { const inside = P.camInside(objs); W.frame(0, 1, mode); const mono = P.mono(); out.push({ label: label + ' [' + mode + ']', x: Math.round(w.player.x), z: Math.round(w.player.z), body: [], inside, mono: +mono.toFixed(2) }); });
+            const c = __drift.render.camera.position, solidHit = M.solidAt(c.x, c.y, c.z, 0.2), under = c.y < M.groundAt(c.x, c.z, {}, w.player.y).y + 0.25;
+            P.double(() => { const inside = P.camInside(objs) || (solidHit ? ['в предмете ' + solidHit.kind] : null) || (under ? ['под землёй'] : null); W.frame(0, 1, mode); const mono = P.mono(); out.push({ label: label + ' [' + mode + ']', x: Math.round(w.player.x), z: Math.round(w.player.z), body: [], inside, mono: +mono.toFixed(2) }); });
           }
         };
         // у стены дома: машина вплотную вдоль фасада, резкий разворот с ручником - камера метётся к стене
@@ -119,6 +121,11 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
             p.x = house.x + ux * sd * (house.w / 2 + 1.6); p.z = house.z + uz * sd * (house.w / 2 + 1.6); p.h = Math.atan2(vx, vz); p.y = M.groundAt(p.x, p.z).y; p.vx = vx * 14; p.vz = vz * 14; p.w = 0; p.air = false; p.solidCache = null;
             W.cam.init = false;
             for (let k = 0; k < 10; k++) { __drift.stepWorld(12, { thr: 0.6, steer: sd * (k % 2 ? 1 : -1), hb: k > 2 ? 1 : 0 }); W.frame(0.1, 1, 'chase'); look('разворот у дома ' + k); }
+          }
+          // задом к стене: машина стоит кормой в метре от фасада - камера сзади оказалась бы в доме
+          for (const sd of [1, -1]) {
+            const hl = p.st.len / 2; p.x = house.x + ux * sd * (house.w / 2 + hl + 1.0); p.z = house.z + uz * sd * (house.w / 2 + hl + 1.0); p.h = Math.atan2(ux * sd, uz * sd); p.y = M.groundAt(p.x, p.z).y; p.vx = p.vz = p.w = 0; p.air = false; p.solidCache = null;
+            __drift.stepWorld(4); W.cam.init = false; look('задом к стене ' + sd);
           }
         }
         // езда по дорогам: город, мосты, тоннели - автопилот, камера каждые полсекунды
@@ -314,13 +321,16 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
         for (const nk in M.nodes) { const nd = M.nodes[nk]; if (nd.edges.length < 2) continue; visit(nd.x, nd.z, () => { for (let a = 0; a < 6.28; a += 0.8) for (const r of [0, 4, 8]) sample('перекрёсток', nd.x + Math.cos(a) * r, nd.z + Math.sin(a) * r, nd.y + 0.5); }); }
         // фестиваль
         const f = M.fest || M.pointById('fest');
+        let gap = 1e9; for (let i = 0; i < M.N; i++) gap = Math.min(gap, Math.hypot(M.X[i] - f.x, M.Z[i] - f.z) - M.edges[M.E[i]].hw);
+        worst['зазор площадка-дорога'] = 0; at['зазор площадка-дорога'] = Math.round(gap); var festGap = gap - (f.r || 40);
         visit(f.x, f.z, () => { for (let a = 0; a < 6.28; a += 0.5) for (const r of [0, 10, 20, 30, 38]) sample('площадка фестиваля', f.x + Math.cos(a) * r, f.z + Math.sin(a) * r); if (f.drive) for (let t = 0.05; t < 1; t += 0.1) sample('подъезд', f.drive.ax + (f.drive.bx - f.drive.ax) * t, f.drive.az + (f.drive.bz - f.drive.az) * t); });
-        return { worst, at };
+        return { worst, at, festGap };
       });
       res.push({ map, ...r });
     }
     console.log(JSON.stringify(res));
     for (const r of res) for (const k in r.worst) expect(r.worst[k], r.map + ' ' + k + ' @' + r.at[k]).toBeLessThan(0.12);
     for (const r of res) expect(Object.keys(r.worst), r.map).toEqual(expect.arrayContaining(['дорога', 'площадка фестиваля']));
+    for (const r of res) expect(r.festGap, r.map + ': от края площадки до края дороги').toBeGreaterThan(15);
   });
 });
