@@ -101,12 +101,15 @@ test.describe('horizon_drift_offline: вид из салона и свободн
         for (let k = 0; k < 40; k++) W.frame(1 / 60, 1, 'chase');
         const inSolid = M.solidAt(cam.x, cam.y, cam.z, 0.25), gy = M.groundAt(cam.x, cam.z, {}, p.y).y;
         const objs = P.targets();
-        P.double(() => { const inside = P.camInside(objs); W.frame(0, 1, 'chase'); out.push({ a: +a.toFixed(2), pt, inSolid: inSolid ? inSolid.kind : null, under: cam.y < gy + 0.3, inside, mono: +P.mono().toFixed(2) }); });
+        const dist = Math.hypot(cam.x - p.x, cam.y - p.y - 1, cam.z - p.z);
+        P.double(() => { const inside = P.camInside(objs); W.frame(0, 1, 'chase'); out.push({ a: +a.toFixed(2), pt, inSolid: inSolid ? inSolid.kind : null, under: cam.y < gy + 0.3, inside, mono: +P.mono().toFixed(2), dist: +dist.toFixed(2) }); });
       }
       return { out, maxYaw };
     });
     expect(r.maxYaw).toBeGreaterThan(3.1);
     expect(r.out.filter((o) => o.inSolid || o.under || o.inside || o.mono > 0.9)).toEqual([]);
+    // у стены камера не прижимается к крыше: поднимается выше и видит машину целиком
+    expect(r.out.filter((o) => o.dist < 2.8)).toEqual([]);
     // без мыши: на ходу через несколько секунд камера сама возвращается за машину
     await page.evaluate(() => { __drift.view.yaw = 2.0; __drift.view.pitch = 0.4; __drift.setLook({ idle: 0 }); const p = __drift.world.player; p.vx = Math.sin(p.h) * 12; p.vz = Math.cos(p.h) * 12; p.speed = 12; __drift.manual = false; });
     await page.waitForTimeout(5500);
