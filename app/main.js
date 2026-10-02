@@ -233,6 +233,25 @@ function createView(id) {
   return view;
 }
 
+// Перед закрытием страницы игра успевает сохраниться. webContents.close() не даёт странице ни
+// beforeunload, ни pagehide, и последние секунды игры пропадали (в «Кубическом мире» герой
+// оказывался там, где был при последнем самосохранении, а то и в начале мира). Если у страницы есть
+// window.igrotekaSave() - ждём её (не дольше SAVE_WAIT), иначе отдаём ей pagehide и чуть ждём записи.
+const SAVE_WAIT = 2500;
+const SAVE_JS = `(async () => {
+  try {
+    if (typeof window.igrotekaSave === 'function') { await Promise.race([window.igrotekaSave(), new Promise((r) => setTimeout(r, ${SAVE_WAIT}))]); return 'game'; }
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise((r) => setTimeout(r, 300));
+  } catch (e) { /* закрываем всё равно */ }
+  return 'generic';
+})()`;
+function savePage(wc) {
+  if (!wc || wc.isDestroyed()) return Promise.resolve();
+  return Promise.race([wc.executeJavaScript(SAVE_JS, true).catch(() => {}), new Promise((r) => setTimeout(r, SAVE_WAIT + 500))]);
+}
+const noSave = new Set();      // «стереть данные игры»: страница закрывается без сохранения
+
 function destroyView(id) {
   const view = views.get(id);
   if (!view) return;
@@ -241,7 +260,11 @@ function destroyView(id) {
   crashes.delete(id);
   if (attached.has(view) && win && !win.isDestroyed()) win.contentView.removeChildView(view);
   attached.delete(view);
-  if (!view.webContents.isDestroyed()) view.webContents.close();
+  const wc = view.webContents;
+  if (wc.isDestroyed()) return;
+  const skip = noSave.delete(id);
+  const close = () => { if (!wc.isDestroyed()) wc.close(); };
+  if (skip) close(); else savePage(wc).then(close, close);
 }
 
 function setTabs(next) {
@@ -461,7 +484,7 @@ ipcMain.handle('settings:set', (e, key, value) => {
 // закрывается, иначе страница тут же записала бы свои данные обратно.
 ipcMain.handle('games:clear', async (e, id) => {
   if (!fromShell(e) || !byId.has(id)) return false;
-  if (tabs.open.includes(id)) setTabs(Tabs.closeTab(tabs, id));
+  if (tabs.open.includes(id)) { noSave.add(id); setTabs(Tabs.closeTab(tabs, id)); }
   const ses = session.fromPartition('persist:' + id);
   await ses.clearStorageData();
   await ses.clearCache();
@@ -521,6 +544,14 @@ function createWindow() {
   };
   for (const ev of ['resized', 'moved', 'maximize', 'unmaximize']) win.on(ev, remember);
   win.on('close', remember);
+  // Окно закрывают (крестик, Alt+F4, выход приложения): сначала открытые игры сохраняются
+  let saved = false;
+  win.on('close', (e) => {
+    if (saved || views.size === 0) return;
+    e.preventDefault();
+    saved = true;
+    Promise.all([...views.values()].map((v) => savePage(v.webContents))).then(() => { if (win && !win.isDestroyed()) win.close(); });
+  });
   win.on('closed', () => { win = null; });
   for (const ev of ['resize', 'maximize', 'unmaximize', 'enter-full-screen']) win.on(ev, layout);
   // Полный экран могли снять не мы (Windows, клавиши системы) - полоса возвращается.
