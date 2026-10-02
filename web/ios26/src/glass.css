@@ -319,4 +319,4 @@ body.dark .browser-app .safari-meta { color: #8e8e93; }
 #control-center .cc-music { --lg-tint: rgba(0,0,0,0.42); }
 .cc-music .ccm-a { opacity: 1; color: rgba(255,255,255,0.86); }
 /* строка состояния поверх пункта управления, папки, поиска и переключателя, как в телефоне */
-.overlay-sb { z-index: 100; color: #fff; }
+.overlay-sb, #home-page.wall-light .overlay-sb { z-index: 100; color: #fff; }
