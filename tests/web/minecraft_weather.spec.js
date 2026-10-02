@@ -204,7 +204,7 @@ test.describe('minecraft_clone_3d_1: погода', () => {
     expect(r.nether).toBe(false);
   });
 
-  test('творческий: кнопка «Погода» в меню паузы по кругу ясно - дождь - гроза; в выживании её нет; настройка «Частицы погоды»', async ({ page }) => {
+  test('творческий: кнопка «Погода» в меню паузы по кругу ясно - дождь - гроза - снег; в выживании её нет; настройка «Частицы погоды»', async ({ page }) => {
     await world(page, 'creative');
     await page.evaluate(() => { __voxel.VX.weather.set('clear'); __voxel.game.pause(); });
     const btn = page.locator('#weatherBtn');
@@ -215,6 +215,11 @@ test.describe('minecraft_clone_3d_1: погода', () => {
     await btn.click();
     await expect(btn).toHaveText('Погода: гроза');
     expect(await page.evaluate(() => __voxel.VX.weather.state().kind)).toBe('thunder');
+    await btn.click();
+    await expect(btn).toHaveText('Погода: снег');
+    expect(await page.evaluate(() => __voxel.VX.weather.state().kind)).toBe('snow');
+    await btn.click();
+    await expect(btn).toHaveText('Погода: ясно');
     await page.evaluate(() => { __voxel.game.mode = 'survival'; __voxel.VX.ui.show('pause'); });
     await expect(btn).toBeHidden();
     await page.evaluate(() => __voxel.VX.ui.show('settings'));
@@ -263,5 +268,48 @@ test.describe('minecraft_clone_3d_1: погода', () => {
     const a = await round(), b = await round(), c = await round();
     expect(b - a).toBeLessThanOrEqual(2);
     expect(c - a).toBeLessThanOrEqual(2);
+  });
+});
+
+test.describe('minecraft_clone_3d_1: снегопад', () => {
+  test('снегопад: в общем круге погоды; снег идёт везде (и на равнине), кроме пустыни; снежинки, а не капли, медленные; небо темнеет; без грома и молний; хранится в мире', async ({ page }) => {
+    await world(page);
+    const r = await page.evaluate(async () => {
+      const v = __voxel, W = v.VX.weather, G = v.game, C = v.core, p = v.player, wait = (ms) => new Promise((rr) => setTimeout(rr, ms));
+      W.R.rnd = () => 0.4; const fromClear = W.next('clear'); W.R.rnd = Math.random;
+      const after = W.next('snow');
+      const wd = C.worldOf(v.world.seed, v.world.gen);
+      const find = (bi) => { for (let rr = 0; rr < 4000; rr += 16) for (let a = 0; a < 6.28; a += 0.4) { const x = Math.round(Math.cos(a) * rr), z = Math.round(Math.sin(a) * rr); if (C.column(wd, x, z).biome === bi) return [x, z]; } return null; };
+      const pl = find(0), des = find(2);
+      G.ticks = 6000; W.set('clear', 99999); W.state().rain = 0; await wait(300);
+      const clearDay = G.dayLight;
+      W.set('snow', 99999); W.state().rain = 1;
+      const plainSnow = W.precipAt(pl[0], 70, pl[1]), desertSnow = W.precipAt(des[0], 70, des[1]);
+      v.look(0, 0.2); await wait(1200);
+      const drops = Object.assign({}, G.weatherDrops), day = G.dayLight;
+      // скорость снежинок: средний спуск за кадр меньше дождевого
+      const sm = G.scene.children.find((o) => o.isPoints && o.material && o.material.color && o.material.color.getHex() === 0xffffff && o.geometry.attributes.position.count > 100);
+      const ys0 = []; for (let i = 0; i < 40; i++) ys0.push(sm.geometry.attributes.position.getY(i));
+      await wait(500);
+      let fall = 0, n = 0; for (let i = 0; i < 40; i++) { const d = ys0[i] - sm.geometry.attributes.position.getY(i); if (d > 0 && d < 3) { fall += d; n++; } }
+      // без молний: 40 секунд снегопада
+      const t0 = v.VX.audio.counts.thunder || 0, b0 = W.bolts.length;
+      v.step(0.05, 800);
+      const thunders = (v.VX.audio.counts.thunder || 0) - t0, thunderLevel = W.state().thunder;
+      const id = v.meta.id; await v.flush(); await v.exitToTitle(); await v.openWorld(id);
+      return { fromClear, after, plainSnow, desertSnow, drops, clearDay, day, speed: n ? fall / n / 0.5 : 0, thunders, thunderLevel, kept: W.state().kind };
+    });
+    expect(r.fromClear).toBe('snow');
+    expect(r.after).toBe('clear');
+    expect(r.plainSnow).toBe('snow');
+    expect(r.desertSnow).toBe(null);
+    expect(r.drops.snow).toBeGreaterThan(200);
+    expect(r.drops.rain).toBe(0);
+    expect(r.day).toBeLessThan(r.clearDay * 0.8);
+    expect(r.speed).toBeGreaterThan(0.5);
+    expect(r.speed).toBeLessThan(5);                    // дождь - 22 блока в секунду
+    expect(r.thunders).toBe(0);
+    expect(r.thunderLevel).toBe(0);
+    expect(r.kept).toBe('snow');
   });
 });

@@ -473,7 +473,10 @@
   document.addEventListener('pointerlockerror', () => { G.needClick = true; });
 
   // ---------- Состояния ----------
-  G.play = function () {
+  // opts.first - самый первый вход в мир после загрузки: только тогда, если мышь не захвачена,
+  // у прицела на пару секунд короткая подсказка. После Esc-Esc игра просто идёт: никаких надписей,
+  // клавиатура работает сразу, мышь тихо захватывается следующим щелчком по игре.
+  G.play = function (opts) {
     if (!G.meta || G.panorama) return;
     // сохранились мёртвым (перезагрузка на экране смерти) - снова экран смерти, а не герой с нулём здоровья
     if (player.health <= 0 || player.dead) {
@@ -487,7 +490,7 @@
     if (VX.ui) VX.ui.show('hud');
     lock();
     G.needClick = document.pointerLockElement !== canvas;
-    G.hintT = 2.5;       // если мышь не захвачена - маленькая подсказка у прицела на пару секунд
+    G.hintT = opts && opts.first ? 2.5 : 0;
   };
   G.pause = function (screen) {
     if (G.state !== 'play' && G.state !== 'inv') return;
@@ -525,6 +528,8 @@
     } else if (cmd === 'resume') { VX.audio.mute(false); G.menuPaused = false; }
   });
   window.addEventListener('pagehide', () => { G.saveWorld(); });
+  // Оболочка «Игротека» перед закрытием вкладки или окна ждёт эту функцию: мир записан до конца
+  window.igrotekaSave = async function () { if (G.meta && !G.panorama) { await G.saveWorld(); await VX.store.flush(); } };
   window.addEventListener('blur', () => releaseKeys());
   // Ctrl+W в браузере закрывает вкладку: пока идёт игра, браузер переспросит (в Electron - нет)
   if (!/Electron/i.test(navigator.userAgent)) {
@@ -1165,7 +1170,15 @@
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('auxclick', (e) => e.preventDefault());
+  // мышь не захвачена (браузер отказал на щелчке - пауза после Esc): тихий повтор, пока кнопка нажата
+  // и мышь двигается над игрой; не чаще раза в 0.3 с
+  let relockT = 0;
   document.addEventListener('mousemove', (e) => {
+    if (G.state === 'play' && !G.testMode && e.buttons && e.target === canvas && document.pointerLockElement !== canvas && canvas.requestPointerLock) {
+      const now = performance.now();
+      if (now - relockT > 300) { relockT = now; lock(); }
+      return;
+    }
     if (G.state !== 'play' || document.pointerLockElement !== canvas) return;
     const k = 0.0022 * G.settings.sensitivity / 100;
     player.yaw -= e.movementX * k;

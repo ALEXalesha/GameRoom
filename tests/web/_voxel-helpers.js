@@ -19,7 +19,11 @@ function lockStub() {
   Object.defineProperty(Document.prototype, 'pointerLockElement', { configurable: true, get() { return window.__pl; } });
   const stub = function () {
     window.__lockCalls++;
-    if (window.__denyLock) { setTimeout(() => document.dispatchEvent(new Event('pointerlockerror'))); return Promise.reject(new DOMException('denied', 'SecurityError')); }
+    // __lockNeedsGesture: как в настоящем браузере - захват только по действию человека (щелчок), не по Esc
+    // __lockNeedsGesture: как в настоящем браузере - после выхода по Esc захват дают только по НОВОМУ
+    // действию человека (щелчок, клавиша кроме Esc), не по самому Esc
+    const fresh = !window.__lockExitAt || (window.__lastGestureAt || 0) > window.__lockExitAt;
+    if (window.__denyLock || (window.__lockNeedsGesture && !fresh)) { setTimeout(() => document.dispatchEvent(new Event('pointerlockerror'))); return Promise.reject(new DOMException('denied', 'SecurityError')); }
     window.__pl = this; setTimeout(() => document.dispatchEvent(new Event('pointerlockchange'))); return Promise.resolve();
   };
   Element.prototype.requestPointerLock = stub;
@@ -28,7 +32,8 @@ function lockStub() {
   for (const t of ['mousedown', 'mouseup', 'click', 'contextmenu']) window.addEventListener(t, (e) => {
     if (window.__pl && e.isTrusted && e.target !== window.__pl && !e.__re) { e.stopImmediatePropagation(); e.preventDefault(); const n = new MouseEvent(t, e); n.__re = true; window.__pl.dispatchEvent(n); }
   }, { capture: true });
-  window.__browserEsc = () => { if (window.__pl) { window.__pl = null; document.dispatchEvent(new Event('pointerlockchange')); return true; } return false; };
+  for (const t of ['mousedown', 'keydown']) window.addEventListener(t, (e) => { if (e.isTrusted && e.code !== 'Escape') window.__lastGestureAt = performance.now(); }, { capture: true });
+  window.__browserEsc = () => { window.__lockExitAt = performance.now(); if (window.__pl) { window.__pl = null; document.dispatchEvent(new Event('pointerlockchange')); return true; } return false; };
 }
 
 async function openVoxel(page, query = '') {

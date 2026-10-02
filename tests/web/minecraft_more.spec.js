@@ -114,7 +114,7 @@ test.describe('minecraft_clone_3d_1: пиксельный шрифт', () => {
 });
 
 test.describe('minecraft_clone_3d_1: Esc и бой', () => {
-  test('Esc открывает паузу, второй Esc закрывает её: игра идёт, затемнения и большой надписи нет', async ({ page }) => {
+  test('Esc открывает паузу, второй Esc закрывает её: игра идёт, затемнения и никакой надписи нет, щелчок возвращает захват', async ({ page }) => {
     await world(page, 'creative');
     // захват мыши по Esc браузер не даёт (замер в Electron: WrongDocumentError) - так и моделируем
     await page.evaluate(() => {
@@ -134,14 +134,12 @@ test.describe('minecraft_clone_3d_1: Esc и бой', () => {
     expect(r.dim).toBe(false);
     expect(r.menu).toBe(false);
     expect(r.screens).toEqual(['scr-hud']);
-    expect(r.shown).toBe(true);                      // маленькая подсказка у прицела вместо большой надписи
-    expect(r.font).toBeLessThanOrEqual(16);   // 16px - самый мелкий ровный кегль пиксельного шрифта (8px нечитаем)
-    expect(r.hgt).toBeLessThan(24); expect(r.w).toBeLessThan(400);
-    // подсказка сама исчезает через пару секунд, время в игре идёт
+    expect(r.shown).toBe(false);                     // владелец: после Esc-Esc никакой надписи, даже маленькой
+    expect(await page.evaluate(() => document.body.innerText)).not.toMatch(/нажмите|щёлкните|click/i);
+    // время в игре идёт
     const t0 = await page.evaluate(() => __voxel.ticks);
-    await page.waitForTimeout(3000);
-    expect(await page.evaluate(() => getComputedStyle(document.getElementById('clickHint')).display)).toBe('none');
-    expect(await page.evaluate(() => __voxel.ticks)).toBeGreaterThan(t0 + 20);
+    await page.waitForTimeout(1000);
+    expect(await page.evaluate(() => __voxel.ticks)).toBeGreaterThan(t0 + 10);
     // щелчок мышью по игре (настоящий, через страницу) просит захват - управление вернулось
     await page.evaluate(() => { window.__calls = 0; HTMLCanvasElement.prototype.requestPointerLock = function () { window.__calls++; return Promise.resolve(); }; });
     await page.mouse.click(640, 360);
