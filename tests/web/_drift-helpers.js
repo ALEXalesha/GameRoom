@@ -2,8 +2,23 @@
 // поставить низкую графику (чтобы трассы грузились быстро), запустить заезд без рисования шагов.
 const { pageUrl } = require('../helpers');
 
+// Захват мыши в проверках - только поддельный: настоящий requestPointerLock у безголового Chromium на Windows
+// зажимает курсор пользователя в скрытом окне 0,0. Заглушка ставится до любых скриптов страницы:
+// запоминает вызов, подделывает document.pointerLockElement и событие pointerlockchange; настоящий - не достать.
+const FAKE_POINTER_LOCK = () => {
+  let lockEl = null;
+  const fire = () => document.dispatchEvent(new Event('pointerlockchange'));
+  const fake = function () { window.__fakeLock = (window.__fakeLock || 0) + 1; lockEl = this; fire(); return Promise.resolve(); };
+  for (const P of [Element.prototype, HTMLElement.prototype, HTMLCanvasElement.prototype]) Object.defineProperty(P, 'requestPointerLock', { configurable: false, writable: false, value: fake });
+  Object.defineProperty(Document.prototype, 'exitPointerLock', { configurable: false, writable: false, value: function () { lockEl = null; fire(); } });
+  Object.defineProperty(Document.prototype, 'pointerLockElement', { configurable: false, get() { return lockEl; } });
+  window.__nativePointerLock = () => { throw new Error('настоящий requestPointerLock в проверке запрещён'); };
+};
+async function stubPointerLock(page) { await page.addInitScript(FAKE_POINTER_LOCK); }
+
 async function openDrift(page, opts = {}) {
   const errors = [];
+  await stubPointerLock(page);
   page.on('pageerror', (e) => errors.push(String((e && e.stack) || e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route(/^https?:\/\//, (route) => route.abort());
@@ -99,4 +114,4 @@ async function installProbe(page) {
   });
 }
 
-module.exports = { openDrift, startQuick, installProbe };
+module.exports = { openDrift, startQuick, installProbe, stubPointerLock, FAKE_POINTER_LOCK };
