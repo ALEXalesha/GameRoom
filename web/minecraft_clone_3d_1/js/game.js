@@ -279,6 +279,8 @@
     if (meta.inv) inv.load(meta.inv);
     else { inv.clear(); if (meta.mode === 'creative') CREATIVE_START.forEach((id, i) => { inv.slots[i] = VX.inv.newStack(id, 64); }); }
     if (VX.entities) VX.entities.reset(slot);
+    if (VX.vehicles) VX.vehicles.reset(slot);
+    if (VX.fishing) VX.fishing.reset();
     G.mining = null;
     G.furnaces = slot.furnaces || (slot.furnaces = {});
     G.chests = slot.chests || (slot.chests = {});
@@ -321,6 +323,7 @@
     if (VX.items) VX.items.saveMaps();
     const slot = dimSlot(G.meta, G.dim);
     if (VX.entities) VX.entities.save(slot);
+    if (VX.vehicles) VX.vehicles.save(slot);
     if (VX.fluids) VX.fluids.save(slot);
     G.saveQuick();
     try { await VX.store.putWorld(G.meta); G.saveFailed = false; } catch (e) { saveFailed(e); }
@@ -345,6 +348,7 @@
     if (!G.meta || G.panorama) return false;
     const slot0 = dimSlot(G.meta, G.dim);
     if (VX.entities) VX.entities.save(slot0);
+    if (VX.vehicles) { VX.vehicles.dismount(); VX.vehicles.save(slot0); }
     if (VX.fluids) VX.fluids.save(slot0);
     if (G.container) closeContainer();
     world.setDim(dim);
@@ -352,6 +356,8 @@
     const slot = dimSlot(G.meta, dim);
     G.furnaces = slot.furnaces; G.chests = slot.chests; G.crops = slot.crops;
     if (VX.entities) VX.entities.reset(slot);
+    if (VX.vehicles) VX.vehicles.reset(slot);
+    if (VX.fishing) VX.fishing.reset();
     if (VX.fluids) VX.fluids.reset(slot);
     if (VX.redstone) VX.redstone.reset();
     if (VX.xp) VX.xp.clear();
@@ -588,7 +594,7 @@
   function afterChange(x, y, z) {
     const here = world.getBlock(x, y, z);
     const up = world.getBlock(x, y + 1, z);
-    const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131 || C.BLOCKS[id].wire !== undefined || C.BLOCKS[id].repeater || C.BLOCKS[id].plate || (C.BLOCKS[id].rsTorch !== undefined && C.BLOCKS[id].wall === undefined) || (C.BLOCKS[id].button && C.BLOCKS[id].face === 4));
+    const needsFloor = (id) => id > 0 && (C.RENDER[id] === 6 || C.RENDER[id] === 9 || id === B.torch || id === 130 || id === 131 || C.BLOCKS[id].wire !== undefined || C.BLOCKS[id].rail !== undefined || C.BLOCKS[id].repeater || C.BLOCKS[id].plate || (C.BLOCKS[id].rsTorch !== undefined && C.BLOCKS[id].wall === undefined) || (C.BLOCKS[id].button && C.BLOCKS[id].face === 4));
     if (needsFloor(up) && !C.SOLID[here]) popBlock(x, y + 1, z);
     if (((up >= 64 && up <= 71) || (up >= C.CARROTS && up <= C.CARROTS + 3)) && here !== B.farmland) popBlock(x, y + 1, z);      // посевы - только на грядке
     if (up === B.cactus && here !== B.sand && here !== B.cactus) popBlock(x, y + 1, z);
@@ -756,12 +762,14 @@
     const held = inv.held();
     const hi = held ? D.info(held.id) : null;
     if (VX.entities && VX.entities.interact(held)) return 'mob';
+    if (VX.vehicles) { const vu = VX.vehicles.use(held, hi); if (vu !== undefined) return vu; }
     if (hi && hi.food && G.mode === 'survival' && player.food < 20) { G.eating = 0; return 'eat'; }
     if (hi && (hi.key === 'bucket' || hi.fluid)) return useBucket(held, hi);
     if (hi && hi.key === 'shield') return 'shield';
     if (hi && hi.potion && VX.brewing) { if (hi.potion.splash) return VX.brewing.throwSplash(); G.eating = 0; return 'drink'; }
     if (hi && hi.key === 'glass_bottle' && VX.brewing) { const fr = VX.brewing.fill(); if (fr) return fr; }
     if (hi && VX.endgame) { const eu = VX.endgame.use(held, hi); if (eu !== undefined) return eu; }
+    if (hi && VX.fishing) { const fu = VX.fishing.use(held, hi); if (fu !== undefined) return fu; }
     if (hi && VX.items) { const iu = VX.items.use(held); if (iu !== undefined) return iu; }
     if (hi && hi.key === 'bow') { if (G.mode === 'creative' || inv.count(D.I.arrow) > 0) { G.bowT = 0.0001; return 'bow'; } return null; }
     const t = G.target();
@@ -825,6 +833,8 @@
     }
     if (hi.places) return placeSpecial(t, held, hi);
     if (!C.isBlock(held.id)) return null;
+    const rl = VX.vehicles && VX.vehicles.place(t, held);
+    if (rl !== undefined) return rl;
     const built = VX.build && VX.build.place(t, held);
     if (built !== undefined) return built;
     const rsb = VX.redstone && VX.redstone.place(t, held);
@@ -997,6 +1007,7 @@
     // ломался блок за животным, и убить его было нельзя.
     if (G.mouse.l && G.mouse.lPressed && G.state === 'play' && VX.entities) {
       G.mouse.lPressed = false;
+      if (VX.vehicles && VX.vehicles.attack()) { G.mining = null; G.breakCool = 0.3; return; }
       if (VX.entities.attack()) { G.mining = null; G.breakCool = 0.3; return; }
     }
     const t = G.mouse.l && G.state === 'play' ? G.target() : null;
@@ -1165,7 +1176,9 @@
     G.ticks += dt * 20;
     const wasWater = player.inWater;
     const inp = G.state === 'play' && !G.sleeping ? inputState() : {};
-    if (G.state !== 'dead') player.update(dt, inp, world, G.mode, playerEvent);
+    // в лодке или вагонетке героем правит транспорт (Shift - выйти)
+    const riding = G.riding && VX.vehicles && G.state !== 'dead' && VX.vehicles.ride(dt, inp);
+    if (G.state !== 'dead' && !riding) player.update(dt, inp, world, G.mode, playerEvent);
     if (player.dead && G.state !== 'dead') { G.onDeath(player.lastDamage && player.lastDamage.cause); return; }
     if (player.inWater && !wasWater && Math.abs(player.vel.y) > 2) VX.audio.play('splash');
     // шаги
@@ -1202,6 +1215,8 @@
     if (VX.villages) VX.villages.tick(dt);
     if (VX.brewing && G.state !== 'dead') VX.brewing.tick(dt);
     if (VX.endgame) VX.endgame.tick(dt);
+    if (VX.fishing) VX.fishing.tick(dt);
+    if (VX.vehicles) VX.vehicles.tick(dt);
     if (G.dim === 'nether' && ((G.fortT = (G.fortT || 0) + dt) > 1)) {
       G.fortT = 0;
       const f = C.fortressNear(world.seed, player.pos.x, player.pos.z);
@@ -1372,6 +1387,8 @@
     if (VX.xp && G.meta && !G.panorama) VX.xp.render();
     if (VX.brewing && G.meta && !G.panorama) VX.brewing.render();
     if (VX.endgame && G.meta && !G.panorama) VX.endgame.render();
+    if (VX.fishing && G.meta && !G.panorama) VX.fishing.render();
+    if (VX.vehicles && G.meta && !G.panorama) VX.vehicles.render();
     renderer.setClearColor(sk.fog);
     renderer.clear();
     if (G.state !== 'loading') { renderer.render(scene, camera); world.afterRender(); }    // пока грузится - экран загрузки, мир не рисуем

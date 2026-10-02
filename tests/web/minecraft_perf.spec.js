@@ -11,13 +11,19 @@ test.describe('minecraft_clone_3d_1: замер кадров', () => {
   test.skip(!process.env.VOXEL_PERF, 'только по VOXEL_PERF=1');
   test.setTimeout(180000);
 
-  for (const scene of [{ name: 'стоя, дальность 8', move: false }, { name: 'на ходу, дальность 8', move: true }, { name: 'Нижний мир, на ходу, дальность 8', move: true, dim: 'nether' }]) {
+  for (const scene of [{ name: 'стоя, дальность 8', move: false }, { name: 'на ходу, дальность 8', move: true }, { name: 'Нижний мир, на ходу, дальность 8', move: true, dim: 'nether' }, { name: 'Край: над островом, дракон и кристаллы, дальность 8', move: true, dim: 'end' }]) {
     test(scene.name, async ({ page }) => {
       await openVoxel(page);
       const gpu = await page.evaluate(() => { const gl = __voxel.game.renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'нет'; });
       await newWorld(page, { seed: 12345, radius: 8 });
       await page.evaluate(() => __voxel.waitIdle(5));   // квадрат 11x11 целиком внутри круга дальности 8
-      if (scene.dim) {
+      if (scene.dim === 'end') {
+        // Край: с площадки прибытия к центру острова, над ним кружит дракон, на колоннах кристаллы
+        await page.evaluate(() => __voxel.VX.endgame.travel());
+        await page.waitForFunction(() => __voxel.state === 'play', null, { timeout: 60000 });
+        await page.evaluate(() => { const v = __voxel, p = v.player; p.flying = true; p.pos.set(100.5, 75, 0.5); p.yaw = Math.PI / 2; });
+        await page.evaluate(() => __voxel.waitIdle(5));
+      } else if (scene.dim) {
         // Нижний мир: переход с площадкой, герой летит над лавовым морем (творческий режим)
         await page.evaluate(() => { const v = __voxel; v.game.changeDim('nether', { x: 0.5, y: 70, z: 0.5 }, () => { const p = v.player; p.flying = true; p.pos.set(0.5, 70, 0.5); }); });
         await page.waitForFunction(() => __voxel.state === 'play', null, { timeout: 60000 });

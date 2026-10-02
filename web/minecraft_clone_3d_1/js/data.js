@@ -148,6 +148,14 @@
   }
   item(427, 'enchanted_book', 'Зачарованная книга', { stack: 1, draw: 'book', group: 'tools' });
   item(434, 'eye_of_ender', 'Око Края');
+  // рыбалка, лодка, вагонетка (id после зелий - с 466)
+  item(466, 'fishing_rod', 'Удочка', { stack: 1, draw: 'fishing_rod:0', tool: { type: 'rod', speed: 1, level: 0, dur: 64, dmg: 1 } });
+  item(467, 'raw_cod', 'Сырая треска', { draw: 'fish:cod', food: { h: 2, sat: 0.4 } });
+  item(468, 'cooked_cod', 'Жареная треска', { draw: 'fish:ccod', food: { h: 5, sat: 6 } });
+  item(469, 'raw_salmon', 'Сырой лосось', { draw: 'fish:salmon', food: { h: 2, sat: 0.4 } });
+  item(470, 'cooked_salmon', 'Жареный лосось', { draw: 'fish:csalmon', food: { h: 6, sat: 9.6 } });
+  item(471, 'boat', 'Лодка', { stack: 1, group: 'tools' });
+  item(472, 'minecart', 'Вагонетка', { stack: 1, group: 'tools' });
   item(435, 'egg_enderman', 'Яйцо призыва: эндермен', { draw: 'egg:enderman', egg: 'enderman', creativeOnly: true });
   item(426, 'egg_villager', 'Яйцо призыва: житель', { draw: 'egg:villager', egg: 'villager', creativeOnly: true });
   item(415, 'egg_slime', 'Яйцо призыва: слизень', { draw: 'egg:slime', egg: 'slime', creativeOnly: true });
@@ -281,6 +289,11 @@
   RECIPES.push({ out: ['golden_carrot', 1], shape: ['NNN', 'NCN', 'NNN'], keys: { N: 'gold_nugget', C: 'carrot' } });
   RECIPES.push({ out: ['magma_cream', 1], shapeless: ['slimeball', 'blaze_powder'] });
   RECIPES.push({ out: ['eye_of_ender', 1], shapeless: ['ender_pearl', 'blaze_powder'] });
+  RECIPES.push({ out: ['fishing_rod', 1], shape: ['  S', ' SX', 'S X'], keys: { S: 'stick', X: 'string' } });
+  RECIPES.push({ out: ['boat', 1], shape: ['P P', 'PPP'], keys: { P: '#planks' } });
+  RECIPES.push({ out: ['minecart', 1], shape: ['I I', 'III'], keys: { I: 'iron_ingot' } });
+  RECIPES.push({ out: [C.RAIL, 16], shape: ['I I', 'ISI', 'I I'], keys: { I: 'iron_ingot', S: 'stick' } });
+  RECIPES.push({ out: [C.POWERED_RAIL, 6], shape: ['G G', 'GSG', 'GRG'], keys: { G: 'gold_ingot', S: 'stick', R: C.WIRE } });
   RECIPES.push({ out: [C.ENCH_TABLE, 1], shape: [' B ', 'DOD', 'OOO'], keys: { B: 'book', D: 'diamond', O: 'obsidian' } });
   RECIPES.push({ out: [C.IRON_BLOCK, 1], shape: ['III', 'III', 'III'], keys: { I: 'iron_ingot' } });
   RECIPES.push({ out: ['iron_ingot', 9], shapeless: [C.IRON_BLOCK] });
@@ -370,12 +383,12 @@
 
   // ---------- Печь ----------
   // опыт за переплавку (как в оригинале): выдаётся, когда вынимаешь готовое
-  const SMELT_XP = { iron_ingot: 0.7, gold_ingot: 1, cooked_porkchop: 0.35, cooked_mutton: 0.35, steak: 0.35, cooked_chicken: 0.35, glass: 0.1, stone: 0.1, charcoal: 0.15, bricks: 0.3, green_dye: 1, nether_brick: 0.1, quartz: 0.2 };
+  const SMELT_XP = { iron_ingot: 0.7, gold_ingot: 1, cooked_porkchop: 0.35, cooked_mutton: 0.35, steak: 0.35, cooked_chicken: 0.35, cooked_cod: 0.35, cooked_salmon: 0.35, glass: 0.1, stone: 0.1, charcoal: 0.15, bricks: 0.3, green_dye: 1, nether_brick: 0.1, quartz: 0.2 };
   const SMELT = [
     ['cobblestone', 'stone'], ['sand', 'glass'], ['iron_ore', 'iron_ingot'], ['gold_ore', 'gold_ingot'],
     ['oak_log', 'charcoal'], ['birch_log', 'charcoal'], ['spruce_log', 'charcoal'],
     ['raw_porkchop', 'cooked_porkchop'], ['raw_mutton', 'cooked_mutton'], ['clay', 'bricks'], ['cactus', 'green_dye'],
-    ['raw_beef', 'steak'], ['raw_chicken', 'cooked_chicken'], ['netherrack', 'nether_brick'], ['quartz_ore', 'quartz'],
+    ['raw_beef', 'steak'], ['raw_chicken', 'cooked_chicken'], ['raw_cod', 'cooked_cod'], ['raw_salmon', 'cooked_salmon'], ['netherrack', 'nether_brick'], ['quartz_ore', 'quartz'],
   ].map(([a, b]) => ({ in: idOf(a), out: idOf(b), xp: SMELT_XP[b] || 0.1 }));
   const SMELT_TIME = 10;     // секунд на один предмет, как в оригинале
   const smeltOf = (id) => SMELT.find((s) => s.in === id) || null;
@@ -480,6 +493,9 @@
     { id: 'map', parent: 'root', name: 'Картограф', desc: 'Нарисовать карту местности', on: 'map', icon: I.filled_map },
     { id: 'redstone', parent: 'iron_pick', name: 'Красная пыль', desc: 'Добыть красную пыль из руды', on: 'pickup', items: [C.WIRE], icon: C.WIRE },
     { id: 'piston', parent: 'redstone', name: 'Толкай!', desc: 'Сделать поршень', on: 'craft', items: [C.PISTON, C.PISTON + 1], icon: C.PISTON },
+    { id: 'fish', parent: 'root', name: 'Рыбный день', desc: 'Поймать рыбу удочкой', on: 'fish', items: ['raw_cod', 'raw_salmon'], icon: I.raw_cod },
+    { id: 'boat', parent: 'planks', name: 'Отдать швартовы', desc: 'Проплыть на лодке 50 блоков', on: 'boat_trip', icon: I.boat },
+    { id: 'rail', parent: 'iron', name: 'Поехали!', desc: 'Проехать в вагонетке 500 блоков', on: 'rail_trip', icon: I.minecart },
     { id: 'heart', parent: 'diamond_pick', name: 'Сердце мира', desc: 'Собрать Сердце мира: золото, алмазы и яблоко', on: 'craft', items: ['world_heart'], icon: I.world_heart },
     // вкладка «Край»: финал игры - победа над драконом и выход через портал (титры)
     { id: 'stronghold', tab: 'end', name: 'Всевидящее око', desc: 'Найти зал портала в крепости Края', on: 'stronghold', icon: C.END_FRAME + 1 },

@@ -16,7 +16,7 @@
   const fullSolid = (id) => id > 0 && C.RENDER[id] === 1 && C.SOLID[id] === 1;
   function isComp(id) {
     const b = BL(id);
-    return !!b && (b.wire !== undefined || b.rsTorch !== undefined || b.repeater || b.button || b.plate || b.lamp !== undefined || b.piston || b.pistonHead || b.rsBlock || b.door === 'iron' || b.door === 'wood' || b.trapdoor || id === 130 || id === 131);
+    return !!b && (b.wire !== undefined || b.prail !== undefined || b.rsTorch !== undefined || b.repeater || b.button || b.plate || b.lamp !== undefined || b.piston || b.pistonHead || b.rsBlock || b.door === 'iron' || b.door === 'wood' || b.trapdoor || id === 130 || id === 131);
   }
   // клетка, к которой прикреплён источник (её он питает сильно, а факел - наоборот, гаснет от неё)
   function support(c, b) {
@@ -185,6 +185,7 @@
       }
     }
     for (const [c, on] of moves) { if (on) extend(c); else retract(c); }
+    if (VX.vehicles) VX.vehicles.poweredRails(comps, poweredAt);         // энергорельсы
   }
 
   // ---------- Отложенные события: факел, повторитель, отпускание кнопки ----------

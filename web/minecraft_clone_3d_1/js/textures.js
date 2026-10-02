@@ -542,6 +542,24 @@
     dragon_egg(t, r) { t.noise(['#0c0812', '#140c1c', '#100a18', '#08060c'], r); blob(t, r, 6, ['#2a1440', '#3a1a5a'], [1, 3]); for (let k = 0; k < 4; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#6a3aa0'); },
     mossy_stone_bricks(t, r) { DRAW.stone_bricks(t, r); blob(t, r, 6, ['#5b7a36', '#4d6b2d', '#6a8c3f'], [2, 5]); },
     cracked_stone_bricks(t, r) { DRAW.stone_bricks(t, r); let x = 3, y = 1; for (let k = 0; k < 14; k++) { t.px(x, y, '#3e3e3e'); y++; x += ((r() * 3) | 0) - 1; } x = 11; y = 9; for (let k = 0; k < 6; k++) { t.px(x, y, '#3e3e3e'); x++; y += (r() * 2) | 0; } },
+    // рельсы: шпалы поперёк, две полосы вдоль (по v); поворот - дуги от нижнего и правого края
+    rail(t, r, pal) {
+      pal = pal || { tie: ['#6b4f2a', '#5a4020'], rail: ['#a8a8a8', '#6a6a6a'], mid: null };
+      for (let y = 1; y < 16; y += 4) for (let x = 1; x < 15; x++) { t.px(x, y, pal.tie[0]); t.px(x, y + 1, pal.tie[1]); }
+      for (let y = 0; y < 16; y++) { t.px(3, y, pal.rail[0]); t.px(4, y, pal.rail[1]); t.px(11, y, pal.rail[0]); t.px(12, y, pal.rail[1]); if (pal.mid) { t.px(7, y, pal.mid); t.px(8, y, pal.mid); } }
+    },
+    rail_corner(t) {
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x + 0.5 - 16, y + 0.5 - 16), a = Math.atan2(16 - y, 16 - x);
+        if (d > 2 && d < 15 && Math.round(a / (Math.PI / 2) * 5 * 2) % 3 === 0 && d > 3) t.px(x, y, d % 2 < 1 ? '#6b4f2a' : '#5a4020');
+      }
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const d = Math.hypot(x + 0.5 - 16, y + 0.5 - 16);
+        if ((d >= 3.6 && d < 5.2) || (d >= 11.2 && d < 12.8)) t.px(x, y, d < 4.4 || (d > 11.2 && d < 12) ? '#a8a8a8' : '#6a6a6a');
+      }
+    },
+    powered_rail(t, r) { DRAW.rail(t, r, { tie: ['#4a3420', '#3a2818'], rail: ['#f0c830', '#b08a13'], mid: '#6a1010' }); },
+    powered_rail_on(t, r) { DRAW.rail(t, r, { tie: ['#4a3420', '#3a2818'], rail: ['#f0c830', '#b08a13'], mid: '#ff3a2a' }); },
     iron_block(t, r) { t.noise(['#d8d8d8', '#e0e0e0', '#cfcfcf'], r); for (let k = 0; k < 16; k++) { t.px(k, 0, '#f4f4f4'); t.px(0, k, '#f4f4f4'); t.px(k, 15, '#9a9a9a'); t.px(15, k, '#9a9a9a'); } for (let x = 2; x < 14; x += 4) for (let y = 2; y < 14; y++) t.px(x, y, '#c4c4c4'); },
     lapis_ore(t, r) { ore(t, r, ['#2a50c8', '#1a3aa0', '#4a70e8'], '#0a2070'); },
     path_top(t, r) { t.noise(['#9a7a48', '#8a6a3a', '#a8885a', '#94743f'], r, [4, 3, 2, 3]); for (let k = 0; k < 10; k++) t.px((r() * 16) | 0, (r() * 16) | 0, '#b8986a'); },
@@ -799,6 +817,19 @@
       for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 5) t.px(x, y, d > 4.2 ? '#0a3a3a' : d < 2 ? '#2a8a7a' : (x + y) % 3 ? '#135a52' : '#1a6a60'); }
       t.px(6, 5, '#8ae8d8'); t.px(5, 6, '#6ad0c0');
     },
+    fishing_rod(t, r, cast) {
+      handle(t, 2, 13, 11);
+      if (+cast) return;
+      for (let y = 3; y < 14; y++) t.px(13, y, '#e8e8e8');
+      t.px(13, 14, '#8a8a8a'); t.px(12, 14, '#8a8a8a');
+    },
+    fish(t, r, kind) {
+      const pal = kind === 'salmon' ? { b: '#b04a3a', l: '#d87a5a', d: '#6a2a20', f: '#8a6a4a' } : { b: '#b89a6a', l: '#d8c49a', d: '#6a5a3a', f: '#8a7a5a' };
+      if (kind && kind.startsWith('c')) { pal.b = '#a0662e'; pal.l = '#c8884a'; pal.d = '#5a3418'; pal.f = '#7a4a22'; }
+      ITEM_DRAW.tpl(t, ['', '', '', '', '...........ff..', '..dddddd...f...', '.dbbbbbbd.ff...', 'd.bllbbbbdf....', 'dbbbbbbbbbf....', '.dbbbbbbd.ff...', '..dddddd...f...', '...........ff..'], { b: pal.b, l: pal.l, d: pal.d, f: pal.f });
+    },
+    boat(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '', '#............#', '#pppppppppppp#', '#pPpppppppPpp#', '.#pppppppppp#.', '..##########..'], { p: '#a0773f', P: '#c09a5c', '#': '#5a4020' }, 1, 1); },
+    minecart(t) { ITEM_DRAW.tpl(t, ['', '', '', '', '', '#............#', '#iiiiiiiiiiii#', '#iIiiiiiiiIii#', '#iiiiiiiiiiii#', '.############.', '..oo......oo..', '..oo......oo..'], { i: '#8a8a8a', I: '#c8c8c8', '#': '#3a3a3a', o: '#2a2a2a' }, 1, 1); },
     eye_of_ender(t) {
       for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 5) t.px(x, y, d > 4.2 ? '#0a3a2a' : (x + y) % 3 ? '#2a9a6a' : '#3ab07a'); }
       for (let y = 5; y < 11; y++) { t.px(7, y, '#0a140e'); t.px(8, y, '#0a140e'); }

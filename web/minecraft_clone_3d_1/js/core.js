@@ -33,6 +33,7 @@ function VoxelCore() {
     'ench_top', 'ench_side', 'anvil_top', 'anvil_side', 'iron_block',
     'melon_side', 'melon_top', 'carrots_0', 'carrots_1', 'carrots_2', 'carrots_3', 'brewing_stand', 'brewing_base',
     'end_stone', 'end_frame_top', 'end_frame_side', 'end_frame_eye', 'end_portal', 'dragon_egg', 'mossy_stone_bricks', 'cracked_stone_bricks',
+    'rail', 'rail_corner', 'powered_rail', 'powered_rail_on',
   ];
   const T = {};
   TILES.forEach((n, i) => { T[n] = i; });
@@ -323,6 +324,26 @@ function VoxelCore() {
   def(DRAGON_EGG, 'dragon_egg', 'Яйцо дракона', { render: 'box', shape: [[3, 0, 3, 13, 2, 13], [2, 2, 2, 14, 7, 14], [3, 7, 3, 13, 11, 13], [5, 11, 5, 11, 15, 11]], tex: 'dragon_egg', hardness: 3, sound: 'stone', light: 1, group: 'nature' });
   def(MOSSY_BRICKS, 'mossy_stone_bricks', 'Замшелые каменные кирпичи', { tex: 'mossy_stone_bricks', hardness: 1.5, tool: 'pickaxe', level: 0 });
   def(CRACKED_BRICKS, 'cracked_stone_bricks', 'Потрескавшиеся каменные кирпичи', { tex: 'cracked_stone_bricks', hardness: 1.5, tool: 'pickaxe', level: 0 });
+  // ---- Рельсы (id с 1336): 10 форм обычных (прямые, подъёмы, повороты), энергорельсы: 6 форм x выкл/вкл.
+  // Направления: 0 север (-z), 1 восток (+x), 2 юг (+z), 3 запад (-x). У подъёма - высокая сторона.
+  const RAIL = 1336, POWERED_RAIL = 1346;
+  const RAIL_DIRS = [[0, 2], [1, 3], [3, 1], [1, 3], [2, 0], [0, 2], [2, 1], [2, 3], [0, 3], [0, 1]];
+  const RAIL_HIGH = [-1, -1, 1, 3, 0, 2, -1, -1, -1, -1];
+  const railShape = (s) => {
+    const h = RAIL_HIGH[s];
+    if (h < 0) return [[0, 0, 0, 16, 1, 16]];
+    // подъём - четыре ступеньки по 4 пикселя
+    const out = [];
+    for (let k = 0; k < 4; k++) {
+      const y0 = k * 4, a = h === 1 || h === 2 ? k * 4 : 12 - k * 4;
+      out.push(h === 1 || h === 3 ? [a, y0, 0, a + 4, y0 + 1, 16] : [0, y0, a, 16, y0 + 1, a + 4]);
+    }
+    return out;
+  };
+  // поворот верхней текстуры: прямые вдоль z без поворота, вдоль x - на четверть; повороты - свой угол
+  const RAIL_ROT = [0, 1, 1, 1, 0, 0, 0, 1, 2, 3];
+  for (let s = 0; s < 10; s++) def(RAIL + s, 'rail' + (s ? '_' + s : ''), 'Рельсы', { render: 'box', shape: railShape(s), tex: s >= 6 ? 'rail_corner' : 'rail', rot: RAIL_ROT[s], solid: false, hardness: 0.7, tool: 'pickaxe', sound: 'stone', creative: !s, item: RAIL, drop: RAIL, rail: s, group: 'redstone' });
+  for (let s = 0; s < 6; s++) for (let on = 0; on < 2; on++) def(POWERED_RAIL + s * 2 + on, 'powered_rail' + (s || on ? '_' + s + on : ''), 'Энергорельсы', { render: 'box', shape: railShape(s), tex: on ? 'powered_rail_on' : 'powered_rail', rot: RAIL_ROT[s], solid: false, hardness: 0.7, tool: 'pickaxe', sound: 'stone', creative: !s && !on, item: POWERED_RAIL, drop: POWERED_RAIL, rail: s, prail: on, group: 'redstone' });
   def(IRON_BLOCK, 'iron_block', 'Железный блок', { tex: 'iron_block', hardness: 5, tool: 'pickaxe', level: 1 });
   def(EMERALD_ORE, 'emerald_ore', 'Изумрудная руда', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', level: 2, drop: ITEM_EMERALD, group: 'nature' });
 
@@ -1594,7 +1615,7 @@ function VoxelCore() {
 
   return {
     CS, CH, SEA, CVOL, MAXID, isBlock, cidx, TILES, T, ATLAS_COLS, ATLAS_ROWS, BLOCKS, B, RENDER, SOLID, EMIT, FILTER, TEXF, WALL_TORCH, FACE_OF_ROT,
-    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, END_STONE, END_FRAME, END_PORTAL, DRAGON_EGG, END_Y, endPillars, strongholds, MELON, CARROTS, BREWING_STAND, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
+    FLUID, FLEVEL, FFALL, SHAPE, CSHAPE, DYN, TBOX, shapeOf, RAIL, POWERED_RAIL, RAIL_DIRS, RAIL_HIGH, END_STONE, END_FRAME, END_PORTAL, DRAGON_EGG, END_Y, endPillars, strongholds, MELON, CARROTS, BREWING_STAND, ENCH_TABLE, ANVIL, IRON_BLOCK, SUGAR_CANE, EMERALD_ORE, LAPIS_ORE, PATH, villageAt, villageNear, VIL_CELL, VIL_R, wireLinks, FDIR, FDIR6_OF_DIR4, FACE_OF_DIR6, rotBox, WIRE, RS_TORCH, RS_TORCH_OFF, REPEATER, BUTTON, WOOD_BUTTON, RS_PLATE, RS_WOOD_PLATE, LAMP, PISTON, PISTON_HEAD, REDSTONE_ORE, REDSTONE_BLOCK, RS_CONNECT, NETHERRACK, SOUL_SAND, NETHER_BRICKS, NETHER_FENCE, QUARTZ_ORE, PORTAL, NETHER_WART, SPAWNER, NB_SLAB, NB_STAIRS, slabBase, stairsBase, NETHER_SEA, fortressAt, fortressNear, FACES, VERT, SLAB, STAIRS, MATS, FENCE, GATE, TRAPDOOR, IRON_TRAPDOOR, PANE, LADDER, DOOR_WOOD, DOOR_IRON, LEG_DY, LEG_HALF, LEG_MAP, legHeight, legacyIsland, inLegacy,
     BIOMES, mulberry32, hash3, seedFrom, makeNoise, worldOf, column, treeAt, generate, checksum, findSpawn, buildMesh, rleEncode, rleDecode,
   };
 }
