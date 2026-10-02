@@ -7,9 +7,10 @@
   const VX = window.VX = window.VX || {};
   const C = VX.core;
   const HALF = 0.3, HEIGHT = 1.8, EYE = 1.62, EYE_SNEAK = 1.32;
+  const SWIM_H = 0.6, EYE_SWIM = 0.4;          // плавание лёжа: коробка 0.6 в высоту, глаза ниже
   const G = 28.2, JUMP = 8.4, TERMINAL = 78;
   const CLIMB = 2.35, FLOW_ACC = 11;        // подъём по лестнице, м/с; снос течением, м/с²
-  const SPEED = { walk: 4.317, sprint: 5.612, sneak: 1.31, fly: 10.9, flySprint: 21.8, swim: 2.2 };
+  const SPEED = { walk: 4.317, sprint: 5.612, sneak: 1.31, fly: 10.9, flySprint: 21.8, swim: 2.2, swimFast: 5.6 };
   const EPS = 1e-6;
 
   function Player() {
@@ -23,14 +24,14 @@
   Player.prototype.reset = function () {
     this.health = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 15; this.hurtCool = 0; this.hurtFlash = 0; this.regenT = 0; this.starveT = 0; this.drownT = 0;
-    this.fallTop = null; this.dead = false; this.lastDamage = null; this.fireT = 0; this.burnT = 0;
+    this.fallTop = null; this.dead = false; this.lastDamage = null; this.fireT = 0; this.burnT = 0; this.swimming = false; this.swimStroke = false;
     this.level = 0; this.xpPoints = 0; this.xpTotal = 0; this.effects = {};
     this.vel.set(0, 0, 0);
   };
-  Player.prototype.eye = function () { return this.pos.y + (this.sneaking && !this.flying ? EYE_SNEAK : EYE); };
+  Player.prototype.eye = function () { return this.pos.y + (this.swimming ? EYE_SWIM : this.sneaking && !this.flying ? EYE_SNEAK : EYE); };
   Player.prototype.box = function (x, y, z) {
     x = x === undefined ? this.pos.x : x; y = y === undefined ? this.pos.y : y; z = z === undefined ? this.pos.z : z;
-    return [x - HALF, y, z - HALF, x + HALF, y + HEIGHT, z + HALF];
+    return [x - HALF, y, z - HALF, x + HALF, y + (this.swimming ? SWIM_H : HEIGHT), z + HALF];
   };
   Player.prototype.forward = function () {
     const cp = Math.cos(this.pitch);
@@ -178,6 +179,14 @@
     const canSprint = input.f && (creative || this.food > 6) && !this.sneaking;
     if (!canSprint || len === 0) this.sprinting = false;
     else if (input.sprint) this.sprinting = true;
+    // Плавание лёжа (как в оригинале): в воде бег + вперёд - герой ложится по взгляду. Кончилось
+    // (отпустил бег, вышел из воды, голод) - встаёт, но только если над головой есть место:
+    // в щели высотой в блок лежит, пока не выплывет на простор.
+    const water = this.inWater && !this.inLava && !this.flying;
+    const strokes = water && this.sprinting && !!input.f;
+    if (strokes) this.swimming = true;
+    else if (this.swimming && !boxHits(world, [this.pos.x - HALF, this.pos.y, this.pos.z - HALF, this.pos.x + HALF, this.pos.y + HEIGHT, this.pos.z + HALF])) this.swimming = false;
+    this.swimStroke = strokes;
     let speed;
     if (this.flying) speed = this.sprinting ? SPEED.flySprint : SPEED.fly;
     else if (this.inWater) speed = SPEED.swim * (this.sprinting ? 1.3 : 1);
@@ -229,6 +238,12 @@
       }
     }
     this.jumpCool = Math.max(0, (this.jumpCool || 0) - dt);
+    // лёжа гребём по взгляду (вниз - ныряем, вверх - всплываем), быстрее обычного плавания
+    if (strokes) {
+      const f = this.forward(), ks = 1 - Math.exp(-8 * dt);
+      let sp = SPEED.swimFast * (VX.brewing ? 1 + 0.2 * VX.brewing.level('speed') : 1);
+      this.vel.x += (f.x * sp - this.vel.x) * ks; this.vel.y += (f.y * sp - this.vel.y) * ks; this.vel.z += (f.z * sp - this.vel.z) * ks;
+    }
 
     let dx = this.vel.x * dt, dy = this.vel.y * dt, dz = this.vel.z * dt;
     // красться: не сходить с края, пока стоишь на земле
@@ -261,7 +276,7 @@
     // путь - для шагов и голода
     this.walked = (this.walked || 0) + (this.onGround ? Math.hypot(dx, dz) : 0);
     if (!creative) {
-      this.exhaust((this.sprinting ? 0.1 : 0.01) * Math.hypot(dx, dz) * (this.onGround || this.inWater ? 1 : 0));
+      this.exhaust((this.sprinting ? 0.1 : 0.01) * (strokes ? Math.hypot(dx, dy, dz) : Math.hypot(dx, dz)) * (this.onGround || this.inWater ? 1 : 0));
     }
 
     // падение: высшая точка в воздухе минус точка приземления
