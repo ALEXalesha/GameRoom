@@ -1,5 +1,29 @@
 # Changelog / Журнал изменений
 
+## Unreleased
+
+**EN**
+
+- New: the browser version of Igroteka, `index.html` at the repository root: the same
+  cards and pictures, games in tabs of the page, a "System demos" section; works from
+  disk and from GitHub Pages (`.nojekyll` added). Pause/resume messages to the game when
+  its tab is left or the browser tab is hidden, full screen button, volume, theme,
+  reopening tabs, clearing one game's data.
+- The game table moved to `web/_shared/games-data.js`, shared by the app and the page.
+- Fix: the app took the game name from `<title>` and showed "Операция" instead of
+  "Операция: Периметр"; now `<meta name="application-name">` comes first.
+
+**RU**
+
+- Новое: браузерная «Игротека», `index.html` в корне: те же карточки и картинки, игры во
+  вкладках страницы, раздел «Демо систем»; работает с диска и с GitHub Pages (добавлен
+  `.nojekyll`). Пауза и возврат игре при уходе с её вкладки и при скрытии вкладки
+  браузера, кнопка «на весь экран», громкость, тема, вкладки прошлого раза, очистка данных
+  одной игры.
+- Таблица игр перенесена в `web/_shared/games-data.js`, общую для приложения и страницы.
+- Исправлено: приложение брало имя игры из `<title>` и показывало «Операция» вместо
+  «Операция: Периметр»; теперь сначала `<meta name="application-name">`.
+
 ## 1.0.0 - 2026-09-26
 
 **EN**

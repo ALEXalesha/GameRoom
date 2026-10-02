@@ -74,7 +74,7 @@ ten game folders go into the build.
 
 ```
 npm test                  # web/ pages in Chromium (284 checks)
-npm run test:unit         # laws of the app modules and the icon (35)
+npm run test:unit         # laws of the app modules and the icon (40)
 npm run test:app          # the real app through Playwright (60, windows off-screen)
 pip install -r requirements-py.txt
 python -m pytest tests/py # py/ programs (183)
@@ -83,6 +83,29 @@ python -m pytest tests/py # py/ programs (183)
 Helpers: `npm run thumbs` re-renders the card pictures, `npm run screenshots` takes the
 pictures for this file, `npm run probe:background` shows what each game does in a
 background tab.
+
+### Browser version
+
+`index.html` at the repository root is the same Igroteka in a regular browser: the same
+cards, descriptions and pictures, games open in tabs of the page, plus a "System demos"
+section (win11_3, macos-tahoe, ios26, oneui7). Open it with a double click on
+`index.html` or serve the repository root with any static server. No build, no server and
+no internet are needed; all paths are relative.
+
+- One game table for the app and the page: `web/_shared/games-data.js`. Tab order and
+  settings come from the same modules, `app/tabs.js` and `app/settings.js`.
+- Leaving a game (another tab, the home screen, a hidden browser tab) sends it
+  `{mix: 'pause'}`, coming back sends `{mix: 'resume'}`; the player unpauses.
+- All pages of a site share one storage; games keep apart by key prefixes (the `storage`
+  field of the table). "Clear data" erases only the chosen game.
+- The volume setting reaches the games when the page comes from a site or server; from
+  disk the browser treats game pages as foreign, so volume is set in the games.
+- GitHub Pages: Settings → Pages → Deploy from a branch → `main`, folder `/ (root)`. The
+  `.nojekyll` file at the root is required, otherwise Pages drops folders starting with
+  an underscore (`web/_shared`, `web/_launcher`, `web/_os-shared`).
+
+The page laws are in `tests/weblauncher.spec.js` (part of `npm test`): over `file://` and
+from a server subfolder, as on Pages.
 
 ### Renaming the app
 
