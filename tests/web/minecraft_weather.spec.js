@@ -221,17 +221,44 @@ test.describe('minecraft_clone_3d_1: погода', () => {
     await expect(page.locator('#scr-settings')).toContainText('Частицы погоды: Много');
   });
 
-  test('без утечек: три грозы по 6 молний и ливень - число геометрий не растёт', async ({ page }) => {
+  test('без утечек: три грозы по 6 молний и ливень (с пересозданием сеток капель) - число геометрий не растёт', async ({ page }) => {
     await world(page, 'creative');
-    const geo = () => page.evaluate(() => { const v = __voxel; return v.game.renderer.info.memory.geometries - v.counts().draws - v.world.trash.length; });
+    // Замер (02-03.10): сами молнии и сетки капель в сцене каждый круг одни и те же - утечки нет. Прежний
+    // закон «плясал» по двум причинам времени, а не памяти:
+    //  1) молния живёт 0.25 с реального времени, и в один круг замер успевал до её конца (+6 геометрий),
+    //     в другой - нет; теперь молнии держатся, пока закон сам их не погасит, и сравнивается остаток
+    //     ПОСЛЕ них, а пока они горят - проверяется, что они действительно в счёте (иначе закон пустой);
+    //  2) после площадки куски ещё строятся: новая сетка попадает в счёт видеокарты только после первой
+    //     отрисовки, а сетка, заменённая до отрисовки, при освобождении счёт не меняет; поэтому мир сначала
+    //     достраивается, очередь старых сеток освобождается, и дальше мир заморожен - меняется только погода.
+    await page.evaluate(() => __voxel.waitIdle(2));
+    await frames(page, 6);
+    await page.evaluate(() => { const w = __voxel.world; w.update = () => {}; w.collect(true); });
+    await frames(page, 4);
+    const geo = () => page.evaluate(() => { const v = __voxel; return { n: v.game.renderer.info.memory.geometries - v.counts().draws - v.world.trash.length, jobs: v.world.jobs.size }; });
     const round = async () => {
-      // без огня от молний (огонь перестраивает сетки кусков - счёт геометрий бы плясал)
-      await page.evaluate(() => { const v = __voxel, W = v.VX.weather, p = v.player; W.R.rnd = () => 0.99; W.set('thunder', 99999); W.state().rain = 1; W.state().thunder = 1; for (let k = 0; k < 6; k++) W.strike(p.pos.x + 5 + k, p.pos.z - 8); });
+      await frames(page, 2);
+      // без огня от молний (огонь перестраивает сетки кусков); молнии не гаснут сами, пока не скажем
+      await page.evaluate(() => {
+        const v = __voxel, W = v.VX.weather, p = v.player;
+        W.R.rnd = () => 0.99; W.set('thunder', 99999); W.state().rain = 1; W.state().thunder = 1;
+        for (let k = 0; k < 6; k++) W.strike(p.pos.x + 5 + k, p.pos.z - 8);
+        for (const b of W.bolts) b.t = 1e9;
+      });
+      // частицы «мало» и снова «много»: сетки капель пересоздаются - старые должны освобождаться
+      await page.evaluate(() => { __voxel.settings.particles = 1; });
+      await frames(page, 2);
+      await page.evaluate(() => { __voxel.settings.particles = 2; });
       await frames(page, 4);
-      const n = await geo();
-      await page.evaluate(() => { __voxel.step(0.05, 10); });
+      const alive = await geo();
+      const bolts = await page.evaluate(() => { const W = __voxel.VX.weather; const n = W.bolts.filter((b) => b.mesh).length; for (const b of W.bolts) b.t = 0; return n; });
+      await page.evaluate(() => { __voxel.step(0.05, 2); });
       await frames(page, 4);
-      return n;
+      const after = await geo();
+      expect(alive.jobs).toBe(0);                      // замер на стоящем мире
+      expect(bolts).toBe(6);                           // все шесть молний нарисованы...
+      expect(alive.n - after.n).toBeGreaterThanOrEqual(6);    // ...были в счёте и ушли из него
+      return after.n;
     };
     const a = await round(), b = await round(), c = await round();
     expect(b - a).toBeLessThanOrEqual(2);
