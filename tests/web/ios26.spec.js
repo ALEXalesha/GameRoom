@@ -7,6 +7,10 @@ const { WEB } = require('../helpers');
 const { openOs, expectInside, dragFrom, expectNoPageOverflow, expectNoBrandGlyphs } = require('./_os-helpers');
 
 const NAME = 'ios26';
+// захват мыши недоступен ни странице, ни рамкам игр: на этом компьютере работает человек
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { Element.prototype.requestPointerLock = function () { return Promise.resolve(); }; });
+});
 const APPS = ['weather', 'clock', 'phone', 'messages', 'mail', 'browser', 'camera', 'photos', 'music', 'calc', 'notes', 'calendar', 'files', 'settings'];
 const screen = (page, id) => page.locator(`#app-${id}`);
 const hhmm = (page) => page.evaluate(() => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
@@ -684,26 +688,311 @@ test('текстуры стекла кэшируются по размеру: п
   expect(await page.evaluate(() => [window.__tdu, LG.stats.bakes]), 'повторное открытие печёт текстуры заново').toEqual(before);
 });
 
-test('программа раскрывается из своего значка пружиной и сворачивается обратно', async ({ page }) => {
-  await openOs(page, NAME);
+test('программа раскрывается из своего значка пружиной с перелётом и сворачивается обратно в значок', async ({ page }) => {
+  const errors = await openOs(page, NAME);
   await unlock(page);
   const icon = await page.locator('#home-grid .app-icon[data-app="notes"] .icon').boundingBox();
   await page.locator('#home-grid .app-icon[data-app="notes"]').click();
+  // кривая раскрытия по кадрам: масштаб из значка, перелёт за 1 и успокоение на 1
   const a = await page.evaluate(() => {
     const el = document.getElementById('app-notes'); const an = el.getAnimations()[0];
     if (!an) return null;
-    an.pause(); an.currentTime = 0;
-    const r = el.getBoundingClientRect(); const easing = an.effect.getTiming().easing; an.play();
-    return { x: r.x, y: r.y, w: r.width, h: r.height, easing };
+    an.pause();
+    const dur = an.effect.getComputedTiming().duration, ws = [];
+    let first = null;
+    for (let i = 0; i <= 60; i++) {
+      an.currentTime = Math.min(dur - 0.01, dur * i / 60);
+      const r = el.getBoundingClientRect();
+      if (!i) first = { x: r.x, y: r.y, w: r.width, h: r.height };
+      ws.push(r.width);
+    }
+    an.play();
+    return { first, ws, easing: an.effect.getTiming().easing };
   });
   expect(a, 'у экрана программы нет анимации раскрытия').not.toBeNull();
-  expect(a.easing, 'пружина - кривая linear() с отскоком').toMatch(/^linear\(/);
-  expect(Math.abs(a.x + a.w / 2 - (icon.x + icon.width / 2)), 'раскрытие начинается не из значка').toBeLessThan(12);
-  expect(Math.abs(a.y + a.h / 2 - (icon.y + icon.height / 2)), 'раскрытие начинается не из значка').toBeLessThan(40);
+  expect(a.easing, 'пружина - кривая linear()').toMatch(/^linear\(/);
+  expect(Math.abs(a.first.x + a.first.w / 2 - (icon.x + icon.width / 2)), 'раскрытие начинается не из значка').toBeLessThan(12);
+  expect(Math.abs(a.first.y + a.first.h / 2 - (icon.y + icon.height / 2)), 'раскрытие начинается не из значка').toBeLessThan(40);
+  const end = a.ws[a.ws.length - 1];
+  expect(Math.max(...a.ws) / end, 'у пружины нет перелёта').toBeGreaterThan(1.003);
+  expect(Math.abs(a.ws[a.ws.length - 2] / end - 1), 'пружина не успокаивается на месте').toBeLessThan(0.003);
   await expect(screen(page, 'notes')).toBeVisible();
   await page.waitForTimeout(700);
   await page.keyboard.press('Escape');
-  // закрытие: программа закрыта сразу (current пуст), а картинка сворачивается в значок и исчезает
   expect(await page.evaluate(() => current)).toBe(null);
+  // сворачивание: экран виден и по кадрам сжимается к значку (а не стоит во весь экран и пропадает)
+  const c = await page.evaluate(() => {
+    const el = document.getElementById('app-notes'); const an = el.getAnimations()[0];
+    if (!an || getComputedStyle(el).display === 'none') return null;
+    an.pause();
+    const dur = an.effect.getComputedTiming().duration, out = [];
+    for (const f of [0.1, 0.4, 0.7, 0.999]) { an.currentTime = dur * f; const r = el.getBoundingClientRect(); out.push({ w: r.width, cx: r.x + r.width / 2 }); }
+    an.play();
+    return out;
+  });
+  expect(c, 'нет анимации сворачивания (экран сразу пропал)').not.toBeNull();
+  expect(c[0].w, 'в начале сворачивания экран ещё большой').toBeGreaterThan(icon.width * 2.5);
+  expect(c[c.length - 1].w, 'в конце экран размером со значок').toBeLessThan(icon.width * 1.6);
+  expect(Math.abs(c[c.length - 1].cx - (icon.x + icon.width / 2)), 'сворачивается не в свой значок').toBeLessThan(10);
   await expect(screen(page, 'notes')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+// ===== Ревью ветки ios: найденные недочёты и вид iOS 26 =====
+// Контраст мелкого текста по пикселям: снимок с текстом и без (visibility), цвет букв - самые непохожие пиксели,
+// фон - худший случай под ними
+async function textContrast(page, dec, clip, hide) {
+  const withText = await grab(page, dec, clip);
+  await page.evaluate((h) => document.querySelectorAll(h).forEach((e) => { e.style.visibility = 'hidden'; }), hide);
+  await page.waitForTimeout(60);
+  const without = await grab(page, dec, clip);
+  await page.evaluate((h) => document.querySelectorAll(h).forEach((e) => { e.style.visibility = ''; }), hide);
+  const diff = [];
+  for (let i = 0; i < withText.d.length; i += 4) {
+    const dd = Math.abs(withText.d[i] - without.d[i]) + Math.abs(withText.d[i + 1] - without.d[i + 1]) + Math.abs(withText.d[i + 2] - without.d[i + 2]);
+    if (dd > 60) diff.push([dd, luma(withText.d[i], withText.d[i + 1], withText.d[i + 2]), luma(without.d[i], without.d[i + 1], without.d[i + 2])]);
+  }
+  if (diff.length < 12) return { ratio: 0, n: diff.length };
+  diff.sort((x, y) => y[0] - x[0]);
+  const core = diff.slice(0, Math.ceil(diff.length * 0.3));
+  const fg = core.map((x) => x[1]).sort((x, y) => x - y)[Math.floor(core.length / 2)];
+  const bgs = diff.map((x) => x[2]).sort((x, y) => x - y);
+  const light = fg > bgs[Math.floor(bgs.length / 2)];
+  const bg = light ? bgs[Math.floor(bgs.length * 0.9)] : bgs[Math.floor(bgs.length * 0.1)];
+  return { ratio: +contrast(fg, bg).toFixed(2), fg: +fg.toFixed(3), bg: +bg.toFixed(3), n: diff.length };
+}
+for (const dark of [false, true]) {
+  test(`текст уведомлений, баннера и подписи значков читаются на всех обоях (${dark ? 'тёмная' : 'светлая'} тема): контраст не меньше 4.5`, async ({ page, context }) => {
+    test.slow();
+    await openOs(page, NAME);
+    const dec = await decoder(context);
+    const walls = await page.evaluate(() => Object.keys(WALLS));
+    await page.evaluate((d) => setS('dark', d), dark);
+    for (const w of walls) {
+      await setWall(page, w);
+      await page.evaluate(() => { showLock(); NOTIFS = []; notify('clock', 'Будильник 07:00', 'Подъём'); });
+      await page.waitForTimeout(350);
+      const card = page.locator('#lock-notifs .n-card').first();
+      const r1 = await textContrast(page, dec, await card.locator('.n-title').boundingBox(), '#lock-notifs .n-card .n-main');
+      expect(r1.ratio, `${w}: уведомление на блокировке ${JSON.stringify(r1)}`).toBeGreaterThanOrEqual(4.5);
+      await page.evaluate(() => showHome());
+      await page.waitForTimeout(150);
+      for (const id of ['mail', 'files']) {
+        const lab = page.locator(`#home-grid .app-icon[data-app="${id}"] .app-label`);
+        const r = await textContrast(page, dec, await lab.boundingBox(), `#home-grid .app-icon[data-app="${id}"] .app-label`);
+        expect(r.ratio, `${w}: подпись «${id}» ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(4.5);
+      }
+      await page.evaluate(() => notify('messages', 'Аня', 'Привет! Как проект?'));
+      await page.waitForTimeout(900);
+      const r3 = await textContrast(page, dec, await page.locator('.banner .n-title').boundingBox(), '.banner .n-main');
+      expect(r3.ratio, `${w}: баннер ${JSON.stringify(r3)}`).toBeGreaterThanOrEqual(4.5);
+      await page.evaluate(() => document.querySelectorAll('.banner').forEach((b) => b.remove()));
+    }
+  });
+}
+
+test('неизвестные обои в тёмной теме (старая запись) не роняют страницу: поиск, пружина и пункт управления на месте', async ({ page }) => {
+  const errors = await openOs(page, NAME);
+  await page.evaluate(() => localStorage.setItem('ios26.settings', JSON.stringify({ wallpaper: 'mint', dark: true })));
+  await page.reload();
+  await page.waitForTimeout(300);
+  expect(errors, errors.join('\n')).toEqual([]);
+  expect(await page.evaluate(() => [typeof openSpot, Wall.ready(), !!document.querySelector('#control-center .cc-back')])).toEqual(['function', true, true]);
+});
+
+test('пока стекло едет, под ним размытие, а не пустота: баннер, карточки центра уведомлений, плитки пункта управления', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const bf = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).backdropFilter, sel);
+  await page.evaluate(() => notify('messages', 'Аня', 'Привет'));
+  await page.waitForTimeout(120);
+  expect(await bf('.banner .n-card'), 'баннер въезжает без размытия').toMatch(/blur\(\d/);
+  await page.evaluate(() => { document.querySelectorAll('.banner').forEach((b) => b.remove()); openNC(); });
+  await page.waitForTimeout(120);
+  expect(await bf('#nc-list .n-card'), 'карточки центра уведомлений едут без размытия').toMatch(/blur\(\d/);
+  await page.evaluate(() => closeNC());
+  await page.waitForTimeout(700);
+  await page.evaluate(() => openCC());
+  await page.waitForTimeout(120);
+  expect(await bf('#control-center [data-cc="rotation"]'), 'плитки едут без размытия').toMatch(/blur\(\d/);
+});
+
+// Ревью просило возвращать стекло по 1-2 элемента за кадр. Замер процессора (3 открытия пункта управления):
+// по 2 за кадр - 3.9 с, по 4 - 3.4 с, разом - 3.1 с: каждый шаг заново считает уже включённые цепочки.
+// Поэтому закон обратный: стекло возвращается одним шагом, без лесенки пересчётов.
+test('стекло после движения возвращается одним шагом в следующем кадре, без лесенки пересчётов', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.evaluate(() => openCC());
+  await glassReady(page, '#control-center [data-cc="rotation"]');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(900);
+  const steps = await page.evaluate(async () => {
+    const els = [...document.querySelectorAll('#control-center .lg')];
+    const full = () => els.filter((e) => getComputedStyle(e).backdropFilter.includes('url(')).length;
+    openCC();
+    const seen = []; let prev = full();
+    await new Promise((done) => { const t0 = performance.now(); const f = () => { const n = full(); if (n !== prev) { seen.push(n - prev); prev = n; } if (performance.now() - t0 < 2200) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); });
+    return { seen, total: els.length, end: prev };
+  });
+  expect(steps.end, 'стекло вернулось не на все плитки').toBe(steps.total);
+  expect(steps.seen, `стекло возвращалось лесенкой: ${steps.seen}`).toEqual([steps.total]);
+});
+
+test('миниатюры обоев в «Настройках» нарисованы, «Жемчуг» не белое на белом', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const s = await open(page, 'settings');
+  await s.locator('[data-page="wall"]').click();
+  await page.waitForTimeout(200);
+  const th = await page.evaluate(() => [...document.querySelectorAll('#app-settings canvas.wall-th')].map((c) => {
+    const x = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let a = 0, v = 0;
+    for (let i = 0; i < x.length; i += 16) { a += x[i + 3]; v += Math.abs(x[i] - x[i + 2]) + (255 - x[i + 1]); }
+    return { k: c.dataset.th, w: c.width, alpha: a / (x.length / 16), tone: v / (x.length / 16) };
+  }));
+  expect(th.length).toBeGreaterThanOrEqual(6);
+  for (const t of th) {
+    expect(t.w, t.k + ': холст не нарисован').not.toBe(300);
+    expect(t.alpha, t.k + ': пустой холст').toBeGreaterThan(250);
+  }
+  expect(th.find((t) => t.k === 'pearl').tone, '«Жемчуг» без цвета').toBeGreaterThan(8);
+});
+
+test('«Поиск»: поле внизу, буквы сразу после нажатия не теряются, Escape закрывает', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.click('#home-search');
+  await page.keyboard.type('каль');
+  await expect(page.locator('#sp-input')).toHaveValue('каль');
+  await expect(page.locator('#sp-res [data-app="calc"]')).toBeVisible();
+  const box = await page.locator('.sp-box').boundingBox(), d = await page.locator('#device').boundingBox();
+  expect(box.y, 'поле поиска не внизу').toBeGreaterThan(d.y + d.height * 0.6);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#spotlight')).not.toHaveClass(/open/);
+});
+
+test('копии экранов в переключателе без служебных классов движения', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  await open(page, 'notes');
+  await page.evaluate(() => { LG.moving(screens.notes.el, 5000); screens.notes.el.classList.add('closing'); openSwitcher(); });
+  expect(await page.evaluate(() => document.querySelectorAll('#switcher .lg-moving, #switcher .closing, #switcher .lg-under').length)).toBe(0);
+});
+
+test('«Меньше стекла» - текстуры не пекутся вовсе', async ({ page }) => {
+  await openOs(page, NAME);
+  await page.evaluate(() => localStorage.setItem('ios26.settings', JSON.stringify({ glass: false })));
+  await page.reload();
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => openCC());
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => LG.stats.bakes)).toBe(0);
+});
+
+test('«понижение прозрачности» в системе - плотная подложка без стекла', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });
+  await openOs(page, NAME);
+  await unlock(page);
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => { const s = getComputedStyle(document.getElementById('dock')); const a = s.backgroundColor.match(/[\d.]+/g).map(Number); return [LG.stats.bakes, a.length > 3 ? a[3] : 1]; });
+  expect(r[0], 'текстуры пеклись').toBe(0);
+  expect(r[1], 'подложка прозрачная').toBeGreaterThan(0.85);
+});
+
+test('число фильтров в документе ограничено, сколько бы форм ни было', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const n = await page.evaluate(async () => {
+    const d = document.createElement('div'); d.style.cssText = 'position:absolute;left:10px;top:200px;height:40px;border-radius:12px;z-index:400';
+    $('home-page').appendChild(d); LG.add(d, 'card');
+    const idle = () => new Promise((r) => { const t = setInterval(() => { if (LG.idle()) { clearInterval(t); r(); } }, 10); });
+    for (let w = 60; w < 300; w += 3) { d.style.width = w + 'px'; LG.sync(d); await idle(); }
+    return document.querySelectorAll('filter[id^="lgf"]').length;
+  });
+  expect(n, 'фильтры копятся без предела').toBeLessThanOrEqual(64);
+});
+
+test('часы блокировки не пересчитывают тон по обоям каждую секунду', async ({ page }) => {
+  await openOs(page, NAME);
+  await page.waitForTimeout(500);
+  const calls = await page.evaluate(async () => { let n = 0; const o = Wall.sample; Wall.sample = function (...a) { n++; return o.apply(this, a); }; await new Promise((r) => setTimeout(r, 2600)); Wall.sample = o; return n; });
+  expect(calls).toBe(0);
+});
+
+test('жесты идут за пальцем: пункт управления, центр уведомлений, сворачивание программы', async ({ page }) => {
+  await openOs(page, NAME);
+  await unlock(page);
+  const d = await page.locator('#device').boundingBox();
+  const k = d.width / 393;
+  // пункт управления: тянем вниз из правого верхнего угла и держим
+  await page.mouse.move(d.x + d.width * 0.8, d.y + 15); await page.mouse.down();
+  await page.mouse.move(d.x + d.width * 0.8, d.y + 15 + 160 * k, { steps: 6 });
+  const mid = await page.evaluate(() => [+getComputedStyle(document.querySelector('.cc-back')).opacity, document.querySelector('.cc-grid').getBoundingClientRect().bottom - document.getElementById('screen').getBoundingClientRect().top]);
+  expect(mid[0], 'фон пункта управления не идёт за пальцем').toBeGreaterThan(0.1);
+  expect(mid[0]).toBeLessThan(0.95);
+  expect(mid[1], 'плитки не выехали за пальцем').toBeGreaterThan(20);
+  await page.mouse.move(d.x + d.width * 0.8, d.y + 15 + 300 * k, { steps: 4 }); await page.mouse.up();
+  await expect(page.locator('#control-center')).toHaveClass(/open/);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  // центр уведомлений: слева сверху
+  await page.mouse.move(d.x + d.width * 0.2, d.y + 15); await page.mouse.down();
+  await page.mouse.move(d.x + d.width * 0.2, d.y + 15 + 200 * k, { steps: 6 });
+  const ncBottom = await page.evaluate(() => document.getElementById('nc').getBoundingClientRect().bottom - document.getElementById('screen').getBoundingClientRect().top);
+  expect(ncBottom, 'центр уведомлений не идёт за пальцем').toBeGreaterThan(100 * k);
+  await page.mouse.up();
+  await expect(page.locator('#nc')).toHaveClass(/open/);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  // программа: тянем вверх от полоски - экран уменьшается за пальцем, отпустили - свернулась
+  const s = await open(page, 'notes');
+  await page.waitForTimeout(600);
+  await page.mouse.move(d.x + d.width / 2, d.y + d.height - 12); await page.mouse.down();
+  await page.mouse.move(d.x + d.width / 2, d.y + d.height - 12 - 200 * k, { steps: 8 });
+  const w = (await s.boundingBox()).width;
+  expect(w, 'экран программы не уменьшается за пальцем').toBeLessThan(d.width * 0.92);
+  await page.mouse.up();
+  await expect(s).toBeHidden();
+});
+
+test('вид iOS 26: часы своими знаками, виджеты блокировки без плашек, плитка музыки, браузер, часы, сообщения', async ({ page }) => {
+  await openOs(page, NAME);
+  // виджеты блокировки - текст прямо на обоях, без стеклянных плашек
+  expect(await page.evaluate(() => [...document.querySelectorAll('.lock-widgets .widget')].some((w) => w.classList.contains('lg')))).toBe(false);
+  // цифры часов - свои скруглённые знаки (не системный шрифт): слой букв помечен
+  expect(await page.evaluate(() => document.querySelector('.lock-glass').dataset.glyphs)).toBe('rounded');
+  await unlock(page);
+  // пункт управления: плитка музыки включает и выключает музыку
+  await page.evaluate(() => openCC());
+  await page.locator('#control-center [data-cc-music="play"]').click();
+  expect(await page.evaluate(() => screens.music.state().playing)).toBe(true);
+  await page.locator('#control-center [data-cc-music="play"]').click();
+  expect(await page.evaluate(() => screens.music.state().playing)).toBe(false);
+  await page.keyboard.press('Escape');
+  // браузер: светлый, одна стеклянная панель с адресом внизу, страница уходит под неё
+  const b = await open(page, 'browser');
+  await page.waitForTimeout(700);   // раскрытие из значка закончилось
+  expect(await b.getAttribute('data-light')).toBe('1');
+  expect(await b.locator('.glass-bar').count()).toBe(1);
+  expect(await b.locator('.glass-bar input').count()).toBe(1);
+  const bar = await b.locator('.glass-bar').boundingBox(), dv = await page.locator('#device').boundingBox();
+  expect(bar.y, 'панель браузера не внизу').toBeGreaterThan(dv.y + dv.height * 0.8);
+  const cb = await b.locator('.safari-content').boundingBox();
+  expect(cb.y + cb.height, 'страница не уходит под панель').toBeGreaterThan(bar.y + bar.height - 1);
+  await page.keyboard.press('Escape');
+  // часы: у вкладок значки и подписи, у выбранной - линза
+  const c = await open(page, 'clock');
+  expect(await c.locator('.clock-tab svg').count()).toBe(3);
+  await expect(c.locator('.clock-tabs .tab-lens')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  // сообщения: светлые, синие и серые пузыри, кнопка «назад» - значок
+  const m = await open(page, 'messages');
+  expect(await m.getAttribute('data-light')).toBe('1');
+  await m.locator('[data-chat="ann"]').click();
+  const col = await m.evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el.querySelector('.msg-bubble.them')).backgroundColor, getComputedStyle(el.querySelector('.msg-bubble.me')).backgroundColor, el.querySelector('[data-back]').textContent.trim()]);
+  expect(col[0]).toBe('rgb(255, 255, 255)');
+  expect(col[1]).toBe('rgb(233, 233, 235)');
+  expect(col[2]).toBe('rgb(0, 122, 255)');
+  expect(col[3], 'кнопка «назад» - текст, а не значок').toBe('');
 });

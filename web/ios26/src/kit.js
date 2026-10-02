@@ -322,6 +322,10 @@ function openSwitcher() {
     if (APPS[card.dataset.sw].game) { card.querySelector('.sw-shot').innerHTML = '<div class="sw-game">' + iconHTML(card.dataset.sw) + '</div>'; return; }   // рамку игры не копируем: она бы запустилась второй раз
     const src = screens[card.dataset.sw].el, c = src.cloneNode(true);
     c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    // служебные классы движения стекла и сворачивания копии не нужны: иначе копия застынет без стекла
+    const FX = ['lg-moving', 'lg-under', 'lg-hold', 'lg-covered', 'closing'];
+    [c, ...c.querySelectorAll('.' + FX.join(', .'))].forEach((x) => x.classList.remove(...FX));
+    c.style.transform = ''; c.style.clipPath = '';
     c.classList.add('active', 'sw-clone');
     card.querySelector('.sw-shot').appendChild(c);
   });

@@ -51,7 +51,8 @@ const LG = (() => {
 
   // Текстуры из поля расстояний D (отрицательно внутри). Тело - bakeFields из LiquidGlass,
   // только поле приходит готовым: прямоугольник или буквы.
-  function bakeFields(cw, ch, D, bevel, dpr, lightDeg) {
+  function bakeFields(cw, ch, D, bevel, dpr, lightDeg, opp) {
+    if (opp === undefined) opp = 0.28;   // вторая, тусклая кромка со стороны, противоположной свету
     const bv = Math.max(2, bevel * dpr);
     const H = new Float32Array(cw * ch), T = new Float32Array(cw * ch), A = new Float32Array(cw * ch);
     const deepLo = new Int32Array(ch), deepHi = new Int32Array(ch);
@@ -79,7 +80,7 @@ const LG = (() => {
     const dp = disp.data, sp = spec.data, sh = shade.data;
     const SLOPE = 0.34, NSTR = 1.35, EDGE = clamp(2.2 * dpr / bv, 0.03, 0.45);
     const flatLine = Math.exp(-(1 / EDGE) * Math.sqrt(1 / EDGE) * 2.4);
-    const flatSpec = byte(clamp(pow46(Math.max(Hz, 0)) * 1.55 + pow26(Math.max(Gz, 0)) * 0.40 + flatLine * (0.24 + 0.66 * clamp(Lz, 0, 1) + 0.28 * clamp(Fz, 0, 1)), 0, 1) * 255);
+    const flatSpec = byte(clamp(pow46(Math.max(Hz, 0)) * 1.55 + pow26(Math.max(Gz, 0)) * 0.40 + flatLine * (0.24 + 0.66 * clamp(Lz, 0, 1) + opp * clamp(Fz, 0, 1)), 0, 1) * 255);
     const flatShade = byte(clamp(flatLine * Math.max(-Lz, 0) * 0.55, 0, 1) * 255);
     for (let y = 0; y < ch; y++) {
       const yUp = y > 0 ? y - 1 : 0, yDn = y < ch - 1 ? y + 1 : ch - 1;
@@ -114,7 +115,7 @@ const LG = (() => {
         const fres = Math.pow(1 - Nz, 2.6);
         const k = y * cw + x, inside = A[k], u = T[k] / EDGE;
         const line = Math.exp(-u * Math.sqrt(u) * 2.4);
-        const hi = clamp(pow46(Math.max(ndh, 0)) * 1.55 + pow26(Math.max(ndg, 0)) * 0.40 + line * (0.24 + 0.66 * clamp(ndl, 0, 1) + 0.28 * clamp(ndf, 0, 1)) + fres * 0.09, 0, 1) * inside;
+        const hi = clamp(pow46(Math.max(ndh, 0)) * 1.55 + pow26(Math.max(ndg, 0)) * 0.40 + line * (0.24 + 0.66 * clamp(ndl, 0, 1) + opp * clamp(ndf, 0, 1)) + fres * 0.09, 0, 1) * inside;
         const lo = clamp(line * Math.max(-ndl, 0) * 0.55 + fres * 0.12, 0, 1) * inside;
         sp[i] = sp[i + 1] = sp[i + 2] = 255; sp[i + 3] = byte(hi * 255);
         sh[i] = sh[i + 1] = sh[i + 2] = 0; sh[i + 3] = byte(lo * 255);
@@ -131,26 +132,34 @@ const LG = (() => {
   const SQUIRCLE = typeof CSS !== 'undefined' && CSS.supports('corner-shape', 'squircle');
   const SVG_OK = typeof CSS !== 'undefined' && CSS.supports('backdrop-filter', 'url(#a)') && !/^((?!chrome|chromium|android).)*safari/i.test(navigator.userAgent);
   const q = location.search + location.hash;
-  const WEAK = /[?&#]lite\b/.test(q) || (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
-    (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches);
-  let mode = SVG_OK && !WEAK ? 'full' : 'lite';
+  // «понижение прозрачности» в системе - плотная подложка; слабое устройство или ?lite - дешёвое стекло
+  const SOLID = !!(window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches);
+  const WEAK = /[?&#]lite\b/.test(q) || (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory && navigator.deviceMemory <= 2);
+  const BASE = SVG_OK && !WEAK && !SOLID ? 'full' : 'lite';
+  // «Меньше стекла» в настройках - текстуры не пекутся вовсе
+  const fewer = () => document.body.classList.contains('no-glass') || (typeof S !== 'undefined' && S.glass === false);
+  let mode = BASE === 'full' && !fewer() ? 'full' : 'lite';
   document.documentElement.classList.toggle('lg-lite', mode === 'lite');
+  document.documentElement.classList.toggle('lg-solid', SOLID);
 
-  // Кривая читаемости (feComponentTransfer - самая дорогая стадия цепочки) только там, где на стекле текст.
   // Оптика по видам. refr - сила преломления (пкс), ab - дисперсия, rim - свечение кромки,
-  // leg - кривая читаемости, blur/sat - размытие и насыщенность фона под стеклом.
+  // leg - кривая читаемости (feComponentTransfer - самая дорогая стадия, только там, где на стекле текст),
+  // blur/sat - размытие и насыщенность фона, spec/shade - сила блика и самозатенения,
+  // opp - вторая кромка со стороны, противоположной свету (у кнопок пункта управления - почти как первая).
   const PRESETS = {
-    dock: { bevel: 18, refr: 48, ab: 0.18, rim: 0.42, leg: 0, blur: 1.5, sat: 180 },
-    widget: { bevel: 16, refr: 40, ab: 0.16, rim: 0.36, leg: 0.28, blur: 8, sat: 165 },
-    tile: { bevel: 10, refr: 28, ab: 0.18, rim: 0, leg: 0, blur: 1, sat: 170 },
-    button: { bevel: 12, refr: 28, ab: 0.18, rim: 0.42, leg: 0, blur: 2, sat: 175 },
-    card: { bevel: 14, refr: 32, ab: 0.14, rim: 0.30, leg: 0.30, blur: 12, sat: 170 },
-    panel: { bevel: 20, refr: 50, ab: 0.16, rim: 0.36, leg: 0.18, blur: 5, sat: 170 },
-    bar: { bevel: 14, refr: 34, ab: 0.16, rim: 0.36, leg: 0.22, blur: 6, sat: 185 },
-    glyph: { bevel: 9, refr: 18, ab: 0.22, rim: 0.50, leg: 0, blur: 0.6, sat: 190 },
+    dock: { bevel: 14, refr: 40, ab: 0.08, rim: 0.30, leg: 0, blur: 1.5, sat: 180, spec: 0.8, shade: 0.2, opp: 0.45 },
+    widget: { bevel: 12, refr: 32, ab: 0.08, rim: 0.25, leg: 0.28, blur: 8, sat: 165, spec: 0.7, shade: 0.18, opp: 0.45 },
+    tile: { bevel: 5, refr: 16, ab: 0.10, rim: 0, leg: 0, blur: 1, sat: 170, spec: 0.75, shade: 0.08, opp: 0.75 },
+    // крупные модули пункта управления: самая большая площадь фильтра, дисперсия на плоском стекле почти не видна - один проход
+    module: { bevel: 6, refr: 18, ab: 0, rim: 0, leg: 0, blur: 1, sat: 170, spec: 0.7, shade: 0.08, opp: 0.7 },
+    button: { bevel: 9, refr: 22, ab: 0.10, rim: 0.30, leg: 0, blur: 2, sat: 175, spec: 0.75, shade: 0.15, opp: 0.55 },
+    card: { bevel: 10, refr: 26, ab: 0.08, rim: 0.20, leg: 0.30, blur: 12, sat: 170, spec: 0.65, shade: 0.15, opp: 0.45 },
+    panel: { bevel: 14, refr: 40, ab: 0.08, rim: 0.25, leg: 0.18, blur: 5, sat: 170, spec: 0.7, shade: 0.18, opp: 0.45 },
+    bar: { bevel: 11, refr: 28, ab: 0.08, rim: 0.25, leg: 0.22, blur: 6, sat: 185, spec: 0.7, shade: 0.15, opp: 0.5 },
+    glyph: { bevel: 7, refr: 14, ab: 0.12, rim: 0.35, leg: 0, blur: 0.6, sat: 190, spec: 0.5, shade: 0.08, opp: 0.6 },
   };
   for (const k in PRESETS) PRESETS[k].name = k;
-  const SPEC_K = 0.85, SHADE_K = 0.55;
+  const FILTER_CAP = 48;
 
   const holder = document.createElementNS(NS, 'svg');
   holder.setAttribute('aria-hidden', 'true');
@@ -159,9 +168,9 @@ const LG = (() => {
   holder.appendChild(defs);
   document.body.appendChild(holder);
 
-  const maps = new Map();      // форма -> { disp, spec, shade }
+  const maps = new Map();      // форма|вид -> { disp, spec, shade }
   const filters = new Map();   // форма|вид -> id фильтра
-  const state = new WeakMap(); // элемент -> { p, key, applied, wall }
+  const state = new WeakMap(); // элемент -> { p, key, applied, wall, fid }
   const items = new Set();
   const waiting = new Set();   // элементы, которым нужна выпечка
   const stats = { bakes: 0, filters: 0, bakeMs: 0 };
@@ -174,13 +183,13 @@ const LG = (() => {
     cv.getContext('2d').putImageData(img, 0, 0);
     return cv.toDataURL();
   }
-  function bakeShape(w, h, r, bevel, n) {
+  function bakeShape(w, h, r, bevel, n, p) {
     const t0 = performance.now();
     let dpr = DPR;
     if (w * h * dpr * dpr > 4e5) dpr = Math.sqrt(4e5 / (w * h));   // крупная панель - карта грубее, бюджет пикселей
     const cw = Math.max(4, Math.round(w * dpr)), ch = Math.max(4, Math.round(h * dpr));
-    const f = bakeFields(cw, ch, rectField(cw, ch, Math.min(r, Math.min(w, h) / 2) * dpr, n), bevel, dpr, LIGHT);
-    const m = { disp: encode(f.disp), spec: encode(f.spec, SPEC_K), shade: encode(f.shade, SHADE_K) };
+    const f = bakeFields(cw, ch, rectField(cw, ch, Math.min(r, Math.min(w, h) / 2) * dpr, n), bevel, dpr, LIGHT, p.opp);
+    const m = { disp: encode(f.disp), spec: encode(f.spec, p.spec), shade: encode(f.shade, p.shade) };
     stats.bakes++; stats.bakeMs += performance.now() - t0;
     return m;
   }
@@ -195,7 +204,9 @@ const LG = (() => {
   const calmTable = (a) => CALM_FROM.map((v, i) => v + (CALM_TO[i] - v) * a);
   function filterMarkup(id, disp, w, h, p) {
     const s = -p.refr, ab = p.ab, sel = 'xChannelSelector="R" yChannelSelector="G"';
-    let body = '<feImage href="' + disp + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="none" result="map"/>' +
+    let body = '<feImage href="' + disp + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="none" result="map"/>';
+    if (!ab) body += '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + s.toFixed(2) + '" ' + sel + ' result="ref"/>';
+    else body +=
       '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + (s * (1 + ab)).toFixed(2) + '" ' + sel + ' result="dR"/>' +
       '<feColorMatrix in="dR" type="matrix" values="' + ONLY_R + '" result="cR"/>' +
       '<feDisplacementMap in="SourceGraphic" in2="map" scale="' + s.toFixed(2) + '" ' + sel + ' result="dG"/>' +
@@ -220,14 +231,20 @@ const LG = (() => {
     const pad = Math.ceil(p.refr * (1 + p.ab) / 2 + p.blur * 3 + 3);
     return '<filter id="' + id + '" filterUnits="userSpaceOnUse" x="' + (-pad) + '" y="' + (-pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '" color-interpolation-filters="sRGB">' + body + '</filter>';
   }
-  function filterFor(shape, p, m, w, h) {
-    const k = shape + '|' + p.name;
-    let id = filters.get(k);
-    if (id) return id;
+  // фильтров в документе не больше FILTER_CAP: те, на которые не ссылается ни один элемент, уходят
+  function pruneFilters() {
+    const used = new Set();
+    for (const el of items) { const st = state.get(el); if (st && st.fid && el.isConnected) used.add(st.fid); }
+    for (const [k, id] of filters) if (!used.has(id)) { const n = document.getElementById(id); if (n) n.remove(); filters.delete(k); }
+  }
+  function filterFor(key, p, m, w, h) {
+    let id = filters.get(key);
+    if (id && document.getElementById(id)) return id;
+    if (filters.size >= FILTER_CAP) pruneFilters();
     id = 'lgf' + (fid++);
     const node = new DOMParser().parseFromString('<svg xmlns="' + NS + '">' + filterMarkup(id, m.disp, w, h, p) + '</svg>', 'image/svg+xml').querySelector('filter');
     defs.appendChild(document.importNode(node, true));
-    filters.set(k, id);
+    filters.set(key, id);
     stats.filters++;
     return id;
   }
@@ -253,43 +270,46 @@ const LG = (() => {
     const m = metrics(el);
     if (!m) return;
     const bevel = Math.min(st.p.bevel, Math.min(m.w, m.h) / 2.2);
-    const shape = [m.w, m.h, m.r.toFixed(1), bevel.toFixed(1), m.n, DPR].join(':');
+    const key = [m.w, m.h, m.r.toFixed(1), bevel.toFixed(1), m.n, DPR, st.p.name].join(':');
     if (st.wall) tone(el);
-    if (shape === st.key && st.applied) return;
-    st.key = shape; st.m = m; st.bevel = bevel;
-    if (mode === 'lite') { setBF(el, cheapOf(st.p)); st.applied = 'lite'; return; }
-    const hit = maps.get(shape);
+    if (key === st.key && st.applied === mode) return;
+    st.key = key; st.m = m; st.bevel = bevel;
+    if (mode !== 'full') {
+      setBF(el, cheapOf(st.p)); el.style.removeProperty('--lg-spec'); el.style.removeProperty('--lg-shade');
+      st.applied = 'lite'; st.fid = ''; return;
+    }
+    const hit = maps.get(key);
     if (hit) { apply(el, st, hit); return; }
     // пока карты пекутся, элемент уже читается как стекло - обычным размытием
-    if (!st.applied) setBF(el, cheapOf(st.p));
+    if (st.applied !== 'full') setBF(el, cheapOf(st.p));
     waiting.add(el);
     pump();
   }
   function apply(el, st, m) {
     const id = filterFor(st.key, st.p, m, st.m.w, st.m.h);
+    st.fid = id;
     el.style.setProperty('--lg-spec', 'url("' + m.spec + '")');
     el.style.setProperty('--lg-shade', 'url("' + m.shade + '")');
     setBF(el, 'blur(' + st.p.blur + 'px) saturate(' + st.p.sat + '%) url(#' + id + ')');
     st.applied = 'full';
     el.dataset.lgf = id;
   }
-  // выпечка в простое: по одной форме, пока в кадре есть время
+  // выпечка в простое: по одной форме, пока в кадре есть время; пока что-то едет - ждём
   function pump() {
     if (pumping || !waiting.size) return;
     const run = () => {
       pumping = 0;
-      // пока что-то едет, не печём: выпечка в кадре анимации - это пропущенный кадр
-      if (document.querySelector('.lg-moving')) { pumping = setTimeout(() => { pumping = 0; pump(); }, 120); return; }
+      if (document.querySelector('.lg-moving, .lg-under') || relQ.length) { pumping = setTimeout(() => { pumping = 0; pump(); }, 120); return; }
       const until = performance.now() + 6;
       let baked = 0;
       for (const el of [...waiting]) {
         const st = state.get(el);
-        if (!st || !el.isConnected || !st.m) { waiting.delete(el); continue; }
+        if (!st || !el.isConnected || !st.m || mode !== 'full') { waiting.delete(el); continue; }
         if (!maps.has(st.key)) {
           if (baked && performance.now() > until) break;
           baked++;
           if (maps.size > 80) maps.clear();
-          maps.set(st.key, bakeShape(st.m.w, st.m.h, st.m.r, st.bevel, st.m.n));
+          maps.set(st.key, bakeShape(st.m.w, st.m.h, st.m.r, st.bevel, st.m.n, st.p));
         }
         waiting.delete(el);
         // все, кто ждёт ту же форму, получают её сразу
@@ -305,13 +325,21 @@ const LG = (() => {
   function add(el, preset, opts) {
     if (!el || state.has(el)) return;
     const p = PRESETS[preset] || PRESETS.card;
-    state.set(el, { p, key: '', applied: '', wall: !!(opts && opts.wall) });
+    state.set(el, { p, key: '', applied: '', wall: !!(opts && opts.wall), fid: '' });
     items.add(el);
     el.classList.add('lg');
     el.dataset.lg = p.name;
     el.style.setProperty('--lg-cheap', cheapOf(p));
     if (ro) ro.observe(el);
     sync(el);
+  }
+  // «Меньше стекла» переключили - стекло пересобирается в нужном режиме
+  function refresh() {
+    const m = BASE === 'full' && !fewer() ? 'full' : 'lite';
+    if (m === mode) return;
+    mode = m;
+    document.documentElement.classList.toggle('lg-lite', mode === 'lite');
+    for (const el of items) { const st = state.get(el); if (st) st.key = ''; sync(el); }
   }
 
   // ---------- автоматическая регистрация ----------
@@ -339,44 +367,75 @@ const LG = (() => {
     return c.map((v) => { const x = v / 255 * 5, i = Math.min(4, Math.floor(x)); return (t[i] + (t[i + 1] - t[i]) * (x - i)) * 255; });
   }
   // Подбор подложки: белый текст на тёмной дымке или тёмный на светлой - что требует меньше дымки
-  // для контраста 4.5 на самом неудобном участке фона. darkPref - светлый текст в приоритете.
+  // для контраста на самом неудобном участке фона. Запас до 5.6: под стеклом фон ещё насыщен и преломлён.
   function solve(cells, leg, darkPref) {
-    const W = 1, D = 0.0122, need = 4.6;
+    const W = 1, D = 0.0122, need = 5.6;
     const bg = cells.map((c) => calm(c, leg));
     let aw = 1, ad = 1;
-    for (let a = 0; a <= 0.8; a += 0.02) { const mx = Math.max(...bg.map((c) => lum(c.map((v) => v * (1 - a))))); if (ratio(W, mx) >= need) { aw = a; break; } }
-    for (let a = 0; a <= 0.8; a += 0.02) { const mn = Math.min(...bg.map((c) => lum(c.map((v) => v * (1 - a) + 255 * a)))); if (ratio(mn, D) >= need) { ad = a; break; } }
+    for (let a = 0; a <= 0.86; a += 0.02) { const mx = Math.max(...bg.map((c) => lum(c.map((v) => v * (1 - a))))); if (ratio(W, mx) >= need) { aw = a; break; } }
+    for (let a = 0; a <= 0.86; a += 0.02) { const mn = Math.min(...bg.map((c) => lum(c.map((v) => v * (1 - a) + 255 * a)))); if (ratio(mn, D) >= need) { ad = a; break; } }
     const light = darkPref ? ad + 0.12 < aw : !(aw + 0.12 < ad);
     return light ? { tone: 'light', a: ad } : { tone: 'dark', a: aw };
   }
-  function localRect(el) {
-    const s = document.getElementById('screen'), sr = s.getBoundingClientRect(), k = sr.width / s.offsetWidth || 1, r = el.getBoundingClientRect();
-    return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
+  // место на экране телефона по раскладке, без преобразований: баннер ещё едет, а тон нужен для того, где он встанет
+  function layoutRect(el) {
+    const s = document.getElementById('screen');
+    let x = 0, y = 0, e = el;
+    while (e && e !== s) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
   }
   function tone(el) {
     const st = state.get(el);
     if (!st || !window.Wall || !Wall.ready() || !el.offsetWidth) return;
-    const cells = Wall.sample(localRect(el));
+    const cells = Wall.sample(layoutRect(el));
     if (!cells.length) return;
     const t = solve(cells, mode === 'full' ? st.p.leg : 0, document.body.classList.contains('dark'));
     el.dataset.tone = t.tone;
-    el.style.setProperty('--lg-tint', t.tone === 'light' ? 'rgba(255,255,255,' + Math.max(0.16, t.a).toFixed(2) + ')' : 'rgba(0,0,0,' + Math.max(0.06, t.a).toFixed(2) + ')');
+    // на стекле с текстом подложка плотнее расчётной: под буквами ещё самозатенение и втянутый с краёв фон
+    const a = st.p.leg > 0 ? Math.min(0.9, t.a + 0.15) : t.a;
+    el.style.setProperty('--lg-tint', t.tone === 'light' ? 'rgba(255,255,255,' + Math.max(0.16, a).toFixed(2) + ')' : 'rgba(0,0,0,' + Math.max(0.06, a).toFixed(2) + ')');
   }
   function retone() { for (const el of items) { const st = state.get(el); if (st && st.wall) tone(el); } }
 
-  // Пока панель едет, у стекла под ней (и у неё самой) только размытие: цепочка с feImage
-  // и feDisplacementMap считается на процессоре, а движущийся фон заставляет пересчитывать её каждый кадр.
-  const movers = new Map();
-  function moving(el, ms) {
-    if (!el) return;
-    el.classList.add('lg-moving');
-    clearTimeout(movers.get(el));
-    movers.set(el, setTimeout(() => { el.classList.remove('lg-moving'); movers.delete(el); }, ms));
+  // ---------- движение ----------
+  // Пока панель едет, её стекло - размытие с подкраской (lg-moving), а стекло под ней - только подкраска
+  // (lg-under): цепочка с картой смещения считается на процессоре, и любое движение в слое заставляет
+  // пересчитать её у всех стёкол каждый кадр. Когда встало, стекло возвращается одним шагом в следующем кадре.
+  // Возврат по одному-два за кадр проверен и отвергнут замером: каждый шаг заново считает уже включённые
+  // цепочки (их фон меняется вместе с соседом), и вместо одного тяжёлого кадра выходит несколько,
+  // а процессора уходит на треть больше (3 открытия пункта управления: 3.9 с против 3.1 с). perFrame можно задать.
+  const timers = new Map();
+  const relQ = [];
+  let relRaf = 0, perFrame = Infinity;
+  function relStep() {
+    relRaf = 0;
+    relQ.splice(0, perFrame).forEach((e) => e.classList.remove('lg-hold'));
+    if (relQ.length) relRaf = requestAnimationFrame(relStep);
+    else pump();
   }
+  function release(el, cls) {
+    if (!el.classList.contains(cls)) return;
+    for (const e of items) {
+      const st = state.get(e);
+      if ((e === el || el.contains(e)) && st && st.applied === 'full' && !e.classList.contains('lg-hold')) { e.classList.add('lg-hold'); relQ.push(e); }
+    }
+    el.classList.remove(cls);
+    if (relQ.length && !relRaf) relRaf = requestAnimationFrame(relStep);
+  }
+  function hold(el, cls, ms) {
+    if (!el) return;
+    el.classList.add(cls);
+    const k = cls + ':' + (el.id || ''), t = timers.get(el) || {};
+    clearTimeout(t[cls]);
+    t[cls] = setTimeout(() => release(el, cls), ms);
+    timers.set(el, t);
+  }
+  const moving = (el, ms) => hold(el, 'lg-moving', ms);
+  const under = (el, ms) => hold(el, 'lg-under', ms);
 
   // Заранее испечь формы скрытой страницы: на время замера она видима, но невидима глазу
   function prewarm(root) {
-    if (!root || mode === 'lite') return;
+    if (!root || mode !== 'full') return;
     root.classList.add('lg-measure');
     for (const el of items) if (root.contains(el)) sync(el);
     root.classList.remove('lg-measure');
@@ -385,12 +444,12 @@ const LG = (() => {
   // Стеклянные буквы (часы блокировки): поле расстояний строится по маске самих букв
   const glyphCache = new Map();
   function glyphs(alpha, cw, ch, w, h, key) {
-    if (mode === 'lite') return null;
+    if (mode !== 'full') return null;
     let g = glyphCache.get(key);
     if (g) return clockFilter(g);
-    const t0 = performance.now(), dpr = cw / w;
-    const f = bakeFields(cw, ch, maskField(alpha, cw, ch), PRESETS.glyph.bevel, dpr, LIGHT);
-    g = { disp: encode(f.disp), spec: encode(f.spec, SPEC_K), shade: encode(f.shade, SHADE_K), w, h, key };
+    const t0 = performance.now(), dpr = cw / w, p = PRESETS.glyph;
+    const f = bakeFields(cw, ch, maskField(alpha, cw, ch), p.bevel, dpr, LIGHT, p.opp);
+    g = { disp: encode(f.disp), spec: encode(f.spec, p.spec), shade: encode(f.shade, p.shade), w, h, key };
     stats.bakes++; stats.bakeMs += performance.now() - t0;
     if (glyphCache.size > 6) glyphCache.clear();
     glyphCache.set(key, g);
@@ -410,11 +469,12 @@ const LG = (() => {
   }
 
   return {
-    PRESETS, stats, add, auto, sync, tone, retone, moving, prewarm, glyphs, solve, bakeFields, rectField, maskField,
+    PRESETS, stats, add, auto, sync, tone, retone, moving, under, release, prewarm, glyphs, solve, refresh, bakeFields, rectField, maskField, layoutRect,
     get mode() { return mode; },
+    get perFrame() { return perFrame; }, set perFrame(n) { perFrame = n === Infinity ? n : Math.max(1, n | 0); },
     // готово - значит видно полное стекло: карты на месте и фильтр действует (не едет, не закрыт панелью)
-    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === (mode === 'lite' ? 'lite' : 'full') && (mode === 'lite' || getComputedStyle(el).backdropFilter.includes('url('))); },
-    idle: () => waiting.size === 0 && !pumping,
+    ready: (el) => { const st = el && state.get(el); return !!(st && st.applied === mode && (mode !== 'full' || getComputedStyle(el).backdropFilter.includes('url('))); },
+    idle: () => waiting.size === 0 && !pumping && !relQ.length,
     resyncAll: () => items.forEach(sync),
   };
 })();

@@ -58,6 +58,7 @@
               <div class="cc-conn-item" data-cc="bt" title="Bluetooth" role="button" aria-label="Bluetooth"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v8.6L7.4 6 6 7.4l5.6 4.6L6 16.6 7.4 18l4.6-4.6V22l5-5-3.6-3 3.6-3-5-5zm2 4.4l1.6 1.6L14 9.6V6.4zm0 9.2L15.6 17 14 18.6v-3z"/></svg></div>
             </div>
           </div>
+          <div class="cc-tile large cc-music" role="group" aria-label="Музыка"><div class="ccm-art"></div><div><div class="ccm-t" id="ccm-title">Не исполняется</div><div class="ccm-a">Музыка</div></div><div class="ccm-row"><button data-cc-music="prev" title="Назад" aria-label="Предыдущая"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12L20 18V6z"/></svg></button><button data-cc-music="play" title="Играть" aria-label="Играть или пауза"><svg viewBox="0 0 24 24" fill="currentColor"><path class="ccm-icon" d="M8 5v14l11-7L8 5z"/></svg></button><button data-cc-music="next" title="Вперёд" aria-label="Следующая"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM4 18l10.5-6L4 6z"/></svg></button></div></div>
           <div class="cc-slider tall" data-slider="brightness" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Яркость"><div class="cc-slider-fill"></div><div></div><svg class="cc-slider-icon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
           <div class="cc-slider tall" data-slider="volume" style="grid-column: span 1; grid-row: span 2;" role="slider" aria-label="Громкость"><div class="cc-slider-fill"></div><div></div><svg class="cc-slider-icon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9.5v5h3.5L11 19V5L6.5 9.5z"/><path d="M14.5 8.5a5 5 0 010 7M17 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
           <button class="cc-tile" data-cc="rotation" title="Блокировка поворота"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 014 4v3h1a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9a2 2 0 012-2h1V6a4 4 0 014-4zm0 2a2 2 0 00-2 2v3h4V6a2 2 0 00-2-2z"/></svg><span class="cc-label">Поворот</span></button>
@@ -179,9 +180,9 @@ const iconHTML = id => { const [cls, svg] = ICONS[id]; return '<div class="icon 
 // ===== Программы =====
 const APPS = {
   phone: { name: 'Телефон', cls: 'phone-app', light: true, init: initPhone },
-  messages: { name: 'Сообщения', cls: 'messages-app', init: initMessages },
+  messages: { name: 'Сообщения', cls: 'messages-app', light: true, init: initMessages },
   mail: { name: 'Почта', cls: 'mail-app', light: true, init: initMail },
-  browser: { name: 'Браузер', cls: 'browser-app', init: initBrowser },
+  browser: { name: 'Браузер', cls: 'browser-app', light: true, init: initBrowser },
   camera: { name: 'Камера', cls: 'camera-app', init: initCamera },
   photos: { name: 'Фото', cls: 'photos-app', light: true, init: initPhotos },
   music: { name: 'Музыка', cls: 'music-app', init: initMusic },
@@ -404,12 +405,12 @@ function initMessages(sc) {
   const save = () => store.set('chats', chats);
   function render() {
     if (!open) {
-      shell('messages', '<div class="app-header"><div class="app-title" style="color:#fff">Сообщения</div></div><div class="scr-body" style="padding:0">' +
+      shell('messages', '<div class="app-header"><div class="app-title">Сообщения</div></div><div class="scr-body" style="padding:0">' +
         Object.entries(chats).map(([id, c]) => '<div class="chat-row" data-chat="' + id + '"><div class="chat-av" style="background:' + c.color + '">' + esc(c.name[0]) + '</div><div class="lr-main"><div class="lr-title">' + esc(c.name) + '</div><div class="lr-sub">' + esc((c.msgs[c.msgs.length - 1] || { t: '' }).t) + '</div></div></div>').join('') + '</div>');
       return;
     }
     const c = chats[open];
-    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn glass-btn" data-back>‹ Назад</button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
+    shell('messages', '<div class="msg-header"><button class="msg-back nav-btn glass-btn" data-back title="Назад" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="msg-title">' + esc(c.name) + '</div></div><div class="msg-list" id="msg-list">' +
       c.msgs.map(m => '<div class="msg-bubble ' + (m.me ? 'me' : 'them') + '">' + esc(m.t) + '</div>').join('') + '</div>' +
       '<form class="msg-input-bar glass-bar"><input class="msg-input" id="msg-input" placeholder="Сообщение" autocomplete="off"><button class="msg-send" title="Отправить"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.4 1.4L16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8z" transform="rotate(-90 12 12)"/></svg></button></form>');
     const list = sc.el.querySelector('#msg-list'); list.scrollTop = list.scrollHeight;
@@ -468,11 +469,11 @@ function initBrowser(sc) {
   };
   const hist = [], fwd = [];
   let cur = 'about:start';
-  shell('browser', '<div class="safari-toolbar glass-bar"><form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form></div><div class="safari-content" id="b-content"></div>' +
-    '<div class="safari-bottom-bar glass-bar"><button class="safari-action" data-b="back" title="Назад"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
-    '<button class="safari-action" data-b="fwd" title="Вперёд"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
-    '<button class="safari-action" data-b="reload" title="Обновить"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.7M20 4v5h-5"/></svg></button>' +
-    '<button class="safari-action" data-b="home" title="Стартовая"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></button></div>');
+  shell('browser', '<div class="safari-content" id="b-content"></div><div class="br-bar glass-bar">' +
+    '<button class="safari-action" data-b="back" title="Назад"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
+    '<form><input aria-label="Адрес" placeholder="Поиск или адрес" spellcheck="false"></form>' +
+    '<button class="safari-action" data-b="fwd" title="Вперёд"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>' +
+    '<button class="safari-action" data-b="home" title="Стартовая"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg></button></div>', true);
   const content = sc.el.querySelector('#b-content'), input = sc.el.querySelector('input');
   function render() {
     content.innerHTML = PAGES[cur] ? PAGES[cur]() : '<div class="safari-h1">Нет подключения</div><p>Страница <b>' + esc(cur) + '</b> не открыта: телефон работает без сети.</p><p><a href="#" data-go="about:start">На стартовую</a></p>';
@@ -668,7 +669,7 @@ function initClock(sc) {
       sw.laps.map((l, i) => '<div><span>Круг ' + (sw.laps.length - i) + '</span><span>' + swFmt(l) + '</span></div>').join('') + '</div>';
   }
   function render() {
-    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs glass-bar">' + [['world', 'Мировые'], ['alarms', 'Будильник'], ['stopwatch', 'Секундомер']].map(([k, n]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '">' + n + '</button>').join('') + '</div>');
+    shell('clock', '<div class="clock-content">' + body() + '</div><div class="clock-tabs glass-bar"><i class="tab-lens" style="--i:' + ['world', 'alarms', 'stopwatch'].indexOf(tab) + '"></i>' + [['world', 'Мировые', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18"/>'], ['alarms', 'Будильник', '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M5 4L2.5 6.5M19 4l2.5 2.5"/>'], ['stopwatch', 'Секундомер', '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9M10 2.5h4M18.5 7l1.5-1.5"/>']].map(([k, n, g]) => '<button class="clock-tab' + (k === tab ? ' active' : '') + '" data-tab="' + k + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' + g + '</svg><span>' + n + '</span></button>').join('') + '</div>');
   }
   const saveAl = () => store.set('alarms', alarms);
   sc.el.addEventListener('click', e => {

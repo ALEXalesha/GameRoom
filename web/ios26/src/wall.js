@@ -74,8 +74,10 @@ const Wall = (() => {
       r.addColorStop(0, c); r.addColorStop(1, 'rgba(0,0,0,0)');
       x.fillStyle = r; x.fillRect(0, 0, w, h);
     }
-    for (const r of p.r) ribbon(x, w, h, r, q);
-    if (dark && !P[id].dark) { x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, 0, w, h); }
+    // полосы - в нижней трети, под рядами значков и за доком: верх спокойный, подписи и часы читаются
+    p.r.forEach((r, i) => ribbon(x, w, h, [0.74 + i * 0.12, 0.57 + i * 0.12].concat(r.slice(2)), q));
+    // неизвестные обои (старая запись в хранилище) - рисуются как «Стекло», страница не падает
+    if (dark && !(P[id] || P.liquid).dark) { x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, 0, w, h); }
   }
 
   const CELL = 8;
