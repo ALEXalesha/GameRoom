@@ -225,7 +225,8 @@ test.describe('minecraft_clone_3d_1: погода', () => {
     await world(page, 'creative');
     const geo = () => page.evaluate(() => { const v = __voxel; return v.game.renderer.info.memory.geometries - v.counts().draws - v.world.trash.length; });
     const round = async () => {
-      await page.evaluate(() => { const v = __voxel, W = v.VX.weather, p = v.player; W.set('thunder', 99999); W.state().rain = 1; W.state().thunder = 1; for (let k = 0; k < 6; k++) W.strike(p.pos.x + 5 + k, p.pos.z - 8); });
+      // без огня от молний (огонь перестраивает сетки кусков - счёт геометрий бы плясал)
+      await page.evaluate(() => { const v = __voxel, W = v.VX.weather, p = v.player; W.R.rnd = () => 0.99; W.set('thunder', 99999); W.state().rain = 1; W.state().thunder = 1; for (let k = 0; k < 6; k++) W.strike(p.pos.x + 5 + k, p.pos.z - 8); });
       await frames(page, 4);
       const n = await geo();
       await page.evaluate(() => { __voxel.step(0.05, 10); });

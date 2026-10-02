@@ -122,12 +122,12 @@
   const GRAY = new THREE.Color(0x5a6068);
   function adjustSky(sk, sky) {
     if (!active()) return sk;
-    const s = state(), k = s.rain * 0.55 + s.thunder * 0.25;
+    const s = state(), k = s.rain * 0.75 + s.thunder * 0.2;
     if (k <= 0.001 && flashT <= 0) return sk;
     const dark = 1 - 0.3 * s.rain - 0.25 * s.thunder;           // свет падает немного
     sk.day *= dark;
-    sk.fog = sk.fog.clone().lerp(GRAY.clone().multiplyScalar(0.4 + 0.6 * sk.day), Math.min(0.8, k));
-    if (sky && sky.domeU) { sky.domeU.top.value.lerp(GRAY.clone().multiplyScalar(0.3 + 0.6 * sk.day), Math.min(0.85, k)); sky.domeU.bottom.value.copy(sk.fog); sky.domeU.glowK.value *= 1 - k; }
+    sk.fog = sk.fog.clone().lerp(GRAY.clone().multiplyScalar(0.4 + 0.6 * sk.day), Math.min(0.85, k));
+    if (sky && sky.domeU) { sky.domeU.top.value.lerp(GRAY.clone().multiplyScalar(0.3 + 0.6 * sk.day), Math.min(0.9, k)); sky.domeU.bottom.value.copy(sk.fog); sky.domeU.glowK.value *= 1 - k; }
     if (sky && sky.cloudU) sky.cloudU.uCol.value.multiplyScalar(1 - 0.45 * k);
     if (sky && sky.sun) { sky.sun.visible = sky.sun.visible && s.rain < 0.6; sky.moon.visible = sky.moon.visible && s.rain < 0.6; sky.starMat.opacity *= 1 - s.rain; }
     if (flashT > 0) { sk.day = Math.max(sk.day, 0.9); sk.fog = sk.fog.clone().lerp(new THREE.Color(0xdde4ff), 0.5); }
