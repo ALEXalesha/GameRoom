@@ -609,6 +609,8 @@ test('сквозь док, виджет и плитки видно обои; п�
 });
 
 test('время и дата на экране блокировки читаются на трёх разных обоях: контраст не меньше 4.5', async ({ page, context }) => {
+  // 18 снимков по пикселям и три перерисовки обоев и букв: на нагруженной машине дольше 30 с
+  test.slow();
   await openOs(page, NAME);
   const dec = await decoder(context);
   for (const w of ['liquid', 'pearl', 'forest']) {

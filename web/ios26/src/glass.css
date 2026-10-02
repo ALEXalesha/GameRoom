@@ -303,3 +303,6 @@ body.dark .msg-input-bar.glass-bar .msg-input { background: rgba(255,255,255,0.0
 /* баннер и карточки центра уведомлений: под ними значки и виджеты (чёрные часы, белый календарь) - плотное стекло по теме */
 .banner .n-card, #nc-list .n-card { --lg-tint: rgba(250,250,252,0.78); color: #000; }
 body.dark .banner .n-card, body.dark #nc-list .n-card { --lg-tint: rgba(28,28,32,0.72); color: #fff; }
+/* браузер в тёмной теме: страница тоже тёмная, иначе белый текст строки состояния и подписей на белом */
+body.dark .browser-app .safari-content { background: #000; color: #fff; }
+body.dark .browser-app .safari-meta { color: #8e8e93; }
