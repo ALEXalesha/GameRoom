@@ -258,21 +258,30 @@ test('значки вкладок с обводкой: на чёрном и бе
   expect(ring.alpha).toBeGreaterThanOrEqual(0.6);
 });
 
+// Под играми - раздел «Демо систем»: до него главная прокручивается, а сами игры видны
+// сразу, без прокрутки.
 test('главная при 1280x720: все игры в два ряда без прокрутки, имена одного ряда на одной высоте', async () => {
   const { app, shell } = ctx;
   await app.evaluate(() => globalThis.__igroteka.win.setContentSize(1280, 720));
   await sleep(500);
   const r = await shell.evaluate(() => {
     const home = document.getElementById('home');
-    const cards = [...document.querySelectorAll('.card')].map((c) => ({
+    home.scrollTop = 0;
+    const cards = [...document.querySelectorAll('#grid .card')].map((c) => ({
       top: Math.round(c.getBoundingClientRect().top),
       name: Math.round(c.querySelector('h2').getBoundingClientRect().top),
       play: Math.round(c.querySelector('.play').getBoundingClientRect().top),
       width: c.getBoundingClientRect().width,
     }));
     const rows = [...new Set(cards.map((c) => c.top))];
+    const demos = [...document.querySelectorAll('#systems .card')].map((c) => ({
+      top: Math.round(c.getBoundingClientRect().top),
+      name: Math.round(c.querySelector('h2').getBoundingClientRect().top),
+      play: Math.round(c.querySelector('.play').getBoundingClientRect().top),
+    }));
     return {
-      overflow: home.scrollHeight - home.clientHeight,
+      overflow: Math.round(document.getElementById('grid').getBoundingClientRect().bottom - home.getBoundingClientRect().bottom),
+      demoRow: [new Set(demos.map((c) => c.top)).size, new Set(demos.map((c) => c.name)).size, new Set(demos.map((c) => c.play)).size],
       rows: rows.length,
       namesPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.name)).size),
       playsPerRow: rows.map((t) => new Set(cards.filter((c) => c.top === t).map((c) => c.play)).size),
@@ -280,6 +289,8 @@ test('главная при 1280x720: все игры в два ряда без 
     };
   });
   expect(r.overflow).toBeLessThanOrEqual(0);
+  // Четыре демо - одним рядом, имена и кнопки на одной линии.
+  expect(r.demoRow).toEqual([1, 1, 1]);
   expect(r.rows).toBe(2);
   expect(r.namesPerRow).toEqual([1, 1]);
   // И кнопки «Играть» одного ряда на одной линии, хотя описания разной длины.
@@ -289,7 +300,7 @@ test('главная при 1280x720: все игры в два ряда без 
   await app.evaluate(() => globalThis.__igroteka.win.setContentSize(1920, 1080));
   await sleep(500);
   const wide = await shell.evaluate(() => {
-    const cards = [...document.querySelectorAll('.card')].map((c) => ({
+    const cards = [...document.querySelectorAll('#grid .card')].map((c) => ({
       top: Math.round(c.getBoundingClientRect().top),
       play: Math.round(c.querySelector('.play').getBoundingClientRect().top),
       desc: (() => { const r = document.createRange(); r.selectNodeContents(c.querySelector('.desc')); return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size; })(),
@@ -304,17 +315,27 @@ test('главная при 1280x720: все игры в два ряда без 
   expect(wide.playsPerRow).toEqual([1, 1]);
 });
 
-test('при 1920x1080 сетка стоит по центру, без большой пустоты снизу', async () => {
+// С разделом «Демо систем» главная выше экрана 1920x1080: содержимое начинается сверху
+// (без пустоты над заголовком), игры видны целиком, демо - ниже, по прокрутке. Если
+// когда-нибудь всё влезет, поля сверху и снизу снова равны (сетка по центру).
+test('при 1920x1080 игры видны без прокрутки, сверху нет большой пустоты, демо ниже', async () => {
   const { app, shell } = ctx;
   await app.evaluate(() => globalThis.__igroteka.win.setContentSize(1920, 1080));
   await sleep(500);
   const r = await shell.evaluate(() => {
-    const home = document.getElementById('home').getBoundingClientRect();
+    const homeEl = document.getElementById('home');
+    homeEl.scrollTop = 0;
+    const home = homeEl.getBoundingClientRect();
     const hero = document.querySelector('.hero').getBoundingClientRect();
+    const grid = document.getElementById('grid').getBoundingClientRect();
+    const systems = document.querySelector('.systems').getBoundingClientRect();
     const note = document.querySelector('.note').getBoundingClientRect();
-    return { top: hero.top - home.top, bottom: home.bottom - note.bottom };
+    return { top: hero.top - home.top, bottom: home.bottom - note.bottom, grid: grid.bottom - home.bottom, below: systems.top > grid.bottom, scrolls: homeEl.scrollHeight > homeEl.clientHeight };
   });
-  expect(Math.abs(r.top - r.bottom)).toBeLessThan(60);
+  expect(r.grid).toBeLessThanOrEqual(0);
+  expect(r.below).toBe(true);
+  if (r.scrolls) expect(r.top).toBeLessThan(40);
+  else expect(Math.abs(r.top - r.bottom)).toBeLessThan(60);
 });
 
 test('метка открытой игры не ложится на картинку, подпись «стёрты» сбрасывается', async () => {

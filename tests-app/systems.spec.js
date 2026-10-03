@@ -98,6 +98,13 @@ for (const s of DATA.SYSTEMS) {
     // resume паузу не снимает: её снимает игрок.
     expect(await inFrame(app, s.id, 'pause-stub.html', 'stub.paused')).toBe(true);
 
+    // Сеть закрыта и для демо, и для игр в его рамках: запрос отменяет страж сеанса демо.
+    const url = 'https://example.com/igroteka-' + s.id;
+    expect(await H.inGame(app, s.id, `fetch(${JSON.stringify(url)}).then(() => 'ушёл', () => 'отменён')`)).toBe('отменён');
+    expect(await inFrame(app, s.id, 'pause-stub.html', `fetch(${JSON.stringify(url + '-frame')}).then(() => 'ушёл', () => 'отменён')`)).toBe('отменён');
+    const blocked = await app.evaluate(() => globalThis.__igroteka.blocked.splice(0));
+    expect(blocked).toEqual([url, url + '-frame']);
+
     await H.press(app, s.id, 'W', ['control']);
     await expect.poll(() => H.tabs(app).then((t) => t.open.includes(s.id))).toBe(false);
     await expect.poll(() => app.evaluate((_e, id) => globalThis.__igroteka.views.has(id), s.id)).toBe(false);
