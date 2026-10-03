@@ -4,9 +4,13 @@ const { expect } = require('@playwright/test');
 const { open } = require('../helpers');
 
 // Открыть страницу нужного размера и вернуть массив ошибок (он пополняется до конца проверки).
+// Предупреждения консоли о неверных значениях анимации и стилей - тоже ошибки: браузер молча
+// выбрасывает такой кадр (так сворачивание программы однажды шло со scale(Infinity)).
 async function openOs(page, name, size) {
   if (size) await page.setViewportSize(size);
-  return open(page, name);
+  const errors = await open(page, name);
+  page.on('console', (m) => { if (m.type() === 'warning' && /Invalid keyframe|Invalid property value|Failed to parse/i.test(m.text())) errors.push('warning: ' + m.text()); });
+  return errors;
 }
 
 // Прямоугольник элемента целиком внутри окна браузера (с допуском в 1 пиксель на округление).
