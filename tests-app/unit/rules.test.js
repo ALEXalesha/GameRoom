@@ -10,6 +10,8 @@ const Settings = require('../../app/settings');
 const Security = require('../../app/security');
 const Games = require('../../app/games');
 const pkg = require('../../package.json');
+const vm = require('vm');
+const DATA = require('../../web/_shared/games-data.js');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -88,6 +90,78 @@ test('десять игр владельца, у каждой есть стра�
   }
 });
 
+test('таблица игр одна: приложение читает web/_shared/games-data.js', () => {
+  assert.equal(Games.GAMES, DATA.GAMES);
+  assert.ok(Object.isFrozen(DATA.GAMES) && DATA.GAMES.every((g) => Object.isFrozen(g)), 'таблица не должна меняться на ходу');
+});
+
+// Браузерная страница не может прочитать <title> игры (по file:// чужие страницы не
+// читаются), поэтому берёт имя из таблицы. Чтобы карточки в приложении и в браузере
+// звались одинаково, имя в таблице обязано совпадать с именем из самой страницы.
+test('имя в таблице совпадает с именем из страницы - для игр и демо систем', () => {
+  for (const g of [...DATA.GAMES, ...DATA.SYSTEMS]) {
+    const html = fs.readFileSync(path.join(ROOT, 'web', g.id, 'index.html'), 'utf8');
+    assert.equal(g.name, Games.pageName(html), g.id);
+  }
+  for (const g of Games.catalog(ROOT)) assert.equal(g.name, DATA.GAMES.find((x) => x.id === g.id).name, g.id);
+});
+
+test('имя из метки application-name целиком, без неё - из заголовка', () => {
+  assert.equal(Games.appName('<meta name="application-name" content="Операция: Периметр">'), 'Операция: Периметр');
+  assert.equal(Games.appName("<meta content='Блоки' name='application-name'>"), 'Блоки');
+  assert.equal(Games.appName('<meta name="description" content="не то">'), '');
+  assert.equal(Games.pageName('<title>Операция: Периметр</title><meta name="application-name" content="Операция: Периметр">'), 'Операция: Периметр');
+  assert.equal(Games.pageName('<title>Дино-бег (фан-версия)</title>'), 'Дино-бег');
+});
+
+test('приставки хранилища у игр и систем не пересекаются', () => {
+  const all = [...DATA.GAMES, ...DATA.SYSTEMS].flatMap((g) => g.storage.map((p) => ({ id: g.id, p })));
+  assert.ok(DATA.GAMES.every((g) => g.storage.length > 0));
+  for (const a of all) {
+    for (const b of all) {
+      if (a.id === b.id) continue;
+      assert.ok(!a.p.startsWith(b.p) && !b.p.startsWith(a.p), `${a.id} «${a.p}» и ${b.id} «${b.p}»`);
+    }
+  }
+});
+
+// Общие файлы подключаются в браузере обычным <script> без сборки: проверяется, что
+// они кладут свои функции в window и не требуют module/require.
+test('общие файлы работают и в браузере: window.IGROTEKA_DATA, IgrotekaTabs, IgrotekaSettings', () => {
+  const win = {};
+  win.self = win;
+  const ctx = vm.createContext(win);
+  for (const f of ['web/_shared/games-data.js', 'app/tabs.js', 'app/settings.js']) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(win.IGROTEKA_DATA)), JSON.parse(JSON.stringify(DATA)));
+  assert.deepEqual(Object.keys(win.IgrotekaTabs).sort(), Object.keys(require('../../app/tabs')).sort());
+  assert.deepEqual(Object.keys(win.IgrotekaSettings).sort(), Object.keys(Settings).sort());
+  assert.equal(JSON.stringify(win.IgrotekaTabs.closeTab({ open: ['a', 'b'], active: 'a' }, 'a')), JSON.stringify({ open: ['b'], active: 'b' }));
+});
+
+test('демо систем: страница и картинка есть, ходить можно в свою папку, _os-shared и папки игр', () => {
+  const sys = Games.systemsCatalog(ROOT);
+  assert.deepEqual(sys.map((s) => s.id), ['win11_3', 'macos-tahoe', 'ios26', 'oneui7']);
+  for (const s of sys) {
+    assert.ok(fs.existsSync(s.page), s.page);
+    assert.ok(s.style && s.desc && s.system, s.id);
+    assert.ok(fs.existsSync(path.join(ROOT, 'app', 'assets', 'thumbs', s.id + '.jpg')), 'нет картинки ' + s.id);
+    const page = url(s.page);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', '_os-shared', 'games.js')), s.folders), true);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'dino', 'index.html')), s.folders), true);
+    assert.equal(Security.navigation(url(path.join(ROOT, 'web', 'tetris', 'index.html')), s.folders), 'allow');
+    assert.equal(Security.allowRequest(page, s.folders), true);
+    // Чужое демо, другие страницы web/ и сеть - нельзя.
+    for (const other of sys) if (other.id !== s.id) assert.equal(Security.allowRequest(url(other.page), s.folders), false, other.id);
+    assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'python_ide', 'index.html')), s.folders), false);
+    assert.equal(Security.allowRequest('https://example.com/', s.folders), false);
+  }
+  // Одна папка у игры - как раньше, список у демо - то же правило для каждой.
+  assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'dino', 'index.html')), [folder]), true);
+  assert.equal(Security.allowRequest(url(path.join(ROOT, 'web', 'mario', 'index.html')), [folder]), false);
+});
+
 test('имя из заголовка: без пометки о фан-версии и без пояснений', () => {
   const t = (s) => Games.shortTitle(`<title>${s}</title>`);
   assert.equal(t('Прыг-скок: мини-платформер (фан-версия, не связана с правообладателем)'), 'Прыг-скок');
@@ -100,9 +174,10 @@ test('имя из заголовка: без пометки о фан-верси
 
 // --- сборка ---
 
-test('в сборку попадают только app/ и папки игр каталога', () => {
+test('в сборку попадают только app/, таблица игр, папки игр и демо систем', () => {
   const files = pkg.build.files.filter((f) => !f.startsWith('!'));
-  const expected = ['package.json', 'app/**/*', ...Games.IDS.map((id) => `web/${id}/**/*`)];
+  const expected = ['package.json', 'app/**/*', 'web/_shared/games-data.js', ...Games.IDS.map((id) => `web/${id}/**/*`),
+    ...Games.SYSTEM_IDS.map((id) => `web/${id}/**/*`), 'web/_os-shared/**/*'];
   assert.deepEqual([...files].sort(), [...expected].sort());
 });
 

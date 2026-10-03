@@ -10,7 +10,12 @@
 //  - вкладка создаётся при первом показе: восстановленные при запуске игры не грузятся,
 //    пока на них не переключились;
 //  - вопросы (перезапуск, внешняя ссылка) рисует оболочка поверх снимка игры: пока вопрос
-//    открыт, игра скрыта и стоит.
+//    открыт, игра скрыта и стоит;
+//  - демо систем (раздел «Демо систем»: win11_3, macos-tahoe, ios26, oneui7) открываются
+//    во вкладках так же, как игры, со своим сеансом persist:<демо>. Внутри демо игры
+//    живут в рамках <iframe>: им предзагрузка ставится в каждую рамку
+//    (nodeIntegrationInSubFrames), а уход с вкладки и возврат передаются по протоколу
+//    оболочек {mix: 'pause'} / {mix: 'resume'} (web/_os-shared/README.md).
 'use strict';
 
 const { app, BrowserWindow, WebContentsView, session, ipcMain, shell, screen, Menu, nativeTheme } = require('electron');
@@ -20,7 +25,7 @@ const Tabs = require('./tabs');
 const Settings = require('./settings');
 const Security = require('./security');
 const WindowState = require('./window-state');
-const { catalog } = require('./games');
+const { catalog, systemsCatalog } = require('./games');
 
 const APP_DIR = __dirname;
 const ROOT = path.join(__dirname, '..');
@@ -55,8 +60,10 @@ app.setName(PRODUCT.name);
 
 const file = (name) => path.join(app.getPath('userData'), name);
 const games = catalog(ROOT);
-const byId = new Map(games.map((g) => [g.id, g]));
-const IDS = games.map((g) => g.id);
+const systems = systemsCatalog(ROOT);
+const items = [...games, ...systems]; // всё, что открывается во вкладке
+const byId = new Map(items.map((g) => [g.id, g]));
+const IDS = items.map((g) => g.id);
 
 let win = null;
 let settings = Settings.normalize(null);
@@ -179,7 +186,8 @@ async function ask(opts) {
 function createView(id) {
   const g = byId.get(id);
   const ses = session.fromPartition('persist:' + id);
-  guardSession(ses, g.dir);
+  const folders = g.folders || g.dir;
+  guardSession(ses, folders);
   const view = new WebContentsView({
     webPreferences: {
       partition: 'persist:' + id,
@@ -188,6 +196,9 @@ function createView(id) {
       nodeIntegration: false,
       webSecurity: true,
       preload: path.join(APP_DIR, 'game-preload.js'),
+      // Демо системы держит игры в рамках: предзагрузка (громкость, а в проверках подмена
+      // захвата мыши) нужна и им. Node в рамках при этом нет - страница в песочнице.
+      nodeIntegrationInSubFrames: !!g.system,
       backgroundThrottling: true,
       spellcheck: false,
       autoplayPolicy: 'no-user-gesture-required',
@@ -197,7 +208,7 @@ function createView(id) {
   view.setBackgroundColor(THEMES[settings.theme].bg);
   const wc = view.webContents;
   wc.setBackgroundThrottling(true);
-  guardContents(wc, g.dir, () => !busy() && tabs.active === id && views.get(id) === view);
+  guardContents(wc, folders, () => !busy() && tabs.active === id && views.get(id) === view);
   wc.on('before-input-event', (event, input) => {
     // Esc игре, которая просила его себе (games.js, escToGame): Chromium клавишу не видит - захват мыши
     // не снимается «по Esc человека», и игра потом может вернуть его без щелчка. Событие отдаётся с
@@ -277,15 +288,29 @@ function destroyView(id) {
   if (skip) close(); else savePage(wc).then(close, close);
 }
 
+// Протокол оболочек (web/_os-shared/README.md): рамкам игр внутри страницы - {mix: 'pause'},
+// когда с вкладки ушли, и {mix: 'resume'}, когда вернулись (паузу снимает игрок). Скрытая
+// вкладка и так получает visibilitychange, но демо системы по этому сообщению ещё и
+// останавливают свои окна с играми так же, как при сворачивании окна в самом демо.
+// У страницы игры рамок нет - сообщение уходит в пустоту.
+function postMix(view, mix) {
+  if (!view || view.webContents.isDestroyed()) return;
+  const js = `for (const f of document.querySelectorAll('iframe')) { try { f.contentWindow.postMessage({ mix: ${JSON.stringify(mix)} }, '*'); } catch (e) { /* рамка ещё грузится */ } }`;
+  view.webContents.executeJavaScript(js, true).catch(() => {});
+}
+
 function setTabs(next) {
   // Игра, с которой ушли, выходит из своего полноэкранного режима (requestFullscreen):
   // иначе, вернувшись, её застали бы на весь экран без полосы вкладок.
   const prev = views.get(tabs.active);
-  if (prev && next.active !== tabs.active && !prev.webContents.isDestroyed()) {
+  const switched = next.active !== tabs.active;
+  if (prev && switched && !prev.webContents.isDestroyed()) {
     prev.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
+    if (next.open.includes(tabs.active)) postMix(prev, 'pause');
   }
   tabs = next;
   for (const id of [...views.keys()]) if (!tabs.open.includes(id)) destroyView(id);
+  if (switched && views.has(tabs.active)) postMix(views.get(tabs.active), 'resume');
   if (tabs.active !== Tabs.HOME && !views.has(tabs.active)) createView(tabs.active);
   if (fullscreen && tabs.active === Tabs.HOME) setFullscreen(false);
   layout();
@@ -332,8 +357,15 @@ function applyAudio() {
   for (const [id, view] of views) view.webContents.setAudioMuted(Settings.isMuted(settings, id, tabs.active));
 }
 
+// Громкость - в каждую рамку страницы: у демо систем игры живут в рамках.
 function applyVolume() {
-  for (const view of views.values()) view.webContents.send('igroteka:volume', settings.volume / 100);
+  for (const view of views.values()) {
+    const wc = view.webContents;
+    if (wc.isDestroyed()) continue;
+    for (const frame of wc.mainFrame.framesInSubtree) {
+      try { frame.send('igroteka:volume', settings.volume / 100); } catch { /* рамка уже ушла */ }
+    }
+  }
 }
 
 function applyTheme() {
@@ -457,6 +489,7 @@ ipcMain.on('igroteka:page-setup', (e) => {
 ipcMain.handle('shell:init', (e) => (!fromShell(e) ? null : {
   product: { name: PRODUCT.name, version: PRODUCT.version },
   games: games.map((g) => ({ id: g.id, name: g.name, desc: g.desc, keys: g.keys || [], escToGame: !!g.escToGame })),
+  systems: systems.map((s) => ({ id: s.id, name: s.name, desc: s.desc, style: s.style, keys: [] })),
   platform: process.platform,
   ...snapshot(),
 }));
@@ -615,5 +648,5 @@ globalThis.__igroteka = {
   get maximized() { return TEST ? testMaximized : !!win && win.isMaximized(); },
   setMaximized(on) { if (TEST) { testMaximized = !!on; if (win) win.emit('maximize'); } else if (win) { if (on) win.maximize(); else win.unmaximize(); } },
   get windowFullScreen() { return TEST ? testFullScreen : !!win && win.isFullScreen(); },
-  views, errors, blocked, games, BAR_H,
+  views, errors, blocked, games, systems, BAR_H,
 };

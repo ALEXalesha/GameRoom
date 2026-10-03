@@ -6,7 +6,7 @@
 const api = window.igroteka;
 const $ = (sel) => document.querySelector(sel);
 
-let info = null;          // что не меняется: имя, версия, список игр
+let info = null;          // что не меняется: имя, версия, список игр и демо систем
 let state = null;         // вкладки, полный экран, настройки
 const thumb = (id) => `../assets/thumbs/${id}.jpg`;
 
@@ -39,7 +39,7 @@ function img(src, cls) {
   return i;
 }
 
-const gameById = (id) => info.games.find((g) => g.id === id);
+const gameById = (id) => info.games.find((g) => g.id === id) || info.systems.find((s) => s.id === id);
 
 // --- полоса вкладок ------------------------------------------------------------------
 
@@ -78,22 +78,32 @@ function edges() {
 
 // --- домашний экран ------------------------------------------------------------------
 
+function card(g) {
+  const play = el('button', { class: 'btn primary play', text: 'Играть' });
+  const title = el('h2', {}, el('span', { class: 'open-mark', title: 'Открыто во вкладке', hidden: '' }), g.name);
+  if (g.style) title.append(el('span', { class: 'style', text: 'в стиле ' + g.style }));
+  // Три части карточки - строки общей сетки (subgrid): имена и описания карточек
+  // одного ряда стоят на одной высоте, даже если одно имя переносится.
+  const c = el('article', { class: 'card', 'data-id': g.id, tabindex: '0' },
+    el('div', { class: 'shot' }, img(thumb(g.id))),
+    el('div', { class: 'head' }, title),
+    el('p', { class: 'desc', text: g.desc }),
+    el('div', { class: 'actions' }, play));
+  c.addEventListener('click', () => api.open(g.id));
+  c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.open(g.id); } });
+  return c;
+}
+
+// «Windows 11, macOS, iOS и One UI» - из поля style таблицы.
+function listJoin(words) {
+  return words.length > 1 ? words.slice(0, -1).join(', ') + ' и ' + words[words.length - 1] : words.join('');
+}
+
 function renderGrid() {
   $('#grid').style.setProperty('--cols', String(Math.min(5, Math.max(4, Math.ceil(info.games.length / 2)))));
-  $('#grid').replaceChildren(...info.games.map((g) => {
-    const play = el('button', { class: 'btn primary play', text: 'Играть' });
-    // Три части карточки - строки общей сетки (subgrid): имена и описания карточек
-    // одного ряда стоят на одной высоте, даже если одно имя переносится.
-    const card = el('article', { class: 'card', 'data-id': g.id, tabindex: '0' },
-      el('div', { class: 'shot' }, img(thumb(g.id))),
-      el('div', { class: 'head' },
-        el('h2', {}, el('span', { class: 'open-mark', title: 'Игра открыта во вкладке', hidden: '' }), g.name)),
-      el('p', { class: 'desc', text: g.desc }),
-      el('div', { class: 'actions' }, play));
-    card.addEventListener('click', () => api.open(g.id));
-    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); api.open(g.id); } });
-    return card;
-  }));
+  $('#grid').replaceChildren(...info.games.map(card));
+  $('#systems').replaceChildren(...info.systems.map(card));
+  $('#systems-note').textContent = `Демо в стиле ${listJoin(info.systems.map((s) => s.style))}, не связано с Apple/Microsoft/Samsung.`;
 }
 
 function renderBadges() {
@@ -101,7 +111,7 @@ function renderBadges() {
     const open = state.tabs.open.includes(card.dataset.id);
     card.querySelector('.open-mark').hidden = !open;
     card.classList.toggle('open', open);
-    card.querySelector('.play').textContent = open ? 'Вернуться' : 'Играть';
+    card.querySelector('.play').textContent = open ? 'Вернуться' : (gameById(card.dataset.id).style ? 'Открыть' : 'Играть');
   }
 }
 
@@ -138,7 +148,9 @@ function wireSettings() {
   for (const b of document.querySelectorAll('#set-theme button')) {
     b.addEventListener('click', () => api.setSetting('theme', b.dataset.themeValue));
   }
-  $('#clear-game').replaceChildren(...info.games.map((g) => el('option', { value: g.id, text: g.name })));
+  $('#clear-game').replaceChildren(
+    el('optgroup', { label: 'Игры' }, ...info.games.map((g) => el('option', { value: g.id, text: g.name }))),
+    el('optgroup', { label: 'Демо систем' }, ...info.systems.map((s) => el('option', { value: s.id, text: s.name }))));
   $('#clear-game').addEventListener('change', () => { $('#clear-hint').textContent = CLEAR_HINT; });
   $('#clear-btn').addEventListener('click', async () => {
     const id = $('#clear-game').value;
@@ -238,7 +250,7 @@ function apply(s) {
 
 (async () => {
   const init = await api.init();
-  info = { product: init.product, games: init.games };
+  info = { product: init.product, games: init.games, systems: init.systems || [] };
   document.title = init.product.name;
   for (const p of document.querySelectorAll('.product')) p.textContent = init.product.name;
   $('#version').textContent = 'версия ' + init.product.version;

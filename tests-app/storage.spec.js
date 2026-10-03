@@ -128,7 +128,8 @@ test('испорченные файлы настроек и вкладок не 
   const ctx = await H.launch({ files: { 'settings.json': '{"theme": "li', 'tabs.json': '[[[', 'window-state.json': 'мусор' } });
   try {
     expect(await H.tabs(ctx.app)).toEqual({ open: [], active: 'home' });
-    await expect(ctx.shell.locator('.card')).toHaveCount(require('../app/games').IDS.length);
+    await expect(ctx.shell.locator('#grid .card')).toHaveCount(require('../app/games').IDS.length);
+    await expect(ctx.shell.locator('#systems .card')).toHaveCount(require('../app/games').SYSTEM_IDS.length);
   } finally {
     await H.close(ctx);
     H.rmData(ctx.dataDir);

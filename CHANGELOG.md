@@ -1,5 +1,39 @@
 # Changelog / Журнал изменений
 
+## Unreleased
+
+**EN**
+
+- New: the browser version of Igroteka, `index.html` at the repository root: the same
+  cards and pictures, games in tabs of the page, a "System demos" section; works from
+  disk and from GitHub Pages (`.nojekyll` added). Pause/resume messages to the game when
+  its tab is left or the browser tab is hidden, full screen button, volume, theme,
+  reopening tabs, clearing one game's data.
+- The game table moved to `web/_shared/games-data.js`, shared by the app and the page.
+- New in the app: a "System demos" section (win11_3, macos-tahoe, ios26, oneui7) with the
+  same cards as the browser page; demos open in tabs with their own `persist:` session,
+  may load their own folder, `web/_os-shared` and the game folders, get the preload in
+  every frame (volume; pointer lock stub in tests) and pass `{mix: 'pause'|'resume'}` to
+  their game frames when the tab is left or shown again.
+- Fix: the app took the game name from `<title>` and showed "Операция" instead of
+  "Операция: Периметр"; now `<meta name="application-name">` comes first.
+
+**RU**
+
+- Новое: браузерная «Игротека», `index.html` в корне: те же карточки и картинки, игры во
+  вкладках страницы, раздел «Демо систем»; работает с диска и с GitHub Pages (добавлен
+  `.nojekyll`). Пауза и возврат игре при уходе с её вкладки и при скрытии вкладки
+  браузера, кнопка «на весь экран», громкость, тема, вкладки прошлого раза, очистка данных
+  одной игры.
+- Таблица игр перенесена в `web/_shared/games-data.js`, общую для приложения и страницы.
+- Новое в приложении: раздел «Демо систем» (win11_3, macos-tahoe, ios26, oneui7) с теми же
+  карточками, что на браузерной странице; демо открываются во вкладках со своим сеансом
+  `persist:`, им можно в свою папку, `web/_os-shared` и папки игр, предзагрузка - в каждой
+  рамке (громкость; в проверках подмена захвата мыши), уход с вкладки и возврат передаются
+  рамкам игр как `{mix: 'pause'|'resume'}`.
+- Исправлено: приложение брало имя игры из `<title>` и показывало «Операция» вместо
+  «Операция: Периметр»; теперь сначала `<meta name="application-name">`.
+
 ## 1.0.0 - 2026-09-26
 
 **EN**

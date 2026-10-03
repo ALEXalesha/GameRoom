@@ -12,8 +12,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test('запуск: домашний экран, карточка на каждую игру каталога - картинка, имя, описание, «Играть»', async () => {
   const { app, shell } = ctx;
-  await expect(shell.locator('.card')).toHaveCount(require('../app/games').IDS.length);
-  for (const card of await shell.locator('.card').all()) {
+  // Игры - в #grid; карточки «Демо систем» под ними проверяет systems.spec.js.
+  await expect(shell.locator('#grid .card')).toHaveCount(require('../app/games').IDS.length);
+  for (const card of await shell.locator('#grid .card').all()) {
     await expect(card.locator('h2')).not.toBeEmpty();
     await expect(card.locator('p')).not.toBeEmpty();
     await expect(card.locator('.play')).toHaveText('Играть');
