@@ -23,6 +23,11 @@ concepts and are not affiliated with any rights holders.
 
 ![A game in a tab](docs/screens/app-game.png)
 
+- **System demos.** Below the games is a "System demos" section: shells in the style of
+  Windows 11, macOS, iOS and One UI (`win11_3`, `macos-tahoe`, `ios26`, `oneui7`; not
+  affiliated with Apple/Microsoft/Samsung). Each opens in a tab like a game, with its own
+  storage; games in demo windows get the app volume and pause when the tab is left
+  (`{mix: 'pause'}`).
 - **Tabs.** Every game opens in its own tab. Clicking the card of a game that is already
   open switches to its tab. Close a tab with its cross or the middle mouse button.
 - **Separate storage per game.** One game cannot see the records and saves of another,
@@ -86,8 +91,8 @@ ten game folders go into the build.
 
 ```
 npm test                  # web/ pages in Chromium (284 checks)
-npm run test:unit         # laws of the app modules and the icon (40)
-npm run test:app          # the real app through Playwright (60, windows off-screen)
+npm run test:unit         # laws of the app modules and the icon (41)
+npm run test:app          # the real app through Playwright (73, windows off-screen)
 pip install -r requirements-py.txt
 python -m pytest tests/py # py/ programs (183)
 ```
