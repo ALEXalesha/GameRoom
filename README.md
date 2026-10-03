@@ -1,23 +1,27 @@
-# MixOfProject
+# GameRoom - Igroteka
 
 **English** · [Русский](README.ru.md)
+
+**[▶ Play Igroteka online](https://alexalesha.github.io/GameRoom/)** - the browser version on
+GitHub Pages: ten games and four system demos, each game in a tab of one page. Nothing to
+install; it also works from disk (double-click `index.html`).
 
 A collection of small projects that have been fixed up, plus **Igroteka** («Игротека»,
 "game library"), a desktop app that runs ten of the games from this collection in
 tabs of one window.
 
-- `web/` - 25 standalone HTML pages: games, tools and desktop-shell demos. Each opens
+- `web/` - 19 standalone HTML pages: games, tools and desktop-shell demos. Each opens
   with a double click on `index.html` and works offline.
 - `py/` - 6 Python programs (PySide6).
 - `app/` - Igroteka, the Electron desktop app.
 
 The interface of all projects is in Russian.
 
-![Igroteka home screen](docs/screens/app-home.png)
+![Igroteka home screen](docs/screens/web-home.png)
 
 ## Igroteka
 
-Ten games in one window: Cube World, Cube Parkour, 3D Shooting Range, Dino Run,
+Ten games in one window: Cube World, Blockcity, Operation: Perimeter, Dino Run,
 Hop-Skip (a platformer), Horizon Drift, Fire Jungle, Space Shooter, Blocks and Sudoku. All games are fan
 concepts and are not affiliated with any rights holders.
 
@@ -90,18 +94,16 @@ rights, Russian) and `dist/Igroteka-1.0.0-Portable.exe`, 98 MB each. Only `app/`
 ten game folders go into the build.
 
 ```
-npm test                  # web/ pages in Chromium (284 checks)
-npm run test:unit         # laws of the app modules and the icon (41)
-npm run test:app          # the real app through Playwright (73, windows off-screen)
+npm test                  # web/ pages in Chromium
+npm run test:unit         # laws of the app modules and the icon
+npm run test:app          # the real app through Playwright
 pip install -r requirements-py.txt
-python -m pytest tests/py # py/ programs (183)
+python -m pytest tests/py # py/ programs
 ```
 
 Helpers: `npm run thumbs` re-renders the card pictures, `npm run screenshots` takes the
 pictures for this file, `npm run probe:background` shows what each game does in a
 background tab.
-`npm run single` builds `dist/igroteka-single.html`: the whole Igroteka with all games
-and system demos in one offline HTML file (about 4.5 MB).
 
 ### Browser version
 
@@ -153,9 +155,8 @@ and [docs/audit/apps.md](docs/audit/apps.md). Scores are after the fixes.
 | `jungle-strike` | Fire Jungle: a run-and-gun arcade with a boss | 11 | 7 / 7 / 6 |
 | `minecraft_clone_3d_1` | Cube World: a voxel sandbox, builds are saved | 11 | 7 / 7 / 6 |
 | `dino` | Dino Run: jump over cacti and duck under birds | 11 | 6 / 8 / 3 |
-| `fps_1` | 3D Shooting Range: timed target shooting | 10 | 6 / 7 / 4 |
-| `roblox-mini` | Cube Parkour: collect coins on platforms against the clock | 10 | 5 / 7 / 4 |
-| `volshebnyy-sad` | Magic Garden: a toy for small children, flowers and butterflies | 9 | 4 / 8 / 7 |
+| `fps_1` | Operation: Perimeter: a tactical first-person shooter, rounds, economy, bots | 10 | 6 / 7 / 4 |
+| `roblox-mini` | Blockcity: a platform of places (obby, race, lava, coins, sandbox, slide) with an avatar | 10 | 5 / 7 / 4 |
 
 **Tools** (score 1-10: usefulness, reliability, completeness)
 
@@ -163,11 +164,7 @@ and [docs/audit/apps.md](docs/audit/apps.md). Scores are after the fixes.
 |---|---|---|---|
 | `python_ide` | Offline Python 3.13: editor, Stop, `input()`, files | 11 | 8 |
 | `calculator` | Calculator with exact decimal arithmetic and operator precedence | 40 | 8 |
-| `player` | Player for your own files, remembers them after a restart | 12 | 8 |
 | `english-abbreviations` | Dictionary of English abbreviations with smart search | 22 | 8 |
-| `token-calc` | Token count and price estimate for a Claude request (fan concept) | 14 | 7 |
-| `telegram` | Chat demo: two tabs chat live (fan concept) | 14 | 7 |
-| `yandex-music` | Music service with a made-up catalogue and synthesised sound (fan concept) | 14 | 7 |
 | `browser_1` | Mini browser with built-in pages, history and bookmarks | 13 | 6 |
 
 **Desktop-shell demos** (no detailed review yet, only the common law)
@@ -175,7 +172,6 @@ and [docs/audit/apps.md](docs/audit/apps.md). Scores are after the fixes.
 | Folder | What it is |
 |---|---|
 | `win11_3` | A Windows 11 style shell |
-| `windows_4` | A Windows style desktop |
 | `macos-tahoe` | A macOS style desktop |
 | `ios26` | An iOS style phone |
 | `oneui7` | A One UI style phone |
@@ -204,11 +200,18 @@ They sit next to the pages unchanged, each with its licence text.
 | three.js r149 | `web/{fps_1,horizon_drift_offline,minecraft_clone_3d_1,roblox-mini}/vendor/` | MIT |
 | CodeMirror 5.65.21 | `web/python_ide/vendor/codemirror/` | MIT |
 | Pyodide 0.29.5 (Python 3.13.2) | `web/python_ide/vendor/pyodide/` | MPL-2.0; Python standard library: PSF |
-| pdf.js 3.11.174 | `web/token-calc/vendor/pdfjs/` | Apache-2.0 |
-| mammoth 1.6.0 | `web/token-calc/vendor/mammoth/` | BSD-2-Clause |
 
 The app is built with Electron (MIT) and electron-builder (MIT); tests use Playwright
 (Apache-2.0).
+
+## What this GitHub copy leaves out
+
+The working copy lives on a home Gitea server. Not published here, in the whole history:
+`windows_4` (an older Windows-style desktop, replaced by `win11_3`), the pages removed from the
+collection (a player, a chat demo, a token calculator, a toy for small children and a music
+service demo), and the first raw imports of pages that still had other companies' names, heroes
+and logos. Each game and demo is also published as its own repository, see
+[ALEXalesha](https://github.com/ALEXalesha).
 
 ## Licence
 

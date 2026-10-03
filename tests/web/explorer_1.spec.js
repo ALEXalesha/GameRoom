@@ -280,12 +280,6 @@ test('перенос старых данных без правки и с пер�
   expect(await page.evaluate(() => localStorage.getItem('explorer_1.vfs'))).toBeNull();
 });
 
-test('windows_4 хранит свои файлы под своим ключом и не затирает данные explorer_1', async () => {
-  const src = fs.readFileSync(path.join(WEB, 'windows_4', 'apps', 'explorer.html'), 'utf8');
-  expect(src).not.toContain("'explorer_1.vfs'");
-  expect(src).toContain("'windows_4.explorer'");
-});
-
 test('файл с диска в настоящую папку: одноимённый не перезаписывается молча', async ({ page }) => {
   await page.addInitScript(fakeDisk);
   await openOs(page, NAME);
