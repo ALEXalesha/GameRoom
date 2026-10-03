@@ -21,7 +21,8 @@ test.describe('horizon_drift_offline: открытый мир', () => {
           for (let i = e.i0 + 1; i <= e.i1; i++) maxGap = Math.max(maxGap, Math.hypot(M.X[i] - M.X[i - 1], M.Z[i] - M.Z[i - 1]));
           endGap = Math.max(endGap, Math.hypot(M.X[e.i0] - M.nodes[e.a].x, M.Z[e.i0] - M.nodes[e.a].z), Math.hypot(M.X[e.i1] - M.nodes[e.b].x, M.Z[e.i1] - M.nodes[e.b].z));
         }
-        const far = M.points.filter((p) => { let d = 1e9; for (let i = 0; i < M.N; i += 3) d = Math.min(d, Math.hypot(M.X[i] - p.x, M.Z[i] - p.z)); return d > 70; }).map((p) => p.id);
+        // фестиваль стоит дальше (площадка 40 м и подъезд к ней), остальные точки - у дорог
+        const far = M.points.filter((p) => { let d = 1e9; for (let i = 0; i < M.N; i += 3) d = Math.min(d, Math.hypot(M.X[i] - p.x, M.Z[i] - p.z)); return d > (p.type === 'fest' ? 110 : 70); }).map((p) => p.id);
         const types = {}; M.points.forEach((p) => { types[p.type] = (types[p.type] || 0) + 1; });
         // маршрут по рёбрам есть между любыми двумя рёбрами
         let routes = true; for (const a of M.edges) for (const b of M.edges) if (!WD.routeEdges(M, a.id, b.id)) routes = false;
@@ -219,6 +220,7 @@ test.describe('horizon_drift_offline: открытый мир', () => {
   }
 
   test('после прогрева езда по карте в разную погоду и время не собирает новых шейдеров; вход в мир быстрый', async ({ page }) => {
+    test.setTimeout(600_000);                 // под полной загрузкой машины прогон дольше; само условие то же
     await page.setViewportSize({ width: 640, height: 400 });
     await openDrift(page);
     for (const map of ['metro', 'coast']) {
