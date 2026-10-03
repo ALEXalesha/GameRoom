@@ -308,6 +308,43 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
     expect(r['сзади']).toBeLessThan(0.6);
   });
 
+  test('вне дорог склон круче 35 градусов - стенка: на 300 км/ч машина не взлетает по склону у входа в тоннель', async ({ page }) => {
+    await openDrift(page);
+    const res = [];
+    for (const map of ['desert', 'coast', 'mountains']) {
+      await startWorld(page, map);
+      const r = await page.evaluate(() => {
+        const w = __drift.world, M = w.M, p = w.player;
+        w.trafficOn = false; for (const a of w.traffic.slice()) w.removeAi(a); for (const a of w.rivals.slice()) w.removeAi(a);
+        // самый крутой склон вне дорог у входов в тоннели (по земле физики)
+        let best = null;
+        for (let i = 1; i < M.N - 1; i++) {
+          if (!((M.FL[i] & 2) && !(M.FL[i - 1] & 2))) continue;
+          for (let dx = -60; dx <= 60; dx += 4) for (let dz = -60; dz <= 60; dz += 4) {
+            const x = M.X[i] + dx, z = M.Z[i] + dz, q = M.nearestRoad(x, z); if (q && q.d < q.hw + 6) continue;
+            const h0 = M.groundAt(x, z).y, gx = M.groundAt(x + 1, z).y - h0, gz = M.groundAt(x, z + 1).y - h0, g = Math.hypot(gx, gz);
+            if (g > 0.9 && (!best || g > best.g) && !M.solidAt(x, h0 + 0.5, z, 1)) best = { x, z, gx: gx / g, gz: gz / g, g };
+          }
+        }
+        if (!best) return { found: false };
+        // разгон снизу вверх по склону
+        p.x = best.x - best.gx * 30; p.z = best.z - best.gz * 30; p.h = Math.atan2(best.gx, best.gz); p.y = M.groundAt(p.x, p.z).y; p.air = false; p.w = 0; p.vx = best.gx * 80; p.vz = best.gz * 80; p.solidCache = null;
+        let worst = 0, px = p.x, pz = p.z, py = p.y;
+        for (let k = 0; k < 120; k++) {
+          __drift.stepWorld(1, { thr: 1 });
+          const dxz = Math.hypot(p.x - px, p.z - pz), g = M.groundAt(p.x, p.z);
+          if (!p.air && !g.onRoad && dxz > 0.05 && p.y - py > 0.06) worst = Math.max(worst, (p.y - py) / dxz);
+          px = p.x; pz = p.z; py = p.y;
+        }
+        return { found: true, slope: +best.g.toFixed(2), worst: +worst.toFixed(2) };
+      });
+      res.push({ map, ...r });
+    }
+    console.log(JSON.stringify(res));
+    expect(res.filter((r) => r.found).length).toBeGreaterThan(0);
+    for (const r of res.filter((r) => r.found)) expect(r.worst, r.map + ' (склон ' + r.slope + ')').toBeLessThan(0.75);
+  });
+
   test('нарисованная земля совпадает с физической: дороги, тротуары, перекрёстки, площадка и подъезд фестиваля, мосты, тоннели', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 200 });
     await openDrift(page);
@@ -317,13 +354,15 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
       const r = await page.evaluate(() => {
         const w = __drift.world, M = w.M, W = __drift.worldRender, THREE = window.THREE, rc = new THREE.Raycaster(), o = new THREE.Vector3(), dn = new THREE.Vector3(0, -1, 0), g = {};
         const worst = {}, at = {};
-        const sample = (kind, x, z, yRef) => {
+        const sample = (kind, x, z, yRef, deep) => {
           const gy = M.groundAt(x, z, g, yRef).y;
-          const objs = []; for (const ch of W.chunks.values()) if (ch.lod === 0) objs.push(ch.group); objs.push(W.markers.group);
-          o.set(x, gy + 1.2, z); rc.set(o, dn); rc.far = 3;
+          // свод горы рисует кусок, которому принадлежит дорога; он может быть и соседним (дальним) - для склонов берём все куски
+          const objs = []; for (const ch of W.chunks.values()) if (ch.lod === 0 || (deep && ch.lod === 1)) objs.push(ch.group); objs.push(W.markers.group);
+          // deep: луч сверху с высоты 25 м - нарисованная земля может быть и намного ниже физической (пустота под машиной)
+          o.set(x, gy + (deep ? 25 : 1.2), z); rc.set(o, dn); rc.far = deep ? 60 : 3;
           const hit = rc.intersectObjects(objs, true).find((h) => !h.object.userData.car && h.object.userData.ghost === 'ground');
-          if (!hit) return;
-          const d = Math.abs(hit.point.y - gy);
+          if (!hit && !deep) return;
+          const d = hit ? Math.abs(hit.point.y - gy) : 99;
           if (!(worst[kind] >= d)) { worst[kind] = +d.toFixed(3); at[kind] = Math.round(x) + ',' + Math.round(z); }
         };
         const visit = (x, z, fn) => { w.placeAt(x, z); for (let k = 0; k < 60 && (W.info().pending > 0 || k < 2); k++) W.stream(true); W.scene.updateMatrixWorld(true); fn(); };
@@ -343,6 +382,22 @@ test.describe('horizon_drift_offline: твёрдый мир', () => {
         }
         // перекрёстки
         for (const nk in M.nodes) { const nd = M.nodes[nk]; if (nd.edges.length < 2) continue; visit(nd.x, nd.z, () => { for (let a = 0; a < 6.28; a += 0.8) for (const r of [0, 4, 8]) sample('перекрёсток', nd.x + Math.cos(a) * r, nd.z + Math.sin(a) * r, nd.y + 0.5); }); }
+        // бездорожье у входов в тоннели (склон горы над порталом): нарисованный склон = земля физики
+        let mouths = 0;
+        for (let i = 1; i < M.N - 1 && mouths < 4; i++) {
+          if (!((M.FL[i] & 2) && !(M.FL[i - 1] & 2) && M.E[i] === M.E[i - 1])) continue;
+          mouths++;
+          visit(M.X[i], M.Z[i], () => {
+            const nx = -M.TZ[i], nz = M.TX[i], hw = M.edges[M.E[i]].hw;
+            // шаг вдоль - со сдвигом 0.7 м: точка ровно на кромке свода (первая точка тоннеля) - вопрос точности луча, а не земли
+            for (let along = -39.3; along <= 40; along += 5) for (const lat of [hw + 4, hw + 9, hw + 16, hw + 25, -hw - 4, -hw - 9, -hw - 16, -hw - 25]) {
+              const x = M.X[i] + M.TX[i] * along + nx * lat, z = M.Z[i] + M.TZ[i] * along + nz * lat, q = M.nearestRoad(x, z);
+              if (q && q.d < q.hw + 2) continue;
+              if (M.solidAt(x, M.groundAt(x, z).y + 0.5, z, 0)) continue;           // внутри опоры портала машине не стоять
+              sample('склон у тоннеля', x, z, undefined, true);
+            }
+          });
+        }
         // фестиваль
         const f = M.fest || M.pointById('fest');
         let gap = 1e9; for (let i = 0; i < M.N; i++) gap = Math.min(gap, Math.hypot(M.X[i] - f.x, M.Z[i] - f.z) - M.edges[M.E[i]].hw);

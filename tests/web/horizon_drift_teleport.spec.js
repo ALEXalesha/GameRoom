@@ -105,4 +105,19 @@ test.describe('horizon_drift_offline: перемещение на фестива
     });
     for (const x of r) { expect(x.speedBefore, x.mode).toBeGreaterThan(10); expect(x.finite, x.mode).toBe(true); expect(x.speedAfter, x.mode).toBe(0); }
   });
+  test('смена карт не оставляет текстур и геометрий: входы и выходов из мира - счётчики видеокарты возвращаются', async ({ page }) => {
+    await page.setViewportSize({ width: 480, height: 270 });
+    await openDrift(page, { low: false });              // высокое качество: с тенями (утечка шла через проход теней)
+    const r = await page.evaluate(async () => {
+      const mem = () => { const m = __drift.renderer.info.memory; return { tex: m.textures, geo: m.geometries }; };
+      const W = __drift.worldRender;
+      // круг как у игрока: мир, езда сзади и из салона, выход
+      const cycle = async (map) => { await __drift.startWorld(map, { fest: true }); __drift.manual = true; for (const m of ['chase', 'cockpit']) { __drift.setCamera(m); for (let k = 0; k < 30; k++) { __drift.stepWorld(2); W.frame(1 / 60, 1, m); } } __drift.quitWorld(); __drift.render.frame(1 / 60, 1, 'chase'); };
+      await cycle('coast'); await cycle('mountains');
+      const base = mem(), seen = [];
+      for (const map of ['coast', 'mountains', 'metro', 'desert', 'mountains', 'coast']) { await cycle(map); seen.push(mem()); }
+      return { base, seen };
+    });
+    for (const m of r.seen) { expect(m.tex, 'текстуры').toBeLessThanOrEqual(r.base.tex); expect(m.geo, 'геометрии').toBeLessThanOrEqual(r.base.geo); }
+  });
 });
