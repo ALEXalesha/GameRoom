@@ -100,6 +100,8 @@ python -m pytest tests/py # py/ programs (183)
 Helpers: `npm run thumbs` re-renders the card pictures, `npm run screenshots` takes the
 pictures for this file, `npm run probe:background` shows what each game does in a
 background tab.
+`npm run single` builds `dist/igroteka-single.html`: the whole Igroteka with all games
+and system demos in one offline HTML file (about 4.5 MB).
 
 ### Browser version
 

@@ -19,6 +19,7 @@
     "test:unit": "node --test \"tests-app/unit/*.test.js\"",
     "test:app": "playwright test --config=playwright.app.config.js",
     "thumbs": "node tools/make-thumbs.js",
+    "single": "node tools/make-single.js",
     "icon": "node tools/make-icon.js",
     "screenshots": "node tools/make-screenshots.js",
     "probe:background": "electron tools/probe-background.js",
