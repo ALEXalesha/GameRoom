@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- 404 of the root site. Old links into the Hub (/GameRoom/..., when it was «Игротека» in the
+     repository GameRoom) go to the same place of the Hub at the root: /GameRoom/web/dino/ ->
+     /web/dino/. Anything else - a short page with a link to the Hub. -->
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Страница не найдена - Хаб</title>
+  <script>
+    (function () {
+      var m = /^\/GameRoom(\/.*)?$/i.exec(location.pathname);
+      if (m) location.replace((m[1] || '/') + location.search + location.hash);
+    })();
+  </script>
+  <style>body { font: 16px system-ui, sans-serif; background: #110e20; color: #f4f4f8; display: grid; place-items: center; min-height: 90vh; margin: 0; text-align: center; } a { color: #a99bff; }</style>
+</head>
+<body>
+  <div>
+    <h1>Страница не найдена</h1>
+    <p>Игры, программы и демо - в <a href="/">Хабе</a>.</p>
+  </div>
+</body>
+</html>
